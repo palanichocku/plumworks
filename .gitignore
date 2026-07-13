@@ -1,0 +1,42 @@
+# Dependencies/build output
+node_modules/
+.next/
+.vercel/
+dist/
+build/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Mac/system files
+.DS_Store
+
+# Legacy Car Doc / Shopman32 data - DO NOT COMMIT
+OriginalWinApp/
+Shopman32/
+legacy-data/
+dbf_analysis_output/
+
+# Legacy database/report files
+*.dbf
+*.fpt
+*.cdx
+*.dbc
+*.dct
+*.dcx
+*.frx
+*.frt
+*.qpr
+*.qpx
+*.ocx
+*.dll
+*.exe
+
+# Extracted customer samples
+*_sample_rows.json
+schema_summary.json
+file_inventory*.txt
+dbfiles.txt
+config_report_files.txt
