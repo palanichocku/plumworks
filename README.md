@@ -50,6 +50,17 @@ The command is never run automatically. It reads the two approved DBF paths
 without changing them and reports counts/status only; it does not print record
 contents. Memo pointers are staged without opening any related legacy files.
 
+Preview raw-to-clean normalization without database writes:
+
+~~~bash
+npm run legacy:transform:customers-vehicles -- --dry-run
+~~~
+
+The transform reads only the latest raw customer/vehicle staging run for the Car
+Doc shop. After the clean-field migration is approved, running the command
+without `--dry-run` upserts customers by `legacy_custno` and vehicles by
+`legacy_carno`.
+
 The current project includes the application shell, Supabase authentication
 foundation, and Prisma schema. Legacy data import is intentionally not included
 yet.

@@ -62,6 +62,14 @@ model Customer {
   displayName        String              @map("display_name")
   email              String?
   phone              String?
+  phone2             String?
+  addressLine1       String?             @map("address_line1")
+  addressLine2       String?             @map("address_line2")
+  city               String?
+  state              String?
+  postalCode         String?             @map("postal_code")
+  notes              String?
+  message            String?
   legacyCustno       String?             @map("legacy_custno")
   legacySourceTable  String?             @map("legacy_source_table")
   createdAt          DateTime            @default(now()) @map("created_at")
@@ -86,8 +94,12 @@ model Vehicle {
   year              Int?
   make              String?
   model             String?
+  engine            String?
   vin               String?
   licensePlate      String?       @map("license_plate")
+  odometer          Int?
+  notes             String?
+  message           String?
   legacyCarno       String?       @map("legacy_carno")
   legacySourceTable String?       @map("legacy_source_table")
   createdAt         DateTime      @default(now()) @map("created_at")
