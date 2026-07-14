@@ -13,7 +13,7 @@ enum ShopMembershipRole {
 }
 
 model Shop {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String
   addressLine1       String?             @map("address_line1")
   city               String?
@@ -21,7 +21,7 @@ model Shop {
   postalCode         String?             @map("postal_code")
   phone              String?
   createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   customers          Customer[]
   vehicles           Vehicle[]
   repairOrders       RepairOrder[]
@@ -41,12 +41,12 @@ model Shop {
 }
 
 model ShopMembership {
-  id        String             @id @default(uuid()) @db.Uuid
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId    String             @map("shop_id") @db.Uuid
   userId    String             @map("user_id") @db.Uuid
   role      ShopMembershipRole @default(STAFF)
   createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
+  updatedAt DateTime           @default(now()) @updatedAt @map("updated_at")
   shop      Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, userId])
@@ -55,7 +55,7 @@ model ShopMembership {
 }
 
 model Customer {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId             String              @map("shop_id") @db.Uuid
   displayName        String              @map("display_name")
   email              String?
@@ -63,7 +63,7 @@ model Customer {
   legacyCustno       String?             @map("legacy_custno")
   legacySourceTable  String?             @map("legacy_source_table")
   createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   shop               Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   vehicles           Vehicle[]
   repairOrders       RepairOrder[]
@@ -78,7 +78,7 @@ model Customer {
 }
 
 model Vehicle {
-  id                String        @id @default(uuid()) @db.Uuid
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String        @map("shop_id") @db.Uuid
   customerId        String        @map("customer_id") @db.Uuid
   year              Int?
@@ -89,7 +89,7 @@ model Vehicle {
   legacyCarno       String?       @map("legacy_carno")
   legacySourceTable String?       @map("legacy_source_table")
   createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
   shop              Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
   customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   repairOrders      RepairOrder[]
@@ -104,7 +104,7 @@ model Vehicle {
 }
 
 model RepairOrder {
-  id                 String             @id @default(uuid()) @db.Uuid
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId             String             @map("shop_id") @db.Uuid
   customerId         String             @map("customer_id") @db.Uuid
   vehicleId          String             @map("vehicle_id") @db.Uuid
@@ -118,7 +118,7 @@ model RepairOrder {
   legacyRoNo         String?            @map("legacy_ro_no")
   legacySourceTable  String?            @map("legacy_source_table")
   createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
   shop               Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
   customer           Customer           @relation(fields: [customerId], references: [id])
   vehicle            Vehicle            @relation(fields: [vehicleId], references: [id])
@@ -136,7 +136,7 @@ model RepairOrder {
 }
 
 model RepairOrderPart {
-  id                String      @id @default(uuid()) @db.Uuid
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String      @map("shop_id") @db.Uuid
   repairOrderId     String      @map("repair_order_id") @db.Uuid
   description       String
@@ -146,7 +146,7 @@ model RepairOrderPart {
   legacyRoNo        String?     @map("legacy_ro_no")
   legacySourceTable String?     @map("legacy_source_table")
   createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at")
   shop              Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   repairOrder       RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
 
@@ -156,7 +156,7 @@ model RepairOrderPart {
 }
 
 model RepairOrderLabor {
-  id                String      @id @default(uuid()) @db.Uuid
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String      @map("shop_id") @db.Uuid
   repairOrderId     String      @map("repair_order_id") @db.Uuid
   description       String
@@ -165,7 +165,7 @@ model RepairOrderLabor {
   legacyRoNo        String?     @map("legacy_ro_no")
   legacySourceTable String?     @map("legacy_source_table")
   createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at")
   shop              Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   repairOrder       RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
 
@@ -175,7 +175,7 @@ model RepairOrderLabor {
 }
 
 model Invoice {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId             String              @map("shop_id") @db.Uuid
   repairOrderId      String?             @map("repair_order_id") @db.Uuid
   customerId         String              @map("customer_id") @db.Uuid
@@ -189,7 +189,7 @@ model Invoice {
   legacyRoNo         String?             @map("legacy_ro_no")
   legacySourceTable  String?             @map("legacy_source_table")
   createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   shop               Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   repairOrder        RepairOrder?        @relation(fields: [repairOrderId], references: [id])
   customer           Customer            @relation(fields: [customerId], references: [id])
@@ -208,7 +208,7 @@ model Invoice {
 }
 
 model InvoicePart {
-  id                String   @id @default(uuid()) @db.Uuid
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String   @map("shop_id") @db.Uuid
   invoiceId         String   @map("invoice_id") @db.Uuid
   description       String
@@ -218,7 +218,7 @@ model InvoicePart {
   legacyRoNo        String?  @map("legacy_ro_no")
   legacySourceTable String?  @map("legacy_source_table")
   createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -228,7 +228,7 @@ model InvoicePart {
 }
 
 model InvoiceLabor {
-  id                String   @id @default(uuid()) @db.Uuid
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String   @map("shop_id") @db.Uuid
   invoiceId         String   @map("invoice_id") @db.Uuid
   description       String
@@ -237,7 +237,7 @@ model InvoiceLabor {
   legacyRoNo        String?  @map("legacy_ro_no")
   legacySourceTable String?  @map("legacy_source_table")
   createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -247,7 +247,7 @@ model InvoiceLabor {
 }
 
 model Payment {
-  id                String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String    @map("shop_id") @db.Uuid
   invoiceId         String?   @map("invoice_id") @db.Uuid
   customerId        String?   @map("customer_id") @db.Uuid
@@ -258,7 +258,7 @@ model Payment {
   legacyRoNo        String?   @map("legacy_ro_no")
   legacySourceTable String?   @map("legacy_source_table")
   createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
   shop              Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
   invoice           Invoice?  @relation(fields: [invoiceId], references: [id])
   customer          Customer? @relation(fields: [customerId], references: [id])
@@ -270,7 +270,7 @@ model Payment {
 }
 
 model AccountReceivable {
-  id                String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String    @map("shop_id") @db.Uuid
   invoiceId         String?   @map("invoice_id") @db.Uuid
   customerId        String    @map("customer_id") @db.Uuid
@@ -280,7 +280,7 @@ model AccountReceivable {
   legacyRoNo        String?   @map("legacy_ro_no")
   legacySourceTable String?   @map("legacy_source_table")
   createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
   shop              Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
   invoice           Invoice?  @relation(fields: [invoiceId], references: [id])
   customer          Customer  @relation(fields: [customerId], references: [id])
@@ -293,7 +293,7 @@ model AccountReceivable {
 }
 
 model Employee {
-  id                String        @id @default(uuid()) @db.Uuid
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String        @map("shop_id") @db.Uuid
   displayName       String        @map("display_name")
   email             String?
@@ -301,7 +301,7 @@ model Employee {
   active            Boolean       @default(true)
   legacySourceTable String?       @map("legacy_source_table")
   createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
   shop              Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
   repairOrders      RepairOrder[]
 
@@ -311,7 +311,7 @@ model Employee {
 }
 
 model LegacyImportRun {
-  id               String              @id @default(uuid()) @db.Uuid
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId           String              @map("shop_id") @db.Uuid
   status           String              @default("pending")
   sourceLabel      String              @map("source_label")
@@ -321,7 +321,7 @@ model LegacyImportRun {
   recordsImported  Int                 @default(0) @map("records_imported")
   recordsFailed    Int                 @default(0) @map("records_failed")
   createdAt        DateTime            @default(now()) @map("created_at")
-  updatedAt        DateTime            @updatedAt @map("updated_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
   shop             Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   errors           LegacyImportError[]
 
@@ -330,7 +330,7 @@ model LegacyImportRun {
 }
 
 model LegacyImportError {
-  id                String          @id @default(uuid()) @db.Uuid
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId            String          @map("shop_id") @db.Uuid
   importRunId       String          @map("import_run_id") @db.Uuid
   legacySourceTable String?         @map("legacy_source_table")
