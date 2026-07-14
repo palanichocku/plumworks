@@ -4,6 +4,13 @@ import { PrintButton } from "@/components/print-button";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
 import { formatDate, formatMoney } from "@/lib/formatters";
 
+type PrintableInvoice = NonNullable<
+  Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
+>;
+type PrintablePayment = PrintableInvoice["payments"][number];
+type PrintablePart = PrintableInvoice["parts"][number];
+type PrintableLabor = PrintableInvoice["labor"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function PrintableInvoicePage({
@@ -22,7 +29,8 @@ export default async function PrintableInvoicePage({
         .join(" ") || "Vehicle details unavailable"
     : "Vehicle not linked";
   const paymentTotal = invoice.payments.reduce(
-    (total, payment) => total + Number(payment.amount.toString()),
+    (total: number, payment: PrintablePayment) =>
+      total + Number(payment.amount.toString()),
     0,
   );
   const receivable = invoice.accountsReceivable[0];
@@ -68,7 +76,7 @@ export default async function PrintableInvoicePage({
       </section>
 
       <PrintLines title="Parts" empty="No parts recorded">
-        {invoice.parts.map((part) => (
+        {invoice.parts.map((part: PrintablePart) => (
           <tr key={part.id} className="border-b border-slate-200 align-top">
             <td className="py-3 pr-4">{part.description}</td>
             <td className="py-3 pr-4 text-right">{part.quantity.toString()}</td>
@@ -78,7 +86,7 @@ export default async function PrintableInvoicePage({
       </PrintLines>
 
       <PrintLines title="Labor" empty="No labor recorded">
-        {invoice.labor.map((labor) => (
+        {invoice.labor.map((labor: PrintableLabor) => (
           <tr key={labor.id} className="border-b border-slate-200 align-top">
             <td className="py-3 pr-4">{labor.description}</td>
             <td className="py-3 pr-4 text-right">{labor.hours.toString()}</td>

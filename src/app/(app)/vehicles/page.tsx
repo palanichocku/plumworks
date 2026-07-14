@@ -3,6 +3,9 @@ import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getVehiclesForCurrentShop } from "@/lib/data/vehicles";
 
+type VehiclesResult = Awaited<ReturnType<typeof getVehiclesForCurrentShop>>;
+type VehicleListItem = VehiclesResult["vehicles"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function VehiclesPage({
@@ -68,7 +71,7 @@ export default async function VehiclesPage({
       ) : (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ul className="divide-y divide-slate-200">
-            {vehicles.map((vehicle) => {
+            {vehicles.map((vehicle: VehicleListItem) => {
               const description =
                 [vehicle.year, vehicle.make, vehicle.model]
                   .filter(Boolean)

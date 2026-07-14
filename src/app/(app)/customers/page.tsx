@@ -3,6 +3,9 @@ import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getCustomersForCurrentShop } from "@/lib/data/customers";
 
+type CustomersResult = Awaited<ReturnType<typeof getCustomersForCurrentShop>>;
+type CustomerListItem = CustomersResult["customers"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage({
@@ -68,7 +71,7 @@ export default async function CustomersPage({
       ) : (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ul className="divide-y divide-slate-200">
-            {customers.map((customer) => (
+            {customers.map((customer: CustomerListItem) => (
               <li key={customer.id}>
                 <Link
                   href={`/customers/${customer.id}`}

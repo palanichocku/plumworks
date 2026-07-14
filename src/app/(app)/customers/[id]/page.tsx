@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import { ServiceHistory } from "@/components/service-history";
 import { getCustomerForCurrentShop } from "@/lib/data/customers";
 
+type CustomerDetail = NonNullable<
+  Awaited<ReturnType<typeof getCustomerForCurrentShop>>
+>;
+type CustomerVehicle = CustomerDetail["vehicles"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function CustomerDetailPage({
@@ -71,7 +76,7 @@ export default async function CustomerDetailPage({
           </p>
         ) : (
           <ul className="divide-y divide-slate-200">
-            {customer.vehicles.map((vehicle) => (
+            {customer.vehicles.map((vehicle: CustomerVehicle) => (
               <li key={vehicle.id}>
                 <Link
                   href={`/vehicles/${vehicle.id}`}

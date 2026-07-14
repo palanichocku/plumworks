@@ -3,6 +3,12 @@ import { notFound } from "next/navigation";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
 import { formatDate, formatMoney } from "@/lib/formatters";
 
+type InvoiceDetail = NonNullable<
+  Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
+>;
+type InvoicePart = InvoiceDetail["parts"][number];
+type InvoiceLabor = InvoiceDetail["labor"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function InvoiceDetailPage({
@@ -85,7 +91,7 @@ export default async function InvoiceDetailPage({
       </section>
 
       <LineSection title="Parts" empty="No parts are recorded for this invoice.">
-        {invoice.parts.map((part) => (
+        {invoice.parts.map((part: InvoicePart) => (
           <li key={part.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
             <span><span className="block font-medium text-slate-950">{part.description}</span><span className="text-sm text-slate-500">{part.partNumber ?? "No part number"}</span></span>
             <span className="text-sm text-slate-600">Qty {part.quantity.toString()}</span>
@@ -95,7 +101,7 @@ export default async function InvoiceDetailPage({
       </LineSection>
 
       <LineSection title="Labor" empty="No labor is recorded for this invoice.">
-        {invoice.labor.map((labor) => (
+        {invoice.labor.map((labor: InvoiceLabor) => (
           <li key={labor.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
             <span className="font-medium text-slate-950">{labor.description}</span>
             <span className="text-sm text-slate-600">{labor.hours.toString()} hours</span>

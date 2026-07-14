@@ -4,6 +4,9 @@ import { PageHeading } from "@/components/page-heading";
 import { getInvoicesForCurrentShop } from "@/lib/data/invoices";
 import { formatDate, formatMoney } from "@/lib/formatters";
 
+type InvoicesResult = Awaited<ReturnType<typeof getInvoicesForCurrentShop>>;
+type InvoiceListItem = InvoicesResult["invoices"][number];
+
 export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage({
@@ -74,7 +77,7 @@ export default async function InvoicesPage({
               : "Showing the most recent 50 invoices"}
           </div>
           <ul className="divide-y divide-slate-200">
-            {invoices.map((invoice) => {
+            {invoices.map((invoice: InvoiceListItem) => {
               const vehicle = invoice.vehicle
                 ? [invoice.vehicle.year, invoice.vehicle.make, invoice.vehicle.model]
                     .filter(Boolean)

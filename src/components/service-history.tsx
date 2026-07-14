@@ -36,7 +36,7 @@ export function ServiceHistory({
         </p>
       ) : (
         <ul className="divide-y divide-slate-200">
-          {invoices.map((invoice) => {
+          {invoices.map((invoice: ServiceHistoryItem) => {
             const vehicle = invoice.vehicle
               ? [invoice.vehicle.year, invoice.vehicle.make, invoice.vehicle.model]
                   .filter(Boolean)
