@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { open, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -90,6 +90,23 @@ function decodeField(value, type) {
   return { hex: value.toString("hex") };
 }
 
+function decodeRecord(record, fields) {
+  const rawData = {};
+
+  for (const field of fields) {
+    const value = record.subarray(
+      field.recordOffset,
+      field.recordOffset + field.length,
+    );
+    const decoded = decodeField(value, field.type);
+    if (decoded !== undefined) {
+      rawData[field.name] = decoded;
+    }
+  }
+
+  return rawData;
+}
+
 async function readDbf(relativePath) {
   const file = await readFile(resolve(process.cwd(), relativePath));
   const recordCount = file.readUInt32LE(4);
@@ -106,21 +123,52 @@ async function readDbf(relativePath) {
       continue;
     }
 
-    const rawData = {};
-    for (const field of fields) {
-      const value = record.subarray(
-        field.recordOffset,
-        field.recordOffset + field.length,
-      );
-      const decoded = decodeField(value, field.type);
-      if (decoded !== undefined) {
-        rawData[field.name] = decoded;
-      }
-    }
-    records.push(rawData);
+    records.push(decodeRecord(record, fields));
   }
 
   return records;
+}
+
+async function readDbfSample(relativePath, limit = 5) {
+  const file = await open(resolve(process.cwd(), relativePath), "r");
+
+  try {
+    const headerStart = Buffer.alloc(32);
+    const { bytesRead } = await file.read(headerStart, 0, 32, 0);
+    if (bytesRead !== 32) {
+      throw new Error("Invalid DBF header.");
+    }
+
+    const recordCount = headerStart.readUInt32LE(4);
+    const headerLength = headerStart.readUInt16LE(8);
+    const recordLength = headerStart.readUInt16LE(10);
+    const header = Buffer.alloc(headerLength);
+    await file.read(header, 0, headerLength, 0);
+    const fields = parseFields(header, headerLength);
+    const records = [];
+
+    for (let index = 0; index < recordCount && records.length < limit; index += 1) {
+      const record = Buffer.alloc(recordLength);
+      const result = await file.read(
+        record,
+        0,
+        recordLength,
+        headerLength + index * recordLength,
+      );
+
+      if (result.bytesRead !== recordLength) {
+        break;
+      }
+
+      if (record[0] !== 0x2a) {
+        records.push(decodeRecord(record, fields));
+      }
+    }
+
+    return { recordCount, fields, records };
+  } finally {
+    await file.close();
+  }
 }
 
 function legacyValue(record, candidates) {
@@ -138,83 +186,132 @@ async function insertBatches(records, createData) {
   }
 }
 
-const shopId = getArgument("--shop-id");
-const databaseUrl = process.env.DATABASE_URL;
+async function reportDryRunFile(label, relativePath, requiredFields) {
+  try {
+    const sample = await readDbfSample(relativePath);
+    const fieldNames = sample.fields
+      .filter((field) => field.type !== "0")
+      .map((field) => field.name);
+    const normalizedNames = new Set(
+      fieldNames.map((name) => name.toUpperCase().replaceAll("_", "")),
+    );
+    let validationIssues = requiredFields.some((candidate) =>
+      normalizedNames.has(candidate),
+    )
+      ? 0
+      : 1;
 
-if (!shopId || !/^[0-9a-f-]{36}$/i.test(shopId)) {
-  throw new Error("Provide a valid shop UUID with --shop-id.");
+    validationIssues += sample.records.filter(
+      (record) => !legacyValue(record, requiredFields),
+    ).length;
+
+    console.log(`${label} file: found`);
+    console.log(`${label} row count estimate: ${sample.recordCount}`);
+    console.log(`${label} field names: ${fieldNames.join(", ")}`);
+    console.log(`${label} sample rows read: ${sample.records.length}`);
+    console.log(`${label} validation issues count: ${validationIssues}`);
+  } catch {
+    console.log(`${label} file: not found`);
+    console.log(`${label} row count estimate: unavailable`);
+    console.log(`${label} field names: unavailable`);
+    console.log(`${label} sample rows read: 0`);
+    console.log(`${label} validation issues count: 1`);
+  }
 }
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not configured.");
+async function runDryRun() {
+  await reportDryRunFile("Customer", CUSTOMER_DBF, [
+    "CUSTNO",
+    "CUSTOMERNO",
+  ]);
+  await reportDryRunFile("Vehicle", VEHICLE_DBF, ["CARNO", "VEHICLENO"]);
 }
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: databaseUrl }),
-});
+async function runImport() {
+  const shopId = getArgument("--shop-id");
+  const databaseUrl = process.env.DATABASE_URL;
 
-let importRun;
+  if (!shopId || !/^[0-9a-f-]{36}$/i.test(shopId)) {
+    throw new Error("Provide a valid shop UUID with --shop-id.");
+  }
 
-try {
-  importRun = await prisma.legacyImportRun.create({
-    data: {
-      shopId,
-      status: "running",
-      sourceLabel: "Customer and vehicle DBF staging",
-      startedAt: new Date(),
-    },
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl }),
   });
 
-  const customerRows = await readDbf(CUSTOMER_DBF);
-  const vehicleRows = await readDbf(VEHICLE_DBF);
+  let importRun;
 
-  await insertBatches(customerRows, (batch) =>
-    prisma.rawLegacyCustomer.createMany({
-      data: batch.map((rawData) => ({
+  try {
+    importRun = await prisma.legacyImportRun.create({
+      data: {
         shopId,
-        legacyImportRunId: importRun.id,
-        legacyCustno: legacyValue(rawData, ["CUSTNO", "CUSTOMERNO"]),
-        rawData,
-      })),
-    }),
-  );
+        status: "running",
+        sourceLabel: "Customer and vehicle DBF staging",
+        startedAt: new Date(),
+      },
+    });
 
-  await insertBatches(vehicleRows, (batch) =>
-    prisma.rawLegacyVehicle.createMany({
-      data: batch.map((rawData) => ({
-        shopId,
-        legacyImportRunId: importRun.id,
-        legacyCustno: legacyValue(rawData, ["CUSTNO", "CUSTOMERNO"]),
-        legacyCarno: legacyValue(rawData, ["CARNO", "VEHICLENO"]),
-        rawData,
-      })),
-    }),
-  );
+    const customerRows = await readDbf(CUSTOMER_DBF);
+    const vehicleRows = await readDbf(VEHICLE_DBF);
 
-  await prisma.legacyImportRun.update({
-    where: { id: importRun.id },
-    data: {
-      status: "staged",
-      completedAt: new Date(),
-      recordsProcessed: customerRows.length + vehicleRows.length,
-      recordsImported: customerRows.length + vehicleRows.length,
-    },
-  });
+    await insertBatches(customerRows, (batch) =>
+      prisma.rawLegacyCustomer.createMany({
+        data: batch.map((rawData) => ({
+          shopId,
+          legacyImportRunId: importRun.id,
+          legacyCustno: legacyValue(rawData, ["CUSTNO", "CUSTOMERNO"]),
+          rawData,
+        })),
+      }),
+    );
 
-  console.log("Customer and vehicle staging complete.");
-} catch {
-  if (importRun) {
+    await insertBatches(vehicleRows, (batch) =>
+      prisma.rawLegacyVehicle.createMany({
+        data: batch.map((rawData) => ({
+          shopId,
+          legacyImportRunId: importRun.id,
+          legacyCustno: legacyValue(rawData, ["CUSTNO", "CUSTOMERNO"]),
+          legacyCarno: legacyValue(rawData, ["CARNO", "VEHICLENO"]),
+          rawData,
+        })),
+      }),
+    );
+
     await prisma.legacyImportRun.update({
       where: { id: importRun.id },
       data: {
-        status: "failed",
+        status: "staged",
         completedAt: new Date(),
+        recordsProcessed: customerRows.length + vehicleRows.length,
+        recordsImported: customerRows.length + vehicleRows.length,
       },
     });
-  }
 
-  console.error("Customer and vehicle staging failed.");
-  process.exitCode = 1;
-} finally {
-  await prisma.$disconnect();
+    console.log("Customer and vehicle staging complete.");
+  } catch {
+    if (importRun) {
+      await prisma.legacyImportRun.update({
+        where: { id: importRun.id },
+        data: {
+          status: "failed",
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    console.error("Customer and vehicle staging failed.");
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (process.argv.includes("--dry-run")) {
+  await runDryRun();
+} else {
+  await runImport();
 }
