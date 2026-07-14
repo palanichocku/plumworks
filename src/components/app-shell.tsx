@@ -11,7 +11,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white lg:hidden">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
             Car Doc
@@ -28,7 +28,7 @@ export function AppShell({
         <MobileNavigation />
       </header>
 
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white p-5 lg:flex lg:flex-col">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white p-5 print:hidden lg:flex lg:flex-col">
         <Link href="/dashboard" className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-sm font-bold text-white">
             CD
@@ -57,8 +57,8 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="lg:pl-64">
-        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <main className="print:pl-0 lg:pl-64">
+        <div className="mx-auto max-w-7xl px-5 py-8 print:max-w-none print:p-0 sm:px-8 lg:px-10 lg:py-10">
           {children}
         </div>
       </main>

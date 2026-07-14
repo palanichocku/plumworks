@@ -85,11 +85,31 @@ export async function getInvoiceForCurrentShop(id: string) {
       subtotal: true,
       taxTotal: true,
       total: true,
+      shop: {
+        select: {
+          name: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          postalCode: true,
+          phone: true,
+        },
+      },
       customer: {
         select: { id: true, displayName: true },
       },
       vehicle: {
-        select: { id: true, year: true, make: true, model: true },
+        select: {
+          id: true,
+          year: true,
+          make: true,
+          model: true,
+          odometer: true,
+        },
+      },
+      payments: {
+        orderBy: { paidAt: "asc" },
+        select: { id: true, amount: true, paidAt: true, method: true },
       },
       accountsReceivable: {
         take: 1,
