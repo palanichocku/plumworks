@@ -6,6 +6,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ShopMembershipRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
 model Shop {
   id                 String              @id @default(uuid()) @db.Uuid
   name               String
@@ -27,10 +33,25 @@ model Shop {
   payments           Payment[]
   accountsReceivable AccountReceivable[]
   employees          Employee[]
+  memberships        ShopMembership[]
   legacyImportRuns   LegacyImportRun[]
   legacyImportErrors LegacyImportError[]
 
   @@map("shops")
+}
+
+model ShopMembership {
+  id        String             @id @default(uuid()) @db.Uuid
+  shopId    String             @map("shop_id") @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  role      ShopMembershipRole @default(STAFF)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  shop      Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, userId])
+  @@index([userId])
+  @@map("shop_memberships")
 }
 
 model Customer {
