@@ -235,11 +235,7 @@ async function main() {
         (textValue(row.rawData, "PARTNO") || textValue(row.rawData, "DESC")),
     );
     const keyedLabor = lineKeys(rawLabor, "laborfinal", ["NOTE"]).filter(
-      (row) =>
-        validInvoices.has(row.legacyRoNo) &&
-        (textValue(row.rawData, "NOTE") ||
-          textValue(row.rawData, "JOBDESC") ||
-          textValue(row.rawData, "CODE")),
+      (row) => validInvoices.has(row.legacyRoNo),
     );
     const arGroups = groupFirstByRo(rawAr);
     const validAr = [...arGroups.entries()].filter(([ro, row]) => {
@@ -380,8 +376,11 @@ async function main() {
     for (const batch of chunks(keyedLabor)) {
       const rows = batch.map((row) => [
         SHOP_ID, invoiceIds.get(row.legacyRoNo),
-        textValue(row.rawData, "NOTE") ?? textValue(row.rawData, "JOBDESC") ??
-          textValue(row.rawData, "CODE") ?? "Legacy labor",
+        textValue(row.rawData, "LABOR_DONE") ??
+          textValue(row.rawData, "NOTE") ??
+          textValue(row.rawData, "JOBDESC") ??
+          textValue(row.rawData, "CODE") ??
+          "Legacy labor",
         decimal(textValue(row.rawData, "HOURS")), decimal(textValue(row.rawData, "LABORRATE")),
         row.lineKey, row.legacyRoNo, "laborfinal.DBF",
       ]);
