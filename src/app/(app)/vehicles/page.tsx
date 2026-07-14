@@ -1,11 +1,19 @@
 import Link from "next/link";
+import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getVehiclesForCurrentShop } from "@/lib/data/vehicles";
 
 export const dynamic = "force-dynamic";
 
-export default async function VehiclesPage() {
-  const vehicles = await getVehiclesForCurrentShop();
+export default async function VehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; q?: string }>;
+}) {
+  const { page: pageParam, q } = await searchParams;
+  const page = parsePage(pageParam);
+  const search = q?.trim() ?? "";
+  const { vehicles, hasNext } = await getVehiclesForCurrentShop(search, page);
 
   return (
     <>
@@ -15,27 +23,47 @@ export default async function VehiclesPage() {
         description="Vehicle records assigned to your current shop."
       />
 
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <form
+        action="/vehicles"
+        className="mb-6 flex gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
         <label htmlFor="vehicle-search" className="sr-only">
           Search vehicles
         </label>
         <input
           id="vehicle-search"
+          name="q"
           type="search"
-          disabled
-          placeholder="Search vehicles (coming soon)"
-          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 disabled:cursor-not-allowed"
+          defaultValue={search}
+          placeholder="Search make, model, VIN, or license"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
         />
-      </div>
+        <button
+          type="submit"
+          className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+        >
+          Search
+        </button>
+      </form>
 
       {vehicles.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold text-slate-950">
-            No vehicles yet
+            {search ? "No matching vehicles" : "No vehicles yet"}
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">
-            Vehicle records for this shop will appear here.
+            {search
+              ? "Try a different make, model, VIN, or license."
+              : "Vehicle records for this shop will appear here."}
           </p>
+          {search && (
+            <Link
+              href="/vehicles"
+              className="mt-5 inline-block text-sm font-semibold text-sky-700 hover:text-sky-800"
+            >
+              Clear search
+            </Link>
+          )}
         </section>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -66,6 +94,12 @@ export default async function VehiclesPage() {
           </ul>
         </section>
       )}
+      <Pagination
+        pathname="/vehicles"
+        page={page}
+        hasNext={hasNext}
+        search={search}
+      />
     </>
   );
 }

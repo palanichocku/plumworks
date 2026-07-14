@@ -3,14 +3,14 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 
-export async function getInvoicesForCurrentShop(search?: string) {
+export async function getInvoicesForCurrentShop(search?: string, page = 1) {
   const { membership } = await getCurrentMembership();
 
-  if (!membership) return [];
+  if (!membership) return { invoices: [], hasNext: false };
 
   const query = search?.trim();
 
-  return prisma.invoice.findMany({
+  const invoices = await prisma.invoice.findMany({
     where: {
       shopId: membership.shopId,
       ...(query
@@ -48,7 +48,8 @@ export async function getInvoicesForCurrentShop(search?: string) {
         : {}),
     },
     orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
-    take: 50,
+    skip: (page - 1) * 50,
+    take: 51,
     select: {
       id: true,
       legacyRoNo: true,
@@ -65,6 +66,8 @@ export async function getInvoicesForCurrentShop(search?: string) {
       },
     },
   });
+
+  return { invoices: invoices.slice(0, 50), hasNext: invoices.length > 50 };
 }
 
 export async function getInvoiceForCurrentShop(id: string) {

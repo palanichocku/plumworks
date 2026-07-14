@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getInvoicesForCurrentShop } from "@/lib/data/invoices";
 import { formatDate, formatMoney } from "@/lib/formatters";
@@ -8,11 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { page: pageParam, q } = await searchParams;
+  const page = parsePage(pageParam);
   const search = q?.trim() ?? "";
-  const invoices = await getInvoicesForCurrentShop(search);
+  const { invoices, hasNext } = await getInvoicesForCurrentShop(search, page);
 
   return (
     <>
@@ -111,6 +113,12 @@ export default async function InvoicesPage({
           </ul>
         </section>
       )}
+      <Pagination
+        pathname="/invoices"
+        page={page}
+        hasNext={hasNext}
+        search={search}
+      />
     </>
   );
 }

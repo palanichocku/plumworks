@@ -3,16 +3,16 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 
-export async function getCustomersForCurrentShop(search?: string) {
+export async function getCustomersForCurrentShop(search?: string, page = 1) {
   const { membership } = await getCurrentMembership();
 
   if (!membership) {
-    return [];
+    return { customers: [], hasNext: false };
   }
 
   const query = search?.trim();
 
-  return prisma.customer.findMany({
+  const customers = await prisma.customer.findMany({
     where: {
       shopId: membership.shopId,
       ...(query
@@ -25,7 +25,8 @@ export async function getCustomersForCurrentShop(search?: string) {
         : {}),
     },
     orderBy: [{ displayName: "asc" }, { id: "asc" }],
-    take: 50,
+    skip: (page - 1) * 50,
+    take: 51,
     select: {
       id: true,
       displayName: true,
@@ -33,6 +34,8 @@ export async function getCustomersForCurrentShop(search?: string) {
       phone: true,
     },
   });
+
+  return { customers: customers.slice(0, 50), hasNext: customers.length > 50 };
 }
 
 export async function getCustomerForCurrentShop(id: string) {

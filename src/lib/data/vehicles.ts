@@ -3,17 +3,36 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 
-export async function getVehiclesForCurrentShop() {
+export async function getVehiclesForCurrentShop(search?: string, page = 1) {
   const { membership } = await getCurrentMembership();
 
   if (!membership) {
-    return [];
+    return { vehicles: [], hasNext: false };
   }
 
-  return prisma.vehicle.findMany({
-    where: { shopId: membership.shopId },
+  const query = search?.trim();
+  const vehicles = await prisma.vehicle.findMany({
+    where: {
+      shopId: membership.shopId,
+      ...(query
+        ? {
+            OR: [
+              { make: { contains: query, mode: "insensitive" as const } },
+              { model: { contains: query, mode: "insensitive" as const } },
+              { vin: { contains: query, mode: "insensitive" as const } },
+              {
+                licensePlate: {
+                  contains: query,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          }
+        : {}),
+    },
     orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
-    take: 50,
+    skip: (page - 1) * 50,
+    take: 51,
     select: {
       id: true,
       year: true,
@@ -23,6 +42,8 @@ export async function getVehiclesForCurrentShop() {
       licensePlate: true,
     },
   });
+
+  return { vehicles: vehicles.slice(0, 50), hasNext: vehicles.length > 50 };
 }
 
 export async function getVehicleForCurrentShop(id: string) {
