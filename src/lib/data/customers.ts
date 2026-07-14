@@ -63,6 +63,19 @@ export async function getCustomerForCurrentShop(id: string) {
           licensePlate: true,
         },
       },
+      invoices: {
+        orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+        take: 50,
+        select: {
+          id: true,
+          legacyRoNo: true,
+          invoiceDate: true,
+          total: true,
+          vehicle: {
+            select: { id: true, year: true, make: true, model: true },
+          },
+        },
+      },
     },
   });
 }

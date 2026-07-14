@@ -53,6 +53,17 @@ export async function getVehicleForCurrentShop(id: string) {
           phone: true,
         },
       },
+      invoices: {
+        orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+        take: 50,
+        select: {
+          id: true,
+          legacyRoNo: true,
+          invoiceDate: true,
+          total: true,
+          customer: { select: { id: true, displayName: true } },
+        },
+      },
     },
   });
 }

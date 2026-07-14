@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ServiceHistory } from "@/components/service-history";
 import { getCustomerForCurrentShop } from "@/lib/data/customers";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,7 @@ export default async function CustomerDetailPage({
           </ul>
         )}
       </section>
+      <ServiceHistory invoices={customer.invoices} showVehicle />
     </>
   );
 }
