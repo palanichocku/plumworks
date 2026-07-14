@@ -1,5 +1,6 @@
 import { open, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
@@ -114,19 +115,25 @@ async function readDbf(relativePath) {
   const recordLength = file.readUInt16LE(10);
   const fields = parseFields(file, headerLength);
   const records = [];
+  let skippedRows = 0;
 
   for (let index = 0; index < recordCount; index += 1) {
     const start = headerLength + index * recordLength;
     const record = file.subarray(start, start + recordLength);
 
     if (record.length !== recordLength || record[0] === 0x2a) {
+      skippedRows += 1;
       continue;
     }
 
     records.push(decodeRecord(record, fields));
   }
 
-  return records;
+  return {
+    records,
+    skippedRows,
+    fingerprint: createHash("sha256").update(file).digest("hex"),
+  };
 }
 
 async function readDbfSample(relativePath, limit = 5) {
@@ -244,19 +251,69 @@ async function runImport() {
   });
 
   let importRun;
+  let customerRowsInserted = 0;
+  let vehicleRowsInserted = 0;
+  let skippedRows = 0;
+  let validationErrors = 0;
 
   try {
+    const customerSource = await readDbf(CUSTOMER_DBF);
+    const vehicleSource = await readDbf(VEHICLE_DBF);
+    const sourceFingerprint = createHash("sha256")
+      .update(customerSource.fingerprint)
+      .update(vehicleSource.fingerprint)
+      .digest("hex");
+    const sourceLabel = `customers-vehicles:${sourceFingerprint}`;
+    const existingRun = await prisma.legacyImportRun.findFirst({
+      where: {
+        shopId,
+        sourceLabel,
+        status: { in: ["staged", "staged_with_warnings"] },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (existingRun) {
+      const [customerCount, vehicleCount] = await Promise.all([
+        prisma.rawLegacyCustomer.count({
+          where: { legacyImportRunId: existingRun.id },
+        }),
+        prisma.rawLegacyVehicle.count({
+          where: { legacyImportRunId: existingRun.id },
+        }),
+      ]);
+
+      console.log("customer rows inserted: 0");
+      console.log("vehicle rows inserted: 0");
+      console.log(`skipped rows: ${customerCount + vehicleCount}`);
+      console.log("validation error count: 0");
+      console.log(`import run id: ${existingRun.id}`);
+      console.log("status: pass");
+      return;
+    }
+
     importRun = await prisma.legacyImportRun.create({
       data: {
         shopId,
         status: "running",
-        sourceLabel: "Customer and vehicle DBF staging",
+        sourceLabel,
         startedAt: new Date(),
       },
     });
 
-    const customerRows = await readDbf(CUSTOMER_DBF);
-    const vehicleRows = await readDbf(VEHICLE_DBF);
+    const customerRows = customerSource.records;
+    const vehicleRows = vehicleSource.records;
+    skippedRows = customerSource.skippedRows + vehicleSource.skippedRows;
+    validationErrors =
+      customerRows.filter(
+        (row) => !legacyValue(row, ["CUSTNO", "CUSTOMERNO"]),
+      ).length +
+      vehicleRows.filter(
+        (row) =>
+          !legacyValue(row, ["CUSTNO", "CUSTOMERNO"]) ||
+          !legacyValue(row, ["CARNO", "VEHICLENO"]),
+      ).length;
 
     await insertBatches(customerRows, (batch) =>
       prisma.rawLegacyCustomer.createMany({
@@ -268,6 +325,7 @@ async function runImport() {
         })),
       }),
     );
+    customerRowsInserted = customerRows.length;
 
     await insertBatches(vehicleRows, (batch) =>
       prisma.rawLegacyVehicle.createMany({
@@ -280,18 +338,25 @@ async function runImport() {
         })),
       }),
     );
+    vehicleRowsInserted = vehicleRows.length;
 
     await prisma.legacyImportRun.update({
       where: { id: importRun.id },
       data: {
-        status: "staged",
+        status: validationErrors === 0 ? "staged" : "staged_with_warnings",
         completedAt: new Date(),
         recordsProcessed: customerRows.length + vehicleRows.length,
         recordsImported: customerRows.length + vehicleRows.length,
+        recordsFailed: validationErrors,
       },
     });
 
-    console.log("Customer and vehicle staging complete.");
+    console.log(`customer rows inserted: ${customerRowsInserted}`);
+    console.log(`vehicle rows inserted: ${vehicleRowsInserted}`);
+    console.log(`skipped rows: ${skippedRows}`);
+    console.log(`validation error count: ${validationErrors}`);
+    console.log(`import run id: ${importRun.id}`);
+    console.log("status: pass");
   } catch {
     if (importRun) {
       await prisma.legacyImportRun.update({
@@ -303,7 +368,12 @@ async function runImport() {
       });
     }
 
-    console.error("Customer and vehicle staging failed.");
+    console.log(`customer rows inserted: ${customerRowsInserted}`);
+    console.log(`vehicle rows inserted: ${vehicleRowsInserted}`);
+    console.log(`skipped rows: ${skippedRows}`);
+    console.log(`validation error count: ${validationErrors}`);
+    console.log(`import run id: ${importRun?.id ?? "unavailable"}`);
+    console.log("status: fail");
     process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
