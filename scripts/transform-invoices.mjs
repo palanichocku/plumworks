@@ -18,6 +18,28 @@ function decimal(rawValue, fallback = "0") {
   return /^-?\d+(\.\d+)?$/.test(cleaned) ? cleaned : fallback;
 }
 
+function numberValue(rawData, field) {
+  const rawValue = textValue(rawData, field);
+  if (!rawValue) return null;
+  const cleaned = rawValue.replaceAll(/[^0-9.-]/g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
+  const number = Number(cleaned);
+  return Number.isFinite(number) ? number : null;
+}
+
+function arAmounts(rawData) {
+  const parts = numberValue(rawData, "PARTS") ?? 0;
+  const labor = numberValue(rawData, "LABOR") ?? 0;
+  const tax = ["TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6"].reduce(
+    (sum, field) => sum + (numberValue(rawData, field) ?? 0),
+    0,
+  );
+  const total = numberValue(rawData, "TOTAL") ?? parts + labor + tax;
+  const paid = numberValue(rawData, "PAYMENT") ?? 0;
+  const balance = numberValue(rawData, "BALANCE") ?? total - paid;
+  return { parts, labor, subtotal: parts + labor, tax, total, paid, balance };
+}
+
 function quantity(rawValue) {
   const parsed = decimal(rawValue, "1");
   return Number(parsed) === 0 ? "1" : parsed;
@@ -133,6 +155,7 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   const dryRun = process.argv.includes("--dry-run");
   const laborOnly = process.argv.includes("--labor-only");
+  const headersOnly = process.argv.includes("--headers-only");
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const prisma = new PrismaClient({
@@ -309,7 +332,8 @@ async function main() {
     const invoiceIds = new Map();
     const invoiceColumns = [
       "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
-      "subtotal", "tax_total", "total", "legacy_ro_no", "legacy_source_table",
+      "parts_total", "labor_total", "subtotal", "tax_total", "total",
+      "paid_total", "legacy_ro_no", "legacy_source_table",
     ];
     if (laborOnly) {
       const invoices = await prisma.invoice.findMany({
@@ -326,18 +350,19 @@ async function main() {
       for (const batch of chunks([...validInvoices])) {
         const rows = batch.map(([ro, link]) => {
           const rawData = link.row.rawData;
-          const balance = Number(decimal(textValue(rawData, "BALANCE")));
+          const amounts = arAmounts(arGroups.get(ro)?.rawData);
           return [
-            SHOP_ID, link.customerId, link.vehicleId, balance <= 0 ? "paid" : "open",
-            date(textValue(rawData, "RO_DATE")), decimal(textValue(rawData, "PARTS")),
-            decimal(textValue(rawData, "TAX")), decimal(textValue(rawData, "TOTAL")), ro,
-            "FINAL.DBF",
+            SHOP_ID, link.customerId, link.vehicleId,
+            amounts.balance <= 0 ? "paid" : "open",
+            date(textValue(rawData, "RO_DATE")), String(amounts.parts),
+            String(amounts.labor), String(amounts.subtotal), String(amounts.tax),
+            String(amounts.total), String(amounts.paid), ro, "ar.DBF",
           ];
         });
         const invoices = await prisma.$queryRawUnsafe(
           bulkUpsertSql(
             "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
-            invoiceColumns.slice(1, 8).concat("legacy_source_table"), rows.length,
+            invoiceColumns.slice(1, 11).concat("legacy_source_table"), rows.length,
             "id, legacy_ro_no",
           ),
           ...rows.flat(),
@@ -352,7 +377,7 @@ async function main() {
       "shop_id", "invoice_id", "description", "part_number", "quantity",
       "unit_price", "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of laborOnly ? [] : chunks(keyedParts)) {
+    for (const batch of laborOnly || headersOnly ? [] : chunks(keyedParts)) {
       const rows = batch.map((row) => [
         SHOP_ID, invoiceIds.get(row.legacyRoNo),
         textValue(row.rawData, "DESC") ?? textValue(row.rawData, "PARTNO") ?? "Legacy part",
@@ -373,7 +398,7 @@ async function main() {
       "shop_id", "invoice_id", "description", "hours", "hourly_rate",
       "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of chunks(keyedLabor)) {
+    for (const batch of headersOnly ? [] : chunks(keyedLabor)) {
       const rows = batch.map((row) => [
         SHOP_ID, invoiceIds.get(row.legacyRoNo),
         textValue(row.rawData, "LABOR_DONE") ??
@@ -400,10 +425,11 @@ async function main() {
     ];
     for (const batch of laborOnly ? [] : chunks(validAr)) {
       const rows = batch.map(([ro, row]) => {
-        const balance = decimal(textValue(row.rawData, "BALANCE"));
+        const amounts = arAmounts(row.rawData);
         return [
-          SHOP_ID, invoiceIds.get(ro), customerIds.get(row.legacyCustno), balance,
-          Number(balance) <= 0 ? "paid" : "open", ro, "ar.DBF",
+          SHOP_ID, invoiceIds.get(ro), customerIds.get(row.legacyCustno),
+          String(amounts.balance), amounts.balance <= 0 ? "paid" : "open", ro,
+          "ar.DBF",
         ];
       });
       await prisma.$executeRawUnsafe(

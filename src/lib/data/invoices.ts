@@ -82,9 +82,12 @@ export async function getInvoiceForCurrentShop(id: string) {
       legacyRoNo: true,
       invoiceDate: true,
       status: true,
+      partsTotal: true,
+      laborTotal: true,
       subtotal: true,
       taxTotal: true,
       total: true,
+      paidTotal: true,
       shop: {
         select: {
           name: true,
@@ -106,10 +109,6 @@ export async function getInvoiceForCurrentShop(id: string) {
           model: true,
           odometer: true,
         },
-      },
-      payments: {
-        orderBy: { paidAt: "asc" },
-        select: { id: true, amount: true, paidAt: true, method: true },
       },
       accountsReceivable: {
         take: 1,

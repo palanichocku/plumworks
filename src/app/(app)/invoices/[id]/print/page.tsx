@@ -11,7 +11,6 @@ import {
 type PrintableInvoice = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
 >;
-type PrintablePayment = PrintableInvoice["payments"][number];
 type PrintablePart = PrintableInvoice["parts"][number];
 type PrintableLabor = PrintableInvoice["labor"][number];
 
@@ -32,11 +31,6 @@ export default async function PrintableInvoicePage({
         .filter(Boolean)
         .join(" ") || "Vehicle details unavailable"
     : "Vehicle not linked";
-  const paymentTotal = invoice.payments.reduce(
-    (total: number, payment: PrintablePayment) =>
-      total + Number(payment.amount.toString()),
-    0,
-  );
   const receivable = invoice.accountsReceivable[0];
   const locality = [invoice.shop.city, invoice.shop.state, invoice.shop.postalCode]
     .filter(Boolean)
@@ -103,11 +97,13 @@ export default async function PrintableInvoicePage({
 
       <section className="ml-auto mt-8 max-w-sm">
         <dl className="grid grid-cols-[1fr_auto] gap-x-8 gap-y-3 text-sm">
+          <dt className="text-slate-600">Parts</dt><dd>{formatMoney(invoice.partsTotal)}</dd>
+          <dt className="text-slate-600">Labor</dt><dd>{formatMoney(invoice.laborTotal)}</dd>
           <dt className="text-slate-600">Subtotal</dt><dd>{formatMoney(invoice.subtotal)}</dd>
           <dt className="text-slate-600">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
           <dt className="border-t border-slate-300 pt-3 font-bold">Total</dt>
           <dd className="border-t border-slate-300 pt-3 font-bold">{formatMoney(invoice.total)}</dd>
-          <dt className="text-slate-600">Payments</dt><dd>{formatMoney(paymentTotal)}</dd>
+          <dt className="text-slate-600">Payments</dt><dd>{formatMoney(invoice.paidTotal)}</dd>
           <dt className="text-base font-bold">Balance</dt>
           <dd className="text-base font-bold">{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
         </dl>

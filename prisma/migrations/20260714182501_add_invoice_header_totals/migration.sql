@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "invoices" ADD COLUMN     "labor_total" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "paid_total" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "parts_total" DECIMAL(12,2) NOT NULL DEFAULT 0;

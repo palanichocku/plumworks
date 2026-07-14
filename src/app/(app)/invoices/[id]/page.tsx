@@ -84,10 +84,13 @@ export default async function InvoiceDetailPage({
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-950">Totals and balance</h2>
           <dl className="mt-5 grid grid-cols-[1fr_auto] gap-3 text-sm">
+            <dt className="text-slate-500">Parts</dt><dd>{formatMoney(invoice.partsTotal)}</dd>
+            <dt className="text-slate-500">Labor</dt><dd>{formatMoney(invoice.laborTotal)}</dd>
             <dt className="text-slate-500">Subtotal</dt><dd>{formatMoney(invoice.subtotal)}</dd>
             <dt className="text-slate-500">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
             <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-900">Total</dt>
             <dd className="border-t border-slate-200 pt-3 font-semibold">{formatMoney(invoice.total)}</dd>
+            <dt className="text-slate-500">Paid</dt><dd>{formatMoney(invoice.paidTotal)}</dd>
             <dt className="text-slate-500">Balance</dt>
             <dd>{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
           </dl>
