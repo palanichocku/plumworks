@@ -37,91 +37,198 @@ export default async function PrintableInvoicePage({
     .join(", ");
 
   return (
-    <article className="print-page mx-auto max-w-4xl bg-white p-6 text-slate-950 shadow-sm print:p-0 print:shadow-none sm:p-10">
-      <div className="print-hidden mb-8 flex items-center justify-between gap-4">
-        <Link href={`/invoices/${invoice.id}`} className="text-sm font-semibold text-sky-700 hover:text-sky-800">
-          ← Invoice
+    <article className="print-page mx-auto max-w-5xl overflow-hidden rounded-2xl bg-white text-slate-950 shadow-xl print:rounded-none print:shadow-none">
+      <div className="print-hidden flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4 sm:px-10">
+        <Link
+          href={`/invoices/${invoice.id}`}
+          className="text-sm font-semibold text-sky-700 hover:text-sky-800"
+        >
+          ← Back to invoice
         </Link>
         <PrintButton />
       </div>
 
-      <header className="flex flex-col gap-6 border-b-2 border-slate-900 pb-6 sm:flex-row sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{invoice.shop.name}</h1>
-          <address className="mt-3 text-sm not-italic leading-6 text-slate-700">
-            <span className="block">{invoice.shop.addressLine1 ?? "Address unavailable"}</span>
-            <span className="block">{locality || "City and state unavailable"}</span>
-            <span className="block">{invoice.shop.phone ?? "Phone unavailable"}</span>
-          </address>
-        </div>
-        <div className="sm:text-right">
-          <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">Invoice</p>
-          <p className="mt-2 text-2xl font-bold">RO #{invoice.legacyRoNo ?? "Not recorded"}</p>
-          <p className="mt-1 text-sm text-slate-600">{formatDate(invoice.invoiceDate)}</p>
-        </div>
-      </header>
+      <div className="h-2 bg-sky-700" />
+      <div className="p-6 sm:p-10 print:p-0">
+        <header className="flex flex-col gap-8 border-b-2 border-slate-900 pb-7 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700">
+              Auto repair invoice
+            </p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+              {invoice.shop.name}
+            </h1>
+            <address className="mt-4 text-sm not-italic leading-6 text-slate-600">
+              <span className="block">
+                {invoice.shop.addressLine1 ?? "Address unavailable"}
+              </span>
+              <span className="block">{locality || "City and state unavailable"}</span>
+              <span className="block">{invoice.shop.phone ?? "Phone unavailable"}</span>
+            </address>
+          </div>
 
-      <section className="grid gap-6 border-b border-slate-300 py-6 sm:grid-cols-2">
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer</h2>
-          <p className="mt-2 font-semibold">{invoice.customer?.displayName ?? "Customer unavailable"}</p>
-        </div>
-        <div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
-          <span className="text-slate-500">Vehicle</span><span>{vehicle}</span>
-          <span className="text-slate-500">Mileage</span>
-          <span>{invoice.vehicle?.odometer?.toLocaleString() ?? "Not recorded"}</span>
-        </div>
-      </section>
+          <div className="min-w-60 rounded-xl bg-slate-950 p-5 text-white print:border print:border-slate-300 print:bg-white print:text-slate-950 sm:text-right">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300 print:text-slate-500">
+              Repair order
+            </p>
+            <p className="mt-2 text-2xl font-black">
+              #{invoice.legacyRoNo ?? "Not recorded"}
+            </p>
+            <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm sm:grid-cols-[1fr_auto]">
+              <dt className="text-slate-400 print:text-slate-500">Invoice date</dt>
+              <dd className="font-semibold">{formatDate(invoice.invoiceDate)}</dd>
+              <dt className="text-slate-400 print:text-slate-500">Status</dt>
+              <dd className="font-semibold capitalize">{invoice.status}</dd>
+            </dl>
+          </div>
+        </header>
 
-      <PrintLines title="Parts" empty="No parts recorded">
-        {invoice.parts.map((part: PrintablePart) => (
-          <tr key={part.id} className="border-b border-slate-200 align-top">
-            <td className="py-3 pr-4">{part.description}</td>
-            <td className="py-3 pr-4 text-right">{part.quantity.toString()}</td>
-            <td className="py-3 text-right">{formatMoney(part.unitPrice)}</td>
-          </tr>
-        ))}
-      </PrintLines>
+        <section className="grid gap-4 py-7 sm:grid-cols-2">
+          <InfoCard title="Customer">
+            <p className="font-bold text-slate-950">
+              {invoice.customer?.displayName ?? "Customer unavailable"}
+            </p>
+          </InfoCard>
+          <InfoCard title="Vehicle">
+            <p className="font-bold text-slate-950">{vehicle}</p>
+            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 text-sm">
+              <dt className="text-slate-500">Mileage</dt>
+              <dd>{invoice.vehicle?.odometer?.toLocaleString() ?? "Not recorded"}</dd>
+            </dl>
+          </InfoCard>
+        </section>
 
-      <PrintLines title="Labor" empty="No labor recorded">
-        {invoice.labor.map((labor: PrintableLabor) => (
-          <tr key={labor.id} className="border-b border-slate-200 align-top">
-            <td className="py-3 pr-4">
-              {formatLaborDescription(labor.description)}
-            </td>
-            <td className="py-3 pr-4 text-right">{labor.hours.toString()}</td>
-            <td className="py-3 text-right">{formatMoney(labor.hourlyRate)}/hr</td>
-          </tr>
-        ))}
-      </PrintLines>
+        <InvoiceTable
+          title="Parts"
+          empty="No parts recorded"
+          headings={["Description", "Qty", "Unit price", "Amount"]}
+        >
+          {invoice.parts.map((part: PrintablePart) => {
+            const extension =
+              Number(part.quantity.toString()) * Number(part.unitPrice.toString());
+            return (
+              <tr key={part.id}>
+                <td>
+                  <span className="font-semibold text-slate-900">{part.description}</span>
+                  {part.partNumber && (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Part #{part.partNumber}
+                    </span>
+                  )}
+                </td>
+                <td className="text-right">{part.quantity.toString()}</td>
+                <td className="text-right">{formatMoney(part.unitPrice)}</td>
+                <td className="text-right font-semibold">{formatMoney(extension)}</td>
+              </tr>
+            );
+          })}
+        </InvoiceTable>
 
-      <section className="ml-auto mt-8 max-w-sm">
-        <dl className="grid grid-cols-[1fr_auto] gap-x-8 gap-y-3 text-sm">
-          <dt className="text-slate-600">Parts</dt><dd>{formatMoney(invoice.partsTotal)}</dd>
-          <dt className="text-slate-600">Labor</dt><dd>{formatMoney(invoice.laborTotal)}</dd>
-          <dt className="text-slate-600">Subtotal</dt><dd>{formatMoney(invoice.subtotal)}</dd>
-          <dt className="text-slate-600">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
-          <dt className="border-t border-slate-300 pt-3 font-bold">Total</dt>
-          <dd className="border-t border-slate-300 pt-3 font-bold">{formatMoney(invoice.total)}</dd>
-          <dt className="text-slate-600">Payments</dt><dd>{formatMoney(invoice.paidTotal)}</dd>
-          <dt className="text-base font-bold">Balance</dt>
-          <dd className="text-base font-bold">{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
-        </dl>
-      </section>
+        <InvoiceTable
+          title="Labor"
+          empty="No labor recorded"
+          headings={["Description", "Hours", "Rate", "Amount"]}
+        >
+          {invoice.labor.map((labor: PrintableLabor) => {
+            const extension =
+              Number(labor.hours.toString()) * Number(labor.hourlyRate.toString());
+            return (
+              <tr key={labor.id}>
+                <td className="font-semibold text-slate-900">
+                  {formatLaborDescription(labor.description)}
+                </td>
+                <td className="text-right">{labor.hours.toString()}</td>
+                <td className="text-right">{formatMoney(labor.hourlyRate)}</td>
+                <td className="text-right font-semibold">{formatMoney(extension)}</td>
+              </tr>
+            );
+          })}
+        </InvoiceTable>
+
+        <section className="mt-8 flex justify-end break-inside-avoid">
+          <div className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-5 print:bg-white">
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+              Invoice summary
+            </h2>
+            <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-8 gap-y-2.5 text-sm">
+              <dt className="text-slate-600">Parts total</dt>
+              <dd>{formatMoney(invoice.partsTotal)}</dd>
+              <dt className="text-slate-600">Labor total</dt>
+              <dd>{formatMoney(invoice.laborTotal)}</dd>
+              <dt className="border-t border-slate-300 pt-3 text-slate-600">Subtotal</dt>
+              <dd className="border-t border-slate-300 pt-3">{formatMoney(invoice.subtotal)}</dd>
+              <dt className="text-slate-600">Tax</dt>
+              <dd>{formatMoney(invoice.taxTotal)}</dd>
+              <dt className="border-t-2 border-slate-900 pt-3 text-base font-black">Total</dt>
+              <dd className="border-t-2 border-slate-900 pt-3 text-base font-black">
+                {formatMoney(invoice.total)}
+              </dd>
+              <dt className="text-slate-600">Paid</dt>
+              <dd>{formatMoney(invoice.paidTotal)}</dd>
+              <dt className="rounded-l-lg bg-sky-700 px-3 py-2 text-base font-black text-white print:border-y print:border-l print:border-slate-900 print:bg-white print:text-slate-950">
+                Balance due
+              </dt>
+              <dd className="rounded-r-lg bg-sky-700 px-3 py-2 text-base font-black text-white print:border-y print:border-r print:border-slate-900 print:bg-white print:text-slate-950">
+                {receivable ? formatMoney(receivable.balance) : "Unavailable"}
+              </dd>
+            </dl>
+          </div>
+        </section>
+
+        <footer className="mt-10 border-t border-slate-300 pt-5 text-center text-xs leading-5 text-slate-500">
+          <p className="font-semibold text-slate-700">
+            Thank you for choosing {invoice.shop.name}.
+          </p>
+          <p>Please retain this invoice for your service records.</p>
+        </footer>
+      </div>
     </article>
   );
 }
 
-function PrintLines({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 print:bg-white">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function InvoiceTable({
+  title,
+  empty,
+  headings,
+  children,
+}: {
+  title: string;
+  empty: string;
+  headings: string[];
+  children: React.ReactNode;
+}) {
   const items = Array.isArray(children) ? children : [children];
   return (
-    <section className="mt-7 break-inside-avoid">
-      <h2 className="text-lg font-bold">{title}</h2>
+    <section className="invoice-section mt-7">
+      <div className="mb-3 flex items-center justify-between border-b-2 border-slate-900 pb-2">
+        <h2 className="text-lg font-black">{title}</h2>
+      </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">{empty}</p>
+        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500">
+          {empty}
+        </p>
       ) : (
-        <table className="mt-3 w-full border-collapse text-sm">
-          <thead><tr className="border-y border-slate-300 text-left text-xs uppercase tracking-wider text-slate-500"><th className="py-2">Description</th><th className="py-2 text-right">Qty/Hours</th><th className="py-2 text-right">Rate</th></tr></thead>
+        <table className="invoice-table w-full border-collapse text-sm">
+          <thead>
+            <tr>
+              {headings.map((heading, index) => (
+                <th key={heading} className={index === 0 ? "text-left" : "text-right"}>
+                  {heading}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>{children}</tbody>
         </table>
       )}

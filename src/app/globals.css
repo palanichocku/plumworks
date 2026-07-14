@@ -30,13 +30,43 @@ body {
   body {
     background: white;
     color: #0f172a;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .print-page {
     width: 100%;
   }
 
+  .print-page a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .invoice-section,
+  .invoice-table tr,
+  .invoice-table td,
+  .invoice-table th {
+    break-inside: avoid;
+  }
+
   .print-hidden {
     display: none !important;
   }
+}
+
+.invoice-table th {
+  border-bottom: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  padding: 0.65rem 0.75rem;
+  color: #475569;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invoice-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.75rem;
+  vertical-align: top;
 }
