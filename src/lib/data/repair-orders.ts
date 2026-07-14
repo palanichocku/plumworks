@@ -47,8 +47,39 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
       laborTotal: true,
       taxTotal: true,
       estimatedTotal: true,
-      customer: { select: { id: true, displayName: true } },
-      vehicle: { select: { id: true, year: true, make: true, model: true } },
+      shop: {
+        select: {
+          name: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          postalCode: true,
+          phone: true,
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          displayName: true,
+          phone: true,
+          email: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          postalCode: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          year: true,
+          make: true,
+          model: true,
+          licensePlate: true,
+          vin: true,
+          odometer: true,
+        },
+      },
       parts: {
         orderBy: { createdAt: "asc" },
         select: {
