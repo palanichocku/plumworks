@@ -8,11 +8,33 @@ import { getCurrentMembership } from "@/lib/data/membership";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function createRepairOrder(formData: FormData) {
-  const customerId = String(formData.get("customerId") ?? "");
+  const customerMode = String(formData.get("customerMode") ?? "existing");
+  const existingCustomerId = String(formData.get("customerId") ?? "");
   const vehicleMode = String(formData.get("vehicleMode") ?? "existing");
   const existingVehicleId = String(formData.get("vehicleId") ?? "");
-  if (!UUID.test(customerId)) {
+  if (customerMode !== "existing" && customerMode !== "new") {
     redirect("/repair-orders/new?error=invalid-selection");
+  }
+
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const addressLine1 = String(formData.get("addressLine1") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const state = String(formData.get("state") ?? "").trim();
+  const postalCode = String(formData.get("postalCode") ?? "").trim();
+
+  if (customerMode === "existing" && !UUID.test(existingCustomerId)) {
+    redirect("/repair-orders/new?error=invalid-selection");
+  }
+  if (
+    customerMode === "new" &&
+    (!displayName || displayName.length > 200 || phone.length > 40 ||
+      email.length > 254 || (email && !/^\S+@\S+\.\S+$/.test(email)) ||
+      addressLine1.length > 200 || city.length > 100 || state.length > 30 ||
+      postalCode.length > 20 || vehicleMode !== "new")
+  ) {
+    redirect("/repair-orders/new?error=invalid-customer");
   }
 
   const year = Number(formData.get("year"));
@@ -43,13 +65,33 @@ export async function createRepairOrder(formData: FormData) {
   const { membership } = await getCurrentMembership();
   if (!membership) redirect("/login");
 
-  const customer = await prisma.customer.findFirst({
-    where: { id: customerId, shopId: membership.shopId },
-    select: { id: true },
-  });
-  if (!customer) redirect("/repair-orders/new?error=invalid-selection");
+  if (customerMode === "existing") {
+    const selection = await prisma.customer.findFirst({
+      where: { id: existingCustomerId, shopId: membership.shopId },
+      select: { id: true },
+    });
+    if (!selection) redirect("/repair-orders/new?error=invalid-selection");
+  }
 
   const repairOrder = await prisma.$transaction(async (transaction) => {
+    let customerId = existingCustomerId;
+    if (customerMode === "new") {
+      const customer = await transaction.customer.create({
+        data: {
+          shopId: membership.shopId,
+          displayName,
+          phone: phone || null,
+          email: email || null,
+          addressLine1: addressLine1 || null,
+          city: city || null,
+          state: state || null,
+          postalCode: postalCode || null,
+        },
+        select: { id: true },
+      });
+      customerId = customer.id;
+    }
+
     let vehicleId = existingVehicleId;
     if (vehicleMode === "new") {
       const vehicle = await transaction.vehicle.create({
