@@ -17,3 +17,38 @@ export function formatDate(value: Date | null | undefined) {
     timeZone: "UTC",
   }).format(value);
 }
+
+const laborTextFields = [
+  "description",
+  "name",
+  "label",
+  "text",
+  "note",
+  "jobDescription",
+  "job_description",
+] as const;
+
+export function formatLaborDescription(
+  value: unknown,
+  fallback = "Labor description unavailable",
+) {
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text && text !== "[object Object]" ? text : fallback;
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const field of laborTextFields) {
+    const candidate = record[field];
+    if (typeof candidate === "string") {
+      const text = candidate.trim();
+      if (text && text !== "[object Object]") return text;
+    }
+  }
+
+  return fallback;
+}

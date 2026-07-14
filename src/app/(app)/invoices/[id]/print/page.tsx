@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/print-button";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
-import { formatDate, formatMoney } from "@/lib/formatters";
+import {
+  formatDate,
+  formatLaborDescription,
+  formatMoney,
+} from "@/lib/formatters";
 
 type PrintableInvoice = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -88,7 +92,9 @@ export default async function PrintableInvoicePage({
       <PrintLines title="Labor" empty="No labor recorded">
         {invoice.labor.map((labor: PrintableLabor) => (
           <tr key={labor.id} className="border-b border-slate-200 align-top">
-            <td className="py-3 pr-4">{labor.description}</td>
+            <td className="py-3 pr-4">
+              {formatLaborDescription(labor.description)}
+            </td>
             <td className="py-3 pr-4 text-right">{labor.hours.toString()}</td>
             <td className="py-3 text-right">{formatMoney(labor.hourlyRate)}/hr</td>
           </tr>

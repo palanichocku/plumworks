@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
-import { formatDate, formatMoney } from "@/lib/formatters";
+import {
+  formatDate,
+  formatLaborDescription,
+  formatMoney,
+} from "@/lib/formatters";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -103,7 +107,9 @@ export default async function InvoiceDetailPage({
       <LineSection title="Labor" empty="No labor is recorded for this invoice.">
         {invoice.labor.map((labor: InvoiceLabor) => (
           <li key={labor.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
-            <span className="font-medium text-slate-950">{labor.description}</span>
+            <span className="font-medium text-slate-950">
+              {formatLaborDescription(labor.description)}
+            </span>
             <span className="text-sm text-slate-600">{labor.hours.toString()} hours</span>
             <span className="font-medium text-slate-900">{formatMoney(labor.hourlyRate)}/hr</span>
           </li>
