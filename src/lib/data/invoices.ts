@@ -3,13 +3,50 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 
-export async function getInvoicesForCurrentShop() {
+export async function getInvoicesForCurrentShop(search?: string) {
   const { membership } = await getCurrentMembership();
 
   if (!membership) return [];
 
+  const query = search?.trim();
+
   return prisma.invoice.findMany({
-    where: { shopId: membership.shopId },
+    where: {
+      shopId: membership.shopId,
+      ...(query
+        ? {
+            OR: [
+              { legacyRoNo: { contains: query, mode: "insensitive" as const } },
+              {
+                customer: {
+                  is: {
+                    displayName: {
+                      contains: query,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                },
+              },
+              {
+                vehicle: {
+                  is: {
+                    OR: [
+                      { make: { contains: query, mode: "insensitive" as const } },
+                      { model: { contains: query, mode: "insensitive" as const } },
+                      {
+                        licensePlate: {
+                          contains: query,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    },
     orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     take: 50,
     select: {
