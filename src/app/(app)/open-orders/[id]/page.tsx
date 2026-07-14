@@ -19,9 +19,10 @@ export default async function OpenOrderDetailPage({ params }: { params: Promise<
     <div className="space-y-6">
       <header>
         <Link href="/open-orders" className="text-sm font-semibold text-sky-700 hover:text-sky-800">← Open Orders</Link>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-950">RO #{order.legacyRoNo ?? "Not recorded"}</h1>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">Open repair order — not a finalized invoice</span>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold tracking-tight text-slate-950">RO #{order.legacyRoNo ?? "Not recorded"}</h1>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">Open repair order — not a finalized invoice</span></div>
+          <Link href={`/open-orders/${order.id}/print`} className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Print</Link>
         </div>
         <p className="mt-2 text-sm text-slate-600">Opened {formatDate(order.openedAt)}</p>
       </header>

@@ -30,7 +30,12 @@ export async function getOpenOrderForCurrentShop(id: string) {
   if (!membership) return null;
 
   return prisma.repairOrder.findFirst({
-    where: { id, shopId: membership.shopId, status: "open" },
+    where: {
+      id,
+      shopId: membership.shopId,
+      status: "open",
+      legacySourceTable: { not: null },
+    },
     select: {
       id: true,
       legacyRoNo: true,
@@ -40,8 +45,39 @@ export async function getOpenOrderForCurrentShop(id: string) {
       laborTotal: true,
       taxTotal: true,
       estimatedTotal: true,
-      customer: { select: { id: true, displayName: true, phone: true } },
-      vehicle: { select: { id: true, year: true, make: true, model: true } },
+      shop: {
+        select: {
+          name: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          postalCode: true,
+          phone: true,
+        },
+      },
+      customer: {
+        select: {
+          id: true,
+          displayName: true,
+          phone: true,
+          email: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          postalCode: true,
+        },
+      },
+      vehicle: {
+        select: {
+          id: true,
+          year: true,
+          make: true,
+          model: true,
+          licensePlate: true,
+          vin: true,
+          odometer: true,
+        },
+      },
       parts: {
         orderBy: { createdAt: "asc" },
         select: { id: true, description: true, partNumber: true, quantity: true, unitPrice: true },
