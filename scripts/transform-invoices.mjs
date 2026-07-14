@@ -4,12 +4,12 @@ import { PrismaClient } from "@prisma/client";
 
 const SHOP_ID = "00000000-0000-4000-8000-000000000001";
 
-function value(rawData, field) {
+function textValue(rawData, field) {
   if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
     return null;
   }
   const rawValue = rawData[field];
-  return rawValue == null ? null : String(rawValue).trim() || null;
+  return typeof rawValue === "string" ? rawValue.trim() || null : null;
 }
 
 function decimal(rawValue, fallback = "0") {
@@ -39,13 +39,33 @@ function stableHash(rawData) {
     .slice(0, 24);
 }
 
-function lineKeys(rows, source) {
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalize(value[key])]),
+  );
+}
+
+function lineKeys(rows, source, omitFields = []) {
   const occurrences = new Map();
   return rows
     .map((row) => {
       const ro = row.legacyRoNo?.trim();
       if (!ro) return null;
-      const hash = stableHash(row.rawData);
+      const hashData =
+        row.rawData && typeof row.rawData === "object" && !Array.isArray(row.rawData)
+          ? Object.fromEntries(
+              Object.entries(row.rawData).filter(
+                ([field]) => !omitFields.includes(field),
+              ),
+            )
+          : row.rawData;
+      const hash = stableHash(
+        omitFields.length > 0 ? canonicalize(hashData) : hashData,
+      );
       const occurrenceKey = `${ro}:${hash}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);
@@ -112,6 +132,7 @@ function report(counts) {
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   const dryRun = process.argv.includes("--dry-run");
+  const laborOnly = process.argv.includes("--labor-only");
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const prisma = new PrismaClient({
@@ -211,14 +232,14 @@ async function main() {
     const keyedParts = lineKeys(rawFinal, "FINAL").filter(
       (row) =>
         validInvoices.has(row.legacyRoNo) &&
-        (value(row.rawData, "PARTNO") || value(row.rawData, "DESC")),
+        (textValue(row.rawData, "PARTNO") || textValue(row.rawData, "DESC")),
     );
-    const keyedLabor = lineKeys(rawLabor, "laborfinal").filter(
+    const keyedLabor = lineKeys(rawLabor, "laborfinal", ["NOTE"]).filter(
       (row) =>
         validInvoices.has(row.legacyRoNo) &&
-        (value(row.rawData, "NOTE") ||
-          value(row.rawData, "JOBDESC") ||
-          value(row.rawData, "CODE")),
+        (textValue(row.rawData, "NOTE") ||
+          textValue(row.rawData, "JOBDESC") ||
+          textValue(row.rawData, "CODE")),
     );
     const arGroups = groupFirstByRo(rawAr);
     const validAr = [...arGroups.entries()].filter(([ro, row]) => {
@@ -294,38 +315,53 @@ async function main() {
       "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
       "subtotal", "tax_total", "total", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of chunks([...validInvoices])) {
-      const rows = batch.map(([ro, link]) => {
-        const rawData = link.row.rawData;
-        const balance = Number(decimal(value(rawData, "BALANCE")));
-        return [
-          SHOP_ID, link.customerId, link.vehicleId, balance <= 0 ? "paid" : "open",
-          date(value(rawData, "RO_DATE")), decimal(value(rawData, "PARTS")),
-          decimal(value(rawData, "TAX")), decimal(value(rawData, "TOTAL")), ro,
-          "FINAL.DBF",
-        ];
+    if (laborOnly) {
+      const invoices = await prisma.invoice.findMany({
+        where: {
+          shopId: SHOP_ID,
+          legacyRoNo: { in: [...validInvoices.keys()] },
+        },
+        select: { id: true, legacyRoNo: true },
       });
-      const invoices = await prisma.$queryRawUnsafe(
-        bulkUpsertSql(
-          "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
-          invoiceColumns.slice(1, 8).concat("legacy_source_table"), rows.length,
-          "id, legacy_ro_no",
-        ),
-        ...rows.flat(),
-      );
-      for (const invoice of invoices) invoiceIds.set(invoice.legacy_ro_no, invoice.id);
+      for (const invoice of invoices) {
+        if (invoice.legacyRoNo) invoiceIds.set(invoice.legacyRoNo, invoice.id);
+      }
+    } else {
+      for (const batch of chunks([...validInvoices])) {
+        const rows = batch.map(([ro, link]) => {
+          const rawData = link.row.rawData;
+          const balance = Number(decimal(textValue(rawData, "BALANCE")));
+          return [
+            SHOP_ID, link.customerId, link.vehicleId, balance <= 0 ? "paid" : "open",
+            date(textValue(rawData, "RO_DATE")), decimal(textValue(rawData, "PARTS")),
+            decimal(textValue(rawData, "TAX")), decimal(textValue(rawData, "TOTAL")), ro,
+            "FINAL.DBF",
+          ];
+        });
+        const invoices = await prisma.$queryRawUnsafe(
+          bulkUpsertSql(
+            "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
+            invoiceColumns.slice(1, 8).concat("legacy_source_table"), rows.length,
+            "id, legacy_ro_no",
+          ),
+          ...rows.flat(),
+        );
+        for (const invoice of invoices) {
+          invoiceIds.set(invoice.legacy_ro_no, invoice.id);
+        }
+      }
     }
 
     const partColumns = [
       "shop_id", "invoice_id", "description", "part_number", "quantity",
       "unit_price", "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of chunks(keyedParts)) {
+    for (const batch of laborOnly ? [] : chunks(keyedParts)) {
       const rows = batch.map((row) => [
         SHOP_ID, invoiceIds.get(row.legacyRoNo),
-        value(row.rawData, "DESC") ?? value(row.rawData, "PARTNO") ?? "Legacy part",
-        value(row.rawData, "PARTNO"), quantity(value(row.rawData, "QTY")),
-        decimal(value(row.rawData, "PRICE")), row.lineKey, row.legacyRoNo, "FINAL.DBF",
+        textValue(row.rawData, "DESC") ?? textValue(row.rawData, "PARTNO") ?? "Legacy part",
+        textValue(row.rawData, "PARTNO"), quantity(textValue(row.rawData, "QTY")),
+        decimal(textValue(row.rawData, "PRICE")), row.lineKey, row.legacyRoNo, "FINAL.DBF",
       ]);
       await prisma.$executeRawUnsafe(
         bulkUpsertSql(
@@ -344,9 +380,9 @@ async function main() {
     for (const batch of chunks(keyedLabor)) {
       const rows = batch.map((row) => [
         SHOP_ID, invoiceIds.get(row.legacyRoNo),
-        value(row.rawData, "NOTE") ?? value(row.rawData, "JOBDESC") ??
-          value(row.rawData, "CODE") ?? "Legacy labor",
-        decimal(value(row.rawData, "HOURS")), decimal(value(row.rawData, "LABORRATE")),
+        textValue(row.rawData, "NOTE") ?? textValue(row.rawData, "JOBDESC") ??
+          textValue(row.rawData, "CODE") ?? "Legacy labor",
+        decimal(textValue(row.rawData, "HOURS")), decimal(textValue(row.rawData, "LABORRATE")),
         row.lineKey, row.legacyRoNo, "laborfinal.DBF",
       ]);
       await prisma.$executeRawUnsafe(
@@ -363,9 +399,9 @@ async function main() {
       "shop_id", "invoice_id", "customer_id", "balance", "status",
       "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of chunks(validAr)) {
+    for (const batch of laborOnly ? [] : chunks(validAr)) {
       const rows = batch.map(([ro, row]) => {
-        const balance = decimal(value(row.rawData, "BALANCE"));
+        const balance = decimal(textValue(row.rawData, "BALANCE"));
         return [
           SHOP_ID, invoiceIds.get(ro), customerIds.get(row.legacyCustno), balance,
           Number(balance) <= 0 ? "paid" : "open", ro, "ar.DBF",

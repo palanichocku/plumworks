@@ -12,6 +12,7 @@ const SOURCES = [
   {
     label: "Labor final",
     path: "OriginalWinApp/Shopman32/data/laborfinal.DBF",
+    memoPath: "OriginalWinApp/Shopman32/data/laborfinal.FPT",
     model: "rawLegacyLaborFinal",
   },
   {
@@ -49,7 +50,25 @@ function parseFields(header, headerLength) {
   return fields;
 }
 
-function decodeField(value, type) {
+function decodeMemo(value, memoFile) {
+  if (!memoFile || value.length < 4) return null;
+  const pointer = value.readUInt32LE();
+  if (!pointer) return null;
+
+  const blockSize = memoFile.readUInt16BE(6);
+  const offset = pointer * blockSize;
+  if (!blockSize || offset + 8 > memoFile.length) return null;
+
+  const blockType = memoFile.readUInt32BE(offset);
+  const length = memoFile.readUInt32BE(offset + 4);
+  if (blockType !== 1 || length > memoFile.length - offset - 8) return null;
+
+  return decoder.decode(memoFile.subarray(offset + 8, offset + 8 + length))
+    .replaceAll("\0", "")
+    .trim() || null;
+}
+
+function decodeField(value, type, memoFile) {
   if (type === "0") return undefined;
   if (["C", "N", "F", "D"].includes(type)) {
     return decoder.decode(value).trim() || null;
@@ -66,6 +85,7 @@ function decodeField(value, type) {
     return Number.isFinite(number) ? number : null;
   }
   if (["M", "G", "P"].includes(type)) {
+    if (memoFile) return decodeMemo(value, memoFile);
     return {
       memoPointer:
         value.length >= 4
@@ -76,22 +96,25 @@ function decodeField(value, type) {
   return { hex: value.toString("hex") };
 }
 
-function decodeRecord(record, fields) {
+function decodeRecord(record, fields, memoFile) {
   const rawData = {};
   for (const field of fields) {
     const value = record.subarray(
       field.recordOffset,
       field.recordOffset + field.length,
     );
-    const decoded = decodeField(value, field.type);
+    const decoded = decodeField(value, field.type, memoFile);
     if (decoded !== undefined) rawData[field.name] = decoded;
   }
   return rawData;
 }
 
-async function readSample(relativePath, limit = 5) {
+async function readSample(relativePath, limit = 5, memoRelativePath) {
   const file = await open(resolve(process.cwd(), relativePath), "r");
   try {
+    const memoFile = memoRelativePath
+      ? await readFile(resolve(process.cwd(), memoRelativePath))
+      : null;
     const start = Buffer.alloc(32);
     const firstRead = await file.read(start, 0, 32, 0);
     if (firstRead.bytesRead !== 32) throw new Error("Invalid DBF header.");
@@ -113,7 +136,9 @@ async function readSample(relativePath, limit = 5) {
         headerLength + index * recordLength,
       );
       if (result.bytesRead !== recordLength) break;
-      if (record[0] !== 0x2a) records.push(decodeRecord(record, fields));
+      if (record[0] !== 0x2a) {
+        records.push(decodeRecord(record, fields, memoFile));
+      }
     }
 
     return { recordCount, fields, records };
@@ -122,8 +147,11 @@ async function readSample(relativePath, limit = 5) {
   }
 }
 
-async function readAll(relativePath) {
+async function readAll(relativePath, memoRelativePath) {
   const file = await readFile(resolve(process.cwd(), relativePath));
+  const memoFile = memoRelativePath
+    ? await readFile(resolve(process.cwd(), memoRelativePath))
+    : null;
   const recordCount = file.readUInt32LE(4);
   const headerLength = file.readUInt16LE(8);
   const recordLength = file.readUInt16LE(10);
@@ -134,7 +162,7 @@ async function readAll(relativePath) {
     const start = headerLength + index * recordLength;
     const record = file.subarray(start, start + recordLength);
     if (record.length === recordLength && record[0] !== 0x2a) {
-      records.push(decodeRecord(record, fields));
+      records.push(decodeRecord(record, fields, memoFile));
     }
   }
   return records;
@@ -150,7 +178,7 @@ function legacyValue(record, candidates) {
 async function runDryRun() {
   for (const source of SOURCES) {
     try {
-      const sample = await readSample(source.path);
+      const sample = await readSample(source.path, 5, source.memoPath);
       const fieldNames = sample.fields
         .filter((field) => field.type !== "0")
         .map((field) => field.name);
@@ -204,7 +232,7 @@ async function runImport() {
     const counts = {};
 
     for (const source of SOURCES) {
-      const rows = await readAll(source.path);
+      const rows = await readAll(source.path, source.memoPath);
       for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
         const batch = rows.slice(offset, offset + BATCH_SIZE);
         await prisma[source.model].createMany({
