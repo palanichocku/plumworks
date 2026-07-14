@@ -8,6 +8,7 @@ const navigation = [
   { href: "/customers", label: "Customers", shortLabel: "C" },
   { href: "/vehicles", label: "Vehicles", shortLabel: "V" },
   { href: "/invoices", label: "Invoices", shortLabel: "I" },
+  { href: "/accounts-receivable", label: "Accounts Receivable", shortLabel: "A" },
   { href: "/repair-orders", label: "Repair Orders", shortLabel: "R" },
   { href: "/settings", label: "Settings", shortLabel: "S" },
 ];
