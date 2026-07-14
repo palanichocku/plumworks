@@ -34,6 +34,8 @@ model Shop {
   accountsReceivable AccountReceivable[]
   employees          Employee[]
   memberships        ShopMembership[]
+  rawLegacyCustomers RawLegacyCustomer[]
+  rawLegacyVehicles  RawLegacyVehicle[]
   legacyImportRuns   LegacyImportRun[]
   legacyImportErrors LegacyImportError[]
 
@@ -324,9 +326,43 @@ model LegacyImportRun {
   updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
   shop             Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   errors           LegacyImportError[]
+  rawCustomers     RawLegacyCustomer[]
+  rawVehicles      RawLegacyVehicle[]
 
   @@index([shopId, createdAt])
   @@map("legacy_import_runs")
+}
+
+model RawLegacyCustomer {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId            String          @map("shop_id") @db.Uuid
+  legacyImportRunId String          @map("legacy_import_run_id") @db.Uuid
+  legacyCustno      String?         @map("legacy_custno")
+  rawData           Json            @map("raw_data")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  shop              Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  importRun         LegacyImportRun @relation(fields: [legacyImportRunId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, legacyCustno])
+  @@index([legacyImportRunId])
+  @@map("raw_legacy_customers")
+}
+
+model RawLegacyVehicle {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId            String          @map("shop_id") @db.Uuid
+  legacyImportRunId String          @map("legacy_import_run_id") @db.Uuid
+  legacyCustno      String?         @map("legacy_custno")
+  legacyCarno       String?         @map("legacy_carno")
+  rawData           Json            @map("raw_data")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  shop              Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  importRun         LegacyImportRun @relation(fields: [legacyImportRunId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, legacyCustno])
+  @@index([shopId, legacyCarno])
+  @@index([legacyImportRunId])
+  @@map("raw_legacy_vehicles")
 }
 
 model LegacyImportError {
