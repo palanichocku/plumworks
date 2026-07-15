@@ -1,4 +1,5 @@
 import { PageHeading } from "@/components/page-heading";
+import Link from "next/link";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 import { updateInvoiceSettings } from "./actions";
@@ -54,6 +55,7 @@ export default async function SettingsPage({
           <button type="submit" className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Save invoice settings</button>
         </form>
       </section>
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Common services</h2><p className="mt-2 text-sm text-slate-600">Manage reusable labor templates for draft repair orders.</p><Link href="/settings/services" className="mt-4 inline-flex rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage common services</Link></section>
     </>
   );
 }

@@ -58,6 +58,11 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           defaultLaborRate: true,
           invoiceFooterMessage: true,
           warrantyText: true,
+          cannedServices: {
+            where: { active: true },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true },
+          },
         },
       },
       customer: {

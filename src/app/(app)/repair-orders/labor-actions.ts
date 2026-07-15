@@ -53,6 +53,35 @@ export async function addLaborLine(formData: FormData) {
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
 
+export async function addCannedServiceLaborLine(formData: FormData) {
+  const repairOrderId = String(formData.get("repairOrderId") ?? "");
+  const serviceId = String(formData.get("serviceId") ?? "");
+  if (!UUID.test(serviceId)) throw new Error("Invalid canned service.");
+  const { membership } = await getCurrentMembership();
+  if (!membership) throw new Error("Shop access is required.");
+  await editableOrder(membership.shopId, repairOrderId);
+
+  await prisma.$transaction(async (transaction) => {
+    const service = await transaction.cannedService.findFirst({
+      where: { id: serviceId, shopId: membership.shopId, active: true },
+      select: { description: true, defaultHours: true, defaultLaborRate: true },
+    });
+    if (!service) throw new Error("Canned service is unavailable.");
+    await transaction.repairOrderLabor.create({
+      data: {
+        shopId: membership.shopId,
+        repairOrderId,
+        description: service.description,
+        hours: service.defaultHours,
+        hourlyRate: service.defaultLaborRate,
+        legacyLineKey: `web:${randomUUID()}`,
+      },
+    });
+    await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
+  });
+  revalidatePath(`/repair-orders/${repairOrderId}`);
+}
+
 export async function updateLaborLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const laborLineId = String(formData.get("laborLineId") ?? "");

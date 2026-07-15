@@ -56,8 +56,26 @@ model Shop {
   rawLegacyOrderLabor RawLegacyOrderLabor[]
   legacyImportRuns    LegacyImportRun[]
   legacyImportErrors  LegacyImportError[]
+  cannedServices      CannedService[]
 
   @@map("shops")
+}
+
+model CannedService {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId           String   @map("shop_id") @db.Uuid
+  name             String
+  description      String
+  defaultHours     Decimal  @default(1) @map("default_hours") @db.Decimal(8, 2)
+  defaultLaborRate Decimal  @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+  shop             Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, name])
+  @@index([shopId, active])
+  @@map("canned_services")
 }
 
 model ShopMembership {
