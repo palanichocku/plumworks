@@ -10,6 +10,7 @@ const navigation = [
   { href: "/invoices", label: "Invoices", shortLabel: "I" },
   { href: "/accounts-receivable", label: "Accounts Receivable", shortLabel: "A" },
   { href: "/repair-orders", label: "Repair Orders", shortLabel: "R" },
+  { href: "/reports", label: "Reports", shortLabel: "P" },
   { href: "/settings", label: "Settings", shortLabel: "S" },
 ];
 
