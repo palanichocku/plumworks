@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "@/lib/data/membership";
 
@@ -62,7 +63,7 @@ export async function createRepairOrder(formData: FormData) {
     redirect("/repair-orders/new?error=invalid-selection");
   }
 
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) redirect("/login");
 
   if (customerMode === "existing") {
@@ -123,7 +124,7 @@ export async function createRepairOrder(formData: FormData) {
     });
     const repairOrderNumber = shop.nextRepairOrderNumber - 1;
 
-    return transaction.repairOrder.create({
+    const created = await transaction.repairOrder.create({
       data: {
         shopId: membership.shopId,
         customerId,
@@ -133,6 +134,8 @@ export async function createRepairOrder(formData: FormData) {
       },
       select: { id: true },
     });
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "repair_order_created", "repair_order", created.id, { source: "web" }) });
+    return created;
   }, { isolationLevel: "Serializable" });
 
   revalidatePath("/repair-orders");

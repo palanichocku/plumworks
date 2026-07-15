@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { auditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
@@ -35,20 +36,22 @@ async function editableOrder(shopId: string, repairOrderId: string) {
 export async function addLaborLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const values = laborValues(formData);
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
   await editableOrder(membership.shopId, repairOrderId);
 
   await prisma.$transaction(async (transaction) => {
-    await transaction.repairOrderLabor.create({
+    const line = await transaction.repairOrderLabor.create({
       data: {
         shopId: membership.shopId,
         repairOrderId,
         ...values,
         legacyLineKey: `web:${randomUUID()}`,
       },
+      select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "manual" }) });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -57,7 +60,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const serviceId = String(formData.get("serviceId") ?? "");
   if (!UUID.test(serviceId)) throw new Error("Invalid canned service.");
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
   await editableOrder(membership.shopId, repairOrderId);
 
@@ -67,7 +70,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
       select: { description: true, defaultHours: true, defaultLaborRate: true },
     });
     if (!service) throw new Error("Canned service is unavailable.");
-    await transaction.repairOrderLabor.create({
+    const line = await transaction.repairOrderLabor.create({
       data: {
         shopId: membership.shopId,
         repairOrderId,
@@ -76,8 +79,10 @@ export async function addCannedServiceLaborLine(formData: FormData) {
         hourlyRate: service.defaultLaborRate,
         legacyLineKey: `web:${randomUUID()}`,
       },
+      select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "canned_service" }) });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -87,7 +92,7 @@ export async function updateLaborLine(formData: FormData) {
   const laborLineId = String(formData.get("laborLineId") ?? "");
   const values = laborValues(formData);
   if (!UUID.test(laborLineId)) throw new Error("Invalid labor line.");
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
   await editableOrder(membership.shopId, repairOrderId);
 
@@ -98,6 +103,7 @@ export async function updateLaborLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_updated", "repair_order_labor", laborLineId, { source: "web" }) });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -106,7 +112,7 @@ export async function deleteLaborLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const laborLineId = String(formData.get("laborLineId") ?? "");
   if (!UUID.test(laborLineId)) throw new Error("Invalid labor line.");
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
   await editableOrder(membership.shopId, repairOrderId);
 
@@ -116,6 +122,7 @@ export async function deleteLaborLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_deleted", "repair_order_labor", laborLineId, { source: "web" }) });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }

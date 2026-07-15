@@ -56,6 +56,7 @@ export default async function SettingsPage({
         </form>
       </section>
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Common services</h2><p className="mt-2 text-sm text-slate-600">Manage reusable labor templates for draft repair orders.</p><Link href="/settings/services" className="mt-4 inline-flex rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage common services</Link></section>
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Audit log</h2><p className="mt-2 text-sm text-slate-600">Review recent important shop actions without sensitive field payloads.</p><Link href="/settings/audit-log" className="mt-4 inline-flex rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">View audit log</Link></section>
     </>
   );
 }

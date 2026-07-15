@@ -57,6 +57,7 @@ model Shop {
   legacyImportRuns    LegacyImportRun[]
   legacyImportErrors  LegacyImportError[]
   cannedServices      CannedService[]
+  auditLogs           AuditLog[]
 
   @@map("shops")
 }
@@ -76,6 +77,22 @@ model CannedService {
   @@unique([shopId, name])
   @@index([shopId, active])
   @@map("canned_services")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId     String   @map("shop_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+  @@index([shopId, entityType, entityId])
+  @@map("audit_logs")
 }
 
 model ShopMembership {

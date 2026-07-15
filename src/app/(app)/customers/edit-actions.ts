@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { auditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 
@@ -21,20 +22,15 @@ export async function updateCustomer(formData: FormData) {
     city.length > 100 || state.length > 30 || postalCode.length > 20) {
     throw new Error("Invalid customer information.");
   }
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
-  const result = await prisma.customer.updateMany({
-    where: { id: customerId, shopId: membership.shopId },
-    data: {
-      displayName,
-      phone: phone || null,
-      email: email || null,
-      addressLine1: addressLine1 || null,
-      city: city || null,
-      state: state || null,
-      postalCode: postalCode || null,
-    },
+  await prisma.$transaction(async (transaction) => {
+    const result = await transaction.customer.updateMany({
+      where: { id: customerId, shopId: membership.shopId },
+      data: { displayName, phone: phone || null, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
+    });
+    if (result.count !== 1) throw new Error("Customer was not found.");
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }) });
   });
-  if (result.count !== 1) throw new Error("Customer was not found.");
   redirect(`/customers/${customerId}`);
 }

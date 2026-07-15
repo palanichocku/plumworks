@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { auditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 
@@ -22,12 +23,15 @@ export async function updateVehicle(formData: FormData) {
     (odometer !== null && (!Number.isInteger(odometer) || odometer < 0 || odometer > 10_000_000))) {
     throw new Error("Invalid vehicle information.");
   }
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
-  const result = await prisma.vehicle.updateMany({
-    where: { id: vehicleId, shopId: membership.shopId },
-    data: { year, make, model, licensePlate: licensePlate || null, vin: vin || null, odometer },
+  await prisma.$transaction(async (transaction) => {
+    const result = await transaction.vehicle.updateMany({
+      where: { id: vehicleId, shopId: membership.shopId },
+      data: { year, make, model, licensePlate: licensePlate || null, vin: vin || null, odometer },
+    });
+    if (result.count !== 1) throw new Error("Vehicle was not found.");
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "vehicle_updated", "vehicle", vehicleId, { source: "web" }) });
   });
-  if (result.count !== 1) throw new Error("Vehicle was not found.");
   redirect(`/vehicles/${vehicleId}`);
 }

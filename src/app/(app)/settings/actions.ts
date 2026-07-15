@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
+import { auditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 
@@ -12,7 +13,7 @@ function optionalText(value: FormDataEntryValue | null) {
 }
 
 export async function updateInvoiceSettings(formData: FormData) {
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
 
   const taxRateText = String(formData.get("defaultTaxRate") ?? "").trim();
@@ -31,16 +32,12 @@ export async function updateInvoiceSettings(formData: FormData) {
     throw new Error("Invoice settings text is too long.");
   }
 
-  await prisma.shop.update({
-    where: { id: membership.shopId },
-    data: {
-      defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5),
-      defaultLaborRate: laborRate.toDecimalPlaces(2),
-      partsTaxable: formData.get("partsTaxable") === "on",
-      laborTaxable: formData.get("laborTaxable") === "on",
-      invoiceFooterMessage,
-      warrantyText,
-    },
+  await prisma.$transaction(async (transaction) => {
+    await transaction.shop.update({
+      where: { id: membership.shopId },
+      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", invoiceFooterMessage, warrantyText },
+    });
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web" }) });
   });
 
   revalidatePath("/settings");

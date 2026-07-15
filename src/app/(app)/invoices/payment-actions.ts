@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
+import { auditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 
@@ -27,7 +28,7 @@ export async function recordPayment(formData: FormData) {
   const paidAt = new Date(`${paymentDate}T12:00:00.000Z`);
   if (Number.isNaN(paidAt.getTime())) throw new Error("Invalid payment date.");
 
-  const { membership } = await getCurrentMembership();
+  const { user, membership } = await getCurrentMembership();
   if (!membership) throw new Error("Shop access is required.");
 
   await prisma.$transaction(async (transaction) => {
@@ -65,7 +66,7 @@ export async function recordPayment(formData: FormData) {
     const paidTotal = existingPaid.plus(amount).toDecimalPlaces(2);
     const balance = invoice.total.minus(paidTotal).toDecimalPlaces(2);
     const paid = balance.equals(0);
-    await transaction.payment.create({
+    const payment = await transaction.payment.create({
       data: {
         shopId: membership.shopId,
         invoiceId: invoice.id,
@@ -75,6 +76,7 @@ export async function recordPayment(formData: FormData) {
         paidAt,
         reference: note || null,
       },
+      select: { id: true },
     });
     await transaction.invoice.update({
       where: { id: invoice.id },
@@ -84,6 +86,7 @@ export async function recordPayment(formData: FormData) {
       where: { id: invoice.accountsReceivable[0].id },
       data: { balance, status: paid ? "paid" : "open" },
     });
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "payment_recorded", "payment", payment.id, { invoiceId: invoice.id, method }) });
   }, { isolationLevel: "Serializable" });
 
   revalidatePath(`/invoices/${invoiceId}`);
