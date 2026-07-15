@@ -13,6 +13,7 @@ type InvoiceDetail = NonNullable<
 >;
 type InvoicePart = InvoiceDetail["parts"][number];
 type InvoiceLabor = InvoiceDetail["labor"][number];
+type InvoicePayment = InvoiceDetail["payments"][number];
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,35 @@ export default async function InvoiceDetailPage({
       ) : invoice.legacySourceTable ? (
         <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">Imported legacy invoice — payment recording is read-only.</p>
       ) : null}
+
+      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Payment History</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Total paid {formatMoney(invoice.paidTotal)} · Remaining {receivable ? formatMoney(receivable.balance) : "Unavailable"}
+            </p>
+          </div>
+        </div>
+        {invoice.legacySourceTable ? (
+          <p className="px-6 py-8 text-sm text-slate-600">
+            Itemized payment history is unavailable for imported legacy invoices. Paid and balance totals are shown above.
+          </p>
+        ) : invoice.payments.length === 0 ? (
+          <p className="px-6 py-8 text-sm text-slate-600">No payments have been recorded for this invoice.</p>
+        ) : (
+          <ul className="divide-y divide-slate-200">
+            {invoice.payments.map((payment: InvoicePayment) => (
+              <li key={payment.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[minmax(8rem,auto)_minmax(7rem,auto)_1fr_auto] sm:items-center">
+                <span className="text-sm font-medium text-slate-900">{formatDate(payment.paidAt)}</span>
+                <span className="text-sm capitalize text-slate-600">{payment.method?.trim() || "Not specified"}</span>
+                <span className="text-sm text-slate-600">{payment.reference?.trim() || "No reference or note"}</span>
+                <span className="font-semibold text-slate-950">{formatMoney(payment.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <LineSection title="Parts" empty="No parts are recorded for this invoice.">
         {invoice.parts.map((part: InvoicePart) => (

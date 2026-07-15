@@ -124,6 +124,16 @@ export async function getInvoiceForCurrentShop(id: string) {
         take: 1,
         select: { balance: true, status: true, dueAt: true },
       },
+      payments: {
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          paidAt: true,
+          method: true,
+          amount: true,
+          reference: true,
+        },
+      },
       parts: {
         orderBy: { id: "asc" },
         take: 50,
