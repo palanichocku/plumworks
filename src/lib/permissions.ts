@@ -17,7 +17,8 @@ export type Permission =
   | "edit_shop_settings"
   | "manage_canned_services"
   | "view_audit_log"
-  | "manage_staff";
+  | "manage_staff"
+  | "export_shop_data";
 
 export function hasPermission(role: ShopMembershipRole, permission: Permission) {
   return (matrix[role] as Permission[]).includes(permission);
