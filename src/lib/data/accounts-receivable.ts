@@ -28,7 +28,7 @@ export async function getAccountsReceivableForCurrentShop(
         ],
       } : {}),
     },
-    orderBy: [{ createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
       id: true,

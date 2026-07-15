@@ -24,7 +24,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1) {
           }
         : {}),
     },
-    orderBy: [{ displayName: "asc" }, { id: "asc" }],
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * 50,
     take: 51,
     select: {

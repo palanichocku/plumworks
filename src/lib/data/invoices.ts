@@ -50,7 +50,7 @@ export async function getInvoicesForCurrentShop(search?: string, page = 1) {
           }
         : {}),
     },
-    orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * 50,
     take: 51,
     select: {

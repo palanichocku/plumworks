@@ -9,7 +9,7 @@ export async function getOpenOrdersForCurrentShop() {
 
   return prisma.repairOrder.findMany({
     where: { shopId: membership.shopId, status: { in: ["draft", "open"] } },
-    orderBy: [{ openedAt: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
       id: true,
