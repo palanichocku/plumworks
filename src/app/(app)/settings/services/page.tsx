@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { PermissionDenied } from "@/components/permission-denied";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createCannedService, deleteCannedService, updateCannedService } from "./actions";
 
@@ -9,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CannedServicesPage() {
   const { membership } = await getCurrentMembership();
   if (!membership) return null;
+  if (!hasPermission(membership.role, "manage_canned_services")) return <PermissionDenied />;
   const services = await prisma.cannedService.findMany({ where: { shopId: membership.shopId }, orderBy: [{ active: "desc" }, { name: "asc" }] });
 
   return <>

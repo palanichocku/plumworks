@@ -1,5 +1,7 @@
 import { PageHeading } from "@/components/page-heading";
 import Link from "next/link";
+import { PermissionDenied } from "@/components/permission-denied";
+import { hasPermission } from "@/lib/permissions";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 import { updateInvoiceSettings } from "./actions";
@@ -17,6 +19,7 @@ export default async function SettingsPage({
   ]);
 
   if (!membership) return null;
+  if (!hasPermission(membership.role, "edit_shop_settings")) return <PermissionDenied />;
 
   const shop = await prisma.shop.findUnique({
     where: { id: membership.shopId },

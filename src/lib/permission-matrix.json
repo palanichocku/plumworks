@@ -1,0 +1,19 @@
+{
+  "OWNER": [
+    "view_dashboard", "view_search", "view_reports", "edit_customer_vehicle",
+    "create_repair_order", "edit_draft_repair_order", "delete_draft_repair_order",
+    "finalize_repair_order", "record_payment", "edit_shop_settings",
+    "manage_canned_services", "view_audit_log", "manage_staff"
+  ],
+  "ADMIN": [
+    "view_dashboard", "view_search", "view_reports", "edit_customer_vehicle",
+    "create_repair_order", "edit_draft_repair_order", "delete_draft_repair_order",
+    "finalize_repair_order", "record_payment", "edit_shop_settings",
+    "manage_canned_services", "view_audit_log", "manage_staff"
+  ],
+  "STAFF": [
+    "view_dashboard", "view_search", "edit_customer_vehicle",
+    "create_repair_order", "edit_draft_repair_order", "finalize_repair_order",
+    "record_payment"
+  ]
+}

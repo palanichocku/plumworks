@@ -3,18 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { ShopMembershipRole } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/permissions";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roles = new Set(Object.values(ShopMembershipRole));
 
 async function managerAccess() {
-  const access = await getCurrentMembership();
-  if (!access.membership || !["OWNER", "ADMIN"].includes(access.membership.role)) {
-    throw new Error("Owner or administrator access is required.");
-  }
-  return access as typeof access & { membership: NonNullable<typeof access.membership> };
+  return requirePermission("manage_staff");
 }
 
 export async function changeMemberRole(formData: FormData) {

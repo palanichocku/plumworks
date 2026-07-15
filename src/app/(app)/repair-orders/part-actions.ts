@@ -3,8 +3,8 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/permissions";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,8 +44,7 @@ async function editableOrder(shopId: string, repairOrderId: string) {
 export async function addPartLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const values = partValues(formData);
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("edit_draft_repair_order");
   await editableOrder(membership.shopId, repairOrderId);
 
   await prisma.$transaction(async (transaction) => {
@@ -69,8 +68,7 @@ export async function updatePartLine(formData: FormData) {
   const partLineId = String(formData.get("partLineId") ?? "");
   const values = partValues(formData);
   if (!UUID.test(partLineId)) throw new Error("Invalid part line.");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("edit_draft_repair_order");
   await editableOrder(membership.shopId, repairOrderId);
 
   await prisma.$transaction(async (transaction) => {
@@ -89,8 +87,7 @@ export async function deletePartLine(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const partLineId = String(formData.get("partLineId") ?? "");
   if (!UUID.test(partLineId)) throw new Error("Invalid part line.");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("edit_draft_repair_order");
   await editableOrder(membership.shopId, repairOrderId);
 
   await prisma.$transaction(async (transaction) => {

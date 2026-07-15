@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { PermissionDenied } from "@/components/permission-denied";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function AuditLogPage() {
   const { membership } = await getCurrentMembership();
   if (!membership) return null;
+  if (!hasPermission(membership.role, "view_audit_log")) return <PermissionDenied />;
   const events = await prisma.auditLog.findMany({
     where: { shopId: membership.shopId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { PermissionDenied } from "@/components/permission-denied";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { changeMemberRole, createStaffInvite, removeMember } from "./actions";
 
@@ -10,8 +12,7 @@ const roleOptions = ["OWNER", "ADMIN", "STAFF"] as const;
 export default async function StaffPage() {
   const { user, membership } = await getCurrentMembership();
   if (!membership) return null;
-  const canManage = membership.role === "OWNER" || membership.role === "ADMIN";
-  if (!canManage) return <><Link href="/settings" className="text-sm font-semibold text-sky-700">← Settings</Link><section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center"><h1 className="text-xl font-bold text-slate-950">Staff management unavailable</h1><p className="mt-2 text-sm text-slate-600">Owner or administrator access is required.</p></section></>;
+  if (!hasPermission(membership.role, "manage_staff")) return <PermissionDenied />;
 
   const [members, invites] = await Promise.all([
     prisma.shopMembership.findMany({ where: { shopId: membership.shopId }, orderBy: [{ role: "asc" }, { createdAt: "asc" }], select: { id: true, userId: true, role: true, createdAt: true } }),

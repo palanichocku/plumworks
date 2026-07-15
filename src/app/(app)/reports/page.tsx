@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
+import { PermissionDenied } from "@/components/permission-denied";
+import { getCurrentMembership } from "@/lib/data/membership";
 import { getShopReport } from "@/lib/data/reports";
 import { formatDate, formatMoney } from "@/lib/formatters";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,9 @@ export default async function ReportsPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const params = await searchParams;
+  const { membership } = await getCurrentMembership();
+  if (!membership) return null;
+  if (!hasPermission(membership.role, "view_reports")) return <PermissionDenied />;
   const now = new Date();
   const defaultFrom = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
   const defaultTo = isoDate(now);

@@ -65,23 +65,27 @@ function NavigationLink({
   );
 }
 
-export function DesktopNavigation() {
+function allowedNavigation(canViewReports: boolean, canViewSettings: boolean) {
+  return navigation.filter((item) => (item.href !== "/reports" || canViewReports) && (item.href !== "/settings" || canViewSettings));
+}
+
+export function DesktopNavigation({ canViewReports, canViewSettings }: { canViewReports: boolean; canViewSettings: boolean }) {
   return (
     <nav className="mt-8 space-y-1" aria-label="Primary navigation">
-      {navigation.map((item) => (
+      {allowedNavigation(canViewReports, canViewSettings).map((item) => (
         <NavigationLink key={item.href} {...item} />
       ))}
     </nav>
   );
 }
 
-export function MobileNavigation() {
+export function MobileNavigation({ canViewReports, canViewSettings }: { canViewReports: boolean; canViewSettings: boolean }) {
   return (
     <nav
       className="flex gap-1 overflow-x-auto border-t border-slate-200 px-3 py-2"
       aria-label="Mobile navigation"
     >
-      {navigation.map((item) => (
+      {allowedNavigation(canViewReports, canViewSettings).map((item) => (
         <NavigationLink key={item.href} {...item} mobile />
       ))}
     </nav>

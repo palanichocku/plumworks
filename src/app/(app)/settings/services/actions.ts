@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,8 +20,7 @@ function values(formData: FormData) {
 }
 
 export async function createCannedService(formData: FormData) {
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("manage_canned_services");
   await prisma.$transaction(async (transaction) => {
     const service = await transaction.cannedService.create({ data: { shopId: membership.shopId, ...values(formData) }, select: { id: true } });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "canned_service_created", "canned_service", service.id, { source: "web" }) });
@@ -32,8 +31,7 @@ export async function createCannedService(formData: FormData) {
 export async function updateCannedService(formData: FormData) {
   const id = String(formData.get("serviceId") ?? "");
   if (!UUID.test(id)) throw new Error("Invalid canned service.");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("manage_canned_services");
   const data = values(formData);
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.cannedService.updateMany({ where: { id, shopId: membership.shopId }, data });
@@ -46,8 +44,7 @@ export async function updateCannedService(formData: FormData) {
 export async function deleteCannedService(formData: FormData) {
   const id = String(formData.get("serviceId") ?? "");
   if (!UUID.test(id)) throw new Error("Invalid canned service.");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("manage_canned_services");
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.cannedService.deleteMany({ where: { id, shopId: membership.shopId } });
     if (result.count === 1) await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "canned_service_deleted", "canned_service", id, { source: "web" }) });

@@ -5,9 +5,13 @@ import { signOut } from "@/app/(app)/actions";
 export function AppShell({
   children,
   userEmail,
+  canViewReports,
+  canViewSettings,
 }: {
   children: React.ReactNode;
   userEmail: string;
+  canViewReports: boolean;
+  canViewSettings: boolean;
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -25,7 +29,7 @@ export function AppShell({
             </button>
           </form>
         </div>
-        <MobileNavigation />
+        <MobileNavigation canViewReports={canViewReports} canViewSettings={canViewSettings} />
       </header>
 
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white p-5 print:hidden lg:flex lg:flex-col">
@@ -39,7 +43,7 @@ export function AppShell({
           </span>
         </Link>
 
-        <DesktopNavigation />
+        <DesktopNavigation canViewReports={canViewReports} canViewSettings={canViewSettings} />
 
         <form action="/search" className="mt-6">
           <label htmlFor="sidebar-shop-search" className="sr-only">Search shop</label>

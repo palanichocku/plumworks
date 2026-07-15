@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,8 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export async function deleteDraftRepairOrder(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   if (!UUID.test(repairOrderId)) redirect("/repair-orders");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) redirect("/login");
+  const { user, membership } = await requirePermission("delete_draft_repair_order");
 
   await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`

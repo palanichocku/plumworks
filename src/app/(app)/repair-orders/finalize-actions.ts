@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,8 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export async function finalizeRepairOrder(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("finalize_repair_order");
 
   const invoice = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`

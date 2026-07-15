@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,8 +22,7 @@ export async function updateCustomer(formData: FormData) {
     city.length > 100 || state.length > 30 || postalCode.length > 20) {
     throw new Error("Invalid customer information.");
   }
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("edit_customer_vehicle");
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({
       where: { id: customerId, shopId: membership.shopId },

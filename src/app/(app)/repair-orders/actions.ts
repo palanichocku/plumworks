@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -63,8 +63,7 @@ export async function createRepairOrder(formData: FormData) {
     redirect("/repair-orders/new?error=invalid-selection");
   }
 
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) redirect("/login");
+  const { user, membership } = await requirePermission("create_repair_order");
 
   if (customerMode === "existing") {
     const selection = await prisma.customer.findFirst({

@@ -14,6 +14,8 @@ import {
   updatePartLine,
 } from "../part-actions";
 import { DeleteRepairOrderButton } from "@/components/delete-repair-order-button";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 
 type RepairOrder = NonNullable<
   Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>
@@ -25,13 +27,14 @@ export const dynamic = "force-dynamic";
 
 export default async function RepairOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const order = await getWebRepairOrderForCurrentShop(id);
+  const [order, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getCurrentMembership()]);
   if (!order) notFound();
   const editable = order.status === "draft" || order.status === "open";
+  const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
   return <div className="space-y-6">
-    <header><Link href="/repair-orders" className="text-sm font-semibold text-sky-700">← Repair Orders</Link><p className="mt-5 text-sm font-semibold uppercase tracking-wider text-sky-700">Repair Order / Estimate</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1><span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold uppercase text-sky-800">{order.status}</span></div><div className="flex flex-wrap gap-3"><Link href={`/repair-orders/${order.id}/print`} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>{editable && <><Link href={`/repair-orders/${order.id}/finalize`} className="rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Finalize / Create Invoice</Link><DeleteRepairOrderButton repairOrderId={order.id} /></>}</div></div><p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>{!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Finalized repair order — read-only</p>}</header>
+    <header><Link href="/repair-orders" className="text-sm font-semibold text-sky-700">← Repair Orders</Link><p className="mt-5 text-sm font-semibold uppercase tracking-wider text-sky-700">Repair Order / Estimate</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1><span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold uppercase text-sky-800">{order.status}</span></div><div className="flex flex-wrap gap-3"><Link href={`/repair-orders/${order.id}/print`} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>{editable && <><Link href={`/repair-orders/${order.id}/finalize`} className="rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Finalize / Create Invoice</Link>{canDelete && <DeleteRepairOrderButton repairOrderId={order.id} />}</>}</div></div><p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>{!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Finalized repair order — read-only</p>}</header>
     <div className="grid gap-4 md:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Customer</h2><Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-sky-700">{order.customer.displayName}</Link></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Vehicle</h2><Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-sky-700">{vehicle || "Vehicle details unavailable"}</Link></section></div>
     <fieldset disabled={!editable} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm disabled:bg-slate-50 disabled:opacity-75">
       <div className="flex items-center justify-between gap-4"><div><h2 className="font-semibold text-slate-950">Parts</h2><p className="mt-1 text-sm text-slate-600">Amount is calculated from quantity × unit price.</p></div><p className="font-semibold text-slate-950">{formatMoney(order.partsTotal)}</p></div>

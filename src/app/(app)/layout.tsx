@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { signOut } from "./actions";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 
 export default async function WorkspaceLayout({
   children,
@@ -63,5 +64,5 @@ export default async function WorkspaceLayout({
     );
   }
 
-  return <AppShell userEmail={user.email ?? "Signed-in user"}>{children}</AppShell>;
+  return <AppShell userEmail={user.email ?? "Signed-in user"} canViewReports={hasPermission(membership.role, "view_reports")} canViewSettings={hasPermission(membership.role, "edit_shop_settings")}>{children}</AppShell>;
 }

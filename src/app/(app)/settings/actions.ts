@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
-import { getCurrentMembership } from "@/lib/data/membership";
+import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 function optionalText(value: FormDataEntryValue | null) {
@@ -13,8 +13,7 @@ function optionalText(value: FormDataEntryValue | null) {
 }
 
 export async function updateInvoiceSettings(formData: FormData) {
-  const { user, membership } = await getCurrentMembership();
-  if (!membership) throw new Error("Shop access is required.");
+  const { user, membership } = await requirePermission("edit_shop_settings");
 
   const taxRateText = String(formData.get("defaultTaxRate") ?? "").trim();
   const taxPercent = new Prisma.Decimal(taxRateText || "0");
