@@ -62,6 +62,12 @@ const wantsVerify = flags.has("--verify");
 const wantsBackup = flags.has("--backup");
 const wantsReport = flags.has("--report");
 const summaryOnly = flags.has("--summary-only");
+const finalLog = console.log.bind(console);
+const finalError = console.error.bind(console);
+if (summaryOnly) {
+  console.log = () => {};
+  console.error = () => {};
+}
 const backupDir = resolve(argument("--backup-dir") ?? "backups");
 const reportDir = resolve(argument("--report-dir") ?? "reports");
 const destructive = wantsReset || wantsReload;
@@ -300,6 +306,61 @@ function expectedCleanCounts(source) {
   };
 }
 
+function reportReconciliation(source) {
+  const expected = expectedCleanCounts(source);
+  if (!expected) return {};
+  const { reconciliation, finalSource, laborSource, arSource, orderPartSource, orderLaborSource, invoices, openOrders } = expected.details;
+  const customerRaw = source.counts.get("Cust.DBF") ?? 0;
+  const vehicleRaw = source.counts.get("vehicles.DBF") ?? 0;
+  const finalRaw = source.counts.get("FINAL.DBF") ?? 0;
+  const laborRaw = source.counts.get("laborfinal.DBF") ?? 0;
+  const arRaw = source.counts.get("ar.DBF") ?? 0;
+  const openRaw = (source.counts.get("orders.DBF") ?? 0) + (source.counts.get("LABORorder.DBF") ?? 0);
+  return {
+    customers: {
+      raw: customerRaw, expectedClean: expected.customers, skipped: customerRaw - expected.customers,
+      sourceDeleted: reconciliation.deletedCustomerRows,
+      invalidLegacyId: reconciliation.reasons.invalidCustomerId,
+      blankName: reconciliation.reasons.blankCustomerName,
+      duplicateLegacyId: reconciliation.reasons.duplicateCustomerId,
+    },
+    vehicles: {
+      raw: vehicleRaw, expectedClean: expected.vehicles, skipped: vehicleRaw - expected.vehicles,
+      sourceDeleted: reconciliation.deletedVehicleRows,
+      invalidLegacyOrCustomerId: reconciliation.reasons.invalidVehicleId,
+      missingCustomerLink: reconciliation.reasons.missingCustomerLink,
+      duplicateLegacyId: reconciliation.reasons.duplicateVehicleId,
+    },
+    invoices: {
+      raw: finalRaw, expectedClean: expected.invoices, skippedOrCollapsed: finalRaw - expected.invoices,
+      sourceDeleted: finalSource.deletedRows, ...invoices.reasons,
+    },
+    invoiceParts: {
+      raw: finalRaw, expectedClean: expected.invoice_parts, skipped: finalRaw - expected.invoice_parts,
+      sourceDeleted: finalSource.deletedRows,
+      blankDescriptionOrNumber: invoices.reasons.partBlankDescription,
+      missingInvoiceLink: invoices.reasons.partMissingInvoice,
+    },
+    invoiceLabor: {
+      raw: laborRaw, expectedClean: expected.invoice_labor, skipped: laborRaw - expected.invoice_labor,
+      sourceDeleted: laborSource.deletedRows,
+      missingInvoiceOrRoLink: invoices.reasons.laborMissingInvoice,
+    },
+    accountsReceivable: {
+      raw: arRaw, expectedClean: expected.accounts_receivable, skippedOrCollapsed: arRaw - expected.accounts_receivable,
+      sourceDeleted: arSource.deletedRows,
+      blankRo: invoices.reasons.arBlankRo,
+      additionalRowsForRo: invoices.reasons.arAdditionalRows,
+      missingInvoiceOrCustomerLink: invoices.reasons.arMissingInvoiceOrCustomer,
+    },
+    openRepairOrders: {
+      raw: openRaw, expectedClean: expected.repair_orders, skippedOrCollapsed: openRaw - expected.repair_orders,
+      sourceDeleted: orderPartSource.deletedRows + orderLaborSource.deletedRows,
+      ...openOrders.reasons,
+    },
+  };
+}
+
 async function databaseCounts(prisma, shopId) {
   return Object.fromEntries(await Promise.all(OPERATIONAL_MODELS.map(async ([table, model]) => [
     table,
@@ -433,6 +494,10 @@ Mode: ${summary.mode}
 
 ${countTable(summary.source.rowCounts)}
 
+### Count-only raw-to-clean reconciliation
+
+${summary.source.reconciliation ? JSON.stringify(summary.source.reconciliation, null, 2).split("\n").map((line) => `    ${line}`).join("\n") : "_Not available._"}
+
 ## 3. Backup summary
 
 - Requested: ${summary.backup.requested ? "Yes" : "No"}
@@ -491,18 +556,48 @@ function finalizeStatus(summary) {
   else summary.nextActions.push("Spot-check the application and retain the backup and report according to shop policy.");
 }
 
+function conciseSummary(summary, reportPaths) {
+  const sourceStatus = summary.source.validationIssues === null
+    ? "Not run"
+    : summary.source.validationIssues === 0 ? "PASS (all required files present)" : `FAIL (${summary.source.validationIssues} issues)`;
+  const backupStatus = summary.backup.requested
+    ? `${summary.backup.completed ? "Completed" : "Failed/not completed"} (${Object.values(summary.backup.files).filter((file) => file.nonEmpty).length}/4 non-empty files)`
+    : "Not requested";
+  const verificationEntries = Object.entries(summary.verification);
+  return [
+    "=== CAR DOC CUTOVER SUMMARY ===",
+    `Overall status: ${summary.status}`,
+    `Critical issues: ${summary.criticalIssues.length ? summary.criticalIssues.join("; ") : "None"}`,
+    `Warnings: ${summary.warnings.length ? summary.warnings.join("; ") : "None"}`,
+    `Source validation: ${sourceStatus}`,
+    `Backup: ${backupStatus}`,
+    `Reset: requested=${summary.reset.requested ? "yes" : "no"}, completed=${summary.reset.completed ? "yes" : "no"}`,
+    `Reload: requested=${summary.reload.requested ? "yes" : "no"}, completed=${summary.reload.completed ? "yes" : "no"}`,
+    "Verification:",
+    ...(verificationEntries.length ? verificationEntries.map(([key, value]) => `  ${key}: ${value}`) : ["  Not run"]),
+    `Reports: ${reportPaths.length ? reportPaths.join(", ") : "Not saved"}`,
+  ].join("\n");
+}
+
 async function emitFinalReport(summary, saveFiles) {
   finalizeStatus(summary);
   const markdown = reportMarkdown(summary);
-  console.log("\n=== CAR DOC CUTOVER FINAL SUMMARY ===");
-  console.log(markdown);
-  if (!saveFiles) return;
-  await mkdir(reportDir, { recursive: true });
-  const markdownPath = resolve(reportDir, `cutover-${timestampSlug}.md`);
-  const jsonPath = resolve(reportDir, `cutover-${timestampSlug}.json`);
-  await writeFile(markdownPath, markdown, { flag: "wx" });
-  await writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, { flag: "wx" });
-  console.log(`Report files saved: ${markdownPath}, ${jsonPath}`);
+  const reportPaths = [];
+  if (saveFiles) {
+    await mkdir(reportDir, { recursive: true });
+    const markdownPath = resolve(reportDir, `cutover-${timestampSlug}.md`);
+    const jsonPath = resolve(reportDir, `cutover-${timestampSlug}.json`);
+    await writeFile(markdownPath, markdown, { flag: "wx" });
+    await writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, { flag: "wx" });
+    reportPaths.push(markdownPath, jsonPath);
+  }
+  if (summaryOnly) {
+    finalLog(conciseSummary(summary, reportPaths));
+  } else {
+    finalLog("\n=== CAR DOC CUTOVER FINAL SUMMARY ===");
+    finalLog(markdown);
+    if (reportPaths.length) finalLog(`Report files saved: ${reportPaths.join(", ")}`);
+  }
 }
 
 async function runScript(script, args) {
@@ -624,6 +719,7 @@ async function main() {
     runSummary.source.expectedCleanCounts = expected ? Object.fromEntries(
       Object.entries(expected).filter(([key]) => key !== "details"),
     ) : {};
+    runSummary.source.reconciliation = reportReconciliation(source);
     for (const filename of DBF_SOURCES) console.log(`${filename} rows available: ${source.counts.get(filename) ?? "unavailable"}`);
     console.log(`source validation issue count: ${source.validationIssues}`);
     if (source.validationIssues > 0) throw new Error("Required source files are missing or unreadable.");
@@ -777,7 +873,7 @@ try {
     try {
       await emitFinalReport(runSummary, wantsReport);
     } catch (error) {
-      console.error(`cutover report failed: ${safeError(error)}`);
+      finalError(`cutover report failed: ${safeError(error)}`);
       process.exitCode = 1;
     }
   }
