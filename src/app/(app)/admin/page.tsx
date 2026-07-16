@@ -19,13 +19,14 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* 1. Page Header Elements Remain Statically at the Top */}
       <PageHeading
         eyebrow="Management"
         title="Admin Control Panel"
         description="Owner and administrator tools for configuring the global Car Doc workspace permissions and configurations."
       />
 
-      {/* Structural Admin Section Cards Grid */}
+      {/* 2. Admin Tool Cards Section - Content Displays Below Heading */}
       <section className="grid gap-4 sm:grid-cols-2">
         {adminSections.map((section) => (
           <Link

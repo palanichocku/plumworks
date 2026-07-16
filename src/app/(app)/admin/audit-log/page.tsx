@@ -7,21 +7,165 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function AuditLogPage({ searchParams }: { searchParams: Promise<{ q?: string; action?: string; entity?: string }> }) {
+export default async function AuditLogPage({ 
+  searchParams 
+}: { 
+  searchParams: Promise<{ q?: string; action?: string; entity?: string }> 
+}) {
   const [{ membership }, params] = await Promise.all([getCurrentMembership(), searchParams]);
   if (!membership) return null;
   if (!hasPermission(membership.role, "view_audit_log")) return <PermissionDenied />;
-  const q = params.q?.trim().slice(0, 100) ?? ""; const action = params.action?.trim().slice(0, 100) ?? ""; const entity = params.entity?.trim().slice(0, 100) ?? "";
+  
+  const q = params.q?.trim().slice(0, 100) ?? ""; 
+  const action = params.action?.trim().slice(0, 100) ?? ""; 
+  const entity = params.entity?.trim().slice(0, 100) ?? "";
+  
   const events = await prisma.auditLog.findMany({
-    where: { shopId: membership.shopId, ...(action ? { action: { contains: action, mode: "insensitive" } } : {}), ...(entity ? { entityType: { contains: entity, mode: "insensitive" } } : {}), ...(q ? { OR: [{ actorEmail: { contains: q, mode: "insensitive" } }, { action: { contains: q, mode: "insensitive" } }, { entityLabel: { contains: q, mode: "insensitive" } }, { contextSummary: { contains: q, mode: "insensitive" } }] } : {}) },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100,
-    select: { id: true, action: true, entityType: true, createdAt: true, userId: true, actorEmail: true, actorRole: true, entityLabel: true, entityHref: true, contextSummary: true },
+    where: { 
+      shopId: membership.shopId, 
+      ...(action ? { action: { contains: action, mode: "insensitive" } } : {}), 
+      ...(entity ? { entityType: { contains: entity, mode: "insensitive" } } : {}), 
+      ...(q ? { OR: [
+        { actorEmail: { contains: q, mode: "insensitive" } }, 
+        { action: { contains: q, mode: "insensitive" } }, 
+        { entityLabel: { contains: q, mode: "insensitive" } }, 
+        { contextSummary: { contains: q, mode: "insensitive" } }
+      ] } : {}) 
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }], 
+    take: 100,
+    select: { 
+      id: true, 
+      action: true, 
+      entityType: true, 
+      createdAt: true, 
+      userId: true, 
+      actorEmail: true, 
+      actorRole: true, 
+      entityLabel: true, 
+      entityHref: true, 
+      contextSummary: true 
+    },
   });
 
-  return <>
-    <Link href="/admin" className="text-sm font-semibold text-sky-700 hover:text-sky-800">← Admin</Link>
-    <div className="mt-5"><PageHeading eyebrow="Admin" title="Audit Log" description="Recent important actions for this shop. Sensitive field values are not recorded." /></div>
-    <form className="mb-5 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[2fr_1fr_1fr_auto]"><label className="text-sm font-semibold text-slate-700">Search<input name="q" defaultValue={q} placeholder="Actor, action, entity, or context" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><label className="text-sm font-semibold text-slate-700">Action<input name="action" defaultValue={action} placeholder="payment recorded" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><label className="text-sm font-semibold text-slate-700">Entity type<input name="entity" defaultValue={entity} placeholder="repair order" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><button className="self-end rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Filter</button></form>
-    {events.length === 0 ? <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="text-lg font-semibold">No audit events found</h2><p className="mt-2 text-sm text-slate-600">New shop changes or matching filtered events will appear here.</p></section> : <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="min-w-[1100px] w-full text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-3">Time</th><th className="px-5 py-3">Action</th><th className="px-5 py-3">Entity</th><th className="px-5 py-3">Actor</th><th className="px-5 py-3">Context</th></tr></thead><tbody className="divide-y divide-slate-200">{events.map((event) => { const label = event.entityLabel ?? event.entityType.replaceAll("_", " "); const actor = event.actorEmail ?? (event.userId ? "Shop user" : "Unknown user"); return <tr key={event.id} className="align-top"><td className="whitespace-nowrap px-5 py-4 text-slate-600">{event.createdAt.toLocaleString("en-US")}</td><td className="px-5 py-4 font-medium capitalize text-slate-950">{event.action.replaceAll("_", " ")}</td><td className="px-5 py-4">{event.entityHref ? <Link href={event.entityHref} className="font-semibold text-sky-700 hover:text-sky-900">{label}</Link> : <span className="capitalize text-slate-700">{label}</span>}<span className="mt-1 block text-xs capitalize text-slate-500">{event.entityType.replaceAll("_", " ")}</span></td><td className="px-5 py-4 text-slate-700">{actor}{event.actorRole && <span className="mt-1 block text-xs text-slate-500">{event.actorRole}</span>}</td><td className="px-5 py-4 text-slate-600">{event.contextSummary ?? "No additional context recorded"}</td></tr>; })}</tbody></table><p className="border-t border-slate-200 px-5 py-3 text-xs text-slate-500">Showing up to 100 newest events.</p></section>}
-  </>;
+  const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-500 w-full";
+  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 shadow-2xs";
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      {/* Structural Back Link Navigation Button */}
+      <div>
+        <Link 
+          href="/admin" 
+          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-sky-600 transition-colors focus:outline-none"
+        >
+          <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
+          Back to Admin Panel
+        </Link>
+      </div>
+
+      {/* Main Page Header */}
+      <PageHeading 
+        eyebrow="Admin" 
+        title="Audit Log" 
+        description="Review chronological platform workspace event vectors. Field-level values remain encrypted." 
+      />
+
+      {/* Premium Filter Control Toolbar Grid */}
+      <form className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[2fr_1fr_1fr_auto] items-end">
+        <label className={labelClass}>
+          Search
+          <input name="q" defaultValue={q} placeholder="Actor email, action keyword, or context..." className={inputClass} />
+        </label>
+        
+        <label className={labelClass}>
+          Action type
+          <input name="action" defaultValue={action} placeholder="e.g. invoice_finalized" className={inputClass} />
+        </label>
+        
+        <label className={labelClass}>
+          Entity type
+          <input name="entity" defaultValue={entity} placeholder="e.g. repair_order" className={inputClass} />
+        </label>
+        
+        <button className="h-[38px] w-full md:w-auto rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 focus:outline-none whitespace-nowrap">
+          Apply Filters
+        </button>
+      </form>
+
+      {/* Audit Events Data Matrix Layout Container */}
+      {events.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <h2 className="text-base font-bold text-slate-900">No matching audit events found</h2>
+          <p className="mt-1 text-sm font-medium text-slate-500">New system transactions or matching filter arrays will generate here.</p>
+        </section>
+      ) : (
+        <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-[1100px] w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-5 py-3.5">Timestamp</th>
+                <th className="px-5 py-3.5">Action Executed</th>
+                <th className="px-5 py-3.5">Target Entity</th>
+                <th className="px-5 py-3.5">Security Actor</th>
+                <th className="px-5 py-3.5">Context Summary Vector</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {events.map((event) => { 
+                const label = event.entityLabel ?? event.entityType.replaceAll("_", " "); 
+                const actor = event.actorEmail ?? (event.userId ? "Shop Workspace User" : "System Core Process"); 
+                
+                return (
+                  <tr key={event.id} className="align-top transition-colors hover:bg-slate-50/30">
+                    <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-semibold text-slate-400">
+                      {event.createdAt.toLocaleString("en-US")}
+                    </td>
+                    
+                    <td className="px-5 py-4 font-bold text-slate-900">
+                      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 capitalize">
+                        {event.action.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    
+                    <td className="px-5 py-4">
+                      {event.entityHref ? (
+                        <Link href={event.entityHref} className="font-bold text-sky-600 hover:text-sky-800 transition-colors">
+                          {label}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-slate-700 capitalize">{label}</span>
+                      )}
+                      <span className="mt-0.5 block font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {event.entityType.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    
+                    <td className="px-5 py-4">
+                      <span className="font-bold text-slate-800">{actor}</span>
+                      {event.actorRole && (
+                        <span className="mt-0.5 block text-xs font-medium text-slate-400">
+                          Role: <strong className="font-semibold text-slate-600 uppercase tracking-wide">{event.actorRole}</strong>
+                        </span>
+                      )}
+                    </td>
+                    
+                    <td className="px-5 py-4 font-medium text-slate-500 max-w-sm break-words leading-relaxed">
+                      {event.contextSummary ?? "No additional transactional context recorded."}
+                    </td>
+                  </tr>
+                ); 
+              })}
+            </tbody>
+          </table>
+          
+          <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-3">
+            <p className="text-xs font-medium text-slate-400">
+              Query window constraint optimization active. Displaying up to 100 most recent ledger entries.
+            </p>
+          </div>
+        </section>
+      )}
+    </div>
+  );
 }
