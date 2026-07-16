@@ -1,9 +1,10 @@
-import { access, open, stat } from "node:fs/promises";
+import { access, open, readFile, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { reconcileCustomerVehicleRows } from "./lib/customer-vehicle-transform.mjs";
 
 const CONFIRMATION = "RESET_CAR_DOC_OPERATIONAL_DATA";
 const REQUIRED_SOURCES = [
@@ -44,6 +45,7 @@ const OPERATIONAL_AUDIT_TYPES = [
   "customer", "vehicle", "repair_order", "repair_order_part", "repair_order_labor",
   "invoice", "payment", "accounts_receivable",
 ];
+const legacyDecoder = new TextDecoder("windows-1252");
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -91,7 +93,106 @@ async function sourceCounts(sourceFolder) {
       counts.set(filename, null);
     }
   }
-  return { counts, validationIssues };
+  let reconciliation = null;
+  if (validationIssues === 0) {
+    const [customerSource, vehicleSource] = await Promise.all([
+      readDbfForReconciliation(resolve(sourceFolder, "Cust.DBF"), "customer"),
+      readDbfForReconciliation(resolve(sourceFolder, "vehicles.DBF"), "vehicle"),
+    ]);
+    reconciliation = {
+      ...reconcileCustomerVehicleRows(customerSource.rows, vehicleSource.rows),
+      deletedCustomerRows: customerSource.deletedRows,
+      deletedVehicleRows: vehicleSource.deletedRows,
+    };
+  }
+  return { counts, validationIssues, reconciliation };
+}
+
+function dbfFields(file, headerLength) {
+  const fields = [];
+  let recordOffset = 1;
+  for (let offset = 32; offset + 32 <= headerLength; offset += 32) {
+    if (file[offset] === 0x0d) break;
+    const descriptor = file.subarray(offset, offset + 32);
+    const nameEnd = descriptor.indexOf(0);
+    const name = legacyDecoder.decode(descriptor.subarray(0, nameEnd === -1 ? 11 : nameEnd)).trim();
+    const type = String.fromCharCode(descriptor[11]);
+    const length = descriptor[16];
+    fields.push({ name, type, length, recordOffset });
+    recordOffset += length;
+  }
+  return fields;
+}
+
+function dbfValue(bytes, type) {
+  if (["C", "N", "F", "D"].includes(type)) return legacyDecoder.decode(bytes).trim() || null;
+  if (type === "I" && bytes.length === 4) return bytes.readInt32LE();
+  return null;
+}
+
+function legacyIdentifier(rawData, candidates) {
+  const entry = Object.entries(rawData).find(([key]) => candidates.includes(key.toUpperCase().replaceAll("_", "")));
+  return entry?.[1] == null ? null : String(entry[1]).trim() || null;
+}
+
+async function readDbfForReconciliation(path, kind) {
+  const file = await readFile(path);
+  const recordCount = file.readUInt32LE(4);
+  const headerLength = file.readUInt16LE(8);
+  const recordLength = file.readUInt16LE(10);
+  const fields = dbfFields(file, headerLength);
+  const rows = [];
+  let deletedRows = 0;
+  for (let index = 0; index < recordCount; index += 1) {
+    const start = headerLength + index * recordLength;
+    const record = file.subarray(start, start + recordLength);
+    if (record.length !== recordLength) continue;
+    if (record[0] === 0x2a) {
+      deletedRows += 1;
+      continue;
+    }
+    const rawData = {};
+    for (const field of fields) {
+      const bytes = record.subarray(field.recordOffset, field.recordOffset + field.length);
+      rawData[field.name] = dbfValue(bytes, field.type);
+    }
+    rows.push({
+      rawData,
+      legacyCustno: legacyIdentifier(rawData, ["CUSTNO", "CUSTOMERNO"]),
+      legacyCarno: kind === "vehicle" ? legacyIdentifier(rawData, ["CARNO", "VEHICLENO"]) : null,
+    });
+  }
+  return { rows, deletedRows };
+}
+
+function printReconciliation(source, currentCounts) {
+  const result = source.reconciliation;
+  if (!result) return;
+  const customerRaw = source.counts.get("Cust.DBF") ?? 0;
+  const vehicleRaw = source.counts.get("vehicles.DBF") ?? 0;
+  const customerSkipped = customerRaw - result.customers.length;
+  const vehicleSkipped = vehicleRaw - result.vehicles.length;
+  console.log("customer reconciliation");
+  console.log(`raw source rows: ${customerRaw}`);
+  console.log(`expected clean transformed rows: ${result.customers.length}`);
+  console.log(`skipped/invalid rows: ${customerSkipped}`);
+  console.log(`  source-deleted rows: ${result.deletedCustomerRows}`);
+  console.log(`  invalid legacy id: ${result.reasons.invalidCustomerId}`);
+  console.log(`  blank customer name: ${result.reasons.blankCustomerName}`);
+  console.log(`  duplicate legacy id: ${result.reasons.duplicateCustomerId}`);
+  console.log(`current database rows that would be deleted: ${currentCounts.customers}`);
+  console.log(`current DB minus expected post-reload rows: ${currentCounts.customers - result.customers.length}`);
+  console.log("vehicle reconciliation");
+  console.log(`raw source rows: ${vehicleRaw}`);
+  console.log(`expected clean transformed rows: ${result.vehicles.length}`);
+  console.log(`skipped/invalid rows: ${vehicleSkipped}`);
+  console.log(`  source-deleted rows: ${result.deletedVehicleRows}`);
+  console.log(`  invalid legacy/customer id: ${result.reasons.invalidVehicleId}`);
+  console.log(`  missing customer link: ${result.reasons.missingCustomerLink}`);
+  console.log(`  duplicate legacy id: ${result.reasons.duplicateVehicleId}`);
+  console.log(`current database rows that would be deleted: ${currentCounts.vehicles}`);
+  console.log(`current DB minus expected post-reload rows: ${currentCounts.vehicles - result.vehicles.length}`);
+  console.log("Raw DBF rows may be higher than clean imported rows because invalid, blank, duplicate, or unlinked legacy rows are skipped during transformation.");
 }
 
 async function databaseCounts(prisma, shopId) {
@@ -217,10 +318,13 @@ async function main() {
     if (wantsSnapshot || wantsReset || (dryRun && !wantsVerify)) {
       printCounts(dryRun ? "rows that would be deleted" : "pre-reset snapshot", before);
     }
+    if (dryRun && source) printReconciliation(source, before);
 
     if (dryRun) {
+      const after = await databaseCounts(prisma, shop.id);
       console.log("mode: dry-run");
       console.log("database writes performed: 0");
+      console.log(`dry-run operational row counts unchanged: ${JSON.stringify(after) === JSON.stringify(before) ? 1 : 0}`);
       if (wantsVerify) await verify(prisma, shop.id, preservedBefore);
       return;
     }
