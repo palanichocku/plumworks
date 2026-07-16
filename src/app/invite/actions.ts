@@ -32,7 +32,7 @@ export async function acceptStaffInvite(formData: FormData) {
     });
     if (existing) throw new Error("This invitation has already been accepted.");
     const membership = await transaction.shopMembership.create({
-      data: { shopId: invite.shopId, userId: user.id, role: invite.role },
+      data: { shopId: invite.shopId, userId: user.id, userEmail: email, role: invite.role },
       select: { id: true },
     });
     await transaction.staffInvite.update({ where: { id: invite.id }, data: { status: "accepted" } });
