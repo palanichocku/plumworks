@@ -15,10 +15,70 @@ const modules = [
 ] as const;
 
 export default function HelpOverviewPage() {
-  return <div className="space-y-6"><PageHeading eyebrow="Help" title="Car Doc Guide" description="Purpose, actions, results, and expectations for every shop workflow." />
-    <FlowDiagram title="Overall shop workflow" steps={[{ title: "Customer", detail: "Select or create a customer." }, { title: "Vehicle", detail: "Choose the vehicle receiving service." }, { title: "Repair Order", detail: "Add parts and labor while work is open." }, { title: "Invoice", detail: "Finalize the completed repair order." }, { title: "Payment & Reports", detail: "Track paid totals and remaining balances." }]} />
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{modules.map(([title, description, href, result]) => <HelpCard key={title} title={title} description={description} href={href} result={result} />)}</section>
-    <HelpSection title="Quick start"><HelpList items={["Create a repair order from Repair Orders → New Repair Order.", "Select an existing customer and vehicle, or create both during entry.", "Add parts, labor, or a canned service to the draft.", "Print an estimate for review.", "Finalize the repair order to create a read-only invoice.", "Record a supported payment and check Accounts Receivable.", "Run Reports for the applicable invoice date range."]} /></HelpSection>
-    <HelpSection title="Important expectations" warning><HelpList items={["Legacy imported records may be read-only.", "Raw legacy rows can be skipped or collapsed when blank, invalid, duplicated, deleted, or unlinked.", "Finalized invoices should not be casually edited.", "Receivables means unpaid balance.", "Reports use the selected invoice date range."]} /></HelpSection>
-  </div>;
+  return (
+    <div className="space-y-6">
+      {/* Main Page Header */}
+      <PageHeading 
+        eyebrow="Help" 
+        title="Car Doc Guide" 
+        description="Purpose, actions, results, and expectations for every shop workflow." 
+      />
+      
+      {/* Flow Diagram Block Panel */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <FlowDiagram 
+          title="Overall shop workflow" 
+          steps={[
+            { title: "Customer", detail: "Select or create a customer." }, 
+            { title: "Vehicle", detail: "Choose the vehicle receiving service." }, 
+            { title: "Repair Order", detail: "Add parts and labor while work is open." }, 
+            { title: "Invoice", detail: "Finalize the completed repair order." }, 
+            { title: "Payment & Reports", detail: "Track paid totals and remaining balances." }
+          ]} 
+        />
+      </div>
+
+      {/* Grid Directory System Blocks */}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {modules.map(([title, description, href, result]) => (
+          <HelpCard 
+            key={title} 
+            title={title} 
+            description={description} 
+            href={href} 
+            result={result} 
+          />
+        ))}
+      </section>
+
+      {/* Modern High-Contrast Strategy Guides Wrapper */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <HelpSection title="Quick start">
+            <HelpList items={[
+              "Create a repair order from Repair Orders → New Repair Order.",
+              "Select an existing customer and vehicle, or create both during entry.",
+              "Add parts, labor, or a canned service to the draft.",
+              "Print an estimate for review.",
+              "Finalize the repair order to create a read-only invoice.",
+              "Record a supported payment and check Accounts Receivable.",
+              "Run Reports for the applicable invoice date range."
+            ]} />
+          </HelpSection>
+        </div>
+
+        <div className="rounded-2xl border border-red-100 bg-red-50/10 p-6 shadow-sm">
+          <HelpSection title="Important expectations" warning>
+            <HelpList items={[
+              "Legacy imported records may be read-only.",
+              "Raw legacy rows can be skipped or collapsed when blank, invalid, duplicated, deleted, or unlinked.",
+              "Finalized invoices should not be casually edited.",
+              "Receivables means unpaid balance.",
+              "Reports use the selected invoice date range."
+            ]} />
+          </HelpSection>
+        </div>
+      </div>
+    </div>
+  );
 }
