@@ -8,7 +8,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: data
 const rollback = new Error("ROLLBACK_VERIFICATION");
 
 try {
-  const shop = await prisma.shop.findFirst({ where: { name: "CAR DOC LLC" }, select: { id: true } });
+  const shop = await prisma.shop.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
   if (!shop) throw new Error("Shop is unavailable.");
   const [serviceCount, importedCustomersBefore, importedVehiclesBefore, importedInvoicesBefore, importedOrdersBefore] = await Promise.all([
     prisma.cannedService.count({ where: { shopId: shop.id } }),

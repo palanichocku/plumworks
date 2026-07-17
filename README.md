@@ -1,6 +1,6 @@
-# Car Doc
+# PlumWorks
 
-Car Doc is a serverless, cloud-first auto repair shop application built with
+PlumWorks is serverless, cloud-first auto repair shop management software built with
 Next.js, TypeScript, Tailwind CSS, and the App Router.
 
 ## Development
@@ -27,7 +27,7 @@ After the shop fields have been migrated, run the idempotent setup seed:
 npm run db:seed
 ~~~
 
-The seed creates or updates only the configured Car Doc shop. It does not add
+The seed creates or updates only the configured current-tenant shop. It does not add
 customers, vehicles, invoices, or legacy data.
 
 ## Legacy customer and vehicle staging

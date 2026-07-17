@@ -154,7 +154,7 @@ export default async function StaffPage() {
               type="email" 
               required 
               maxLength={254} 
-              placeholder="mechanic@cardoc.com" 
+              placeholder="mechanic@example.com"
               className={inputClass} 
             />
           </label>

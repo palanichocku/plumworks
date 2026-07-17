@@ -9,12 +9,14 @@ const prisma = new PrismaClient({
 });
 
 try {
-  const importedInvoicesBefore = await prisma.invoice.count({
-    where: { legacySourceTable: { not: null } },
-  });
+  const [shop, importedInvoicesBefore] = await Promise.all([
+    prisma.shop.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } }),
+    prisma.invoice.count({ where: { legacySourceTable: { not: null } } }),
+  ]);
+  if (!shop) throw new Error("Shop settings row was not found.");
 
   const result = await prisma.shop.updateMany({
-    where: { name: "CAR DOC LLC" },
+    where: { id: shop.id },
     data: {
       defaultTaxRate: "0.06",
       partsTaxable: true,
@@ -29,7 +31,7 @@ try {
   const [settingsRows, settings, importedInvoicesAfter] = await Promise.all([
     prisma.shop.count({
       where: {
-        name: "CAR DOC LLC",
+        id: shop.id,
         defaultTaxRate: "0.06",
         partsTaxable: true,
         laborTaxable: false,
@@ -39,7 +41,7 @@ try {
       },
     }),
     prisma.shop.findFirst({
-      where: { name: "CAR DOC LLC" },
+      where: { id: shop.id },
       select: {
         defaultTaxRate: true,
         partsTaxable: true,

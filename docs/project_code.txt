@@ -59297,7 +59297,7 @@ export default async function StaffPage() {
         <FormSubmitButton formAction={removeMember} pendingLabel="Removing…" confirmTitle="Remove this staff member?" confirmDescription="This person will lose access to the shop. This cannot be undone from the audit log." confirmLabel="Remove staff member" destructive className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Remove</FormSubmitButton>
       </form>)}</div>
     </section>
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Invite staff member</h2><div className="mt-2 space-y-2 text-sm leading-6 text-slate-600"><p>Invites create a pending Car Doc invitation. If the invited person does not already have a login, an owner must create the user manually in Supabase Auth using the same email address.</p><p>The user can then log in with that email and accept the invitation. Automated invite emails and self-service signup are intentionally deferred.</p></div><form action={createStaffInvite} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm font-semibold text-slate-700">Email<input name="email" type="email" required maxLength={254} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><label className="text-sm font-semibold text-slate-700">Role<select name="role" defaultValue="STAFF" className="mt-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{roleOptions.map((role) => <option key={role}>{role}</option>)}</select></label><button type="submit" className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Create invite</button></form></section>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Invite staff member</h2><div className="mt-2 space-y-2 text-sm leading-6 text-slate-600"><p>Invites create a pending PlumWorks invitation. If the invited person does not already have a login, an owner must create the user manually in Supabase Auth using the same email address.</p><p>The user can then log in with that email and accept the invitation. Automated invite emails and self-service signup are intentionally deferred.</p></div><form action={createStaffInvite} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm font-semibold text-slate-700">Email<input name="email" type="email" required maxLength={254} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label><label className="text-sm font-semibold text-slate-700">Role<select name="role" defaultValue="STAFF" className="mt-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{roleOptions.map((role) => <option key={role}>{role}</option>)}</select></label><button type="submit" className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Create invite</button></form></section>
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold">Pending invites</h2>{invites.length === 0 ? <p className="mt-3 text-sm text-slate-600">No pending invites.</p> : <ul className="mt-4 divide-y divide-slate-200">{invites.map((invite) => <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"><span className="font-medium text-slate-900">{invite.email}</span><span className="text-slate-600">{invite.role} · {invite.createdAt.toLocaleDateString("en-US")}</span><form action={revokeStaffInvite}><input type="hidden" name="inviteId" value={invite.id} /><FormSubmitButton pendingLabel="Revoking…" confirmTitle="Revoke this pending invitation?" confirmDescription="The invitation will no longer be available for acceptance." confirmLabel="Revoke invite" destructive className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Revoke</FormSubmitButton></form></li>)}</ul>}</section>
   </>;
 }
@@ -61136,7 +61136,7 @@ export default async function AdminPage() {
   if (!hasPermission(membership.role, "edit_shop_settings")) return <PermissionDenied />;
 
   return <>
-    <PageHeading eyebrow="Management" title="Admin" description="Owner and administrator tools for configuring the Car Doc workspace." />
+    <PageHeading eyebrow="Management" title="Admin" description="Owner and administrator tools for configuring the PlumWorks workspace." />
     <section className="grid gap-5 md:grid-cols-2">
       {adminSections.map((section) => <Link key={section.href} href={section.href} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-sky-300 hover:shadow-md"><h2 className="text-lg font-semibold text-slate-950">{section.title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p><span className="mt-5 inline-flex text-sm font-semibold text-sky-700">Open →</span></Link>)}
     </section>
@@ -61196,7 +61196,7 @@ export default async function DashboardPage() {
     ? membership.role.charAt(0) + membership.role.slice(1).toLowerCase()
     : null;
 
-  if (!shop || !summary) return <><PageHeading eyebrow="Overview" title="Dashboard" description="Your connected Car Doc shop workspace." /><section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm"><h2 className="text-xl font-semibold text-slate-950">No shop membership found</h2></section></>;
+  if (!shop || !summary) return <><PageHeading eyebrow="Overview" title="Dashboard" description="Your connected PlumWorks shop workspace." /><section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm"><h2 className="text-xl font-semibold text-slate-950">No shop membership found</h2></section></>;
 
   const cards = [
     ["Open repair orders", summary.openRepairOrders, "/repair-orders"],
@@ -61801,7 +61801,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Car Doc",
+  title: "PlumWorks",
   description: "A cloud-first workspace for auto repair shops.",
 };
 
@@ -61937,7 +61937,7 @@ export default function LoginPage() {
           Welcome back
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Sign in to Car Doc
+          Sign in to PlumWorks
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Enter your shop account credentials to continue.
@@ -62446,7 +62446,7 @@ export function AppShell({
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
-            Car Doc
+            PlumWorks
           </Link>
           <form action={signOut}>
             <button
@@ -62466,7 +62466,7 @@ export function AppShell({
             CD
           </span>
           <span>
-            <span className="block text-lg font-bold tracking-tight">Car Doc</span>
+            <span className="block text-lg font-bold tracking-tight">PlumWorks</span>
             <span className="block text-xs text-slate-500">Shop workspace</span>
           </span>
         </Link>
@@ -63927,7 +63927,7 @@ export async function findDuplicateVehicles(shopId: string) {
 }
 === FILE: package.json ===
 {
-  "name": "cardoc",
+  "name": "plumworks",
   "version": "0.1.0",
   "private": true,
   "scripts": {

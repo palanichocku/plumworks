@@ -7,7 +7,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { reconcileCustomerVehicleRows } from "./lib/customer-vehicle-transform.mjs";
 import { reconcileInvoiceRows, reconcileOpenOrderRows } from "./lib/legacy-operational-reconciliation.mjs";
 
-const CONFIRMATION = "RESET_CAR_DOC_OPERATIONAL_DATA";
+const CONFIRMATION = "RESET_SHOP_OPERATIONAL_DATA";
 const REQUIRED_SOURCES = [
   "Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF",
   "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF",
@@ -477,7 +477,7 @@ function reportMarkdown(summary) {
   const criticalBanner = summary.criticalIssues.length
     ? `> **CRITICAL: ${summary.criticalIssues.join("; ")}**`
     : "> **No critical issues detected.**";
-  return `# Car Doc legacy cutover report
+  return `# PlumWorks legacy cutover report
 
 ${criticalBanner}
 
@@ -565,7 +565,7 @@ function conciseSummary(summary, reportPaths) {
     : "Not requested";
   const verificationEntries = Object.entries(summary.verification);
   return [
-    "=== CAR DOC CUTOVER SUMMARY ===",
+    "=== PLUMWORKS CUTOVER SUMMARY ===",
     `Overall status: ${summary.status}`,
     `Critical issues: ${summary.criticalIssues.length ? summary.criticalIssues.join("; ") : "None"}`,
     `Warnings: ${summary.warnings.length ? summary.warnings.join("; ") : "None"}`,
@@ -594,7 +594,7 @@ async function emitFinalReport(summary, saveFiles) {
   if (summaryOnly) {
     finalLog(conciseSummary(summary, reportPaths));
   } else {
-    finalLog("\n=== CAR DOC CUTOVER FINAL SUMMARY ===");
+    finalLog("\n=== PLUMWORKS CUTOVER FINAL SUMMARY ===");
     finalLog(markdown);
     if (reportPaths.length) finalLog(`Report files saved: ${reportPaths.join(", ")}`);
   }

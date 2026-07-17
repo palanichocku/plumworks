@@ -13,7 +13,7 @@ const starters = [
 ];
 
 try {
-  const shop = await prisma.shop.findFirst({ where: { name: "CAR DOC LLC" }, select: { id: true, defaultLaborRate: true } });
+  const shop = await prisma.shop.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true, defaultLaborRate: true } });
   if (!shop) throw new Error("Shop is unavailable.");
   let created = 0;
   for (const [name, description, defaultHours] of starters) {

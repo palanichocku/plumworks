@@ -1,5 +1,5 @@
 {
-  "name": "cardoc",
+  "name": "plumworks",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -17,7 +17,8 @@
     "legacy:transform:open-orders": "node --env-file=.env.local scripts/transform-open-orders.mjs",
     "legacy:cutover:dry-run": "node --env-file=.env.local scripts/legacy-cutover.mjs --dry-run",
     "legacy:cutover:backup": "node --env-file=.env.local scripts/legacy-cutover.mjs --backup --report",
-    "legacy:cutover:verify": "node --env-file=.env.local scripts/legacy-cutover.mjs --verify --report"
+    "legacy:cutover:verify": "node --env-file=.env.local scripts/legacy-cutover.mjs --verify --report",
+    "verify:branding": "node scripts/verify-software-branding.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

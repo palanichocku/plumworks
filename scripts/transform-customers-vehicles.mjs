@@ -7,7 +7,7 @@ function argument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const CAR_DOC_SHOP_ID = argument("--shop-id") ?? "00000000-0000-4000-8000-000000000001";
+const SHOP_ID = argument("--shop-id") ?? "00000000-0000-4000-8000-000000000001";
 
 function report({
   customersInserted,
@@ -39,7 +39,7 @@ async function main() {
 
   try {
     const latestRawCustomer = await prisma.rawLegacyCustomer.findFirst({
-      where: { shopId: CAR_DOC_SHOP_ID },
+      where: { shopId: SHOP_ID },
       orderBy: { createdAt: "desc" },
       select: { legacyImportRunId: true },
     });
@@ -59,7 +59,7 @@ async function main() {
     const [rawCustomers, rawVehicles] = await Promise.all([
       prisma.rawLegacyCustomer.findMany({
         where: {
-          shopId: CAR_DOC_SHOP_ID,
+          shopId: SHOP_ID,
           legacyImportRunId: latestRawCustomer.legacyImportRunId,
         },
         select: {
@@ -69,7 +69,7 @@ async function main() {
       }),
       prisma.rawLegacyVehicle.findMany({
         where: {
-          shopId: CAR_DOC_SHOP_ID,
+          shopId: SHOP_ID,
           legacyImportRunId: latestRawCustomer.legacyImportRunId,
         },
         select: {
@@ -94,11 +94,11 @@ async function main() {
       (rawVehicles.length - linkedVehicles.length);
     const [existingCustomers, existingVehicles] = await Promise.all([
       prisma.customer.findMany({
-        where: { shopId: CAR_DOC_SHOP_ID },
+        where: { shopId: SHOP_ID },
         select: { legacyCustno: true },
       }),
       prisma.vehicle.findMany({
-        where: { shopId: CAR_DOC_SHOP_ID },
+        where: { shopId: SHOP_ID },
         select: { legacyCarno: true },
       }),
     ]);
@@ -136,13 +136,13 @@ async function main() {
       const cleanCustomer = await prisma.customer.upsert({
         where: {
           shopId_legacyCustno: {
-            shopId: CAR_DOC_SHOP_ID,
+            shopId: SHOP_ID,
             legacyCustno: customer.legacyCustno,
           },
         },
         update: customer,
         create: {
-          shopId: CAR_DOC_SHOP_ID,
+          shopId: SHOP_ID,
           ...customer,
         },
         select: {
@@ -168,7 +168,7 @@ async function main() {
       await prisma.vehicle.upsert({
         where: {
           shopId_legacyCarno: {
-            shopId: CAR_DOC_SHOP_ID,
+            shopId: SHOP_ID,
             legacyCarno: cleanVehicle.legacyCarno,
           },
         },
@@ -177,7 +177,7 @@ async function main() {
           ...cleanVehicle,
         },
         create: {
-          shopId: CAR_DOC_SHOP_ID,
+          shopId: SHOP_ID,
           customerId,
           ...cleanVehicle,
         },

@@ -794,7 +794,7 @@ export function AppShell({
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">
-            Car Doc
+            PlumWorks
           </Link>
           <form action={signOut}>
             <button
@@ -814,7 +814,7 @@ export function AppShell({
             CD
           </span>
           <span>
-            <span className="block text-lg font-bold tracking-tight">Car Doc</span>
+            <span className="block text-lg font-bold tracking-tight">PlumWorks</span>
             <span className="block text-xs text-slate-500">Shop workspace</span>
           </span>
         </Link>
@@ -855,7 +855,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Car Doc",
+  title: "PlumWorks",
   description: "A cloud-first workspace for auto repair shops.",
 };
 
@@ -872,7 +872,7 @@ export default function RootLayout({
 }
 === FILE: package.json ===
 {
-  "name": "cardoc",
+  "name": "plumworks",
   "version": "0.1.0",
   "private": true,
   "scripts": {

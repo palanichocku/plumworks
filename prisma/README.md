@@ -1,6 +1,6 @@
 # Prisma migration notes
 
-This schema is the initial PostgreSQL model for Car Doc. No database migration
+This schema is the initial PostgreSQL model for PlumWorks. No database migration
 has been created or applied yet.
 
 ## Conventions

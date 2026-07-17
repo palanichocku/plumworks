@@ -42,7 +42,7 @@ node --env-file=.env.local scripts/legacy-cutover.mjs \
   --reload-legacy \
   --verify \
   --report \
-  --confirm RESET_CAR_DOC_OPERATIONAL_DATA
+  --confirm RESET_SHOP_OPERATIONAL_DATA
 ```
 
 The confirmation phrase and `--backup` are mandatory. The backup must complete with all four non-empty files before reset begins. The reset preserves shops, memberships, staff invites, canned services, shop settings, Auth users, migrations, and database security configuration. It clears only operational/staging data before importing customers, vehicles, invoices, AR, and open repair orders in dependency order.
