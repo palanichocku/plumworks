@@ -68,12 +68,12 @@ From the exact approved release:
 
 ```bash
 npm ci
-npx prisma validate
-npx prisma generate
+npm run prisma:validate
+npm run prisma:generate
 npm run lint
 npm run build
 npx prisma migrate status
-npx prisma migrate deploy
+npm run prisma:migrate:deploy
 npx prisma migrate status
 ```
 
