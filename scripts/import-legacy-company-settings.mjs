@@ -22,7 +22,9 @@ try {
       partsTaxable: true,
       laborTaxable: false,
       defaultLaborRate: "60.00",
-      invoiceFooterMessage: "THE CAR DOC THANKS YOU FOR YOUR BUSINESS",
+      ...(process.env.PLUMWORKS_INVOICE_FOOTER_MESSAGE
+        ? { invoiceFooterMessage: process.env.PLUMWORKS_INVOICE_FOOTER_MESSAGE }
+        : {}),
       warrantyText:
         "LABOR IS GUARANTEED FOR 90 DAYS OR 3000 MILES\nPART WARRANTIES ARE EXPRESSED BY MANUFACTURER",
     },

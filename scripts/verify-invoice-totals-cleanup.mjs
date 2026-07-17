@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
-const SHOP_ID = "00000000-0000-4000-8000-000000000001";
 const TAX_FIELDS = ["TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6"];
 
 function numberValue(rawData, field) {
@@ -28,8 +28,9 @@ async function main() {
   });
 
   try {
+    const shopId = await resolveSingleShopId(prisma);
     const latest = await prisma.rawLegacyAr.findFirst({
-      where: { shopId: SHOP_ID },
+      where: { shopId },
       orderBy: { createdAt: "desc" },
       select: { legacyImportRunId: true },
     });
@@ -38,13 +39,13 @@ async function main() {
     const [rawRows, invoices] = await Promise.all([
       prisma.rawLegacyAr.findMany({
         where: {
-          shopId: SHOP_ID,
+          shopId,
           legacyImportRunId: latest.legacyImportRunId,
         },
         select: { legacyRoNo: true, rawData: true },
       }),
       prisma.invoice.findMany({
-        where: { shopId: SHOP_ID },
+        where: { shopId },
         select: {
           legacyRoNo: true,
           partsTotal: true,

@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
-const SHOP_ID = "00000000-0000-4000-8000-000000000001";
 const DBF_PATH = "OriginalWinApp/Shopman32/data/laborfinal.DBF";
 const FPT_PATH = "OriginalWinApp/Shopman32/data/laborfinal.FPT";
 const decoder = new TextDecoder("windows-1252");
@@ -145,8 +145,9 @@ async function main() {
   });
 
   try {
+    const shopId = await resolveSingleShopId(prisma);
     const latest = await prisma.rawLegacyLaborFinal.findFirst({
-      where: { shopId: SHOP_ID },
+      where: { shopId },
       orderBy: { createdAt: "desc" },
       select: { legacyImportRunId: true },
     });
@@ -155,13 +156,13 @@ async function main() {
     const [rawRows, cleanRows] = await Promise.all([
       prisma.rawLegacyLaborFinal.findMany({
         where: {
-          shopId: SHOP_ID,
+          shopId,
           legacyImportRunId: latest.legacyImportRunId,
         },
         select: { id: true, legacyRoNo: true, rawData: true },
       }),
       prisma.invoiceLabor.findMany({
-        where: { shopId: SHOP_ID },
+        where: { shopId },
         select: { id: true, legacyLineKey: true },
       }),
     ]);

@@ -7,12 +7,7 @@ const standaloneFiles = ["README.md", "package.json"];
 const searchableExtensions = new Set([".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".txt"]);
 const softwarePattern = new RegExp(`car(?:[\\s_-]*doc|doc)`, "i");
 const filenamePattern = new RegExp(`car(?:[-_]?doc|doc)`, "i");
-const tenantNamePattern = new RegExp(`car\\s+doc\\s+llc`, "i");
-const tenantFooterPattern = new RegExp(`the\\s+car\\s+doc\\s+thanks`, "i");
-const allowedTenantData = new Map([
-  ["prisma/seed.mjs", tenantNamePattern],
-  ["scripts/import-legacy-company-settings.mjs", tenantFooterPattern],
-]);
+const allowedTenantData = new Map();
 
 async function filesUnder(directory) {
   const entries = await readdir(join(root, directory), { withFileTypes: true });

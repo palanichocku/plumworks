@@ -56,8 +56,8 @@ Preview raw-to-clean normalization without database writes:
 npm run legacy:transform:customers-vehicles -- --dry-run
 ~~~
 
-The transform reads only the latest raw customer/vehicle staging run for the Car
-Doc shop. After the clean-field migration is approved, running the command
+The transform reads only the latest raw customer/vehicle staging run for the
+explicitly selected shop. After the clean-field migration is approved, running the command
 without `--dry-run` upserts customers by `legacy_custno` and vehicles by
 `legacy_carno`.
 

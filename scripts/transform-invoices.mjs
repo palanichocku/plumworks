@@ -7,7 +7,8 @@ function argument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const SHOP_ID = argument("--shop-id") ?? "00000000-0000-4000-8000-000000000001";
+const SHOP_ID = argument("--shop-id");
+if (!SHOP_ID) throw new Error("--shop-id is required.");
 
 function textValue(rawData, field) {
   if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {

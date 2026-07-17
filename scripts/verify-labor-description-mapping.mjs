@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
-const SHOP_ID = "00000000-0000-4000-8000-000000000001";
 const SOURCES = ["LABOR_DONE", "NOTE", "JOBDESC", "CODE"];
 
 function textValue(rawData, field) {
@@ -48,8 +48,9 @@ async function main() {
   });
 
   try {
+    const shopId = await resolveSingleShopId(prisma);
     const latest = await prisma.rawLegacyLaborFinal.findFirst({
-      where: { shopId: SHOP_ID },
+      where: { shopId },
       orderBy: { createdAt: "desc" },
       select: { legacyImportRunId: true },
     });
@@ -58,13 +59,13 @@ async function main() {
     const [rawRows, cleanRows] = await Promise.all([
       prisma.rawLegacyLaborFinal.findMany({
         where: {
-          shopId: SHOP_ID,
+          shopId,
           legacyImportRunId: latest.legacyImportRunId,
         },
         select: { legacyRoNo: true, rawData: true },
       }),
       prisma.invoiceLabor.findMany({
-        where: { shopId: SHOP_ID },
+        where: { shopId },
         select: { legacyLineKey: true, description: true },
       }),
     ]);

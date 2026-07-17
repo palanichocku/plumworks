@@ -6,6 +6,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { reconcileCustomerVehicleRows } from "./lib/customer-vehicle-transform.mjs";
 import { reconcileInvoiceRows, reconcileOpenOrderRows } from "./lib/legacy-operational-reconciliation.mjs";
+import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
 const CONFIRMATION = "RESET_SHOP_OPERATIONAL_DATA";
 const REQUIRED_SOURCES = [
@@ -93,6 +94,7 @@ const runSummary = {
 function usage() {
   console.log("Usage: node --env-file=.env.local scripts/legacy-cutover.mjs [flags]");
   console.log("  --source <Shopman32/data path>");
+  console.log("  --shop-id <shop UUID> (optional when the database contains exactly one shop)");
   console.log("  --dry-run (default) | --snapshot | --verify");
   console.log("  --reset-operational-data --reload-legacy");
   console.log("  --backup [--backup-dir <path>]");
@@ -739,8 +741,7 @@ async function main() {
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   try {
-    const shop = await prisma.shop.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
-    if (!shop) throw new Error("No shop is configured.");
+    const shop = { id: await resolveSingleShopId(prisma, argument("--shop-id")) };
     console.log("database connection works: 1");
     runSummary.verification.databaseConnection = 1;
     const preservedBefore = await preservedSnapshot(prisma, shop.id);
