@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { notifyNewMarketingLead } from "@/lib/marketing-lead-notifications";
 
 function field(formData: FormData, name: string, max: number) {
   return String(formData.get(name) ?? "").trim().slice(0, max) || null;
@@ -13,20 +14,25 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
   const name = field(formData, "name", 120);
   const phone = field(formData, "phone", 40);
   const email = field(formData, "email", 200)?.toLowerCase() ?? null;
-  if (!name || (!phone && !email)) throw new Error("Name and a phone number or email are required.");
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
-  const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
-  if (shops.length !== 1) throw new Error("Lead capture is not configured.");
+  if (!name || (!phone && !email)) redirect(`${destination}?error=1`);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`${destination}?error=1`);
   const rawYear = field(formData, "vehicleYear", 4);
   const year = rawYear ? Number(rawYear) : null;
-  if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2100)) throw new Error("Enter a valid vehicle year.");
+  if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2100)) redirect(`${destination}?error=1`);
   const rawDate = field(formData, "preferredDate", 10);
   const preferredDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? new Date(`${rawDate}T00:00:00.000Z`) : null;
-  await prisma.marketingLead.create({ data: {
-    shopId: shops[0].id, source, name, phone, email, vehicleYear: year,
-    vehicleMake: field(formData, "vehicleMake", 80), vehicleModel: field(formData, "vehicleModel", 80),
-    requestedService: field(formData, "requestedService", 200), preferredDate, message: field(formData, "message", 3000),
-  } });
+  try {
+    const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
+    if (shops.length !== 1) redirect(`${destination}?error=1`);
+    const lead = await prisma.marketingLead.create({ data: {
+      shopId: shops[0].id, source, name, phone, email, vehicleYear: year,
+      vehicleMake: field(formData, "vehicleMake", 80), vehicleModel: field(formData, "vehicleModel", 80),
+      requestedService: field(formData, "requestedService", 200), preferredDate, message: field(formData, "message", 3000),
+    } });
+    await notifyNewMarketingLead(lead);
+  } catch {
+    redirect(`${destination}?error=1`);
+  }
   redirect(`${destination}?sent=1`);
 }
 

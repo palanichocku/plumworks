@@ -32,6 +32,7 @@ export default async function DashboardPage() {
     ["Customers", summary.customers, "/customers"],
     ["Vehicles", summary.vehicles, "/vehicles"],
     ["Invoices, last 30 days", summary.recentInvoiceCount, "/invoices"],
+    ...(summary.newLeadCount === null ? [] : [["New leads", summary.newLeadCount, "/admin/leads"]] as const),
   ] as const;
 
   return (

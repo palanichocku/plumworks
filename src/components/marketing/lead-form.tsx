@@ -3,12 +3,13 @@ import { submitContactLead, submitAppointmentLead, submitDropOffLead } from "@/a
 
 const actions = { CONTACT: submitContactLead, APPOINTMENT: submitAppointmentLead, DROP_OFF: submitDropOffLead } as const;
 
-export function LeadForm({ source, sent = false }: { source: MarketingLeadSource; sent?: boolean }) {
+export function LeadForm({ source, sent = false, error = false }: { source: MarketingLeadSource; sent?: boolean; error?: boolean }) {
   const appointment = source === "APPOINTMENT";
   const dropOff = source === "DROP_OFF";
   const input = "mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10";
-  if (sent) return <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900"><p className="font-bold">Request received.</p><p className="mt-1 text-sm">The shop can review your request and follow up. This is not a confirmed appointment yet.</p></div>;
+  if (sent) return <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900"><p className="font-bold">Thanks — your request was sent. The shop will contact you soon.</p><p className="mt-1 text-sm">This is not a confirmed appointment yet.</p></div>;
   return <form action={actions[source]} className="grid gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-2 sm:p-8">
+    {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 sm:col-span-2">We couldn’t send your request right now. Please review your contact details or call the shop.</div>}
     <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
     <label className="text-sm font-bold text-slate-700">Name *<input name="name" required maxLength={120} className={input} /></label>
     <label className="text-sm font-bold text-slate-700">Phone<input name="phone" type="tel" maxLength={40} className={input} /></label>
