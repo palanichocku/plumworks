@@ -139,7 +139,7 @@ export default async function StaffPage() {
         <div>
           <h2 className="text-base font-bold text-slate-900">Invite new team member</h2>
           <div className="mt-1.5 space-y-1 text-sm font-medium text-slate-500">
-            <p>Invites configure a pending Car Doc association snapshot placeholder vector.</p>
+            <p>Invites create a pending association with this licensed shop.</p>
             <p className="text-xs text-slate-400 font-normal">
               Note: Automated transaction mail loops are deferred. An administrator must explicitly configure matching credentials inside Supabase Auth.
             </p>

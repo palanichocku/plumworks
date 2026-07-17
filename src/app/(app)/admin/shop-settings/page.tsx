@@ -138,7 +138,7 @@ export default async function ShopSettingsPage({
               rows={3} 
               maxLength={2000} 
               defaultValue={shop.invoiceFooterMessage ?? ""} 
-              placeholder="Thank you for choosing Car Doc..."
+              placeholder="Thank you for choosing our shop..."
               className={`${inputClass} font-normal resize-none`} 
             />
           </label>

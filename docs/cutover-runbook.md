@@ -1,6 +1,6 @@
 # Legacy cutover runbook
 
-Car Doc uses one safe-by-default driver for legacy cutover. The source argument must point to the latest `Shopman32/data` folder. The driver reads that folder but never modifies it, and its output contains counts only.
+The licensed shop deployment uses one safe-by-default driver for legacy cutover. The source argument must point to the latest `Shopman32/data` folder. The driver reads that folder but never modifies it, and its output contains counts only.
 
 ## Dry-run
 
@@ -8,7 +8,7 @@ Car Doc uses one safe-by-default driver for legacy cutover. The source argument 
 npm run legacy:cutover:dry-run -- --source /path/to/Shopman32/data
 ```
 
-This is the default mode. It checks the database connection and required source files, reads DBF header row counts, and reports the operational rows that would be reset. It performs no writes.
+This is the default mode. It checks the shop database connection and required source files, reads DBF header row counts, and reports the operational rows that would be reset. It performs no writes.
 
 ## Snapshot
 

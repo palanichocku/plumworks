@@ -23,7 +23,7 @@ export default async function AdminPage() {
       <PageHeading
         eyebrow="Management"
         title="Admin Control Panel"
-        description="Owner and administrator tools for configuring the global Car Doc workspace permissions and configurations."
+        description="Owner and administrator tools for configuring this shop workspace, permissions, and operations."
       />
 
       {/* 2. Admin Tool Cards Section - Content Displays Below Heading */}

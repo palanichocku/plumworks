@@ -2,6 +2,8 @@ import { PageHeading } from "@/components/page-heading";
 import { HelpCard } from "@/components/help/help-card";
 import { FlowDiagram } from "@/components/help/flow-diagram";
 import { HelpList, HelpSection } from "@/components/help/help-section";
+import { poweredByText } from "@/lib/branding";
+import { getCurrentMembership } from "@/lib/data/membership";
 
 const modules = [
   ["Dashboard", "Quick shop summary with counts, open items, and recent activity.", "/dashboard", "A fast starting point"],
@@ -14,15 +16,22 @@ const modules = [
   ["Admin", "Owner and administrator tools for shop configuration and security.", "/help/admin", "Controlled shop management"],
 ] as const;
 
-export default function HelpOverviewPage() {
+export default async function HelpOverviewPage() {
+  const { membership } = await getCurrentMembership();
   return (
     <div className="space-y-6">
       {/* Main Page Header */}
       <PageHeading 
         eyebrow="Help" 
-        title="Car Doc Guide" 
+        title="Shop Software Guide" 
         description="Purpose, actions, results, and expectations for every shop workflow." 
       />
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        <HelpCard title="Shop" description={membership?.shop.name ?? "Licensed shop"} />
+        <HelpCard title="Software" description={poweredByText} />
+        <HelpCard title="Purpose" description="Shop management software for repair orders, invoices, receivables, and reports." />
+      </section>
       
       {/* Flow Diagram Block Panel */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

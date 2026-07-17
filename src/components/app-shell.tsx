@@ -1,27 +1,31 @@
 import Link from "next/link";
 import { DesktopNavigation, MobileNavigation } from "./app-navigation";
 import { signOut } from "@/app/(app)/actions";
+import { poweredByText } from "@/lib/branding";
 
 export function AppShell({
   children,
   userEmail,
+  shopName,
   canViewReports,
   canViewAdmin,
 }: {
   children: React.ReactNode;
   userEmail: string;
+  shopName: string;
   canViewReports: boolean;
   canViewAdmin: boolean;
 }) {
+  const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white shadow-sm print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-xs font-black text-white shadow-sm">
-              CD
+              {shopInitials}
             </span>
-            <span className="text-base font-bold tracking-tight text-slate-900">Car Doc</span>
+            <span className="text-base font-bold tracking-tight text-slate-900">{shopName}</span>
           </Link>
           <form action={signOut}>
             <button
@@ -38,10 +42,10 @@ export function AppShell({
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white p-6 print:hidden lg:flex lg:flex-col">
         <Link href="/dashboard" className="flex items-center gap-3 group">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-sm font-black text-white shadow-md shadow-sky-500/20 transition-transform group-hover:scale-[1.02]">
-            CD
+            {shopInitials}
           </span>
           <div>
-            <span className="block text-base font-extrabold tracking-tight text-slate-900 leading-tight">Car Doc</span>
+            <span className="block text-base font-extrabold tracking-tight text-slate-900 leading-tight">{shopName}</span>
             <span className="block text-[11px] font-medium text-slate-400 mt-0.5 tracking-wide uppercase">Shop Workspace</span>
           </div>
         </Link>
@@ -81,6 +85,7 @@ export function AppShell({
               </button>
             </form>
           </div>
+          <p className="mt-3 border-t border-slate-200 pt-3 text-center text-[10px] font-medium uppercase tracking-wider text-slate-400">{poweredByText}</p>
         </div>
       </aside>
 
@@ -88,6 +93,7 @@ export function AppShell({
         <div className="mx-auto max-w-7xl px-4 py-6 print:max-w-none print:p-0 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
+        <footer className="border-t border-slate-200 px-5 py-4 text-center text-xs text-slate-400 print:hidden lg:hidden">{poweredByText}</footer>
       </main>
     </div>
   );

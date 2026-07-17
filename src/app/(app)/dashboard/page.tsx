@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   if (!shop || !summary) {
     return (
       <>
-        <PageHeading eyebrow="Overview" title="Dashboard" description="Your connected Car Doc shop workspace." />
+        <PageHeading eyebrow="Overview" title="Dashboard" description="Your connected shop workspace." />
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold text-slate-950">No shop membership found</h2>
         </section>

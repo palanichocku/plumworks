@@ -44,7 +44,7 @@ export default function CustomersHelpPage() {
       <div className="rounded-2xl border border-red-100 bg-red-50/10 p-6 shadow-sm">
         <HelpSection title="Expectation" warning>
           <p className="text-sm leading-relaxed text-slate-600">
-            Imported legacy customer directories can be updated moving forward within the Car Doc platform, but those edits <strong className="font-semibold text-slate-900">never</strong> write back to the frozen Windows legacy files. Furthermore, finalized historical invoice snapshots remain fully immutable and unchanged for compliance.
+            Imported legacy customer directories can be updated in the shop platform, but those edits <strong className="font-semibold text-slate-900">never</strong> write back to the frozen Windows legacy files. Furthermore, finalized historical invoice snapshots remain fully immutable and unchanged for compliance.
           </p>
         </HelpSection>
       </div>

@@ -9,7 +9,7 @@ export default function CutoverHelpPage() {
       <PageHeading 
         eyebrow="Help" 
         title="Legacy Cutover" 
-        description="How the approved Windows data becomes the production Car Doc dataset." 
+        description="How approved Windows data becomes the production shop database for a licensed shop deployment." 
       />
 
       {/* Component Module: Vertical Cutover Flowchart */}
@@ -61,7 +61,7 @@ export default function CutoverHelpPage() {
       <div className="rounded-2xl border border-red-100 bg-red-50/10 p-6 shadow-sm">
         <HelpSection title="Cutover expectations" warning>
           <HelpList items={[
-            "The standalone Windows desktop application remains the absolute source of truth until the officially approved production cutover occurs.",
+            "The standalone Windows desktop application remains the source of truth until the licensed shop deployment is approved for production cutover.",
             "A full database backup sequence must complete successfully before any destructive operations or resets begin.",
             "Raw legacy rows may be skipped, filtered, or collapsed when determined to be deleted, blank, invalid, duplicated, or unlinked.",
             "All structural web users, high-level Admin configurations, and shop defaults remain fully preserved.",

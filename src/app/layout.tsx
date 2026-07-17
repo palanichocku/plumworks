@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { softwareBrandName } from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "Car Doc",
+  title: `${softwareBrandName} Shop Management`,
   description: "A cloud-first workspace for auto repair shops.",
 };
 
