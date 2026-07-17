@@ -1,0 +1,156 @@
+# Client deployment runbook
+
+Use this runbook for one repair shop per isolated Vercel project and Supabase project. Use synthetic data in staging. Never copy another client's database, environment file, Auth users, backups, or legacy exports into a new client project.
+
+The current provisioning limitations in `multi-client-readiness.md` must be resolved before treating this as a fully repeatable production procedure. In particular, the existing seed is Car Doc-specific and must not be run for a different client.
+
+## 1. Record the release and client deployment
+
+- Choose an approved PlumWorks release tag and record its commit SHA.
+- Assign non-secret identifiers for the client, Vercel project, Supabase project, region, production URL, and operator.
+- Confirm the client has authorized the legacy data transfer and define secure source/backup locations outside the repository.
+- For staging, use separate Vercel and Supabase projects populated only with synthetic data.
+
+## 2. Create the Supabase project
+
+1. Create a new Supabase organization/project in the approved region with a unique generated database password.
+2. Enable the required backup/PITR tier and record retention before loading production data.
+3. In Auth URL Configuration, set the Site URL to the final production origin. Add only the required localhost and Vercel staging/preview callback origins to the matching non-production project.
+4. Obtain the pooled application connection, direct migration connection, project URL, and publishable/anon key from the project dashboard.
+5. Store credentials only in the approved password manager and deployment environment. Do not paste values into tickets, docs, logs, screenshots, or source control.
+6. Do not expose the service-role key to the browser. The current app does not require it at runtime.
+
+## 3. Create the Vercel project
+
+1. Import the shared repository at the approved release tag/branch.
+2. Select Next.js with the repository root as the project root and the standard `npm run build` build command.
+3. Use a unique project name; do not put client-specific names into shared source code.
+4. Configure deployment protection and team access. Limit production deployment permission.
+5. Attach and verify the custom domain, then update the matching Supabase Auth Site URL/redirect allowlist.
+6. Ensure preview deployments use the staging Supabase project or have no database credentials. Never point a preview deployment at client production.
+
+## 4. Set environment variables
+
+Set these per Vercel environment without printing their values:
+
+| Variable | Scope | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Runtime; Production/Preview as applicable | Supabase pooled Postgres connection used by the app and maintenance scripts. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Runtime; matching project only | Supabase project API URL. Public by design, but still manage it per environment. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Runtime; matching project only | Supabase browser/Auth anon key. Never substitute the service-role key. |
+| `DIRECT_URL` | CI/operator migration and cutover environment; avoid runtime unless required | Direct Postgres connection for Prisma migrations and backup tooling. |
+
+`SUPABASE_SERVICE_ROLE_KEY` appears in `.env.example`, but no current runtime use was found. Leave it unset in Vercel unless a reviewed server-only feature requires it.
+
+For local operator commands, create an untracked `.env.local` from the approved secret store. Confirm `.env.local` is ignored. Never display or commit its contents.
+
+## 5. Validate and run migrations
+
+From the exact approved release:
+
+```bash
+npm ci
+npx prisma validate
+npx prisma generate
+npm run lint
+npm run build
+npx prisma migrate status
+npx prisma migrate deploy
+npx prisma migrate status
+```
+
+Use the new client's `DIRECT_URL` for Prisma commands. Do not run `prisma migrate dev`, `db push`, or an ad hoc migration against staging or production. Stop if migration history is divergent or a migration fails; do not mark it resolved without review and recovery evidence.
+
+## 6. Seed/setup the shop
+
+Until the generic provisioning command recommended by the audit exists, do not run `npm run db:seed` for any client other than the tenant explicitly encoded by that seed.
+
+The supported future setup command must:
+
+- require explicit shop name and contact inputs;
+- generate or accept a recorded shop UUID without a source-code default;
+- create exactly one shop when none exists;
+- refuse to overwrite an existing shop unless an explicit reviewed update mode is used;
+- avoid customer/vehicle/invoice data;
+- return only non-sensitive identifiers and status.
+
+After setup, verify there is exactly one shop and review its name, address, city, state, postal code, phone, invoice defaults, tax behavior, next repair-order number, footer, and warranty text. Retain the shop UUID in the secure deployment record for scoped maintenance commands.
+
+## 7. Create the owner user and membership
+
+Until a reviewed first-owner bootstrap command exists:
+
+1. Create the initial owner in the client Supabase dashboard under **Authentication → Users**. Require the verified owner email and deliver credentials/reset instructions through an approved secure channel.
+2. Have an authorized database operator create one `OWNER` row in `shop_memberships`, using the Auth user's UUID and the single shop UUID. Use a reviewed, parameterized transaction; do not save identifiers or credentials in source files or shell history.
+3. Verify the membership references the intended Auth user/shop and that exactly one initial owner exists.
+4. Sign in as that owner. Create subsequent staff invitations through **Admin → Staff** and follow `docs/admin-staff-onboarding.md`.
+
+Do not create an owner membership for an unverified email, and never use a service-role key in client-side code.
+
+## 8. Import legacy data
+
+1. Obtain a final, read-only copy of the approved Shopman32 data folder outside `OriginalWinApp/` and outside source control.
+2. Confirm all required DBF/FPT files are readable and record checksums in the protected cutover record. Never commit source files or extracted sample JSON.
+3. Run the consolidated cutover dry-run with explicit source path:
+
+```bash
+npm run legacy:cutover:dry-run -- --source /approved/read-only/Shopman32/data --report --summary-only
+```
+
+4. Review source counts, reconciliation gaps, expected clean counts, accounting totals, and validation issues. Dry-run must report zero database writes.
+5. Before production reload, confirm managed backup/PITR and follow `docs/cutover-runbook.md`. Use the explicit shop-scoping enhancement required by the readiness audit once available; until then, independently verify the database contains exactly one shop.
+6. Store cutover reports and backups in encrypted, access-controlled client storage. Do not commit them.
+7. Schedule downtime and perform the confirmed backup/reset/reload command only after client approval. The reload preserves the shop, memberships, invites, canned services, settings, Auth users, migrations, and security configuration, but replaces scoped operational/staging data.
+
+## 9. Verify the data and security boundary
+
+- Confirm the cutover report passes source, row-count, preservation, RLS/access-hardening, and accounting checks.
+- Reconcile customer, vehicle, invoice, open repair order, payment, and receivable totals against approved legacy expectations.
+- Confirm no real client data appears in logs, Vercel build output, screenshots, tests, fixtures, or repository files.
+- Verify an unauthenticated request cannot access application pages or data.
+- Verify the owner sees only the configured shop and that all exported records belong to it.
+- Review invoice identity/contact details, totals, footer, warranty, tax defaults, and starting repair-order number.
+
+## 10. Deploy production
+
+1. Confirm the approved tag/SHA, successful staging checks, production backup status, completed migrations, shop setup, owner access, and cutover verification.
+2. Deploy the exact approved release to the client Vercel production project; do not rebuild from an unreviewed branch.
+3. Record Vercel deployment ID, release tag/SHA, migration state, operator, time, and rollback decision point.
+4. Keep the previous known-good deployment available for application rollback. Remember that application rollback does not reverse database migrations or imported data.
+
+## 11. Smoke test
+
+Use a designated test account and synthetic test records only. Do not alter imported client records merely to test.
+
+- Sign in, sign out, and verify unauthorized redirect behavior.
+- Confirm dashboard, customer search/detail, vehicle detail, service history, invoices, and accounts receivable load.
+- Create a synthetic customer and vehicle, create a repair order, add parts/labor, print the estimate, finalize it, record a supported payment, and verify reports/balance behavior.
+- Delete or clearly label synthetic records using the application's approved workflow; do not run cleanup scripts without reviewing their exact scope.
+- Verify Admin Shop Settings, staff invitation flow, audit log, data exports, Help pages, mobile navigation, and print layouts.
+- Confirm shop name/contact information and PlumWorks powered-by branding are correct.
+- Confirm there is no public marketing route unless a reviewed, default-off feature has explicitly been enabled.
+
+## 12. Backup and recovery policy
+
+- Enable Supabase managed backups before initial production import. Use PITR when the client's recovery objectives require it.
+- Define and record RPO, RTO, retention, encryption, access owners, and restore approval. A reasonable starting policy is daily managed backup plus PITR where available, with longer encrypted snapshots before migrations and cutovers.
+- Create a pre-migration backup for risky releases and the mandatory cutover backup described in `docs/cutover-runbook.md`.
+- Store exports/backups separately per client, encrypted at rest, with least-privilege access and lifecycle deletion. Never store them in Git or Vercel build artifacts.
+- Test restoration into an isolated recovery project on a scheduled basis and document the result. A backup is not accepted until a restore procedure has been exercised.
+- Review Supabase backup health and access logs regularly. Escalate missed backups immediately and pause destructive maintenance until recovery coverage is restored.
+
+## Production sign-off checklist
+
+- [ ] Approved release tag and SHA recorded
+- [ ] Dedicated Vercel and Supabase projects confirmed
+- [ ] Environment scopes and Auth redirect URLs verified
+- [ ] Prisma validation, generation, lint, and build pass
+- [ ] Migration status clean before and after deploy
+- [ ] Exactly one shop configured with correct settings
+- [ ] Initial owner Auth user and `OWNER` membership verified
+- [ ] Managed backup/PITR and restore policy verified
+- [ ] Legacy dry-run, approved cutover, and reconciliation pass
+- [ ] RLS/access-hardening and unauthenticated-access checks pass
+- [ ] Production deployment ID recorded
+- [ ] Smoke test passes using synthetic records
+- [ ] Rollback owner and decision point recorded
