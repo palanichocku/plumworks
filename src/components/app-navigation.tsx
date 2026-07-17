@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navigation = [
+  { href: "/", label: "Website", shortLabel: "W" },
   { href: "/dashboard", label: "Dashboard", shortLabel: "D" },
   { href: "/customers", label: "Customers", shortLabel: "C" },
   { href: "/vehicles", label: "Vehicles", shortLabel: "V" },
@@ -67,7 +68,7 @@ function NavigationLink({
 }
 
 function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
-  return navigation.filter((item) => (item.href !== "/reports" || canViewReports) && (item.href !== "/admin" || canViewAdmin));
+  return navigation.filter((item) => (item.href !== "/reports" || canViewReports) && (!["/", "/admin"].includes(item.href) || canViewAdmin));
 }
 
 export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {

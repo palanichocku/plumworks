@@ -3,8 +3,10 @@ import { poweredByText } from "@/lib/branding";
 import { phoneHref, shopAddress, type PublicShop } from "@/lib/marketing";
 
 const links = [
+  ["Home", "/"],
   ["Services", "/services"], ["Coupons", "/coupons"], ["Reviews", "/reviews"],
   ["About", "/about"], ["Photos", "/photos"], ["Contact", "/contact"],
+  ["Appointment", "/appointment"], ["Staff Login", "/login"],
 ] as const;
 
 export function MarketingShell({ shop, children }: { shop: PublicShop; children: React.ReactNode }) {
@@ -23,7 +25,6 @@ export function MarketingShell({ shop, children }: { shop: PublicShop; children:
           {links.map(([label, href]) => <Link key={href} href={href} className="text-sm font-semibold text-slate-600 hover:text-orange-600">{label}</Link>)}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/login" className="hidden text-sm font-semibold text-slate-500 hover:text-slate-950 sm:block">Staff Login</Link>
           <Link href="/appointment" className="rounded-xl bg-orange-500 px-3.5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-orange-600">Schedule</Link>
         </div>
       </div>
