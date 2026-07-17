@@ -40,6 +40,9 @@ Set these per Vercel environment without printing their values:
 | `NEXT_PUBLIC_SUPABASE_URL` | Runtime; matching project only | Supabase project API URL. Public by design, but still manage it per environment. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Runtime; matching project only | Supabase browser/Auth anon key. Never substitute the service-role key. |
 | `DIRECT_URL` | CI/operator migration and cutover environment; avoid runtime unless required | Direct Postgres connection for Prisma migrations and backup tooling. |
+| `NEXT_PUBLIC_SITE_URL` | Runtime; matching production origin | Canonical public website origin used for sitemap URLs. |
+| `PLUMWORKS_PUBLIC_HOURS` | Runtime; per client | Customer-facing shop hours shown on public marketing pages. |
+| `PLUMWORKS_GOOGLE_REVIEW_URL` | Runtime; optional per client | Verified HTTPS destination for the public Google review CTA. |
 
 Client setup accepts CLI parameters or these operator-only environment variables:
 

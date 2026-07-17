@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/permissions";
 const adminSections = [
   { href: "/admin/shop-settings", title: "Shop Settings", description: "Manage invoice defaults, tax behavior, warranty text, and document messages." },
   { href: "/admin/services", title: "Services", description: "Manage reusable labor templates for draft repair orders." },
+  { href: "/admin/leads", title: "Marketing Leads", description: "Review public contact, appointment, and drop-off requests." },
   { href: "/admin/staff", title: "Staff", description: "Manage shop members, roles, and pending invitations." },
   { href: "/admin/audit-log", title: "Audit Log", description: "Review recent important shop actions without sensitive field payloads." },
   { href: "/admin/data-tools", title: "Data Tools", description: "Download shop-scoped business data in standard CSV files." },

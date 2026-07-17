@@ -18,49 +18,86 @@ enum ShopMembershipRole {
   STAFF
 }
 
+enum MarketingLeadSource {
+  CONTACT
+  APPOINTMENT
+  DROP_OFF
+}
+
+enum MarketingLeadStatus {
+  NEW
+  CONTACTED
+  SCHEDULED
+  CONVERTED
+  CLOSED
+}
+
 model Shop {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String
-  addressLine1        String?               @map("address_line1")
-  city                String?
-  state               String?
-  postalCode          String?               @map("postal_code")
-  phone               String?
-  defaultTaxRate      Decimal               @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
-  defaultLaborRate    Decimal               @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
-  partsTaxable        Boolean               @default(true) @map("parts_taxable")
-  laborTaxable        Boolean               @default(false) @map("labor_taxable")
-  invoiceFooterMessage String?               @map("invoice_footer_message")
-  warrantyText        String?                @map("warranty_text")
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  addressLine1          String?               @map("address_line1")
+  city                  String?
+  state                 String?
+  postalCode            String?               @map("postal_code")
+  phone                 String?
+  defaultTaxRate        Decimal               @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
+  defaultLaborRate      Decimal               @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
+  partsTaxable          Boolean               @default(true) @map("parts_taxable")
+  laborTaxable          Boolean               @default(false) @map("labor_taxable")
+  invoiceFooterMessage  String?               @map("invoice_footer_message")
+  warrantyText          String?               @map("warranty_text")
   nextRepairOrderNumber Int                   @default(1) @map("next_repair_order_number")
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at")
-  customers           Customer[]
-  vehicles            Vehicle[]
-  repairOrders        RepairOrder[]
-  repairOrderParts    RepairOrderPart[]
-  repairOrderLabor    RepairOrderLabor[]
-  invoices            Invoice[]
-  invoiceParts        InvoicePart[]
-  invoiceLabor        InvoiceLabor[]
-  payments            Payment[]
-  accountsReceivable  AccountReceivable[]
-  employees           Employee[]
-  memberships         ShopMembership[]
-  rawLegacyCustomers  RawLegacyCustomer[]
-  rawLegacyVehicles   RawLegacyVehicle[]
-  rawLegacyFinal      RawLegacyFinal[]
-  rawLegacyLaborFinal RawLegacyLaborFinal[]
-  rawLegacyAr         RawLegacyAr[]
-  rawLegacyOrderParts RawLegacyOrderPart[]
-  rawLegacyOrderLabor RawLegacyOrderLabor[]
-  legacyImportRuns    LegacyImportRun[]
-  legacyImportErrors  LegacyImportError[]
-  cannedServices      CannedService[]
-  auditLogs           AuditLog[]
-  staffInvites        StaffInvite[]
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at")
+  customers             Customer[]
+  vehicles              Vehicle[]
+  repairOrders          RepairOrder[]
+  repairOrderParts      RepairOrderPart[]
+  repairOrderLabor      RepairOrderLabor[]
+  invoices              Invoice[]
+  invoiceParts          InvoicePart[]
+  invoiceLabor          InvoiceLabor[]
+  payments              Payment[]
+  accountsReceivable    AccountReceivable[]
+  employees             Employee[]
+  memberships           ShopMembership[]
+  rawLegacyCustomers    RawLegacyCustomer[]
+  rawLegacyVehicles     RawLegacyVehicle[]
+  rawLegacyFinal        RawLegacyFinal[]
+  rawLegacyLaborFinal   RawLegacyLaborFinal[]
+  rawLegacyAr           RawLegacyAr[]
+  rawLegacyOrderParts   RawLegacyOrderPart[]
+  rawLegacyOrderLabor   RawLegacyOrderLabor[]
+  legacyImportRuns      LegacyImportRun[]
+  legacyImportErrors    LegacyImportError[]
+  cannedServices        CannedService[]
+  auditLogs             AuditLog[]
+  staffInvites          StaffInvite[]
+  marketingLeads        MarketingLead[]
 
   @@map("shops")
+}
+
+model MarketingLead {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId           String              @map("shop_id") @db.Uuid
+  source           MarketingLeadSource
+  name             String
+  phone            String?
+  email            String?
+  vehicleYear      Int?                @map("vehicle_year")
+  vehicleMake      String?             @map("vehicle_make")
+  vehicleModel     String?             @map("vehicle_model")
+  requestedService String?             @map("requested_service")
+  preferredDate    DateTime?           @map("preferred_date") @db.Date
+  message          String?
+  status           MarketingLeadStatus @default(NEW)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
+  shop             Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status, createdAt])
+  @@map("marketing_leads")
 }
 
 model CannedService {
@@ -81,20 +118,20 @@ model CannedService {
 }
 
 model AuditLog {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId     String   @map("shop_id") @db.Uuid
-  userId     String?  @map("user_id") @db.Uuid
-  action     String
-  entityType String   @map("entity_type")
-  entityId   String   @map("entity_id") @db.Uuid
-  actorEmail String?  @map("actor_email")
-  actorRole  String?  @map("actor_role")
-  entityLabel String? @map("entity_label")
-  entityHref String?  @map("entity_href")
-  contextSummary String? @map("context_summary")
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
-  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId         String   @map("shop_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  actorEmail     String?  @map("actor_email")
+  actorRole      String?  @map("actor_role")
+  entityLabel    String?  @map("entity_label")
+  entityHref     String?  @map("entity_href")
+  contextSummary String?  @map("context_summary")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([shopId, createdAt])
   @@index([shopId, entityType, entityId])

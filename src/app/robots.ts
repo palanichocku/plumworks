@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function robots(): MetadataRoute.Robots { const base = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, ""); return { rules: [{ userAgent: "*", allow: ["/", "/services/", "/coupons", "/reviews", "/about", "/photos", "/contact", "/appointment", "/drop-off"], disallow: ["/dashboard", "/customers", "/vehicles", "/repair-orders", "/invoices", "/admin", "/settings", "/search", "/help", "/invite"] }], sitemap: `${base}/sitemap.xml` }; }
