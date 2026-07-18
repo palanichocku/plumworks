@@ -4,6 +4,7 @@ import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { updateLeadStatus } from "./actions";
+import { callClickMessage } from "@/lib/marketing-lead-context";
 
 const statusLabels = { NEW: "New", CONTACTED: "Contacted", SCHEDULED: "Scheduled", CONVERTED: "Converted", CLOSED: "Closed" } as const;
 const sourceLabels = { CONTACT: "Contact", APPOINTMENT: "Appointment", DROP_OFF: "Drop-Off" } as const;
@@ -38,7 +39,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       {leads.map((lead) => <article key={lead.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black">{lead.name}</h2><span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-black text-orange-700">{sourceLabels[lead.source]}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">{statusLabels[lead.status]}</span></div>
+            <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black">{lead.name}</h2><span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-black text-orange-700">{lead.source === "CONTACT" && lead.message === callClickMessage ? "Call click" : sourceLabels[lead.source]}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">{statusLabels[lead.status]}</span></div>
             <p className="mt-2 text-sm text-slate-600">{[lead.phone, lead.email].filter(Boolean).join(" • ")}</p>
             <p className="mt-1 text-sm text-slate-600">{[lead.vehicleYear, lead.vehicleMake, lead.vehicleModel].filter(Boolean).join(" ")}</p>
             {lead.preferredDate && <p className="mt-1 text-sm text-slate-600">Preferred date: {lead.preferredDate.toLocaleDateString()}</p>}
