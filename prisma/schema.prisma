@@ -90,6 +90,10 @@ model MarketingLead {
   vehicleModel     String?             @map("vehicle_model")
   requestedService String?             @map("requested_service")
   preferredDate    DateTime?           @map("preferred_date") @db.Date
+  preferredTime    String?             @map("preferred_time")
+  scheduledDate    DateTime?           @map("scheduled_date") @db.Date
+  scheduledTime    String?             @map("scheduled_time")
+  internalNote     String?             @map("internal_note")
   message          String?
   status           MarketingLeadStatus @default(NEW)
   createdAt        DateTime            @default(now()) @map("created_at")

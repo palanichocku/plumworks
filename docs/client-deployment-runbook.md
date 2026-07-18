@@ -60,6 +60,8 @@ Client setup accepts CLI parameters or these operator-only environment variables
 
 `SUPABASE_SERVICE_ROLE_KEY` appears in `.env.example`, but no current runtime use was found. Leave it unset in Vercel unless a reviewed server-only feature requires it.
 
+Marketing lead email notifications are optional. Scheduling confirmation email is attempted only when a lead has an email address and the Resend variables are configured; delivery failure never rolls back the saved lead or status update. SMS reminders and confirmations are a future enhancement and are not part of the current workflow.
+
 For local operator commands, create an untracked `.env.local` from the approved secret store. Confirm `.env.local` is ignored. Never display or commit its contents.
 
 ## 5. Validate and run migrations
