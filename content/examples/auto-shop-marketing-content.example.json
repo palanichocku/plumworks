@@ -1,0 +1,33 @@
+{
+  "draft": true,
+  "settings": {
+    "headline": "Straightforward auto care for the road ahead",
+    "subheadline": "A local team ready to listen, inspect carefully, and explain practical repair options.",
+    "serviceIntro": "Explore common services, then contact the shop so the team can confirm what your vehicle actually needs.",
+    "aboutTitle": "A neighborhood shop built on clear communication",
+    "aboutBody": "Replace this original example with the client's owner-approved story, qualifications, and community connection.",
+    "contactIntro": "Call the shop or send a request with your vehicle concern and contact information.",
+    "hoursText": "Monday–Friday, 8:00 AM–5:00 PM",
+    "reviewUrl": null
+  },
+  "pages": [
+    { "slug": "about", "eyebrow": "About", "title": "Local service with a thoughtful approach", "description": "Learn how this shop supports drivers in its community.", "body": "This is fresh example copy for owner review, not client production content." },
+    { "slug": "coupons", "eyebrow": "Offers", "title": "Current ways to save", "description": "Review shop-approved offers and confirm eligibility when scheduling." },
+    { "slug": "reviews", "eyebrow": "Reviews", "title": "Customer feedback", "description": "Approved, verified feedback can be shared here." },
+    { "slug": "photos", "eyebrow": "Gallery", "title": "Around the shop", "description": "A place for approved facility and team photos." },
+    { "slug": "contact", "eyebrow": "Contact", "title": "Talk with the shop", "description": "Call or send a request so the team can follow up." }
+  ],
+  "services": [
+    { "slug": "brakes", "name": "Brake Service", "summary": "Inspection and repair guidance for braking concerns.", "detail": "The team checks the braking system, explains the findings, and provides an estimate before authorized repairs.", "sortOrder": 10 },
+    { "slug": "maintenance", "name": "Preventive Maintenance", "summary": "A practical maintenance plan based on the vehicle and its use.", "detail": "The shop helps prioritize maintenance by timing, condition, and the driver's needs.", "sortOrder": 20 }
+  ],
+  "coupons": [
+    { "title": "Example Maintenance Offer", "body": "Replace with an owner-approved offer before publishing.", "terms": "Example only; shop approval required.", "sortOrder": 10 }
+  ],
+  "testimonials": [
+    { "quote": "Replace with verified, owner-approved customer feedback.", "attribution": "Draft placeholder", "rating": 5, "sortOrder": 10 }
+  ],
+  "gallery": [
+    { "title": "Shop exterior", "caption": "Add an approved image URL during client setup.", "imageUrl": null, "sortOrder": 10 }
+  ]
+}

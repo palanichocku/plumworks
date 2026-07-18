@@ -143,6 +143,30 @@ npm run legacy:cutover:dry-run -- --source /approved/read-only/Shopman32/data --
 6. Store cutover reports and backups in encrypted, access-controlled client storage. Do not commit them.
 7. Schedule downtime and perform the confirmed backup/reset/reload command only after client approval. The reload preserves the shop, memberships, invites, canned services, settings, Auth users, migrations, and security configuration, but replaces scoped operational/staging data.
 
+## 8a. Import client marketing content
+
+PlumWorks keeps reusable rendering and generic fallback copy in the shared repository. Each deployment reads its approved website content from that client's separate Supabase database. Client A and Client B therefore deploy the same release tag while retaining different headlines, services, offers, testimonials, and gallery records.
+
+Start with `content/examples/auto-shop-marketing-content.example.json`. Create the client draft in protected operator storage or the ignored `content/clients/` directory. Do not commit client drafts, copied website text, private review data, or unapproved image URLs.
+
+For an existing shop, build draft content only from owner-confirmed facts and the shop name/contact/hours already stored in its settings. Write all narrative copy freshly and mark it for owner review. Do not scrape or copy a legacy public website.
+
+Preview the count-only plan:
+
+```bash
+npm run marketing:import -- --file /protected/client-marketing-content.json --dry-run
+```
+
+Apply the reviewed content:
+
+```bash
+npm run marketing:import -- \
+  --file /protected/client-marketing-content.json \
+  --confirm IMPORT_MARKETING_CONTENT
+```
+
+The importer requires exactly one shop. It upserts settings/pages/services and replaces only that shop's marketing coupons, testimonials, and gallery items. It never changes customers, vehicles, repair orders, invoices, or legacy staging data. Admin editing for Website Content is a future enhancement; until then, changes use the same reviewed import workflow.
+
 ## 9. Verify the data and security boundary
 
 - Confirm the cutover report passes source, row-count, preservation, RLS/access-hardening, and accounting checks.

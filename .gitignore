@@ -45,3 +45,6 @@ config_report_files.txt
 # Local cutover artifacts (may contain production database data)
 /backups/
 /reports/
+
+# Client-specific marketing import files stay outside shared source
+/content/clients/

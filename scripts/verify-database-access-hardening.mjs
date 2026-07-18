@@ -10,6 +10,8 @@ const tables = [
   "raw_legacy_final", "raw_legacy_labor_final", "raw_legacy_ar",
   "raw_legacy_order_parts", "raw_legacy_order_labor", "legacy_import_errors",
   "marketing_leads",
+  "marketing_settings", "marketing_pages", "marketing_services", "marketing_coupons",
+  "marketing_testimonials", "marketing_gallery_items",
 ];
 const baselinePath = "/tmp/plumworks-rls-row-counts.json";
 const migrationPath = "prisma/migrations/20260715143000_harden_public_table_access/migration.sql";

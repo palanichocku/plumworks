@@ -12,6 +12,7 @@
     "prisma:validate": "node --env-file=.env.local ./node_modules/prisma/build/index.js validate",
     "prisma:migrate:deploy": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate deploy",
     "client:setup": "node --env-file=.env.local scripts/setup-client.mjs",
+    "marketing:import": "node --env-file=.env.local scripts/import-marketing-content.mjs",
     "db:seed": "node --env-file=.env.local prisma/seed.mjs",
     "legacy:import:customers-vehicles": "node --env-file=.env.local scripts/import-customers-vehicles.mjs",
     "legacy:transform:customers-vehicles": "node --env-file=.env.local scripts/transform-customers-vehicles.mjs",
