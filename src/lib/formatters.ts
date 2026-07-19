@@ -1,10 +1,16 @@
 export function formatMoney(value: { toString(): string } | null | undefined) {
-  const amount = Number(value?.toString() ?? 0);
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number.isFinite(amount) ? amount : 0);
+  const source = value?.toString().trim() ?? "0";
+  const match = source.match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if (!match) return "$0.00";
+  const [, sign, whole, fraction = ""] = match;
+  const padded = fraction.padEnd(3, "0");
+  const hundred = BigInt(100);
+  let absoluteCents = BigInt(whole) * hundred + BigInt(padded.slice(0, 2));
+  if (padded[2] >= "5") absoluteCents += BigInt(1);
+  const negative = sign === "-" && absoluteCents !== BigInt(0);
+  const dollars = (absoluteCents / hundred).toLocaleString("en-US");
+  const cents = String(absoluteCents % hundred).padStart(2, "0");
+  return `${negative ? "-" : ""}$${dollars}.${cents}`;
 }
 
 export function formatDate(value: Date | null | undefined) {

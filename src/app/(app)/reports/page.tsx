@@ -3,6 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { getShopReport } from "@/lib/data/reports";
+import { inclusiveUtcDateRange } from "@/lib/daily-sales-aggregation";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { hasPermission } from "@/lib/permissions";
 
@@ -32,24 +33,36 @@ export default async function ReportsPage({
   const from = validDate(params.from) ? params.from! : defaultFrom;
   const to = validDate(params.to) ? params.to! : defaultTo;
   
-  const start = new Date(`${from}T00:00:00Z`);
-  const requestedEnd = new Date(`${to}T00:00:00Z`);
-  const safeEnd = requestedEnd < start ? start : requestedEnd;
-  const endExclusive = new Date(safeEnd);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  const { start, endExclusive } = inclusiveUtcDateRange(from, to);
   
   const report = await getShopReport({ start, endExclusive });
   if (!report) return null;
 
-  const cards = [
-    { label: "Invoice Count", value: report.invoiceTotals._count._all.toLocaleString(), highlight: false },
-    { label: "Gross Sales", value: formatMoney(report.invoiceTotals._sum.total), highlight: true },
-    { label: "Parts Total", value: formatMoney(report.invoiceTotals._sum.partsTotal), highlight: false },
-    { label: "Labor Total", value: formatMoney(report.invoiceTotals._sum.laborTotal), highlight: false },
-    { label: "Tax Total", value: formatMoney(report.invoiceTotals._sum.taxTotal), highlight: false },
-    { label: "Payments Received", value: formatMoney(report.invoiceTotals._sum.paidTotal), highlight: false },
-    { label: "Receivables", value: formatMoney(report.receivablesTotal), highlight: false },
+  const salesCards = [
+    { label: "Invoices", value: report.sales.invoiceCount.toLocaleString(), highlight: false },
+    { label: "Gross sales", value: formatMoney(report.sales.grossSalesTotal), highlight: true },
+    { label: "Parts", value: formatMoney(report.sales.partsTotal), highlight: false },
+    { label: "Labor", value: formatMoney(report.sales.laborTotal), highlight: false },
+    { label: "Shop supplies", value: formatMoney(report.sales.shopSuppliesTotal), highlight: false },
+    { label: "Sales tax", value: formatMoney(report.sales.ordinarySalesTaxTotal), highlight: false },
+    { label: "Discounts/reductions", value: formatMoney(report.sales.discountsTotal), highlight: false },
   ];
+  if (!report.sales.legacyChargeTotal.isZero()) {
+    salesCards.push({ label: "Legacy charges", value: formatMoney(report.sales.legacyChargeTotal), highlight: false });
+  }
+  const paymentCards = [
+    { label: "Cash", value: formatMoney(report.payments.cashTotal) },
+    { label: "Check", value: formatMoney(report.payments.checkTotal) },
+    { label: "Card", value: formatMoney(report.payments.cardTotal) },
+    { label: "Internal", value: formatMoney(report.payments.internalTotal) },
+    { label: "Other", value: formatMoney(report.payments.otherTotal) },
+    { label: "Payment total", value: formatMoney(report.payments.paymentTotal) },
+    { label: "Payment rows", value: report.payments.paymentRowCount.toLocaleString() },
+    { label: "Paid invoices", value: report.payments.paidInvoiceCount.toLocaleString() },
+    { label: "Split-tender invoices", value: report.payments.splitTenderInvoiceCount.toLocaleString() },
+  ];
+  const hasDifference = !report.reconciliation.salesPaymentDifference.isZero() ||
+    !report.reconciliation.invoicePaidPaymentDifference.isZero();
 
   const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium shadow-2xs outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10";
 
@@ -76,11 +89,13 @@ export default async function ReportsPage({
           Run Report
         </button>
       </form>
+      <p className="-mt-3 text-xs text-slate-500">
+        Report dates use inclusive UTC calendar days. Sales are grouped by invoice date; payments are grouped by payment date.
+      </p>
 
-      {/* Metrics Performance Grid */}
-      <div>
+      <SummarySection title="Sales Summary">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map(({ label, value, highlight }) => (
+          {salesCards.map(({ label, value, highlight }) => (
             <article 
               key={label} 
               className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
@@ -98,10 +113,23 @@ export default async function ReportsPage({
             </article>
           ))}
         </section>
-        <p className="mt-3 text-xs font-medium italic text-slate-400">
-          * Payments Received reflects total cash collection records processed inside this specific date interval.
-        </p>
-      </div>
+      </SummarySection>
+
+      <SummarySection title="Payment Summary">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {paymentCards.map(({ label, value }) => (
+            <MetricCard key={label} label={label} value={value} />
+          ))}
+        </section>
+        <div className={`mt-4 rounded-xl border p-4 text-sm ${hasDifference ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>
+          <p className="font-semibold">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
+          <p className="mt-1 font-semibold">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
+          <p className="mt-2 text-xs leading-relaxed opacity-80">
+            Sales use invoice date; payments use payment date. A difference can be valid when payment timing differs from the invoice date.
+          </p>
+          {hasDifference ? <p className="mt-2 font-bold">Review the nonzero reconciliation difference.</p> : null}
+        </div>
+      </SummarySection>
 
       {/* Invoice Data Grid Output */}
       <ReportSection 
@@ -140,6 +168,24 @@ export default async function ReportsPage({
         ))}
       </ReportSection>
     </div>
+  );
+}
+
+function SummarySection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-4 text-base font-bold text-slate-900">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p>
+    </article>
   );
 }
 
