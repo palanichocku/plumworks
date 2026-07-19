@@ -73,7 +73,7 @@ function validateStructure(manifest) {
     for (const field of ["legacyCustomerId", "existingCustomerId", "existingCustomerLegacyId", "normalizedName", "normalizedAddress", "matchingMethod", "confidence", "reviewStatus", "notes"]) requireString(alias[field], `${label}.${field}`);
     requireCondition(alias.matchingMethod === "exact-normalized-name-address", `${label}.matchingMethod is invalid.`);
     requireCondition(alias.confidence === "deterministic", `${label}.confidence must be deterministic.`);
-    requireCondition(alias.reviewStatus === "pending", `${label}.reviewStatus must be pending.`);
+    requireCondition(["pending", "approved"].includes(alias.reviewStatus), `${label}.reviewStatus must be pending or approved.`);
     requireStringArray(alias.applicableLegacyOrderNumbers, `${label}.applicableLegacyOrderNumbers`);
   }
 
@@ -83,7 +83,7 @@ function validateStructure(manifest) {
     for (const field of ["legacyCustomerId", "displayName", "classification", "reviewStatus", "notes"]) requireString(customer[field], `${label}.${field}`);
     for (const field of ["phone", "alternatePhone", "address", "city", "state", "postalCode"]) requireCondition(customer[field] === null || typeof customer[field] === "string", `${label}.${field} must be a string or null.`);
     requireCondition(["normal-historical", "historical-unknown"].includes(customer.classification), `${label}.classification is invalid.`);
-    requireCondition(customer.reviewStatus === "pending", `${label}.reviewStatus must be pending.`);
+    requireCondition(["pending", "approved"].includes(customer.reviewStatus), `${label}.reviewStatus must be pending or approved.`);
     requireStringArray(customer.associatedLegacyVehicleIds, `${label}.associatedLegacyVehicleIds`);
     requireStringArray(customer.applicableLegacyOrderNumbers, `${label}.applicableLegacyOrderNumbers`);
     requireObject(customer.sourceEvidence, `${label}.sourceEvidence`);

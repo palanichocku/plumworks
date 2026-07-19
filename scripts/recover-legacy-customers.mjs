@@ -109,6 +109,11 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) fail("DATABASE_URL is not configured.");
 const manifestPath = resolve(process.cwd(), fileArgument);
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+if (!dryRun) {
+  const unapproved = [...manifest.existingCustomerAliases, ...manifest.customersToCreate]
+    .filter((entry) => entry.reviewStatus !== "approved");
+  if (unapproved.length) fail(`${unapproved.length} recoverable manifest entries are not approved.`);
+}
 
 try {
   await execFileAsync(process.execPath, [resolve(process.cwd(), "scripts/validate-legacy-customer-recovery.mjs"), "--file", manifestPath], {
