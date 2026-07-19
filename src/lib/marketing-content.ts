@@ -51,6 +51,32 @@ export const getMarketingServices = cache(async () => {
   catch { return [...marketingServices]; }
 });
 
-export const getMarketingCoupons = cache(async () => { const shop = await getPublicShop(); if (!shop.id || !await marketingContentTablesAvailable()) return fallbackCoupons; try { const rows = await prisma.marketingCoupon.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, body: true, terms: true } }); return rows.length ? rows : fallbackCoupons; } catch { return fallbackCoupons; } });
-export const getMarketingTestimonials = cache(async () => { const shop = await getPublicShop(); if (!shop.id || !await marketingContentTablesAvailable()) return fallbackTestimonials; try { const rows = await prisma.marketingTestimonial.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, quote: true, attribution: true, rating: true } }); return rows.length ? rows : fallbackTestimonials; } catch { return fallbackTestimonials; } });
-export const getMarketingGallery = cache(async () => { const shop = await getPublicShop(); if (!shop.id || !await marketingContentTablesAvailable()) return fallbackGallery; try { const rows = await prisma.marketingGalleryItem.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, caption: true, imageUrl: true } }); return rows.length ? rows : fallbackGallery; } catch { return fallbackGallery; } });
+export const getMarketingCoupons = cache(async () => {
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return fallbackCoupons;
+  try {
+    return await prisma.marketingCoupon.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, body: true, terms: true } });
+  } catch {
+    return fallbackCoupons;
+  }
+});
+
+export const getMarketingTestimonials = cache(async () => {
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return fallbackTestimonials;
+  try {
+    return await prisma.marketingTestimonial.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, quote: true, attribution: true, rating: true } });
+  } catch {
+    return fallbackTestimonials;
+  }
+});
+
+export const getMarketingGallery = cache(async () => {
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return fallbackGallery;
+  try {
+    return await prisma.marketingGalleryItem.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, caption: true, imageUrl: true } });
+  } catch {
+    return fallbackGallery;
+  }
+});
