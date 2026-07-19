@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import {
+  groupRowsByRo,
+  selectLegacyInvoiceDate,
+  textValue,
+} from "./lib/legacy-invoice-reconciliation.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -9,14 +14,6 @@ function argument(name) {
 
 const SHOP_ID = argument("--shop-id");
 if (!SHOP_ID) throw new Error("--shop-id is required.");
-
-function textValue(rawData, field) {
-  if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) {
-    return null;
-  }
-  const rawValue = rawData[field];
-  return typeof rawValue === "string" ? rawValue.trim() || null : null;
-}
 
 function decimal(rawValue, fallback = "0") {
   if (!rawValue) return fallback;
@@ -49,15 +46,6 @@ function arAmounts(rawData) {
 function quantity(rawValue) {
   const parsed = decimal(rawValue, "1");
   return Number(parsed) === 0 ? "1" : parsed;
-}
-
-function date(rawValue) {
-  if (!rawValue || !/^\d{8}$/.test(rawValue)) return null;
-  const year = Number(rawValue.slice(0, 4));
-  const month = Number(rawValue.slice(4, 6));
-  const day = Number(rawValue.slice(6, 8));
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function stableHash(rawData) {
@@ -105,15 +93,6 @@ function lineKeys(rows, source, omitFields = []) {
     .filter(Boolean);
 }
 
-function groupFirstByRo(rows) {
-  const groups = new Map();
-  for (const row of rows) {
-    const ro = row.legacyRoNo?.trim();
-    if (ro && !groups.has(ro)) groups.set(ro, row);
-  }
-  return groups;
-}
-
 function chunks(items, size = 200) {
   const result = [];
   for (let index = 0; index < items.length; index += size) {
@@ -137,7 +116,10 @@ function bulkUpsertSql(table, columns, conflictColumns, updateColumns, rowCount,
 
 function report(counts) {
   if (counts.dryRun) {
-    console.log(`invoices to insert/update: ${counts.invoices}`);
+    console.log(`invoices to insert: ${counts.invoicesInserted}`);
+    console.log(`invoices to update: ${counts.invoicesUpdated}`);
+    console.log(`labor-only invoices recovered: ${counts.laborOnlyRecovered}`);
+    console.log(`invoice dates corrected: ${counts.invoiceDatesCorrected}`);
     console.log(`part lines to insert/update: ${counts.parts}`);
     console.log(`labor lines to insert/update: ${counts.labor}`);
     console.log(`AR rows to insert/update: ${counts.ar}`);
@@ -151,10 +133,24 @@ function report(counts) {
     console.log(`AR rows inserted: ${counts.arInserted}`);
     console.log(`AR rows updated: ${counts.arUpdated}`);
   }
+  console.log(`candidate orders: ${counts.candidateOrders}`);
+  console.log(`orders still skipped: ${counts.ordersSkipped}`);
+  console.log(`orders lacking authoritative AR totals: ${counts.missingAuthoritativeAr}`);
+  console.log(`orders with invalid or missing completed dates: ${counts.invalidDates}`);
+  console.log(`duplicate AR order numbers: ${counts.duplicateArOrders}`);
+  console.log(`conflicting AR source records: ${counts.conflictingArRecords}`);
+  console.log(`AR completed-date conflicts: ${counts.dateConflicts}`);
   console.log(`skipped records: ${counts.skipped}`);
   console.log(`validation issue count: ${counts.validationIssues}`);
   console.log(`missing customer link count: ${counts.missingCustomers}`);
   console.log(`missing vehicle link count: ${counts.missingVehicles}`);
+  if (counts.period) {
+    console.log(`${counts.period} invoice count: ${counts.periodTotals.count}`);
+    console.log(`${counts.period} gross sales: ${counts.periodTotals.total.toFixed(2)}`);
+    console.log(`${counts.period} parts: ${counts.periodTotals.parts.toFixed(2)}`);
+    console.log(`${counts.period} labor: ${counts.periodTotals.labor.toFixed(2)}`);
+    console.log(`${counts.period} combined tax: ${counts.periodTotals.tax.toFixed(2)}`);
+  }
 }
 
 async function main() {
@@ -162,6 +158,10 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const laborOnly = process.argv.includes("--labor-only");
   const headersOnly = process.argv.includes("--headers-only");
+  const reportMonth = argument("--report-month");
+  if (reportMonth && !/^\d{4}-\d{2}$/.test(reportMonth)) {
+    throw new Error("--report-month must use YYYY-MM.");
+  }
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const prisma = new PrismaClient({
@@ -169,19 +169,37 @@ async function main() {
   });
 
   try {
-    const latest = await prisma.rawLegacyFinal.findFirst({
-      where: { shopId: SHOP_ID },
+    const latest = await prisma.legacyImportRun.findFirst({
+      where: {
+        shopId: SHOP_ID,
+        OR: [
+          { rawFinal: { some: {} } },
+          { rawLaborFinal: { some: {} } },
+          { rawAr: { some: {} } },
+        ],
+      },
       orderBy: { createdAt: "desc" },
-      select: { legacyImportRunId: true },
+      select: { id: true },
     });
 
     if (!latest) {
       report({
         dryRun,
         invoices: 0,
+        invoicesInserted: 0,
+        invoicesUpdated: 0,
+        laborOnlyRecovered: 0,
+        invoiceDatesCorrected: 0,
         parts: 0,
         labor: 0,
         ar: 0,
+        candidateOrders: 0,
+        ordersSkipped: 0,
+        missingAuthoritativeAr: 0,
+        invalidDates: 0,
+        duplicateArOrders: 0,
+        conflictingArRecords: 0,
+        dateConflicts: 0,
         skipped: 0,
         validationIssues: 0,
         missingCustomers: 0,
@@ -194,7 +212,7 @@ async function main() {
       prisma.rawLegacyFinal.findMany({
         where: {
           shopId: SHOP_ID,
-          legacyImportRunId: latest.legacyImportRunId,
+          legacyImportRunId: latest.id,
         },
         select: {
           legacyRoNo: true,
@@ -206,21 +224,24 @@ async function main() {
       prisma.rawLegacyLaborFinal.findMany({
         where: {
           shopId: SHOP_ID,
-          legacyImportRunId: latest.legacyImportRunId,
+          legacyImportRunId: latest.id,
         },
         select: {
           legacyRoNo: true,
+          legacyCustno: true,
+          legacyCarno: true,
           rawData: true,
         },
       }),
       prisma.rawLegacyAr.findMany({
         where: {
           shopId: SHOP_ID,
-          legacyImportRunId: latest.legacyImportRunId,
+          legacyImportRunId: latest.id,
         },
         select: {
           legacyRoNo: true,
           legacyCustno: true,
+          legacyCarno: true,
           rawData: true,
         },
       }),
@@ -240,22 +261,69 @@ async function main() {
     const vehicleIds = new Map(
       vehicles.map((vehicle) => [vehicle.legacyCarno, vehicle.id]),
     );
-    const invoiceGroups = groupFirstByRo(rawFinal);
+    const finalGroups = groupRowsByRo(rawFinal);
+    const laborGroups = groupRowsByRo(rawLabor);
+    const arGroups = groupRowsByRo(rawAr);
+    const candidateOrderNumbers = new Set([
+      ...arGroups.keys(),
+      ...finalGroups.keys(),
+      ...laborGroups.keys(),
+    ]);
     const validInvoices = new Map();
     let missingCustomers = 0;
     let missingVehicles = 0;
+    let missingAuthoritativeAr = 0;
+    let invalidDates = 0;
+    let duplicateArOrders = 0;
+    let conflictingArRecords = 0;
+    let dateConflicts = 0;
+    let laborOnlyRecovered = 0;
 
-    for (const [ro, row] of invoiceGroups) {
-      const customerId = row.legacyCustno
-        ? customerIds.get(row.legacyCustno)
+    for (const ro of candidateOrderNumbers) {
+      const arRows = arGroups.get(ro) ?? [];
+      const finalRows = finalGroups.get(ro) ?? [];
+      const laborRows = laborGroups.get(ro) ?? [];
+      const hasAuthoritativeTotals = arRows.length > 0 && arRows.every((row) =>
+        ["PARTS", "LABOR", "TOTAL"].every((field) => numberValue(row.rawData, field) !== null)
+      );
+      if (!hasAuthoritativeTotals) {
+        missingAuthoritativeAr += 1;
+        continue;
+      }
+      if (arRows.length > 1) duplicateArOrders += 1;
+      const arSignatures = new Set(arRows.map((row) => JSON.stringify([
+        row.legacyCustno,
+        ...["PARTS", "LABOR", "TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6", "TOTAL", "PAYMENT", "BALANCE", "DATE_SOLD", "RO_DATE"]
+          .map((field) => textValue(row.rawData, field)),
+      ])));
+      if (arSignatures.size > 1) {
+        conflictingArRecords += 1;
+        continue;
+      }
+      const arRow = arRows[0];
+      const customerId = arRow.legacyCustno
+        ? customerIds.get(arRow.legacyCustno)
         : null;
-      const vehicleId = row.legacyCarno ? vehicleIds.get(row.legacyCarno) : null;
+      const legacyCarno = arRow.legacyCarno ??
+        finalRows.find((row) => row.legacyCarno)?.legacyCarno ??
+        laborRows.find((row) => row.legacyCarno)?.legacyCarno;
+      const vehicleId = legacyCarno ? vehicleIds.get(legacyCarno) : null;
       if (!customerId) {
         missingCustomers += 1;
         continue;
       }
       if (!vehicleId) missingVehicles += 1;
-      validInvoices.set(ro, { row, customerId, vehicleId: vehicleId ?? null });
+      const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
+      if (selectedDate.missingCompletedDate || selectedDate.invalidDates.length > 0) invalidDates += 1;
+      if (selectedDate.conflicts.length > 0) dateConflicts += 1;
+      if (!selectedDate.date) continue;
+      if (finalRows.length === 0 && laborRows.length > 0) laborOnlyRecovered += 1;
+      validInvoices.set(ro, {
+        arRow,
+        customerId,
+        vehicleId: vehicleId ?? null,
+        invoiceDate: selectedDate.date,
+      });
     }
 
     const keyedParts = lineKeys(rawFinal, "FINAL").filter(
@@ -266,28 +334,63 @@ async function main() {
     const keyedLabor = lineKeys(rawLabor, "laborfinal", ["NOTE"]).filter(
       (row) => validInvoices.has(row.legacyRoNo),
     );
-    const arGroups = groupFirstByRo(rawAr);
-    const validAr = [...arGroups.entries()].filter(([ro, row]) => {
-      const customerId = row.legacyCustno
-        ? customerIds.get(row.legacyCustno)
-        : null;
-      return validInvoices.has(ro) && Boolean(customerId);
-    });
+    const validAr = [...validInvoices].map(([ro, link]) => [ro, link.arRow]);
     const skipped =
       (rawFinal.length - keyedParts.length) +
       (rawLabor.length - keyedLabor.length) +
       rawAr.filter((row) => !row.legacyRoNo?.trim()).length +
-      (arGroups.size - validAr.length);
+      (candidateOrderNumbers.size - validInvoices.size);
+    const existingInvoices = await prisma.invoice.findMany({
+      where: { shopId: SHOP_ID, legacyRoNo: { in: [...validInvoices.keys()] } },
+      select: { legacyRoNo: true, invoiceDate: true },
+    });
+    const existingInvoiceDates = new Map(
+      existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.invoiceDate]),
+    );
+    const invoiceDatesCorrected = [...validInvoices].filter(([ro, link]) =>
+      existingInvoiceDates.has(ro) &&
+      existingInvoiceDates.get(ro)?.getTime() !== link.invoiceDate.getTime()
+    ).length;
+    let periodTotals = null;
+    if (reportMonth) {
+      const [year, month] = reportMonth.split("-").map(Number);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 1));
+      periodTotals = [...validInvoices.values()].reduce((totals, link) => {
+        if (link.invoiceDate < start || link.invoiceDate >= end) return totals;
+        const amounts = arAmounts(link.arRow.rawData);
+        totals.count += 1;
+        totals.parts += amounts.parts;
+        totals.labor += amounts.labor;
+        totals.tax += amounts.tax;
+        totals.total += amounts.total;
+        return totals;
+      }, { count: 0, parts: 0, labor: 0, tax: 0, total: 0 });
+    }
     const counts = {
       dryRun,
       invoices: validInvoices.size,
+      invoicesInserted: validInvoices.size - existingInvoices.length,
+      invoicesUpdated: existingInvoices.length,
+      laborOnlyRecovered,
+      invoiceDatesCorrected,
       parts: keyedParts.length,
       labor: keyedLabor.length,
       ar: validAr.length,
+      candidateOrders: candidateOrderNumbers.size,
+      ordersSkipped: candidateOrderNumbers.size - validInvoices.size,
+      missingAuthoritativeAr,
+      invalidDates,
+      duplicateArOrders,
+      conflictingArRecords,
+      dateConflicts,
       skipped,
-      validationIssues: skipped,
+      validationIssues: missingAuthoritativeAr + invalidDates + duplicateArOrders +
+        conflictingArRecords + missingCustomers,
       missingCustomers,
       missingVehicles,
+      period: reportMonth,
+      periodTotals,
     };
 
     if (dryRun) {
@@ -295,15 +398,8 @@ async function main() {
       return;
     }
 
-    const [existingInvoices, existingParts, existingLabor, existingAr] =
+    const [existingParts, existingLabor, existingAr] =
       await Promise.all([
-        prisma.invoice.findMany({
-          where: {
-            shopId: SHOP_ID,
-            legacyRoNo: { in: [...validInvoices.keys()] },
-          },
-          select: { legacyRoNo: true },
-        }),
         prisma.invoicePart.findMany({
           where: {
             shopId: SHOP_ID,
@@ -326,8 +422,6 @@ async function main() {
           select: { legacyRoNo: true },
         }),
       ]);
-    counts.invoicesUpdated = existingInvoices.length;
-    counts.invoicesInserted = counts.invoices - counts.invoicesUpdated;
     counts.partsUpdated = existingParts.length;
     counts.partsInserted = counts.parts - counts.partsUpdated;
     counts.laborUpdated = existingLabor.length;
@@ -355,12 +449,11 @@ async function main() {
     } else {
       for (const batch of chunks([...validInvoices])) {
         const rows = batch.map(([ro, link]) => {
-          const rawData = link.row.rawData;
-          const amounts = arAmounts(arGroups.get(ro)?.rawData);
+          const amounts = arAmounts(link.arRow.rawData);
           return [
             SHOP_ID, link.customerId, link.vehicleId,
             amounts.balance <= 0 ? "paid" : "open",
-            date(textValue(rawData, "RO_DATE")), String(amounts.parts),
+            link.invoiceDate, String(amounts.parts),
             String(amounts.labor), String(amounts.subtotal), String(amounts.tax),
             String(amounts.total), String(amounts.paid), ro, "ar.DBF",
           ];
