@@ -32,23 +32,34 @@ enum MarketingLeadStatus {
   CLOSED
 }
 
+enum LegacyChargeSourceBucket {
+  TAX3
+  TAX4
+  TAX5
+  TAX6
+}
+
 model Shop {
-  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                  String
-  addressLine1          String?               @map("address_line1")
+  addressLine1          String?                @map("address_line1")
   city                  String?
   state                 String?
-  postalCode            String?               @map("postal_code")
+  postalCode            String?                @map("postal_code")
   phone                 String?
-  defaultTaxRate        Decimal               @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
-  defaultLaborRate      Decimal               @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
-  partsTaxable          Boolean               @default(true) @map("parts_taxable")
-  laborTaxable          Boolean               @default(false) @map("labor_taxable")
-  invoiceFooterMessage  String?               @map("invoice_footer_message")
-  warrantyText          String?               @map("warranty_text")
-  nextRepairOrderNumber Int                   @default(1) @map("next_repair_order_number")
-  createdAt             DateTime              @default(now()) @map("created_at")
-  updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at")
+  defaultTaxRate        Decimal                @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
+  defaultLaborRate      Decimal                @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
+  partsTaxable          Boolean                @default(true) @map("parts_taxable")
+  laborTaxable          Boolean                @default(false) @map("labor_taxable")
+  shopSuppliesEnabled   Boolean                @default(false) @map("shop_supplies_enabled")
+  shopSuppliesRate      Decimal                @default(0) @map("shop_supplies_rate") @db.Decimal(7, 6)
+  shopSuppliesCap       Decimal                @default(0) @map("shop_supplies_cap") @db.Decimal(12, 2)
+  shopSuppliesTaxable   Boolean                @default(true) @map("shop_supplies_taxable")
+  invoiceFooterMessage  String?                @map("invoice_footer_message")
+  warrantyText          String?                @map("warranty_text")
+  nextRepairOrderNumber Int                    @default(1) @map("next_repair_order_number")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
   customers             Customer[]
   vehicles              Vehicle[]
   repairOrders          RepairOrder[]
@@ -199,16 +210,18 @@ model MarketingLead {
 }
 
 model CannedService {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId           String   @map("shop_id") @db.Uuid
-  name             String
-  description      String
-  defaultHours     Decimal  @default(1) @map("default_hours") @db.Decimal(8, 2)
-  defaultLaborRate Decimal  @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
-  active           Boolean  @default(true)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
-  shop             Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId               String   @map("shop_id") @db.Uuid
+  name                 String
+  description          String
+  defaultHours         Decimal  @default(1) @map("default_hours") @db.Decimal(8, 2)
+  defaultLaborRate     Decimal  @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
+  active               Boolean  @default(true)
+  /// Defaults false so adding this schema cannot make existing services charge-eligible.
+  shopSuppliesEligible Boolean  @default(false) @map("shop_supplies_eligible")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, name])
   @@index([shopId, active])
@@ -329,33 +342,44 @@ model Vehicle {
 }
 
 model RepairOrder {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId             String             @map("shop_id") @db.Uuid
-  customerId         String             @map("customer_id") @db.Uuid
-  vehicleId          String             @map("vehicle_id") @db.Uuid
-  assignedEmployeeId String?            @map("assigned_employee_id") @db.Uuid
-  status             String             @default("draft")
-  openedAt           DateTime           @default(now()) @map("opened_at")
-  closedAt           DateTime?          @map("closed_at")
-  odometer           Int?
-  concern            String?
-  notes              String?
-  partsTotal         Decimal            @default(0) @map("parts_total") @db.Decimal(12, 2)
-  laborTotal         Decimal            @default(0) @map("labor_total") @db.Decimal(12, 2)
-  taxTotal           Decimal            @default(0) @map("tax_total") @db.Decimal(12, 2)
-  estimatedTotal     Decimal            @default(0) @map("estimated_total") @db.Decimal(12, 2)
-  repairOrderNumber  Int?               @map("repair_order_number")
-  legacyRoNo         String?            @map("legacy_ro_no")
-  legacySourceTable  String?            @map("legacy_source_table")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
-  shop               Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer           Customer           @relation(fields: [customerId], references: [id])
-  vehicle            Vehicle            @relation(fields: [vehicleId], references: [id])
-  assignedEmployee   Employee?          @relation(fields: [assignedEmployeeId], references: [id])
-  parts              RepairOrderPart[]
-  labor              RepairOrderLabor[]
-  invoices           Invoice[]
+  id                             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId                         String             @map("shop_id") @db.Uuid
+  customerId                     String             @map("customer_id") @db.Uuid
+  vehicleId                      String             @map("vehicle_id") @db.Uuid
+  assignedEmployeeId             String?            @map("assigned_employee_id") @db.Uuid
+  status                         String             @default("draft")
+  openedAt                       DateTime           @default(now()) @map("opened_at")
+  closedAt                       DateTime?          @map("closed_at")
+  odometer                       Int?
+  concern                        String?
+  notes                          String?
+  partsTotal                     Decimal            @default(0) @map("parts_total") @db.Decimal(12, 2)
+  laborTotal                     Decimal            @default(0) @map("labor_total") @db.Decimal(12, 2)
+  taxTotal                       Decimal            @default(0) @map("tax_total") @db.Decimal(12, 2)
+  estimatedTotal                 Decimal            @default(0) @map("estimated_total") @db.Decimal(12, 2)
+  shopSuppliesEnabledSnapshot    Boolean            @default(false) @map("shop_supplies_enabled_snapshot")
+  shopSuppliesRateSnapshot       Decimal            @default(0) @map("shop_supplies_rate_snapshot") @db.Decimal(7, 6)
+  shopSuppliesCapSnapshot        Decimal            @default(0) @map("shop_supplies_cap_snapshot") @db.Decimal(12, 2)
+  shopSuppliesTaxableSnapshot    Boolean            @default(true) @map("shop_supplies_taxable_snapshot")
+  shopSuppliesEligibleLaborTotal Decimal            @default(0) @map("shop_supplies_eligible_labor_total") @db.Decimal(12, 2)
+  shopSuppliesCalculatedAmount   Decimal            @default(0) @map("shop_supplies_calculated_amount") @db.Decimal(12, 2)
+  shopSuppliesAmount             Decimal            @default(0) @map("shop_supplies_amount") @db.Decimal(12, 2)
+  shopSuppliesOverrideAmount     Decimal?           @map("shop_supplies_override_amount") @db.Decimal(12, 2)
+  shopSuppliesOverrideReason     String?            @map("shop_supplies_override_reason")
+  shopSuppliesOverriddenByUserId String?            @map("shop_supplies_overridden_by_user_id") @db.Uuid
+  shopSuppliesOverriddenAt       DateTime?          @map("shop_supplies_overridden_at")
+  repairOrderNumber              Int?               @map("repair_order_number")
+  legacyRoNo                     String?            @map("legacy_ro_no")
+  legacySourceTable              String?            @map("legacy_source_table")
+  createdAt                      DateTime           @default(now()) @map("created_at")
+  updatedAt                      DateTime           @default(now()) @updatedAt @map("updated_at")
+  shop                           Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer                       Customer           @relation(fields: [customerId], references: [id])
+  vehicle                        Vehicle            @relation(fields: [vehicleId], references: [id])
+  assignedEmployee               Employee?          @relation(fields: [assignedEmployeeId], references: [id])
+  parts                          RepairOrderPart[]
+  labor                          RepairOrderLabor[]
+  invoices                       Invoice[]
 
   @@unique([shopId, legacyRoNo])
   @@unique([shopId, repairOrderNumber])
@@ -389,19 +413,21 @@ model RepairOrderPart {
 }
 
 model RepairOrderLabor {
-  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId            String      @map("shop_id") @db.Uuid
-  repairOrderId     String      @map("repair_order_id") @db.Uuid
-  description       String
-  hours             Decimal     @default(0) @db.Decimal(8, 2)
-  hourlyRate        Decimal     @default(0) @map("hourly_rate") @db.Decimal(12, 2)
-  legacyLineKey     String      @map("legacy_line_key")
-  legacyRoNo        String?     @map("legacy_ro_no")
-  legacySourceTable String?     @map("legacy_source_table")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at")
-  shop              Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  repairOrder       RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId               String      @map("shop_id") @db.Uuid
+  repairOrderId        String      @map("repair_order_id") @db.Uuid
+  description          String
+  hours                Decimal     @default(0) @db.Decimal(8, 2)
+  hourlyRate           Decimal     @default(0) @map("hourly_rate") @db.Decimal(12, 2)
+  /// Defaults false so existing labor cannot affect totals before calculation wiring is added.
+  shopSuppliesEligible Boolean     @default(false) @map("shop_supplies_eligible")
+  legacyLineKey        String      @map("legacy_line_key")
+  legacyRoNo           String?     @map("legacy_ro_no")
+  legacySourceTable    String?     @map("legacy_source_table")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at")
+  shop                 Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  repairOrder          RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, legacyLineKey])
   @@index([repairOrderId])
@@ -410,36 +436,48 @@ model RepairOrderLabor {
 }
 
 model Invoice {
-  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId             String              @map("shop_id") @db.Uuid
-  repairOrderId      String?             @map("repair_order_id") @db.Uuid
-  customerId         String              @map("customer_id") @db.Uuid
-  vehicleId          String?             @map("vehicle_id") @db.Uuid
-  status             String              @default("draft")
-  invoiceDate        DateTime?           @map("invoice_date")
-  dueAt              DateTime?           @map("due_at")
-  partsTotal         Decimal             @default(0) @map("parts_total") @db.Decimal(12, 2)
-  laborTotal         Decimal             @default(0) @map("labor_total") @db.Decimal(12, 2)
-  subtotal           Decimal             @default(0) @db.Decimal(12, 2)
-  taxTotal           Decimal             @default(0) @map("tax_total") @db.Decimal(12, 2)
-  total              Decimal             @default(0) @db.Decimal(12, 2)
-  paidTotal          Decimal             @default(0) @map("paid_total") @db.Decimal(12, 2)
-  repairOrderNumber  Int?                @map("repair_order_number")
-  shopSnapshot       Json?               @map("shop_snapshot")
-  customerSnapshot   Json?               @map("customer_snapshot")
-  vehicleSnapshot    Json?               @map("vehicle_snapshot")
-  legacyRoNo         String?             @map("legacy_ro_no")
-  legacySourceTable  String?             @map("legacy_source_table")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
-  shop               Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  repairOrder        RepairOrder?        @relation(fields: [repairOrderId], references: [id])
-  customer           Customer            @relation(fields: [customerId], references: [id])
-  vehicle            Vehicle?            @relation(fields: [vehicleId], references: [id])
-  parts              InvoicePart[]
-  labor              InvoiceLabor[]
-  payments           Payment[]
-  accountsReceivable AccountReceivable[]
+  id                             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId                         String                @map("shop_id") @db.Uuid
+  repairOrderId                  String?               @map("repair_order_id") @db.Uuid
+  customerId                     String                @map("customer_id") @db.Uuid
+  vehicleId                      String?               @map("vehicle_id") @db.Uuid
+  status                         String                @default("draft")
+  invoiceDate                    DateTime?             @map("invoice_date")
+  dueAt                          DateTime?             @map("due_at")
+  partsTotal                     Decimal               @default(0) @map("parts_total") @db.Decimal(12, 2)
+  laborTotal                     Decimal               @default(0) @map("labor_total") @db.Decimal(12, 2)
+  subtotal                       Decimal               @default(0) @db.Decimal(12, 2)
+  taxTotal                       Decimal               @default(0) @map("tax_total") @db.Decimal(12, 2)
+  total                          Decimal               @default(0) @db.Decimal(12, 2)
+  paidTotal                      Decimal               @default(0) @map("paid_total") @db.Decimal(12, 2)
+  shopSuppliesAmount             Decimal               @default(0) @map("shop_supplies_amount") @db.Decimal(12, 2)
+  shopSuppliesEnabledSnapshot    Boolean?              @map("shop_supplies_enabled_snapshot")
+  shopSuppliesRateSnapshot       Decimal?              @map("shop_supplies_rate_snapshot") @db.Decimal(7, 6)
+  shopSuppliesCapSnapshot        Decimal?              @map("shop_supplies_cap_snapshot") @db.Decimal(12, 2)
+  shopSuppliesTaxableSnapshot    Boolean?              @map("shop_supplies_taxable_snapshot")
+  shopSuppliesEligibleLaborTotal Decimal?              @map("shop_supplies_eligible_labor_total") @db.Decimal(12, 2)
+  shopSuppliesCalculatedAmount   Decimal?              @map("shop_supplies_calculated_amount") @db.Decimal(12, 2)
+  shopSuppliesWasOverridden      Boolean               @default(false) @map("shop_supplies_was_overridden")
+  shopSuppliesOverrideReason     String?               @map("shop_supplies_override_reason")
+  shopSuppliesOverriddenByUserId String?               @map("shop_supplies_overridden_by_user_id") @db.Uuid
+  shopSuppliesOverriddenAt       DateTime?             @map("shop_supplies_overridden_at")
+  repairOrderNumber              Int?                  @map("repair_order_number")
+  shopSnapshot                   Json?                 @map("shop_snapshot")
+  customerSnapshot               Json?                 @map("customer_snapshot")
+  vehicleSnapshot                Json?                 @map("vehicle_snapshot")
+  legacyRoNo                     String?               @map("legacy_ro_no")
+  legacySourceTable              String?               @map("legacy_source_table")
+  createdAt                      DateTime              @default(now()) @map("created_at")
+  updatedAt                      DateTime              @default(now()) @updatedAt @map("updated_at")
+  shop                           Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  repairOrder                    RepairOrder?          @relation(fields: [repairOrderId], references: [id])
+  customer                       Customer              @relation(fields: [customerId], references: [id])
+  vehicle                        Vehicle?              @relation(fields: [vehicleId], references: [id])
+  parts                          InvoicePart[]
+  labor                          InvoiceLabor[]
+  payments                       Payment[]
+  accountsReceivable             AccountReceivable[]
+  legacyCharges                  InvoiceLegacyCharge[]
 
   @@unique([shopId, legacyRoNo])
   @@unique([repairOrderId])
@@ -449,6 +487,23 @@ model Invoice {
   @@index([shopId, status])
   @@index([customerId])
   @@map("invoices")
+}
+
+model InvoiceLegacyCharge {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId         String                   @map("invoice_id") @db.Uuid
+  sourceBucket      LegacyChargeSourceBucket @map("source_bucket")
+  amount            Decimal                  @db.Decimal(12, 2)
+  sourceLabel       String?                  @map("source_label")
+  taxable           Boolean?
+  legacySourceTable String?                  @map("legacy_source_table")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at")
+  invoice           Invoice                  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, sourceBucket])
+  @@index([invoiceId])
+  @@map("invoice_legacy_charges")
 }
 
 model InvoicePart {
