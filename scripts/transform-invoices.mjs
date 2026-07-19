@@ -20,6 +20,10 @@ import {
   executeLegacyInvoiceWriteTransaction,
   parseLegacyInvoiceTransformerArguments,
 } from "./lib/legacy-invoice-transformer-safety.mjs";
+import {
+  projectWritableInvoicePeriods,
+  skippedOrderDiagnostic,
+} from "./lib/legacy-invoice-projection.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
 const options = parseLegacyInvoiceTransformerArguments(process.argv.slice(2));
@@ -130,14 +134,15 @@ function report(counts) {
   console.log(`legacy charge rows to insert: ${counts.legacyChargesInserted}`);
   console.log(`legacy charge rows to update: ${counts.legacyChargesUpdated}`);
   console.log(`legacy charge rows to delete: ${counts.legacyChargesDeleted}`);
-  console.log(`candidate orders: ${counts.candidateOrders}`);
-  console.log(`orders still skipped: ${counts.ordersSkipped}`);
+  console.log(`source candidate orders: ${counts.candidateOrders}`);
+  console.log(`writable invoices: ${counts.invoices}`);
+  console.log(`skipped source orders: ${counts.ordersSkipped}`);
   console.log(`orders lacking authoritative AR totals: ${counts.missingAuthoritativeAr}`);
   console.log(`orders with invalid or missing completed dates: ${counts.invalidDates}`);
   console.log(`duplicate AR order numbers: ${counts.duplicateArOrders}`);
   console.log(`conflicting AR source records: ${counts.conflictingArRecords}`);
   console.log(`AR completed-date conflicts: ${counts.dateConflicts}`);
-  console.log(`skipped records: ${counts.skipped}`);
+  console.log(`legacy source rows/lines omitted from write plan: ${counts.skipped}`);
   console.log(`validation issue count: ${counts.validationIssues}`);
   console.log(`missing customer link count: ${counts.missingCustomers}`);
   console.log(`missing vehicle link count: ${counts.missingVehicles}`);
@@ -145,37 +150,22 @@ function report(counts) {
   console.log(`reconciliation mismatches: ${counts.reconciliationMismatches}`);
   console.log(`reconciliation variance: ${centsToDecimal(counts.reconciliationVarianceCents)}`);
   console.log(`orders with missing or malformed financial fields: ${counts.malformedFinancialOrders}`);
+  for (const skippedOrder of counts.skippedOrders ?? []) {
+    console.log(`skipped source order ${skippedOrder.legacyRoNo}: ${skippedOrder.reason}`);
+  }
   for (const [period, totals] of Object.entries(counts.periodTotals)) {
-    console.log(`${period} invoice count: ${totals.count}`);
+    const label = period === "all" ? "projected operational all-history" : `${period} projected operational`;
+    console.log(`${label} invoice count: ${totals.count}`);
     console.log(`${period} gross sales: ${centsToDecimal(totals.totalCents)}`);
     console.log(`${period} parts: ${centsToDecimal(totals.partsCents)}`);
     console.log(`${period} labor: ${centsToDecimal(totals.laborCents)}`);
+    console.log(`${period} subtotal: ${centsToDecimal(totals.subtotalCents)}`);
     console.log(`${period} shop supplies: ${centsToDecimal(totals.shopSuppliesCents)}`);
     console.log(`${period} ordinary sales tax: ${centsToDecimal(totals.salesTaxCents)}`);
     console.log(`${period} TAX3-TAX6 legacy charges: ${centsToDecimal(totals.legacyChargesCents)}`);
     console.log(`${period} discounts/reductions: ${centsToDecimal(totals.discountsCents)}`);
     console.log(`${period} paid total: ${centsToDecimal(totals.paidCents)}`);
   }
-}
-
-function emptyPeriodTotals() {
-  return {
-    count: 0, totalCents: 0, partsCents: 0, laborCents: 0,
-    shopSuppliesCents: 0, salesTaxCents: 0, legacyChargesCents: 0,
-    discountsCents: 0, paidCents: 0,
-  };
-}
-
-function addPeriodTotals(totals, financials) {
-  totals.count += 1;
-  totals.totalCents += financials.totalCents;
-  totals.partsCents += financials.partsCents;
-  totals.laborCents += financials.laborCents;
-  totals.shopSuppliesCents += financials.shopSuppliesCents;
-  totals.salesTaxCents += financials.salesTaxCents;
-  totals.legacyChargesCents += financials.legacyAdditionalChargesCents;
-  totals.discountsCents += financials.discountsCents;
-  totals.paidCents += financials.paidCents;
 }
 
 async function main() {
@@ -311,7 +301,7 @@ async function main() {
       ...laborGroups.keys(),
     ]);
     const validInvoices = new Map();
-    const reportableInvoices = [];
+    const skippedOrders = [];
     let missingCustomers = 0;
     let missingVehicles = 0;
     let missingAuthoritativeAr = 0;
@@ -331,6 +321,7 @@ async function main() {
       const laborRows = laborGroups.get(ro) ?? [];
       if (arRows.length === 0) {
         missingAuthoritativeAr += 1;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "missing authoritative AR totals"));
         continue;
       }
       if (arRows.length > 1) duplicateArOrders += 1;
@@ -341,17 +332,20 @@ async function main() {
       ])));
       if (arSignatures.size > 1) {
         conflictingArRecords += 1;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "conflicting AR source records"));
         continue;
       }
       const arRow = arRows[0];
       const financials = mapLegacyInvoiceFinancials(arRow.rawData);
       if (!financials.valid) {
         malformedFinancialOrders += 1;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "missing or malformed financial fields"));
         continue;
       }
       if (!financials.reconciliation.reconciles) {
         reconciliationMismatches += 1;
         reconciliationVarianceCents += financials.reconciliation.varianceCents;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "financial reconciliation mismatch"));
         continue;
       }
       reconciliationMatches += 1;
@@ -367,7 +361,10 @@ async function main() {
       const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
       if (selectedDate.missingCompletedDate || selectedDate.invalidDates.length > 0) invalidDates += 1;
       if (selectedDate.conflicts.length > 0) dateConflicts += 1;
-      if (!selectedDate.date) continue;
+      if (!selectedDate.date) {
+        skippedOrders.push(skippedOrderDiagnostic(ro, "invalid or missing completed date"));
+        continue;
+      }
       const shopSuppliesSnapshot = inferHistoricalShopSuppliesSnapshot({
         invoiceDate: selectedDate.date,
         laborRows,
@@ -381,9 +378,9 @@ async function main() {
         financials,
         shopSuppliesSnapshot,
       };
-      reportableInvoices.push(link);
       if (!customerId) {
         missingCustomers += 1;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "missing customer link"));
         continue;
       }
       if (finalRows.length === 0 && laborRows.length > 0) laborOnlyRecovered += 1;
@@ -460,25 +457,7 @@ async function main() {
       legacyChargesUpdated += synchronization.updates.length;
       legacyChargesDeleted += synchronization.deletes.length;
     }
-    const periodTotals = {
-      "all": emptyPeriodTotals(),
-      "2025": emptyPeriodTotals(),
-      "2026-H1": emptyPeriodTotals(),
-      "2026-01": emptyPeriodTotals(),
-    };
-    for (const link of reportableInvoices) {
-      addPeriodTotals(periodTotals.all, link.financials);
-      const time = link.invoiceDate.getTime();
-      if (time >= Date.UTC(2025, 0, 1) && time < Date.UTC(2026, 0, 1)) {
-        addPeriodTotals(periodTotals["2025"], link.financials);
-      }
-      if (time >= Date.UTC(2026, 0, 1) && time < Date.UTC(2026, 6, 1)) {
-        addPeriodTotals(periodTotals["2026-H1"], link.financials);
-      }
-      if (time >= Date.UTC(2026, 0, 1) && time < Date.UTC(2026, 1, 1)) {
-        addPeriodTotals(periodTotals["2026-01"], link.financials);
-      }
-    }
+    const periodTotals = projectWritableInvoicePeriods(validInvoices.values());
     const counts = {
       dryRun,
       invoices: validInvoices.size,
@@ -513,6 +492,7 @@ async function main() {
       reconciliationMismatches,
       reconciliationVarianceCents,
       malformedFinancialOrders,
+      skippedOrders,
       periodTotals,
     };
 
