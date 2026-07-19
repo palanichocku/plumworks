@@ -6,6 +6,12 @@ import {
   selectLegacyInvoiceDate,
   textValue,
 } from "./lib/legacy-invoice-reconciliation.mjs";
+import {
+  centsToDecimal,
+  inferHistoricalShopSuppliesSnapshot,
+  legacyChargeSynchronization,
+  mapLegacyInvoiceFinancials,
+} from "./lib/legacy-invoice-financials.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -19,28 +25,6 @@ function decimal(rawValue, fallback = "0") {
   if (!rawValue) return fallback;
   const cleaned = rawValue.replaceAll(/[^0-9.-]/g, "");
   return /^-?\d+(\.\d+)?$/.test(cleaned) ? cleaned : fallback;
-}
-
-function numberValue(rawData, field) {
-  const rawValue = textValue(rawData, field);
-  if (!rawValue) return null;
-  const cleaned = rawValue.replaceAll(/[^0-9.-]/g, "");
-  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
-  const number = Number(cleaned);
-  return Number.isFinite(number) ? number : null;
-}
-
-function arAmounts(rawData) {
-  const parts = numberValue(rawData, "PARTS") ?? 0;
-  const labor = numberValue(rawData, "LABOR") ?? 0;
-  const tax = ["TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6"].reduce(
-    (sum, field) => sum + (numberValue(rawData, field) ?? 0),
-    0,
-  );
-  const total = numberValue(rawData, "TOTAL") ?? parts + labor + tax;
-  const paid = numberValue(rawData, "PAYMENT") ?? 0;
-  const balance = numberValue(rawData, "BALANCE") ?? total - paid;
-  return { parts, labor, subtotal: parts + labor, tax, total, paid, balance };
 }
 
 function quantity(rawValue) {
@@ -120,6 +104,13 @@ function report(counts) {
     console.log(`invoices to update: ${counts.invoicesUpdated}`);
     console.log(`labor-only invoices recovered: ${counts.laborOnlyRecovered}`);
     console.log(`invoice dates corrected: ${counts.invoiceDatesCorrected}`);
+    console.log(`taxTotal values corrected: ${counts.taxTotalsCorrected}`);
+    console.log(`shopSuppliesAmount values populated: ${counts.shopSuppliesAmountsPopulated}`);
+    console.log(`historical snapshot values populated: ${counts.snapshotsPopulated}`);
+    console.log(`historical snapshot values left null: ${counts.snapshotsLeftNull}`);
+    console.log(`legacy charge rows to insert: ${counts.legacyChargesInserted}`);
+    console.log(`legacy charge rows to update: ${counts.legacyChargesUpdated}`);
+    console.log(`legacy charge rows to delete: ${counts.legacyChargesDeleted}`);
     console.log(`part lines to insert/update: ${counts.parts}`);
     console.log(`labor lines to insert/update: ${counts.labor}`);
     console.log(`AR rows to insert/update: ${counts.ar}`);
@@ -144,13 +135,41 @@ function report(counts) {
   console.log(`validation issue count: ${counts.validationIssues}`);
   console.log(`missing customer link count: ${counts.missingCustomers}`);
   console.log(`missing vehicle link count: ${counts.missingVehicles}`);
-  if (counts.period) {
-    console.log(`${counts.period} invoice count: ${counts.periodTotals.count}`);
-    console.log(`${counts.period} gross sales: ${counts.periodTotals.total.toFixed(2)}`);
-    console.log(`${counts.period} parts: ${counts.periodTotals.parts.toFixed(2)}`);
-    console.log(`${counts.period} labor: ${counts.periodTotals.labor.toFixed(2)}`);
-    console.log(`${counts.period} combined tax: ${counts.periodTotals.tax.toFixed(2)}`);
+  console.log(`reconciliation exact matches: ${counts.reconciliationMatches}`);
+  console.log(`reconciliation mismatches: ${counts.reconciliationMismatches}`);
+  console.log(`reconciliation variance: ${centsToDecimal(counts.reconciliationVarianceCents)}`);
+  console.log(`orders with missing or malformed financial fields: ${counts.malformedFinancialOrders}`);
+  for (const [period, totals] of Object.entries(counts.periodTotals)) {
+    console.log(`${period} invoice count: ${totals.count}`);
+    console.log(`${period} gross sales: ${centsToDecimal(totals.totalCents)}`);
+    console.log(`${period} parts: ${centsToDecimal(totals.partsCents)}`);
+    console.log(`${period} labor: ${centsToDecimal(totals.laborCents)}`);
+    console.log(`${period} shop supplies: ${centsToDecimal(totals.shopSuppliesCents)}`);
+    console.log(`${period} ordinary sales tax: ${centsToDecimal(totals.salesTaxCents)}`);
+    console.log(`${period} TAX3-TAX6 legacy charges: ${centsToDecimal(totals.legacyChargesCents)}`);
+    console.log(`${period} discounts/reductions: ${centsToDecimal(totals.discountsCents)}`);
+    console.log(`${period} paid total: ${centsToDecimal(totals.paidCents)}`);
   }
+}
+
+function emptyPeriodTotals() {
+  return {
+    count: 0, totalCents: 0, partsCents: 0, laborCents: 0,
+    shopSuppliesCents: 0, salesTaxCents: 0, legacyChargesCents: 0,
+    discountsCents: 0, paidCents: 0,
+  };
+}
+
+function addPeriodTotals(totals, financials) {
+  totals.count += 1;
+  totals.totalCents += financials.totalCents;
+  totals.partsCents += financials.partsCents;
+  totals.laborCents += financials.laborCents;
+  totals.shopSuppliesCents += financials.shopSuppliesCents;
+  totals.salesTaxCents += financials.salesTaxCents;
+  totals.legacyChargesCents += financials.legacyAdditionalChargesCents;
+  totals.discountsCents += financials.discountsCents;
+  totals.paidCents += financials.paidCents;
 }
 
 async function main() {
@@ -158,10 +177,6 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const laborOnly = process.argv.includes("--labor-only");
   const headersOnly = process.argv.includes("--headers-only");
-  const reportMonth = argument("--report-month");
-  if (reportMonth && !/^\d{4}-\d{2}$/.test(reportMonth)) {
-    throw new Error("--report-month must use YYYY-MM.");
-  }
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const prisma = new PrismaClient({
@@ -204,6 +219,18 @@ async function main() {
         validationIssues: 0,
         missingCustomers: 0,
         missingVehicles: 0,
+        taxTotalsCorrected: 0,
+        shopSuppliesAmountsPopulated: 0,
+        snapshotsPopulated: 0,
+        snapshotsLeftNull: 0,
+        legacyChargesInserted: 0,
+        legacyChargesUpdated: 0,
+        legacyChargesDeleted: 0,
+        reconciliationMatches: 0,
+        reconciliationMismatches: 0,
+        reconciliationVarianceCents: 0,
+        malformedFinancialOrders: 0,
+        periodTotals: {},
       });
       return;
     }
@@ -270,6 +297,7 @@ async function main() {
       ...laborGroups.keys(),
     ]);
     const validInvoices = new Map();
+    const reportableInvoices = [];
     let missingCustomers = 0;
     let missingVehicles = 0;
     let missingAuthoritativeAr = 0;
@@ -278,15 +306,16 @@ async function main() {
     let conflictingArRecords = 0;
     let dateConflicts = 0;
     let laborOnlyRecovered = 0;
+    let malformedFinancialOrders = 0;
+    let reconciliationMatches = 0;
+    let reconciliationMismatches = 0;
+    let reconciliationVarianceCents = 0;
 
     for (const ro of candidateOrderNumbers) {
       const arRows = arGroups.get(ro) ?? [];
       const finalRows = finalGroups.get(ro) ?? [];
       const laborRows = laborGroups.get(ro) ?? [];
-      const hasAuthoritativeTotals = arRows.length > 0 && arRows.every((row) =>
-        ["PARTS", "LABOR", "TOTAL"].every((field) => numberValue(row.rawData, field) !== null)
-      );
-      if (!hasAuthoritativeTotals) {
+      if (arRows.length === 0) {
         missingAuthoritativeAr += 1;
         continue;
       }
@@ -301,6 +330,17 @@ async function main() {
         continue;
       }
       const arRow = arRows[0];
+      const financials = mapLegacyInvoiceFinancials(arRow.rawData);
+      if (!financials.valid) {
+        malformedFinancialOrders += 1;
+        continue;
+      }
+      if (!financials.reconciliation.reconciles) {
+        reconciliationMismatches += 1;
+        reconciliationVarianceCents += financials.reconciliation.varianceCents;
+        continue;
+      }
+      reconciliationMatches += 1;
       const customerId = arRow.legacyCustno
         ? customerIds.get(arRow.legacyCustno)
         : null;
@@ -308,22 +348,31 @@ async function main() {
         finalRows.find((row) => row.legacyCarno)?.legacyCarno ??
         laborRows.find((row) => row.legacyCarno)?.legacyCarno;
       const vehicleId = legacyCarno ? vehicleIds.get(legacyCarno) : null;
-      if (!customerId) {
-        missingCustomers += 1;
-        continue;
-      }
-      if (!vehicleId) missingVehicles += 1;
       const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
       if (selectedDate.missingCompletedDate || selectedDate.invalidDates.length > 0) invalidDates += 1;
       if (selectedDate.conflicts.length > 0) dateConflicts += 1;
       if (!selectedDate.date) continue;
-      if (finalRows.length === 0 && laborRows.length > 0) laborOnlyRecovered += 1;
-      validInvoices.set(ro, {
+      const shopSuppliesSnapshot = inferHistoricalShopSuppliesSnapshot({
+        invoiceDate: selectedDate.date,
+        laborRows,
+        storedShopSuppliesCents: financials.shopSuppliesCents,
+      });
+      const link = {
         arRow,
         customerId,
         vehicleId: vehicleId ?? null,
         invoiceDate: selectedDate.date,
-      });
+        financials,
+        shopSuppliesSnapshot,
+      };
+      reportableInvoices.push(link);
+      if (!customerId) {
+        missingCustomers += 1;
+        continue;
+      }
+      if (finalRows.length === 0 && laborRows.length > 0) laborOnlyRecovered += 1;
+      if (!vehicleId) missingVehicles += 1;
+      validInvoices.set(ro, link);
     }
 
     const keyedParts = lineKeys(rawFinal, "FINAL").filter(
@@ -342,7 +391,13 @@ async function main() {
       (candidateOrderNumbers.size - validInvoices.size);
     const existingInvoices = await prisma.invoice.findMany({
       where: { shopId: SHOP_ID, legacyRoNo: { in: [...validInvoices.keys()] } },
-      select: { legacyRoNo: true, invoiceDate: true },
+      select: {
+        id: true,
+        legacyRoNo: true,
+        invoiceDate: true,
+        taxTotal: true,
+        shopSuppliesAmount: true,
+      },
     });
     const existingInvoiceDates = new Map(
       existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.invoiceDate]),
@@ -351,21 +406,62 @@ async function main() {
       existingInvoiceDates.has(ro) &&
       existingInvoiceDates.get(ro)?.getTime() !== link.invoiceDate.getTime()
     ).length;
-    let periodTotals = null;
-    if (reportMonth) {
-      const [year, month] = reportMonth.split("-").map(Number);
-      const start = new Date(Date.UTC(year, month - 1, 1));
-      const end = new Date(Date.UTC(year, month, 1));
-      periodTotals = [...validInvoices.values()].reduce((totals, link) => {
-        if (link.invoiceDate < start || link.invoiceDate >= end) return totals;
-        const amounts = arAmounts(link.arRow.rawData);
-        totals.count += 1;
-        totals.parts += amounts.parts;
-        totals.labor += amounts.labor;
-        totals.tax += amounts.tax;
-        totals.total += amounts.total;
-        return totals;
-      }, { count: 0, parts: 0, labor: 0, tax: 0, total: 0 });
+    const existingByRo = new Map(existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice]));
+    const taxTotalsCorrected = [...validInvoices].filter(([ro, link]) => {
+      const existing = existingByRo.get(ro);
+      return existing && Math.round(Number(existing.taxTotal) * 100) !== link.financials.salesTaxCents;
+    }).length;
+    const shopSuppliesAmountsPopulated = [...validInvoices].filter(([ro, link]) => {
+      const existing = existingByRo.get(ro);
+      return existing && Math.round(Number(existing.shopSuppliesAmount) * 100) !== link.financials.shopSuppliesCents;
+    }).length;
+    const snapshotsPopulated = [...validInvoices.values()].filter(
+      (link) => link.shopSuppliesSnapshot.enabled !== null,
+    ).length;
+    const snapshotsLeftNull = validInvoices.size - snapshotsPopulated;
+    const existingCharges = existingInvoices.length === 0
+      ? []
+      : await prisma.invoiceLegacyCharge.findMany({
+          where: { invoiceId: { in: existingInvoices.map((invoice) => invoice.id) } },
+          select: { invoiceId: true, sourceBucket: true, amount: true },
+        });
+    const existingChargesByInvoice = new Map();
+    for (const charge of existingCharges) {
+      const charges = existingChargesByInvoice.get(charge.invoiceId) ?? [];
+      charges.push(charge);
+      existingChargesByInvoice.set(charge.invoiceId, charges);
+    }
+    let legacyChargesInserted = 0;
+    let legacyChargesUpdated = 0;
+    let legacyChargesDeleted = 0;
+    for (const [ro, link] of validInvoices) {
+      const invoiceId = existingByRo.get(ro)?.id;
+      const synchronization = legacyChargeSynchronization(
+        invoiceId ? existingChargesByInvoice.get(invoiceId) ?? [] : [],
+        link.financials.legacyAdditionalCharges,
+      );
+      legacyChargesInserted += synchronization.inserts.length;
+      legacyChargesUpdated += synchronization.updates.length;
+      legacyChargesDeleted += synchronization.deletes.length;
+    }
+    const periodTotals = {
+      "all": emptyPeriodTotals(),
+      "2025": emptyPeriodTotals(),
+      "2026-H1": emptyPeriodTotals(),
+      "2026-01": emptyPeriodTotals(),
+    };
+    for (const link of reportableInvoices) {
+      addPeriodTotals(periodTotals.all, link.financials);
+      const time = link.invoiceDate.getTime();
+      if (time >= Date.UTC(2025, 0, 1) && time < Date.UTC(2026, 0, 1)) {
+        addPeriodTotals(periodTotals["2025"], link.financials);
+      }
+      if (time >= Date.UTC(2026, 0, 1) && time < Date.UTC(2026, 6, 1)) {
+        addPeriodTotals(periodTotals["2026-H1"], link.financials);
+      }
+      if (time >= Date.UTC(2026, 0, 1) && time < Date.UTC(2026, 1, 1)) {
+        addPeriodTotals(periodTotals["2026-01"], link.financials);
+      }
     }
     const counts = {
       dryRun,
@@ -374,6 +470,13 @@ async function main() {
       invoicesUpdated: existingInvoices.length,
       laborOnlyRecovered,
       invoiceDatesCorrected,
+      taxTotalsCorrected,
+      shopSuppliesAmountsPopulated,
+      snapshotsPopulated,
+      snapshotsLeftNull,
+      legacyChargesInserted,
+      legacyChargesUpdated,
+      legacyChargesDeleted,
       parts: keyedParts.length,
       labor: keyedLabor.length,
       ar: validAr.length,
@@ -386,10 +489,14 @@ async function main() {
       dateConflicts,
       skipped,
       validationIssues: missingAuthoritativeAr + invalidDates + duplicateArOrders +
-        conflictingArRecords + missingCustomers,
+        conflictingArRecords + missingCustomers + malformedFinancialOrders +
+        reconciliationMismatches,
       missingCustomers,
       missingVehicles,
-      period: reportMonth,
+      reconciliationMatches,
+      reconciliationMismatches,
+      reconciliationVarianceCents,
+      malformedFinancialOrders,
       periodTotals,
     };
 
@@ -398,23 +505,24 @@ async function main() {
       return;
     }
 
+    await prisma.$transaction(async (transaction) => {
     const [existingParts, existingLabor, existingAr] =
       await Promise.all([
-        prisma.invoicePart.findMany({
+        transaction.invoicePart.findMany({
           where: {
             shopId: SHOP_ID,
             legacyLineKey: { in: keyedParts.map((row) => row.lineKey) },
           },
           select: { legacyLineKey: true },
         }),
-        prisma.invoiceLabor.findMany({
+        transaction.invoiceLabor.findMany({
           where: {
             shopId: SHOP_ID,
             legacyLineKey: { in: keyedLabor.map((row) => row.lineKey) },
           },
           select: { legacyLineKey: true },
         }),
-        prisma.accountReceivable.findMany({
+        transaction.accountReceivable.findMany({
           where: {
             shopId: SHOP_ID,
             legacyRoNo: { in: validAr.map(([ro]) => ro) },
@@ -433,10 +541,14 @@ async function main() {
     const invoiceColumns = [
       "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
       "parts_total", "labor_total", "subtotal", "tax_total", "total",
-      "paid_total", "legacy_ro_no", "legacy_source_table",
+      "paid_total", "shop_supplies_amount", "shop_supplies_enabled_snapshot",
+      "shop_supplies_rate_snapshot", "shop_supplies_cap_snapshot",
+      "shop_supplies_taxable_snapshot", "shop_supplies_eligible_labor_total",
+      "shop_supplies_calculated_amount", "shop_supplies_was_overridden",
+      "legacy_ro_no", "legacy_source_table",
     ];
     if (laborOnly) {
-      const invoices = await prisma.invoice.findMany({
+      const invoices = await transaction.invoice.findMany({
         where: {
           shopId: SHOP_ID,
           legacyRoNo: { in: [...validInvoices.keys()] },
@@ -449,19 +561,28 @@ async function main() {
     } else {
       for (const batch of chunks([...validInvoices])) {
         const rows = batch.map(([ro, link]) => {
-          const amounts = arAmounts(link.arRow.rawData);
+          const amounts = link.financials;
+          const snapshot = link.shopSuppliesSnapshot;
           return [
             SHOP_ID, link.customerId, link.vehicleId,
-            amounts.balance <= 0 ? "paid" : "open",
-            link.invoiceDate, String(amounts.parts),
-            String(amounts.labor), String(amounts.subtotal), String(amounts.tax),
-            String(amounts.total), String(amounts.paid), ro, "ar.DBF",
+            amounts.balanceCents <= 0 ? "paid" : "open",
+            link.invoiceDate, centsToDecimal(amounts.partsCents),
+            centsToDecimal(amounts.laborCents), centsToDecimal(amounts.subtotalCents),
+            centsToDecimal(amounts.salesTaxCents), centsToDecimal(amounts.totalCents),
+            centsToDecimal(amounts.paidCents), centsToDecimal(amounts.shopSuppliesCents),
+            snapshot.enabled,
+            snapshot.rateBasisPoints === null ? null : (snapshot.rateBasisPoints / 10_000).toFixed(6),
+            snapshot.capCents === null ? null : centsToDecimal(snapshot.capCents),
+            snapshot.taxable,
+            snapshot.eligibleLaborCents === null ? null : centsToDecimal(snapshot.eligibleLaborCents),
+            snapshot.calculatedAmountCents === null ? null : centsToDecimal(snapshot.calculatedAmountCents),
+            false, ro, "ar.DBF",
           ];
         });
-        const invoices = await prisma.$queryRawUnsafe(
+        const invoices = await transaction.$queryRawUnsafe(
           bulkUpsertSql(
             "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
-            invoiceColumns.slice(1, 11).concat("legacy_source_table"), rows.length,
+            invoiceColumns.slice(1, 19).concat("legacy_source_table"), rows.length,
             "id, legacy_ro_no",
           ),
           ...rows.flat(),
@@ -469,6 +590,26 @@ async function main() {
         for (const invoice of invoices) {
           invoiceIds.set(invoice.legacy_ro_no, invoice.id);
         }
+      }
+    }
+
+    if (!laborOnly) {
+      const transformedInvoiceIds = [...invoiceIds.values()];
+      await transaction.invoiceLegacyCharge.deleteMany({
+        where: { invoiceId: { in: transformedInvoiceIds } },
+      });
+      const desiredCharges = [...validInvoices].flatMap(([ro, link]) =>
+        link.financials.legacyAdditionalCharges.map((charge) => ({
+          invoiceId: invoiceIds.get(ro),
+          sourceBucket: charge.sourceBucket,
+          amount: centsToDecimal(charge.amountCents),
+          sourceLabel: charge.sourceLabel,
+          taxable: charge.taxable,
+          legacySourceTable: charge.legacySourceTable,
+        })),
+      );
+      for (const batch of chunks(desiredCharges)) {
+        await transaction.invoiceLegacyCharge.createMany({ data: batch });
       }
     }
 
@@ -483,7 +624,7 @@ async function main() {
         textValue(row.rawData, "PARTNO"), quantity(textValue(row.rawData, "QTY")),
         decimal(textValue(row.rawData, "PRICE")), row.lineKey, row.legacyRoNo, "FINAL.DBF",
       ]);
-      await prisma.$executeRawUnsafe(
+      await transaction.$executeRawUnsafe(
         bulkUpsertSql(
           "invoice_parts", partColumns, ["shop_id", "legacy_line_key"],
           ["invoice_id", "description", "part_number", "quantity", "unit_price", "legacy_ro_no", "legacy_source_table"],
@@ -508,7 +649,7 @@ async function main() {
         decimal(textValue(row.rawData, "HOURS")), decimal(textValue(row.rawData, "LABORRATE")),
         row.lineKey, row.legacyRoNo, "laborfinal.DBF",
       ]);
-      await prisma.$executeRawUnsafe(
+      await transaction.$executeRawUnsafe(
         bulkUpsertSql(
           "invoice_labor", laborColumns, ["shop_id", "legacy_line_key"],
           ["invoice_id", "description", "hours", "hourly_rate", "legacy_ro_no", "legacy_source_table"],
@@ -524,14 +665,14 @@ async function main() {
     ];
     for (const batch of laborOnly ? [] : chunks(validAr)) {
       const rows = batch.map(([ro, row]) => {
-        const amounts = arAmounts(row.rawData);
+        const amounts = validInvoices.get(ro).financials;
         return [
           SHOP_ID, invoiceIds.get(ro), customerIds.get(row.legacyCustno),
-          String(amounts.balance), amounts.balance <= 0 ? "paid" : "open", ro,
+          centsToDecimal(amounts.balanceCents), amounts.balanceCents <= 0 ? "paid" : "open", ro,
           "ar.DBF",
         ];
       });
-      await prisma.$executeRawUnsafe(
+      await transaction.$executeRawUnsafe(
         bulkUpsertSql(
           "accounts_receivable", arColumns, ["shop_id", "legacy_ro_no"],
           ["invoice_id", "customer_id", "balance", "status", "legacy_source_table"],
@@ -540,6 +681,7 @@ async function main() {
         ...rows.flat(),
       );
     }
+    }, { timeout: 120_000 });
 
     report(counts);
   } finally {
