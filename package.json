@@ -16,6 +16,7 @@
     "db:seed": "node --env-file=.env.local prisma/seed.mjs",
     "legacy:import:customers-vehicles": "node --env-file=.env.local scripts/import-customers-vehicles.mjs",
     "legacy:transform:customers-vehicles": "node --env-file=.env.local scripts/transform-customers-vehicles.mjs",
+    "legacy:customers:recover": "node --env-file=.env.local scripts/recover-legacy-customers.mjs",
     "legacy:import:invoices": "node --env-file=.env.local scripts/import-invoices.mjs",
     "legacy:transform:invoices": "node --env-file=.env.local scripts/transform-invoices.mjs",
     "legacy:import:open-orders": "node --env-file=.env.local scripts/import-open-orders.mjs",

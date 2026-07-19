@@ -165,14 +165,18 @@ try {
 
   for (const candidate of manifest.customersToCreate) {
     const legacyMatches = customers.filter((customer) => customer.legacyCustno === candidate.legacyCustomerId);
-    requireCondition(legacyMatches.length === 0, `creation candidate ${candidate.legacyCustomerId} already exists operationally.`);
+    requireCondition(legacyMatches.length <= 1, `creation candidate ${candidate.legacyCustomerId} has multiple operational matches.`);
+    const recoveredCustomer = legacyMatches[0] ?? null;
+    if (recoveredCustomer) {
+      requireCondition(recoveredCustomer.displayName === candidate.displayName, `creation candidate ${candidate.legacyCustomerId} exists with a different display name.`);
+    }
     if (candidate.classification === "normal-historical" && words(candidate.displayName) && words(candidate.address)) {
-      const matches = customers.filter((customer) => words(customer.displayName) === words(candidate.displayName) && words(customer.addressLine1) === words(candidate.address));
+      const matches = customers.filter((customer) => customer.id !== recoveredCustomer?.id && words(customer.displayName) === words(candidate.displayName) && words(customer.addressLine1) === words(candidate.address));
       requireCondition(matches.length === 0, `creation candidate ${candidate.legacyCustomerId} collides on exact normalized name/address.`);
     }
     const candidatePhones = [candidate.phone, candidate.alternatePhone].map(fullPhone).filter(Boolean);
     for (const phone of candidatePhones) {
-      const matches = customers.filter((customer) => [customer.phone, customer.phone2].map(fullPhone).includes(phone));
+      const matches = customers.filter((customer) => customer.id !== recoveredCustomer?.id && [customer.phone, customer.phone2].map(fullPhone).includes(phone));
       requireCondition(matches.length === 0, `creation candidate ${candidate.legacyCustomerId} collides on exact full phone ${phone}.`);
     }
   }

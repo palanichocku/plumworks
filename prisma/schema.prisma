@@ -61,6 +61,7 @@ model Shop {
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
   customers             Customer[]
+  customerLegacyAliases CustomerLegacyAlias[]
   vehicles              Vehicle[]
   repairOrders          RepairOrder[]
   repairOrderParts      RepairOrderPart[]
@@ -304,11 +305,30 @@ model Customer {
   invoices           Invoice[]
   payments           Payment[]
   accountsReceivable AccountReceivable[]
+  legacyAliases      CustomerLegacyAlias[]
 
   @@unique([shopId, legacyCustno])
   @@index([legacyCustno])
   @@index([shopId, displayName])
   @@map("customers")
+}
+
+model CustomerLegacyAlias {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId            String   @map("shop_id") @db.Uuid
+  customerId        String   @map("customer_id") @db.Uuid
+  aliasLegacyCustno String   @map("alias_legacy_custno")
+  source            String?
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, aliasLegacyCustno])
+  @@index([customerId])
+  @@index([shopId])
+  @@map("customer_legacy_aliases")
 }
 
 model Vehicle {

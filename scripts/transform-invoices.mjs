@@ -12,6 +12,10 @@ import {
   legacyChargeSynchronization,
   mapLegacyInvoiceFinancials,
 } from "./lib/legacy-invoice-financials.mjs";
+import {
+  aliasResolutionMaps,
+  resolveLegacyCustomerId,
+} from "./lib/legacy-customer-recovery.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -235,7 +239,7 @@ async function main() {
       return;
     }
 
-    const [rawFinal, rawLabor, rawAr, customers, vehicles] = await Promise.all([
+    const [rawFinal, rawLabor, rawAr, customers, customerAliases, vehicles] = await Promise.all([
       prisma.rawLegacyFinal.findMany({
         where: {
           shopId: SHOP_ID,
@@ -276,15 +280,18 @@ async function main() {
         where: { shopId: SHOP_ID, legacyCustno: { not: null } },
         select: { id: true, legacyCustno: true },
       }),
+      prisma.customerLegacyAlias.findMany({
+        where: { shopId: SHOP_ID },
+        select: { customerId: true, aliasLegacyCustno: true },
+      }),
       prisma.vehicle.findMany({
         where: { shopId: SHOP_ID, legacyCarno: { not: null } },
         select: { id: true, legacyCarno: true },
       }),
     ]);
 
-    const customerIds = new Map(
-      customers.map((customer) => [customer.legacyCustno, customer.id]),
-    );
+    const { exactCustomerIds: customerIds, aliasCustomerIds } =
+      aliasResolutionMaps(customers, customerAliases);
     const vehicleIds = new Map(
       vehicles.map((vehicle) => [vehicle.legacyCarno, vehicle.id]),
     );
@@ -341,9 +348,11 @@ async function main() {
         continue;
       }
       reconciliationMatches += 1;
-      const customerId = arRow.legacyCustno
-        ? customerIds.get(arRow.legacyCustno)
-        : null;
+      const customerId = resolveLegacyCustomerId(
+        arRow.legacyCustno,
+        customerIds,
+        aliasCustomerIds,
+      );
       const legacyCarno = arRow.legacyCarno ??
         finalRows.find((row) => row.legacyCarno)?.legacyCarno ??
         laborRows.find((row) => row.legacyCarno)?.legacyCarno;
@@ -667,7 +676,11 @@ async function main() {
       const rows = batch.map(([ro, row]) => {
         const amounts = validInvoices.get(ro).financials;
         return [
-          SHOP_ID, invoiceIds.get(ro), customerIds.get(row.legacyCustno),
+          SHOP_ID, invoiceIds.get(ro), resolveLegacyCustomerId(
+            row.legacyCustno,
+            customerIds,
+            aliasCustomerIds,
+          ),
           centsToDecimal(amounts.balanceCents), amounts.balanceCents <= 0 ? "paid" : "open", ro,
           "ar.DBF",
         ];
