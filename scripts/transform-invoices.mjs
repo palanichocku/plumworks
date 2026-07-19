@@ -16,14 +16,13 @@ import {
   aliasResolutionMaps,
   resolveLegacyCustomerId,
 } from "./lib/legacy-customer-recovery.mjs";
+import {
+  executeLegacyInvoiceWriteTransaction,
+  parseLegacyInvoiceTransformerArguments,
+} from "./lib/legacy-invoice-transformer-safety.mjs";
+import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
-function argument(name) {
-  const index = process.argv.indexOf(name);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
-
-const SHOP_ID = argument("--shop-id");
-if (!SHOP_ID) throw new Error("--shop-id is required.");
+const options = parseLegacyInvoiceTransformerArguments(process.argv.slice(2));
 
 function decimal(rawValue, fallback = "0") {
   if (!rawValue) return fallback;
@@ -112,9 +111,6 @@ function report(counts) {
     console.log(`shopSuppliesAmount values populated: ${counts.shopSuppliesAmountsPopulated}`);
     console.log(`historical snapshot values populated: ${counts.snapshotsPopulated}`);
     console.log(`historical snapshot values left null: ${counts.snapshotsLeftNull}`);
-    console.log(`legacy charge rows to insert: ${counts.legacyChargesInserted}`);
-    console.log(`legacy charge rows to update: ${counts.legacyChargesUpdated}`);
-    console.log(`legacy charge rows to delete: ${counts.legacyChargesDeleted}`);
     console.log(`part lines to insert/update: ${counts.parts}`);
     console.log(`labor lines to insert/update: ${counts.labor}`);
     console.log(`AR rows to insert/update: ${counts.ar}`);
@@ -128,6 +124,12 @@ function report(counts) {
     console.log(`AR rows inserted: ${counts.arInserted}`);
     console.log(`AR rows updated: ${counts.arUpdated}`);
   }
+  console.log(`database writes performed: ${counts.databaseWrites ?? 0}`);
+  console.log(`invoice inserts: ${counts.invoicesInserted}`);
+  console.log(`invoice updates: ${counts.invoicesUpdated}`);
+  console.log(`legacy charge rows to insert: ${counts.legacyChargesInserted}`);
+  console.log(`legacy charge rows to update: ${counts.legacyChargesUpdated}`);
+  console.log(`legacy charge rows to delete: ${counts.legacyChargesDeleted}`);
   console.log(`candidate orders: ${counts.candidateOrders}`);
   console.log(`orders still skipped: ${counts.ordersSkipped}`);
   console.log(`orders lacking authoritative AR totals: ${counts.missingAuthoritativeAr}`);
@@ -178,9 +180,13 @@ function addPeriodTotals(totals, financials) {
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
-  const dryRun = process.argv.includes("--dry-run");
-  const laborOnly = process.argv.includes("--labor-only");
-  const headersOnly = process.argv.includes("--headers-only");
+  const { dryRun, confirmedWrite, laborOnly, headersOnly } = options;
+  console.log(`Execution mode: ${dryRun ? "DRY RUN" : "CONFIRMED WRITE"}`);
+  console.log(`Confirmation status: ${options.confirmationStatus}`);
+  console.log(`Database writes permitted: ${confirmedWrite ? "yes" : "no"}`);
+  console.log("Supported dry run: npm run legacy:transform:invoices");
+  console.log("Supported explicit dry run: npm run legacy:transform:invoices -- --dry-run");
+  console.log("Supported confirmed write: npm run legacy:transform:invoices -- --confirm TRANSFORM_LEGACY_INVOICES");
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const prisma = new PrismaClient({
@@ -188,6 +194,7 @@ async function main() {
   });
 
   try {
+    const SHOP_ID = await resolveSingleShopId(prisma, options.shopId);
     const latest = await prisma.legacyImportRun.findFirst({
       where: {
         shopId: SHOP_ID,
@@ -509,12 +516,10 @@ async function main() {
       periodTotals,
     };
 
-    if (dryRun) {
-      report(counts);
-      return;
-    }
-
-    await prisma.$transaction(async (transaction) => {
+    const execution = await executeLegacyInvoiceWriteTransaction({
+      confirmedWrite,
+      execute: async () => {
+        await prisma.$transaction(async (transaction) => {
     const [existingParts, existingLabor, existingAr] =
       await Promise.all([
         transaction.invoicePart.findMany({
@@ -694,7 +699,18 @@ async function main() {
         ...rows.flat(),
       );
     }
-    }, { timeout: 120_000 });
+        }, { timeout: 120_000 });
+        const databaseWrites =
+          (laborOnly ? 0 : counts.invoicesInserted + counts.invoicesUpdated) +
+          counts.legacyChargesInserted + counts.legacyChargesUpdated +
+          counts.legacyChargesDeleted + (counts.partsInserted ?? 0) +
+          (counts.partsUpdated ?? 0) + (counts.laborInserted ?? 0) +
+          (counts.laborUpdated ?? 0) + (counts.arInserted ?? 0) +
+          (counts.arUpdated ?? 0);
+        return { databaseWrites };
+      },
+    });
+    counts.databaseWrites = execution.databaseWrites;
 
     report(counts);
   } finally {
