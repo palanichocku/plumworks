@@ -9,7 +9,6 @@ import {
 import {
   centsToDecimal,
   inferHistoricalShopSuppliesSnapshot,
-  legacyChargeSynchronization,
   mapLegacyInvoiceFinancials,
 } from "./lib/legacy-invoice-financials.mjs";
 import {
@@ -24,6 +23,11 @@ import {
   projectWritableInvoicePeriods,
   skippedOrderDiagnostic,
 } from "./lib/legacy-invoice-projection.mjs";
+import {
+  classifyPersistedRows,
+  comparePersistedRows,
+  writableClassifications,
+} from "./lib/legacy-invoice-change-detection.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
 const options = parseLegacyInvoiceTransformerArguments(process.argv.slice(2));
@@ -105,19 +109,76 @@ function bulkUpsertSql(table, columns, conflictColumns, updateColumns, rowCount,
   return `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${values.join(", ")} ON CONFLICT (${conflictColumns.join(", ")}) DO UPDATE SET ${updates}${returning ? ` RETURNING ${returning}` : ""}`;
 }
 
+function proposedInvoiceRow(shopId, legacyRoNo, link) {
+  const amounts = link.financials;
+  const snapshot = link.shopSuppliesSnapshot;
+  return {
+    shopId, legacyRoNo, customerId: link.customerId, vehicleId: link.vehicleId,
+    status: amounts.balanceCents <= 0 ? "paid" : "open", invoiceDate: link.invoiceDate,
+    partsTotal: centsToDecimal(amounts.partsCents), laborTotal: centsToDecimal(amounts.laborCents),
+    subtotal: centsToDecimal(amounts.subtotalCents), taxTotal: centsToDecimal(amounts.salesTaxCents),
+    total: centsToDecimal(amounts.totalCents), paidTotal: centsToDecimal(amounts.paidCents),
+    shopSuppliesAmount: centsToDecimal(amounts.shopSuppliesCents),
+    shopSuppliesEnabledSnapshot: snapshot.enabled,
+    shopSuppliesRateSnapshot: snapshot.rateBasisPoints === null ? null : (snapshot.rateBasisPoints / 10_000).toFixed(6),
+    shopSuppliesCapSnapshot: snapshot.capCents === null ? null : centsToDecimal(snapshot.capCents),
+    shopSuppliesTaxableSnapshot: snapshot.taxable,
+    shopSuppliesEligibleLaborTotal: snapshot.eligibleLaborCents === null ? null : centsToDecimal(snapshot.eligibleLaborCents),
+    shopSuppliesCalculatedAmount: snapshot.calculatedAmountCents === null ? null : centsToDecimal(snapshot.calculatedAmountCents),
+    shopSuppliesWasOverridden: false, legacySourceTable: "ar.DBF",
+  };
+}
+
+function proposedPartRow(shopId, invoiceId, row) {
+  return {
+    shopId, invoiceId, description: textValue(row.rawData, "DESC") ?? textValue(row.rawData, "PARTNO") ?? "Legacy part",
+    partNumber: textValue(row.rawData, "PARTNO"), quantity: quantity(textValue(row.rawData, "QTY")),
+    unitPrice: decimal(textValue(row.rawData, "PRICE")), legacyLineKey: row.lineKey,
+    legacyRoNo: row.legacyRoNo, legacySourceTable: "FINAL.DBF",
+  };
+}
+
+function proposedLaborRow(shopId, invoiceId, row) {
+  return {
+    shopId, invoiceId,
+    description: textValue(row.rawData, "LABOR_DONE") ?? textValue(row.rawData, "NOTE") ??
+      textValue(row.rawData, "JOBDESC") ?? textValue(row.rawData, "CODE") ?? "Legacy labor",
+    hours: decimal(textValue(row.rawData, "HOURS")), hourlyRate: decimal(textValue(row.rawData, "LABORRATE")),
+    legacyLineKey: row.lineKey, legacyRoNo: row.legacyRoNo, legacySourceTable: "laborfinal.DBF",
+  };
+}
+
+function proposedArRow(shopId, invoiceId, legacyRoNo, row, amounts, customerIds, aliasCustomerIds) {
+  return {
+    shopId, invoiceId, customerId: resolveLegacyCustomerId(row.legacyCustno, customerIds, aliasCustomerIds),
+    balance: centsToDecimal(amounts.balanceCents), status: amounts.balanceCents <= 0 ? "paid" : "open",
+    legacyRoNo, legacySourceTable: "ar.DBF",
+  };
+}
+
 function report(counts) {
   if (counts.dryRun) {
     console.log(`invoices to insert: ${counts.invoicesInserted}`);
     console.log(`invoices to update: ${counts.invoicesUpdated}`);
+    console.log(`invoices unchanged: ${counts.invoicesUnchanged}`);
     console.log(`labor-only invoices recovered: ${counts.laborOnlyRecovered}`);
     console.log(`invoice dates corrected: ${counts.invoiceDatesCorrected}`);
     console.log(`taxTotal values corrected: ${counts.taxTotalsCorrected}`);
     console.log(`shopSuppliesAmount values populated: ${counts.shopSuppliesAmountsPopulated}`);
     console.log(`historical snapshot values populated: ${counts.snapshotsPopulated}`);
     console.log(`historical snapshot values left null: ${counts.snapshotsLeftNull}`);
-    console.log(`part lines to insert/update: ${counts.parts}`);
-    console.log(`labor lines to insert/update: ${counts.labor}`);
-    console.log(`AR rows to insert/update: ${counts.ar}`);
+    console.log(`part lines to insert: ${counts.partsInserted}`);
+    console.log(`part lines to update: ${counts.partsUpdated}`);
+    console.log(`part lines unchanged: ${counts.partsUnchanged}`);
+    console.log(`part lines to delete: ${counts.partsDeleted}`);
+    console.log(`labor lines to insert: ${counts.laborInserted}`);
+    console.log(`labor lines to update: ${counts.laborUpdated}`);
+    console.log(`labor lines unchanged: ${counts.laborUnchanged}`);
+    console.log(`labor lines to delete: ${counts.laborDeleted}`);
+    console.log(`AR rows to insert: ${counts.arInserted}`);
+    console.log(`AR rows to update: ${counts.arUpdated}`);
+    console.log(`AR rows unchanged: ${counts.arUnchanged}`);
+    console.log(`AR rows to delete: ${counts.arDeleted}`);
   } else {
     console.log(`invoices inserted: ${counts.invoicesInserted}`);
     console.log(`invoices updated: ${counts.invoicesUpdated}`);
@@ -131,9 +192,15 @@ function report(counts) {
   console.log(`database writes performed: ${counts.databaseWrites ?? 0}`);
   console.log(`invoice inserts: ${counts.invoicesInserted}`);
   console.log(`invoice updates: ${counts.invoicesUpdated}`);
+  console.log(`invoice unchanged: ${counts.invoicesUnchanged}`);
+  for (const [reason, count] of Object.entries(counts.invoiceUpdateReasons ?? {})) {
+    console.log(`invoice update reason ${reason}: ${count}`);
+  }
   console.log(`legacy charge rows to insert: ${counts.legacyChargesInserted}`);
   console.log(`legacy charge rows to update: ${counts.legacyChargesUpdated}`);
   console.log(`legacy charge rows to delete: ${counts.legacyChargesDeleted}`);
+  console.log(`legacy charge rows unchanged: ${counts.legacyChargesUnchanged}`);
+  console.log(`legacy charge existing rows: ${counts.legacyChargesExisting}`);
   console.log(`source candidate orders: ${counts.candidateOrders}`);
   console.log(`writable invoices: ${counts.invoices}`);
   console.log(`skipped source orders: ${counts.ordersSkipped}`);
@@ -204,6 +271,7 @@ async function main() {
         invoices: 0,
         invoicesInserted: 0,
         invoicesUpdated: 0,
+        invoicesUnchanged: 0,
         laborOnlyRecovered: 0,
         invoiceDatesCorrected: 0,
         parts: 0,
@@ -227,6 +295,11 @@ async function main() {
         legacyChargesInserted: 0,
         legacyChargesUpdated: 0,
         legacyChargesDeleted: 0,
+        legacyChargesUnchanged: 0,
+        legacyChargesExisting: 0,
+        partsInserted: 0, partsUpdated: 0, partsUnchanged: 0, partsDeleted: 0,
+        laborInserted: 0, laborUpdated: 0, laborUnchanged: 0, laborDeleted: 0,
+        arInserted: 0, arUpdated: 0, arUnchanged: 0, arDeleted: 0,
         reconciliationMatches: 0,
         reconciliationMismatches: 0,
         reconciliationVarianceCents: 0,
@@ -402,15 +475,22 @@ async function main() {
       (rawLabor.length - keyedLabor.length) +
       rawAr.filter((row) => !row.legacyRoNo?.trim()).length +
       (candidateOrderNumbers.size - validInvoices.size);
+    const invoiceProposals = [...validInvoices].map(([ro, link]) => proposedInvoiceRow(SHOP_ID, ro, link));
     const existingInvoices = await prisma.invoice.findMany({
       where: { shopId: SHOP_ID, legacyRoNo: { in: [...validInvoices.keys()] } },
       select: {
-        id: true,
-        legacyRoNo: true,
-        invoiceDate: true,
-        taxTotal: true,
-        shopSuppliesAmount: true,
+        id: true, legacyRoNo: true, customerId: true, vehicleId: true, status: true,
+        invoiceDate: true, partsTotal: true, laborTotal: true, subtotal: true,
+        taxTotal: true, total: true, paidTotal: true, shopSuppliesAmount: true,
+        shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true,
+        shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true,
+        shopSuppliesEligibleLaborTotal: true, shopSuppliesCalculatedAmount: true,
+        shopSuppliesWasOverridden: true, legacySourceTable: true,
       },
+    });
+    const invoiceClassification = classifyPersistedRows({
+      model: "invoice", proposedRows: invoiceProposals, existingRows: existingInvoices,
+      identity: (row) => row.legacyRoNo,
     });
     const existingInvoiceDates = new Map(
       existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.invoiceDate]),
@@ -432,49 +512,103 @@ async function main() {
       (link) => link.shopSuppliesSnapshot.enabled !== null,
     ).length;
     const snapshotsLeftNull = validInvoices.size - snapshotsPopulated;
-    const existingCharges = existingInvoices.length === 0
-      ? []
-      : await prisma.invoiceLegacyCharge.findMany({
-          where: { invoiceId: { in: existingInvoices.map((invoice) => invoice.id) } },
-          select: { invoiceId: true, sourceBucket: true, amount: true },
-        });
+    const existingInvoiceIds = new Map(existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
+    const partProposals = keyedParts.map((row) => proposedPartRow(SHOP_ID, existingInvoiceIds.get(row.legacyRoNo) ?? null, row));
+    const laborProposals = keyedLabor.map((row) => proposedLaborRow(SHOP_ID, existingInvoiceIds.get(row.legacyRoNo) ?? null, row));
+    const arProposals = validAr.map(([ro, row]) => proposedArRow(
+      SHOP_ID, existingInvoiceIds.get(ro) ?? null, ro, row, validInvoices.get(ro).financials,
+      customerIds, aliasCustomerIds,
+    ));
+    const [existingParts, existingLabor, existingAr, existingCharges] = await Promise.all([
+      prisma.invoicePart.findMany({
+        where: { shopId: SHOP_ID, legacyLineKey: { in: partProposals.map((row) => row.legacyLineKey) } },
+        select: { id:true, invoiceId:true, description:true, partNumber:true, quantity:true, unitPrice:true, legacyLineKey:true, legacyRoNo:true, legacySourceTable:true },
+      }),
+      prisma.invoiceLabor.findMany({
+        where: { shopId: SHOP_ID, legacyLineKey: { in: laborProposals.map((row) => row.legacyLineKey) } },
+        select: { id:true, invoiceId:true, description:true, hours:true, hourlyRate:true, legacyLineKey:true, legacyRoNo:true, legacySourceTable:true },
+      }),
+      prisma.accountReceivable.findMany({
+        where: { shopId: SHOP_ID, legacyRoNo: { in: arProposals.map((row) => row.legacyRoNo) } },
+        select: { id:true, invoiceId:true, customerId:true, balance:true, status:true, legacyRoNo:true, legacySourceTable:true },
+      }),
+      existingInvoices.length === 0 ? [] : prisma.invoiceLegacyCharge.findMany({
+        where: { invoiceId: { in: existingInvoices.map((invoice) => invoice.id) } },
+        select: { id:true, invoiceId:true, sourceBucket:true, amount:true, sourceLabel:true, taxable:true, legacySourceTable:true },
+      }),
+    ]);
+    const partClassification = classifyPersistedRows({ model:"invoicePart", proposedRows:partProposals, existingRows:existingParts, identity:(row)=>row.legacyLineKey });
+    const laborClassification = classifyPersistedRows({ model:"invoiceLabor", proposedRows:laborProposals, existingRows:existingLabor, identity:(row)=>row.legacyLineKey });
+    const arClassification = classifyPersistedRows({ model:"accountReceivable", proposedRows:arProposals, existingRows:existingAr, identity:(row)=>row.legacyRoNo });
     const existingChargesByInvoice = new Map();
     for (const charge of existingCharges) {
       const charges = existingChargesByInvoice.get(charge.invoiceId) ?? [];
       charges.push(charge);
       existingChargesByInvoice.set(charge.invoiceId, charges);
     }
-    let legacyChargesInserted = 0;
-    let legacyChargesUpdated = 0;
-    let legacyChargesDeleted = 0;
+    const chargePlan = { inserts: [], updates: [], deletes: [], unchanged: [] };
     for (const [ro, link] of validInvoices) {
       const invoiceId = existingByRo.get(ro)?.id;
-      const synchronization = legacyChargeSynchronization(
-        invoiceId ? existingChargesByInvoice.get(invoiceId) ?? [] : [],
-        link.financials.legacyAdditionalCharges,
-      );
-      legacyChargesInserted += synchronization.inserts.length;
-      legacyChargesUpdated += synchronization.updates.length;
-      legacyChargesDeleted += synchronization.deletes.length;
+      const existingForInvoice = invoiceId ? existingChargesByInvoice.get(invoiceId) ?? [] : [];
+      const desired = link.financials.legacyAdditionalCharges.map((charge) => ({
+        invoiceId: invoiceId ?? null, legacyRoNo: ro, sourceBucket: charge.sourceBucket,
+        amount: centsToDecimal(charge.amountCents), sourceLabel: charge.sourceLabel,
+        taxable: charge.taxable, legacySourceTable: charge.legacySourceTable,
+      }));
+      const existingByBucket = new Map(existingForInvoice.map((charge) => [charge.sourceBucket, charge]));
+      for (const proposed of desired) {
+        const existing = existingByBucket.get(proposed.sourceBucket);
+        if (!existing) chargePlan.inserts.push({ proposed, existing: null });
+        else {
+          const comparison = comparePersistedRows("invoiceLegacyCharge", proposed, existing);
+          chargePlan[comparison.changed ? "updates" : "unchanged"].push({ proposed, existing, ...comparison });
+          existingByBucket.delete(proposed.sourceBucket);
+        }
+      }
+      chargePlan.deletes.push(...existingByBucket.values());
+    }
+    const invoiceUpdateReasons = Object.fromEntries([
+      "financial", "invoice date", "customer/vehicle relationship", "status",
+      "shop-supplies snapshot", "override metadata", "legacy source metadata",
+      "other persisted fields",
+    ].map((reason) => [reason, 0]));
+    for (const update of invoiceClassification.updates) for (const reason of update.reasons) {
+      invoiceUpdateReasons[reason] = (invoiceUpdateReasons[reason] ?? 0) + 1;
     }
     const periodTotals = projectWritableInvoicePeriods(validInvoices.values());
     const counts = {
       dryRun,
       invoices: validInvoices.size,
-      invoicesInserted: validInvoices.size - existingInvoices.length,
-      invoicesUpdated: existingInvoices.length,
+      invoicesInserted: invoiceClassification.inserts.length,
+      invoicesUpdated: invoiceClassification.updates.length,
+      invoicesUnchanged: invoiceClassification.unchanged.length,
+      invoiceUpdateReasons,
       laborOnlyRecovered,
       invoiceDatesCorrected,
       taxTotalsCorrected,
       shopSuppliesAmountsPopulated,
       snapshotsPopulated,
       snapshotsLeftNull,
-      legacyChargesInserted,
-      legacyChargesUpdated,
-      legacyChargesDeleted,
+      legacyChargesInserted: chargePlan.inserts.length,
+      legacyChargesUpdated: chargePlan.updates.length,
+      legacyChargesDeleted: chargePlan.deletes.length,
+      legacyChargesUnchanged: chargePlan.unchanged.length,
+      legacyChargesExisting: existingCharges.length,
       parts: keyedParts.length,
+      partsInserted: partClassification.inserts.length,
+      partsUpdated: partClassification.updates.length,
+      partsUnchanged: partClassification.unchanged.length,
+      partsDeleted: 0,
       labor: keyedLabor.length,
+      laborInserted: laborClassification.inserts.length,
+      laborUpdated: laborClassification.updates.length,
+      laborUnchanged: laborClassification.unchanged.length,
+      laborDeleted: 0,
       ar: validAr.length,
+      arInserted: arClassification.inserts.length,
+      arUpdated: arClassification.updates.length,
+      arUnchanged: arClassification.unchanged.length,
+      arDeleted: 0,
       candidateOrders: candidateOrderNumbers.size,
       ordersSkipped: candidateOrderNumbers.size - validInvoices.size,
       missingAuthoritativeAr,
@@ -500,38 +634,7 @@ async function main() {
       confirmedWrite,
       execute: async () => {
         await prisma.$transaction(async (transaction) => {
-    const [existingParts, existingLabor, existingAr] =
-      await Promise.all([
-        transaction.invoicePart.findMany({
-          where: {
-            shopId: SHOP_ID,
-            legacyLineKey: { in: keyedParts.map((row) => row.lineKey) },
-          },
-          select: { legacyLineKey: true },
-        }),
-        transaction.invoiceLabor.findMany({
-          where: {
-            shopId: SHOP_ID,
-            legacyLineKey: { in: keyedLabor.map((row) => row.lineKey) },
-          },
-          select: { legacyLineKey: true },
-        }),
-        transaction.accountReceivable.findMany({
-          where: {
-            shopId: SHOP_ID,
-            legacyRoNo: { in: validAr.map(([ro]) => ro) },
-          },
-          select: { legacyRoNo: true },
-        }),
-      ]);
-    counts.partsUpdated = existingParts.length;
-    counts.partsInserted = counts.parts - counts.partsUpdated;
-    counts.laborUpdated = existingLabor.length;
-    counts.laborInserted = counts.labor - counts.laborUpdated;
-    counts.arUpdated = existingAr.length;
-    counts.arInserted = counts.ar - counts.arUpdated;
-
-    const invoiceIds = new Map();
+    const invoiceIds = new Map(existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
     const invoiceColumns = [
       "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
       "parts_total", "labor_total", "subtotal", "tax_total", "total",
@@ -541,38 +644,17 @@ async function main() {
       "shop_supplies_calculated_amount", "shop_supplies_was_overridden",
       "legacy_ro_no", "legacy_source_table",
     ];
-    if (laborOnly) {
-      const invoices = await transaction.invoice.findMany({
-        where: {
-          shopId: SHOP_ID,
-          legacyRoNo: { in: [...validInvoices.keys()] },
-        },
-        select: { id: true, legacyRoNo: true },
-      });
-      for (const invoice of invoices) {
-        if (invoice.legacyRoNo) invoiceIds.set(invoice.legacyRoNo, invoice.id);
-      }
-    } else {
-      for (const batch of chunks([...validInvoices])) {
-        const rows = batch.map(([ro, link]) => {
-          const amounts = link.financials;
-          const snapshot = link.shopSuppliesSnapshot;
-          return [
-            SHOP_ID, link.customerId, link.vehicleId,
-            amounts.balanceCents <= 0 ? "paid" : "open",
-            link.invoiceDate, centsToDecimal(amounts.partsCents),
-            centsToDecimal(amounts.laborCents), centsToDecimal(amounts.subtotalCents),
-            centsToDecimal(amounts.salesTaxCents), centsToDecimal(amounts.totalCents),
-            centsToDecimal(amounts.paidCents), centsToDecimal(amounts.shopSuppliesCents),
-            snapshot.enabled,
-            snapshot.rateBasisPoints === null ? null : (snapshot.rateBasisPoints / 10_000).toFixed(6),
-            snapshot.capCents === null ? null : centsToDecimal(snapshot.capCents),
-            snapshot.taxable,
-            snapshot.eligibleLaborCents === null ? null : centsToDecimal(snapshot.eligibleLaborCents),
-            snapshot.calculatedAmountCents === null ? null : centsToDecimal(snapshot.calculatedAmountCents),
-            false, ro, "ar.DBF",
-          ];
-        });
+    if (!laborOnly) {
+      for (const batch of chunks(writableClassifications(invoiceClassification))) {
+        const rows = batch.map(({ proposed: row }) => [
+          row.shopId, row.customerId, row.vehicleId, row.status, row.invoiceDate,
+          row.partsTotal, row.laborTotal, row.subtotal, row.taxTotal, row.total,
+          row.paidTotal, row.shopSuppliesAmount, row.shopSuppliesEnabledSnapshot,
+          row.shopSuppliesRateSnapshot, row.shopSuppliesCapSnapshot,
+          row.shopSuppliesTaxableSnapshot, row.shopSuppliesEligibleLaborTotal,
+          row.shopSuppliesCalculatedAmount, row.shopSuppliesWasOverridden,
+          row.legacyRoNo, row.legacySourceTable,
+        ]);
         const invoices = await transaction.$queryRawUnsafe(
           bulkUpsertSql(
             "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
@@ -588,20 +670,22 @@ async function main() {
     }
 
     if (!laborOnly) {
-      const transformedInvoiceIds = [...invoiceIds.values()];
-      await transaction.invoiceLegacyCharge.deleteMany({
-        where: { invoiceId: { in: transformedInvoiceIds } },
-      });
-      const desiredCharges = [...validInvoices].flatMap(([ro, link]) =>
-        link.financials.legacyAdditionalCharges.map((charge) => ({
-          invoiceId: invoiceIds.get(ro),
-          sourceBucket: charge.sourceBucket,
-          amount: centsToDecimal(charge.amountCents),
-          sourceLabel: charge.sourceLabel,
-          taxable: charge.taxable,
-          legacySourceTable: charge.legacySourceTable,
-        })),
-      );
+      if (chargePlan.deletes.length > 0) {
+        await transaction.invoiceLegacyCharge.deleteMany({
+          where: { id: { in: chargePlan.deletes.map((charge) => charge.id) } },
+        });
+      }
+      for (const { proposed, existing } of chargePlan.updates) {
+        await transaction.invoiceLegacyCharge.update({
+          where: { id: existing.id },
+          data: { amount: proposed.amount, sourceLabel: proposed.sourceLabel, taxable: proposed.taxable, legacySourceTable: proposed.legacySourceTable },
+        });
+      }
+      const desiredCharges = chargePlan.inserts.map(({ proposed }) => ({
+        invoiceId: invoiceIds.get(proposed.legacyRoNo), sourceBucket: proposed.sourceBucket,
+        amount: proposed.amount, sourceLabel: proposed.sourceLabel, taxable: proposed.taxable,
+        legacySourceTable: proposed.legacySourceTable,
+      }));
       for (const batch of chunks(desiredCharges)) {
         await transaction.invoiceLegacyCharge.createMany({ data: batch });
       }
@@ -611,12 +695,10 @@ async function main() {
       "shop_id", "invoice_id", "description", "part_number", "quantity",
       "unit_price", "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of laborOnly || headersOnly ? [] : chunks(keyedParts)) {
-      const rows = batch.map((row) => [
-        SHOP_ID, invoiceIds.get(row.legacyRoNo),
-        textValue(row.rawData, "DESC") ?? textValue(row.rawData, "PARTNO") ?? "Legacy part",
-        textValue(row.rawData, "PARTNO"), quantity(textValue(row.rawData, "QTY")),
-        decimal(textValue(row.rawData, "PRICE")), row.lineKey, row.legacyRoNo, "FINAL.DBF",
+    for (const batch of laborOnly || headersOnly ? [] : chunks(writableClassifications(partClassification))) {
+      const rows = batch.map(({ proposed: row }) => [
+        row.shopId, invoiceIds.get(row.legacyRoNo), row.description, row.partNumber,
+        row.quantity, row.unitPrice, row.legacyLineKey, row.legacyRoNo, row.legacySourceTable,
       ]);
       await transaction.$executeRawUnsafe(
         bulkUpsertSql(
@@ -632,16 +714,10 @@ async function main() {
       "shop_id", "invoice_id", "description", "hours", "hourly_rate",
       "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of headersOnly ? [] : chunks(keyedLabor)) {
-      const rows = batch.map((row) => [
-        SHOP_ID, invoiceIds.get(row.legacyRoNo),
-        textValue(row.rawData, "LABOR_DONE") ??
-          textValue(row.rawData, "NOTE") ??
-          textValue(row.rawData, "JOBDESC") ??
-          textValue(row.rawData, "CODE") ??
-          "Legacy labor",
-        decimal(textValue(row.rawData, "HOURS")), decimal(textValue(row.rawData, "LABORRATE")),
-        row.lineKey, row.legacyRoNo, "laborfinal.DBF",
+    for (const batch of headersOnly ? [] : chunks(writableClassifications(laborClassification))) {
+      const rows = batch.map(({ proposed: row }) => [
+        row.shopId, invoiceIds.get(row.legacyRoNo), row.description, row.hours, row.hourlyRate,
+        row.legacyLineKey, row.legacyRoNo, row.legacySourceTable,
       ]);
       await transaction.$executeRawUnsafe(
         bulkUpsertSql(
@@ -657,19 +733,11 @@ async function main() {
       "shop_id", "invoice_id", "customer_id", "balance", "status",
       "legacy_ro_no", "legacy_source_table",
     ];
-    for (const batch of laborOnly ? [] : chunks(validAr)) {
-      const rows = batch.map(([ro, row]) => {
-        const amounts = validInvoices.get(ro).financials;
-        return [
-          SHOP_ID, invoiceIds.get(ro), resolveLegacyCustomerId(
-            row.legacyCustno,
-            customerIds,
-            aliasCustomerIds,
-          ),
-          centsToDecimal(amounts.balanceCents), amounts.balanceCents <= 0 ? "paid" : "open", ro,
-          "ar.DBF",
-        ];
-      });
+    for (const batch of laborOnly ? [] : chunks(writableClassifications(arClassification))) {
+      const rows = batch.map(({ proposed: row }) => [
+        row.shopId, invoiceIds.get(row.legacyRoNo), row.customerId, row.balance, row.status,
+        row.legacyRoNo, row.legacySourceTable,
+      ]);
       await transaction.$executeRawUnsafe(
         bulkUpsertSql(
           "accounts_receivable", arColumns, ["shop_id", "legacy_ro_no"],
