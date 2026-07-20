@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function finalizeRepairOrder(formData: FormData) {
+export async function createInvoiceFromRepairOrder(formData: FormData) {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
   const { user, membership } = await requirePermission("finalize_repair_order");
@@ -22,6 +22,12 @@ export async function finalizeRepairOrder(formData: FormData) {
       FOR UPDATE
     `;
 
+    const existingInvoice = await transaction.invoice.findUnique({
+      where: { repairOrderId },
+      select: { id: true },
+    });
+    if (existingInvoice) return existingInvoice;
+
     const order = await transaction.repairOrder.findFirst({
       where: {
         id: repairOrderId,
@@ -29,7 +35,6 @@ export async function finalizeRepairOrder(formData: FormData) {
         legacySourceTable: null,
         repairOrderNumber: { not: null },
         status: { in: ["draft", "open"] },
-        invoices: { none: {} },
       },
       select: {
         id: true,
@@ -37,6 +42,19 @@ export async function finalizeRepairOrder(formData: FormData) {
         customerId: true,
         vehicleId: true,
         repairOrderNumber: true,
+        customerComplaint: true,
+        recommendation: true,
+        shopSuppliesAmount: true,
+        shopSuppliesEnabledSnapshot: true,
+        shopSuppliesRateSnapshot: true,
+        shopSuppliesCapSnapshot: true,
+        shopSuppliesTaxableSnapshot: true,
+        shopSuppliesEligibleLaborTotal: true,
+        shopSuppliesCalculatedAmount: true,
+        shopSuppliesOverrideAmount: true,
+        shopSuppliesOverrideReason: true,
+        shopSuppliesOverriddenByUserId: true,
+        shopSuppliesOverriddenAt: true,
         shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true } },
         customer: { select: { displayName: true, phone: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
         vehicle: { select: { year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true } },
@@ -45,7 +63,7 @@ export async function finalizeRepairOrder(formData: FormData) {
       },
     });
     if (!order || order.repairOrderNumber === null) {
-      throw new Error("Repair order cannot be finalized.");
+      throw new Error("Repair order cannot be converted to an invoice.");
     }
 
     const zero = new Prisma.Decimal(0);
@@ -74,7 +92,7 @@ export async function finalizeRepairOrder(formData: FormData) {
         repairOrderNumber: order.repairOrderNumber,
         customerId: order.customerId,
         vehicleId: order.vehicleId,
-        status: "finalized",
+        status: "open",
         invoiceDate: now,
         partsTotal,
         laborTotal,
@@ -82,6 +100,19 @@ export async function finalizeRepairOrder(formData: FormData) {
         taxTotal,
         total,
         paidTotal: zero,
+        customerComplaint: order.customerComplaint,
+        recommendation: order.recommendation,
+        shopSuppliesAmount: order.shopSuppliesAmount,
+        shopSuppliesEnabledSnapshot: order.shopSuppliesEnabledSnapshot,
+        shopSuppliesRateSnapshot: order.shopSuppliesRateSnapshot,
+        shopSuppliesCapSnapshot: order.shopSuppliesCapSnapshot,
+        shopSuppliesTaxableSnapshot: order.shopSuppliesTaxableSnapshot,
+        shopSuppliesEligibleLaborTotal: order.shopSuppliesEligibleLaborTotal,
+        shopSuppliesCalculatedAmount: order.shopSuppliesCalculatedAmount,
+        shopSuppliesWasOverridden: order.shopSuppliesOverrideAmount !== null,
+        shopSuppliesOverrideReason: order.shopSuppliesOverrideReason,
+        shopSuppliesOverriddenByUserId: order.shopSuppliesOverriddenByUserId,
+        shopSuppliesOverriddenAt: order.shopSuppliesOverriddenAt,
         shopSnapshot: order.shop,
         customerSnapshot: order.customer,
         vehicleSnapshot: order.vehicle,
@@ -119,7 +150,7 @@ export async function finalizeRepairOrder(formData: FormData) {
     await transaction.repairOrder.update({
       where: { id: order.id },
       data: {
-        status: "finalized",
+        status: "invoiced",
         closedAt: now,
         partsTotal,
         laborTotal,
@@ -127,7 +158,7 @@ export async function finalizeRepairOrder(formData: FormData) {
         estimatedTotal: total,
       },
     });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "repair_order_finalized", "repair_order", order.id, { invoiceId: createdInvoice.id }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/invoices/${createdInvoice.id}`, contextSummary: "Repair order finalized into invoice" }) });
+    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_created", "repair_order", order.id, { invoiceId: createdInvoice.id }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/invoices/${createdInvoice.id}`, contextSummary: "Invoice created from repair order" }) });
     return createdInvoice;
   }, { isolationLevel: "Serializable" });
 

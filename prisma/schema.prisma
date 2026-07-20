@@ -464,6 +464,11 @@ model Invoice {
   customerId                     String                @map("customer_id") @db.Uuid
   vehicleId                      String?               @map("vehicle_id") @db.Uuid
   status                         String                @default("draft")
+  closedAt                       DateTime?             @map("closed_at")
+  deliveredAt                    DateTime?             @map("delivered_at")
+  closedByUserId                 String?               @map("closed_by_user_id") @db.Uuid
+  customerComplaint              String?               @map("customer_complaint") @db.Text
+  recommendation                 String?               @db.Text
   invoiceDate                    DateTime?             @map("invoice_date")
   dueAt                          DateTime?             @map("due_at")
   partsTotal                     Decimal               @default(0) @map("parts_total") @db.Decimal(12, 2)

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
-import { optionalRepairOrderText } from "@/lib/repair-order-layout";
+import { optionalRepairOrderText } from "@/lib/repair-order-fields";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -146,9 +146,11 @@ export async function createRepairOrder(formData: FormData) {
   redirect(`/repair-orders/${repairOrder.id}`);
 }
 
-export async function updateRepairOrderConcerns(formData: FormData) {
+export type RepairOrderSaveState = { status: "idle" | "success" | "error"; message?: string };
+
+export async function updateRepairOrderConcerns(_previousState: RepairOrderSaveState, formData: FormData): Promise<RepairOrderSaveState> {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
-  if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
+  if (!UUID.test(repairOrderId)) return { status: "error", message: "Unable to save this repair order." };
 
   const customerComplaint = optionalRepairOrderText(formData.get("customerComplaint"));
   const recommendation = optionalRepairOrderText(formData.get("recommendation"));
@@ -162,7 +164,7 @@ export async function updateRepairOrderConcerns(formData: FormData) {
     },
     select: { id: true, repairOrderNumber: true },
   });
-  if (!existing) throw new Error("Editable repair order not found.");
+  if (!existing) return { status: "error", message: "This repair order is no longer editable." };
 
   await prisma.$transaction(async (transaction) => {
     await transaction.repairOrder.update({
@@ -189,4 +191,5 @@ export async function updateRepairOrderConcerns(formData: FormData) {
   });
 
   revalidatePath(`/repair-orders/${repairOrderId}`);
+  return { status: "success" };
 }

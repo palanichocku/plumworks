@@ -42,7 +42,7 @@ export async function recordPayment(formData: FormData) {
         shopId: membership.shopId,
         legacySourceTable: null,
         repairOrderNumber: { not: null },
-        status: "finalized",
+        status: "open",
       },
       select: {
         id: true,
@@ -80,7 +80,7 @@ export async function recordPayment(formData: FormData) {
     });
     await transaction.invoice.update({
       where: { id: invoice.id },
-      data: { paidTotal, status: paid ? "paid" : "finalized" },
+      data: { paidTotal },
     });
     await transaction.accountReceivable.update({
       where: { id: invoice.accountsReceivable[0].id },

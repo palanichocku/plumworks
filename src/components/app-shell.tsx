@@ -39,8 +39,8 @@ export function AppShell({
         <MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
       </header>
 
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white p-6 print:hidden lg:flex lg:flex-col">
-        <Link href="/dashboard" className="flex items-center gap-3 group">
+      <aside className="fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r border-slate-200 bg-white p-6 print:hidden lg:flex lg:flex-col">
+        <Link href="/dashboard" className="group flex shrink-0 items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-sm font-black text-white shadow-md shadow-sky-500/20 transition-transform group-hover:scale-[1.02]">
             {shopInitials}
           </span>
@@ -50,7 +50,7 @@ export function AppShell({
           </div>
         </Link>
 
-        <form action="/search" className="mt-6 relative">
+        <form action="/search" className="relative mt-6 shrink-0">
           <label htmlFor="sidebar-shop-search" className="sr-only">Search shop records</label>
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -68,7 +68,7 @@ export function AppShell({
 
         <DesktopNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
 
-        <div className="mt-auto rounded-xl bg-slate-50 border border-slate-100 p-3.5">
+        <div className="mt-4 shrink-0 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse shrink-0" />

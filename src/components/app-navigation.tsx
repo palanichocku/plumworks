@@ -73,7 +73,7 @@ function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
 
 export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {
   return (
-    <nav className="mt-8 space-y-1" aria-label="Primary navigation">
+    <nav className="-mr-2 mt-8 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-2" aria-label="Primary navigation">
       {allowedNavigation(canViewReports, canViewAdmin).map((item) => (
         <NavigationLink key={item.href} {...item} />
       ))}

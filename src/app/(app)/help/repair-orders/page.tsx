@@ -41,7 +41,7 @@ export default function RepairOrdersHelpPage() {
         />
         <HelpCard 
           title="Result" 
-          description="Finalization creates an invoice and makes the repair order read-only." 
+          description="Create Invoice opens an editable invoice and makes the repair order read-only."
         />
       </section>
 

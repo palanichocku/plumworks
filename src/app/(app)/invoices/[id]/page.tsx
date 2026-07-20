@@ -8,6 +8,9 @@ import {
 } from "@/lib/formatters";
 import { recordPayment } from "../payment-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { CloseInvoiceButton } from "@/components/close-invoice-button";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -24,7 +27,7 @@ export default async function InvoiceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const invoice = await getInvoiceForCurrentShop(id);
+  const [invoice, { membership }] = await Promise.all([getInvoiceForCurrentShop(id), getCurrentMembership()]);
 
   if (!invoice) notFound();
 
@@ -35,10 +38,13 @@ export default async function InvoiceDetailPage({
     : null;
   const receivable = invoice.accountsReceivable[0];
   const balance = Number(receivable?.balance ?? 0);
+  const open = isEditableOpenInvoice(invoice);
+  const canClose = open && Boolean(membership && ["OWNER", "ADMIN"].includes(membership.role));
+  const closeBalanceIsZero = Boolean(receivable?.balance?.isZero());
   const canRecordPayment =
     invoice.legacySourceTable === null &&
     invoice.repairOrderNumber !== null &&
-    invoice.status === "finalized" &&
+    open &&
     balance > 0;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -57,8 +63,10 @@ export default async function InvoiceDetailPage({
         </div>
         <div className="flex items-center gap-3">
           <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium capitalize text-slate-700">
-            {invoice.status}
+            {open ? "Open" : "Closed"}
           </span>
+          {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-sky-300 px-4 py-2.5 text-sm font-semibold text-sky-800 hover:bg-sky-50">Edit Invoice</Link> : null}
+          {canClose && closeBalanceIsZero ? <CloseInvoiceButton invoiceId={invoice.id} balance={formatMoney(receivable?.balance ?? 0)} /> : canClose ? <span aria-disabled="true" title={`Remaining balance ${formatMoney(receivable?.balance ?? 0)}`} className="cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400">Close Invoice</span> : null}
           <Link
             href={`/invoices/${invoice.id}/print`}
             className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
@@ -67,6 +75,8 @@ export default async function InvoiceDetailPage({
           </Link>
         </div>
       </header>
+
+      {!open && invoice.closedAt ? <p className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">Closed {formatDate(invoice.closedAt)}{invoice.deliveredAt ? ` · Vehicle delivered ${formatDate(invoice.deliveredAt)}` : ""}</p> : null}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -106,6 +116,8 @@ export default async function InvoiceDetailPage({
           </dl>
         </article>
       </section>
+
+      {(invoice.customerComplaint || invoice.recommendation) ? <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold text-slate-950">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{invoice.customerComplaint ? <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{invoice.customerComplaint}</p></div> : null}{invoice.recommendation ? <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{invoice.recommendation}</p></div> : null}</div></section> : null}
 
       {canRecordPayment ? (
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

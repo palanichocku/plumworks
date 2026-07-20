@@ -4,12 +4,12 @@ import { getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { addLaborLine, addCannedServiceLaborLine, deleteLaborLine, updateLaborLine } from "../labor-actions";
 import { addPartLine, deletePartLine, updatePartLine } from "../part-actions";
-import { updateRepairOrderConcerns } from "../actions";
 import { DeleteRepairOrderButton } from "@/components/delete-repair-order-button";
-import { RepairOrderWorkspace } from "@/components/repair-order-layout-preview";
+import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { EditableRepairOrderWorkspace } from "@/components/repair-order-concerns-form";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 type LaborLine = RepairOrder["labor"][number];
@@ -22,6 +22,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const [order, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getCurrentMembership()]);
   if (!order) notFound();
   const editable = order.status === "draft" || order.status === "open";
+  const invoice = order.invoices[0];
   const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
@@ -32,22 +33,29 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-sky-700">Repair Order / Estimate</p>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1><span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold uppercase text-sky-800">{order.status}</span></div>
-          <div className="flex flex-wrap gap-3"><Link href={`/repair-orders/${order.id}/print`} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>{editable && <><Link href={`/repair-orders/${order.id}/finalize`} className="rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Finalize / Create Invoice</Link>{canDelete && <DeleteRepairOrderButton repairOrderId={order.id} />}</>}</div>
+          <div className="flex flex-wrap gap-3"><Link href={`/repair-orders/${order.id}/print`} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : editable && canDelete ? <DeleteRepairOrderButton repairOrderId={order.id} /> : null}</div>
         </div>
         <p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>
-        {!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Finalized repair order — read-only</p>}
+        {!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p>}
       </header>
 
-      <RepairOrderWorkspace
-        role={membership?.role ?? null}
+      {editable ? <EditableRepairOrderWorkspace
+        repairOrderId={order.id}
+        customerComplaint={order.customerComplaint}
+        recommendation={order.recommendation}
         overview={<OrderOverview order={order} vehicle={vehicle} />}
-        concerns={<ConcernsSection order={order} editable={editable} />}
-        parts={<PartsSection order={order} editable={editable} />}
-        labor={<LaborSection order={order} editable={editable} />}
+        parts={<PartsSection order={order} editable />}
+        labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
-        notes={<p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{editable ? "Finalization creates an invoice and makes this repair order read-only. Payment is collected separately." : "This repair order has been finalized and is read-only."}</p>}
-        actions={editable ? <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><FormSubmitButton form="repair-order-concerns-form" pendingLabel="Saving…" className="inline-flex justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">Save concerns</FormSubmitButton><Link href="/repair-orders" className="inline-flex justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</Link></div> : null}
-      />
+        createInvoiceHref={`/repair-orders/${order.id}/create-invoice`}
+      /> : <RepairOrderWorkspace
+        overview={<OrderOverview order={order} vehicle={vehicle} />}
+        concerns={<ConcernsSection order={order} />}
+        parts={<PartsSection order={order} editable={false} />}
+        labor={<LaborSection order={order} editable={false} />}
+        totals={<TotalsSection order={order} />}
+        notes={<p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}
+      />}
     </div>
   );
 }
@@ -56,12 +64,9 @@ function OrderOverview({ order, vehicle }: { order: RepairOrder; vehicle: string
   return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Customer</h2><Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-sky-700">{order.customer.displayName}</Link></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Vehicle</h2><Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-sky-700">{vehicle || "Vehicle details unavailable"}</Link></section></div>;
 }
 
-function ConcernsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
-  if (!editable && !order.customerComplaint && !order.recommendation) return null;
-  if (!editable) return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-base font-bold text-slate-950">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{order.customerComplaint && <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.customerComplaint}</p></div>}{order.recommendation && <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.recommendation}</p></div>}</div></section>;
-
-  const textareaClass = "mt-1.5 min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/10";
-  return <form id="repair-order-concerns-form" action={updateRepairOrderConcerns} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><input type="hidden" name="repairOrderId" value={order.id} /><h2 className="text-base font-bold text-slate-950">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2"><label htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Customer Complaint <span className="font-normal text-slate-500">(optional)</span><textarea id="customerComplaint" name="customerComplaint" rows={5} defaultValue={order.customerComplaint ?? ""} aria-describedby="customerComplaint-help" className={textareaClass} /><span id="customerComplaint-help" className="mt-2 block text-xs font-normal leading-5 text-slate-500">Describe the concern, symptoms, noises, warning lights, or service requested by the customer.</span></label><label htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Service Recommendation <span className="font-normal text-slate-500">(optional)</span><textarea id="recommendation" name="recommendation" rows={5} defaultValue={order.recommendation ?? ""} aria-describedby="recommendation-help" className={textareaClass} /><span id="recommendation-help" className="mt-2 block text-xs font-normal leading-5 text-slate-500">Record the shop’s inspection findings, recommended repairs, or future service advice.</span></label></div></form>;
+function ConcernsSection({ order }: { order: RepairOrder }) {
+  if (!order.customerComplaint && !order.recommendation) return null;
+  return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-base font-bold text-slate-950">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{order.customerComplaint && <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.customerComplaint}</p></div>}{order.recommendation && <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.recommendation}</p></div>}</div></section>;
 }
 
 function PartsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
