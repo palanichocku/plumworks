@@ -27,6 +27,16 @@ body {
     margin: 0.5in;
   }
 
+  @page daily-sales-landscape {
+    size: landscape;
+    margin: 0.3in;
+  }
+
+  @page daily-sales-portrait {
+    size: portrait;
+    margin: 0.5in;
+  }
+
   body {
     background: white;
     color: #0f172a;
@@ -52,6 +62,83 @@ body {
 
   .print-hidden {
     display: none !important;
+  }
+
+  .daily-sales-print {
+    page: daily-sales-landscape;
+    max-width: none;
+    min-height: 0;
+    color: #0f172a;
+  }
+
+  .daily-sales-summary-print {
+    page: daily-sales-portrait;
+    max-width: none;
+    min-height: 0;
+    color: #0f172a;
+  }
+
+  .daily-sales-print-content {
+    padding: 0;
+  }
+
+  .daily-sales-print-heading,
+  .daily-sales-print-summary,
+  .daily-sales-print-reconciliation {
+    break-inside: avoid;
+  }
+
+  .daily-sales-print-table {
+    width: 100%;
+    table-layout: auto;
+    font-size: 7pt;
+    line-height: 1.2;
+  }
+
+  .daily-sales-print-table thead {
+    display: table-header-group;
+  }
+
+  .daily-sales-print-table tfoot {
+    display: table-footer-group;
+    break-inside: avoid;
+  }
+
+  .daily-sales-print-table tr {
+    break-inside: avoid;
+  }
+
+  .daily-sales-print-table th,
+  .daily-sales-print-table td {
+    border-bottom: 0.5pt solid #cbd5e1;
+    padding: 3pt 3.5pt;
+    vertical-align: top;
+  }
+
+  .daily-sales-print-table th {
+    background: white;
+    color: #334155;
+    font-size: 6.5pt;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .daily-sales-print-table td:nth-child(n + 5),
+  .daily-sales-print-table th:nth-child(n + 5) {
+    white-space: nowrap;
+  }
+
+  .daily-sales-print-table tfoot th,
+  .daily-sales-print-table tfoot td {
+    border-top: 1pt solid #475569;
+    border-bottom: 0;
+    font-weight: 600;
+  }
+
+  .daily-sales-print-description {
+    max-width: 1.35in;
+    overflow-wrap: anywhere;
   }
 }
 

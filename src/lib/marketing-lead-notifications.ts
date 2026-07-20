@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { MarketingLead } from "@/generated/prisma/client";
+import { sendResendEmail } from "@/lib/email/resend";
 
 const sourceLabels = { CONTACT: "Contact", APPOINTMENT: "Appointment", DROP_OFF: "Drop-Off" } as const;
 
@@ -9,20 +10,7 @@ function value(value: string | number | null | undefined) {
 }
 
 async function sendEmail(to: string, subject: string, text: string) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.TRANSACTIONAL_EMAIL_FROM?.trim();
-  if (!apiKey || !from) return;
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, text }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return;
-  } catch {
-    return;
-  }
+  await sendResendEmail({ to, subject, text });
 }
 
 export async function notifyNewMarketingLead(lead: MarketingLead) {

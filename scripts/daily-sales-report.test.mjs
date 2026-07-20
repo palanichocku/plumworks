@@ -11,6 +11,12 @@ import {
   normalizePaymentMethod,
   reconciliationDifferences,
 } from "../src/lib/daily-sales-aggregation.ts";
+import {
+  DAILY_SALES_COLUMNS,
+  formatReportDateRange,
+  formatReportGeneratedAt,
+  isValidReportRange,
+} from "../src/lib/daily-sales-report-model.ts";
 import { formatMoney } from "../src/lib/formatters.ts";
 
 const decimal = (value) => new Prisma.Decimal(value);
@@ -119,7 +125,7 @@ test("invoice without in-range payments shows zeros and retains a visible mismat
   assert.equal(row.hasPaymentMismatch, true);
 });
 
-test("RO 21503 is one reconciled row with cash and Other/Internal", () => {
+test("RO 21503 is one reconciled row with cash and Internal", () => {
   const [row] = buildDailySalesInvoiceRows([listingInvoice({ id: "21503", total: decimal("116.71"), paidTotal: decimal("116.71") })], [
     { amount: decimal("115"), method: "cash", invoiceId: "21503" },
     { amount: decimal("1.71"), method: "internal", invoiceId: "21503" },
@@ -156,7 +162,8 @@ test("status is absent from the Daily Sales listing query and UI", async () => {
 
 test("invoice-detail headers follow the legacy Windows report column order", async () => {
   const pageSource = await readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8");
-  assert.match(pageSource, /headings=\{\["Date", "RO \/ Invoice", "Customer", "Vehicle", "Total", "Parts", "Labor", "Shop Supplies", "Sales Tax", "Cash", "Check", "Card", "Other \/ Internal"\]\}/);
+  assert.deepEqual([...DAILY_SALES_COLUMNS], ["Date", "RO / Invoice", "Customer", "Vehicle", "Total", "Parts", "Labor", "Shop Supplies", "Sales Tax", "Cash", "Check", "Card", "Internal"]);
+  assert.match(pageSource, /headings=\{\[\.\.\.DAILY_SALES_COLUMNS\]\}/);
   const footerStart = pageSource.indexOf('scope="row">Totals</th>');
   const footerEnd = pageSource.indexOf("</tr>", footerStart);
   const footer = pageSource.slice(footerStart, footerEnd);
@@ -170,6 +177,51 @@ test("invoice-detail headers follow the legacy Windows report column order", asy
     assert.ok(index > previous, `${value} must follow the preceding totals column`);
     previous = index;
   }
+});
+
+test("print route preserves dates and consumes the shared report model", async () => {
+  const [screen, printable, reports, controls] = await Promise.all([
+    readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/(app)/reports/print/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/data/reports.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/daily-sales-report-controls.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(controls, /href=\{`\/reports\/print\?from=\$\{encodeURIComponent\(loadedFrom\)\}&to=\$\{encodeURIComponent\(loadedTo\)\}&output=\$\{output\}`\}/);
+  assert.match(printable, /const from = params\.from as string;[\s\S]*const to = params\.to as string;[\s\S]*getDailySalesReportModel\(\{ from, to \}\)/);
+  assert.match(screen, /getDailySalesReportModel\(\{ from, to \}\)/);
+  assert.match(reports, /return \{ shop, from, to, generatedAt, range, \.\.\.report \}/);
+  assert.doesNotMatch(printable, /buildSalesSummary|aggregatePaymentRows|reconciliationDifferences/);
+});
+
+test("print report includes the complete approved table, totals, and no row limit", async () => {
+  const printable = await readFile(new URL("../src/app/(app)/reports/print/page.tsx", import.meta.url), "utf8");
+  assert.match(printable, /DAILY_SALES_COLUMNS\.map/);
+  assert.match(printable, /report\.invoices\.map/);
+  assert.match(printable, /<tfoot>/);
+  assert.match(printable, /scope="row"[^>]*>Totals<\/th>/);
+  assert.doesNotMatch(printable, /take:\s*100|slice\(0,\s*100\)|LIMIT\s+100/i);
+  assert.match(printable, /No sales were found for this date range/);
+});
+
+test("print stylesheet requests landscape pages and repeatable table headers", async () => {
+  const [css, shell] = await Promise.all([
+    readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/app-shell.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(css, /@page daily-sales-landscape\s*\{[^}]*size:\s*landscape;/s);
+  assert.match(css, /\.daily-sales-print-table thead\s*\{[^}]*display:\s*table-header-group;/s);
+  assert.match(css, /\.daily-sales-print-table tr\s*\{[^}]*break-inside:\s*avoid;/s);
+  assert.match(shell, /<aside[^>]*print:hidden/);
+  assert.match(shell, /<header[^>]*print:hidden/);
+});
+
+test("report date validation and print heading formatting are explicit", () => {
+  assert.equal(isValidReportRange("2026-07-20", "2026-07-20"), true);
+  assert.equal(isValidReportRange("2026-07-21", "2026-07-20"), false);
+  assert.equal(isValidReportRange("2026-02-30", "2026-03-01"), false);
+  assert.equal(formatReportDateRange("2026-07-20", "2026-07-20"), "July 20, 2026");
+  assert.equal(formatReportDateRange("2026-01-01", "2026-06-30"), "January 1, 2026 – June 30, 2026");
+  assert.equal(formatReportGeneratedAt(new Date("2026-07-21T03:35:00Z")), "Generated July 20, 2026 at 11:35 PM");
 });
 
 test("inclusive end date becomes the exclusive next UTC day", () => {
