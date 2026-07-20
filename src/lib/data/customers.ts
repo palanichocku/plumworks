@@ -60,6 +60,7 @@ export async function getCustomerForCurrentShop(id: string) {
       state: true,
       postalCode: true,
       legacyCustno: true,
+      notes: true,
       vehicles: {
         orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
         select: {

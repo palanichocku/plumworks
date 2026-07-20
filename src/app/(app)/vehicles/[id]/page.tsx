@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ServiceHistory } from "@/components/service-history";
 import { getVehicleForCurrentShop } from "@/lib/data/vehicles";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
+import { InternalNotesBlock } from "@/components/internal-notes-block";
+import { updateVehicleNotes } from "../../internal-notes-actions";
+import { canEditInternalNotes } from "@/lib/internal-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +16,7 @@ export default async function VehicleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const vehicle = await getVehicleForCurrentShop(id);
+  const [vehicle, { membership }] = await Promise.all([getVehicleForCurrentShop(id), getCurrentMembership()]);
 
   if (!vehicle) {
     notFound();
@@ -20,6 +25,7 @@ export default async function VehicleDetailPage({
   const description =
     [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
     "Unnamed vehicle";
+  const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
 
   return (
     <>
@@ -84,6 +90,7 @@ export default async function VehicleDetailPage({
           </Link>
         </article>
       </section>
+      <InternalNotesBlock recordId={vehicle.id} notes={vehicle.notes} canEdit={canEditNotes} emptyMessage="No vehicle notes have been added." successMessage="Vehicle notes saved." action={updateVehicleNotes} />
       <ServiceHistory invoices={vehicle.invoices} showCustomer />
     </>
   );

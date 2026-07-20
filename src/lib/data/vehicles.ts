@@ -86,6 +86,7 @@ export async function getVehicleForCurrentShop(id: string) {
       licensePlate: true,
       odometer: true,
       legacyCarno: true,
+      notes: true,
       customer: {
         select: {
           id: true,

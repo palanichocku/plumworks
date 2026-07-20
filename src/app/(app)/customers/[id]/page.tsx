@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ServiceHistory } from "@/components/service-history";
 import { getCustomerForCurrentShop } from "@/lib/data/customers";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
+import { InternalNotesBlock } from "@/components/internal-notes-block";
+import { updateCustomerNotes } from "../../internal-notes-actions";
+import { canEditInternalNotes } from "@/lib/internal-notes";
 
 type CustomerDetail = NonNullable<
   Awaited<ReturnType<typeof getCustomerForCurrentShop>>
@@ -16,11 +21,12 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const customer = await getCustomerForCurrentShop(id);
+  const [customer, { membership }] = await Promise.all([getCustomerForCurrentShop(id), getCurrentMembership()]);
 
   if (!customer) {
     notFound();
   }
+  const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
 
   return (
     <>
@@ -71,6 +77,8 @@ export default async function CustomerDetailPage({
           </p>
         </article>
       </section>
+
+      <InternalNotesBlock recordId={customer.id} notes={customer.notes} canEdit={canEditNotes} emptyMessage="No customer notes have been added." successMessage="Customer notes saved." action={updateCustomerNotes} />
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
