@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { Prisma } from "@prisma/client";
 import {
   aggregatePaymentRows,
+  aggregateDailySalesInvoiceRows,
+  buildDailySalesInvoiceRows,
   buildSalesSummary,
   inclusiveUtcDateRange,
   normalizePaymentMethod,
@@ -12,6 +15,14 @@ import { formatMoney } from "../src/lib/formatters.ts";
 
 const decimal = (value) => new Prisma.Decimal(value);
 const money = (value) => value.toFixed(2);
+
+function listingInvoice(overrides = {}) {
+  return {
+    id: "invoice-1", partsTotal: decimal("10"), laborTotal: decimal("20"), subtotal: decimal("30"),
+    shopSuppliesAmount: decimal("2"), taxTotal: decimal("3"), total: decimal("35"), paidTotal: decimal("35"),
+    legacyCharges: [], ...overrides,
+  };
+}
 
 function invoiceAggregate(values = {}) {
   return {
@@ -68,6 +79,97 @@ test("Payment.amount drives method totals, distinct invoices, and split tenders"
   assert.equal(result.paymentRowCount, 4);
   assert.equal(result.paidInvoiceCount, 2);
   assert.equal(result.splitTenderInvoiceCount, 1);
+});
+
+test("one invoice remains one listing row with split tender payment columns", () => {
+  const rows = buildDailySalesInvoiceRows([listingInvoice()], [
+    { amount: decimal("5"), method: " CASH ", invoiceId: "invoice-1" },
+    { amount: decimal("10"), method: "check", invoiceId: "invoice-1" },
+    { amount: decimal("15"), method: "CARD", invoiceId: "invoice-1" },
+    { amount: decimal("3"), method: "internal", invoiceId: "invoice-1" },
+    { amount: decimal("1"), method: null, invoiceId: "invoice-1" },
+    { amount: decimal("1"), method: "wire", invoiceId: "invoice-1" },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(money(rows[0].cashTotal), "5.00");
+  assert.equal(money(rows[0].checkTotal), "10.00");
+  assert.equal(money(rows[0].cardTotal), "15.00");
+  assert.equal(money(rows[0].otherInternalTotal), "5.00");
+  assert.equal(rows[0].paymentRowCount, 6);
+  assert.equal(rows[0].isSplitTender, true);
+  assert.equal(rows[0].hasPaymentMismatch, false);
+});
+
+test("legacy card brands remain combined because their normalized Payment method is card", () => {
+  const rows = buildDailySalesInvoiceRows([listingInvoice({ total: decimal("6"), paidTotal: decimal("6") })], [
+    { amount: decimal("1"), method: "card", invoiceId: "invoice-1", reference: "MAST_VISA" },
+    { amount: decimal("2"), method: "card", invoiceId: "invoice-1", reference: "DISCOVER" },
+    { amount: decimal("3"), method: "card", invoiceId: "invoice-1", reference: "AMEX" },
+  ]);
+  assert.equal(money(rows[0].cardTotal), "6.00");
+});
+
+test("invoice without in-range payments shows zeros and retains a visible mismatch", () => {
+  const [row] = buildDailySalesInvoiceRows([listingInvoice()], []);
+  assert.equal(money(row.cashTotal), "0.00");
+  assert.equal(money(row.checkTotal), "0.00");
+  assert.equal(money(row.cardTotal), "0.00");
+  assert.equal(money(row.otherInternalTotal), "0.00");
+  assert.equal(money(row.paymentDifference), "35.00");
+  assert.equal(row.hasPaymentMismatch, true);
+});
+
+test("RO 21503 is one reconciled row with cash and Other/Internal", () => {
+  const [row] = buildDailySalesInvoiceRows([listingInvoice({ id: "21503", total: decimal("116.71"), paidTotal: decimal("116.71") })], [
+    { amount: decimal("115"), method: "cash", invoiceId: "21503" },
+    { amount: decimal("1.71"), method: "internal", invoiceId: "21503" },
+  ]);
+  assert.equal(money(row.cashTotal), "115.00");
+  assert.equal(money(row.checkTotal), "0.00");
+  assert.equal(money(row.cardTotal), "0.00");
+  assert.equal(money(row.otherInternalTotal), "1.71");
+  assert.equal(money(row.paymentDifference), "0.00");
+  assert.equal(row.isSplitTender, true);
+});
+
+test("Decimal listing totals equal their row values without formatted-string arithmetic", () => {
+  const rows = buildDailySalesInvoiceRows([
+    listingInvoice(),
+    listingInvoice({ id: "invoice-2", partsTotal: decimal("1.11"), laborTotal: decimal("2.22"), subtotal: decimal("3.33"), shopSuppliesAmount: decimal("0.44"), taxTotal: decimal("0.55"), total: decimal("4.32"), paidTotal: decimal("4.32") }),
+  ], [
+    { amount: decimal("35"), method: "card", invoiceId: "invoice-1" },
+    { amount: decimal("4.32"), method: "cash", invoiceId: "invoice-2" },
+  ]);
+  const totals = aggregateDailySalesInvoiceRows(rows);
+  assert.deepEqual(Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, money(value)])), {
+    partsTotal: "11.11", laborTotal: "22.22", shopSuppliesTotal: "2.44", ordinarySalesTaxTotal: "3.55",
+    grossSalesTotal: "39.32", cashTotal: "4.32", checkTotal: "0.00", cardTotal: "35.00", otherInternalTotal: "0.00",
+  });
+});
+
+test("status is absent from the Daily Sales listing query and UI", async () => {
+  const querySource = await readFile(new URL("../src/lib/data/daily-sales-query.ts", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(querySource, /status:\s*true/);
+  assert.doesNotMatch(pageSource, /["']Status["']/);
+});
+
+test("invoice-detail headers follow the legacy Windows report column order", async () => {
+  const pageSource = await readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8");
+  assert.match(pageSource, /headings=\{\["Date", "RO \/ Invoice", "Customer", "Vehicle", "Total", "Parts", "Labor", "Shop Supplies", "Sales Tax", "Cash", "Check", "Card", "Other \/ Internal"\]\}/);
+  const footerStart = pageSource.indexOf('scope="row">Totals</th>');
+  const footerEnd = pageSource.indexOf("</tr>", footerStart);
+  const footer = pageSource.slice(footerStart, footerEnd);
+  const orderedFooterValues = [
+    "grossSalesTotal", "partsTotal", "laborTotal", "shopSuppliesTotal", "ordinarySalesTaxTotal",
+    "cashTotal", "checkTotal", "cardTotal", "otherInternalTotal",
+  ];
+  let previous = -1;
+  for (const value of orderedFooterValues) {
+    const index = footer.indexOf(value);
+    assert.ok(index > previous, `${value} must follow the preceding totals column`);
+    previous = index;
+  }
 });
 
 test("inclusive end date becomes the exclusive next UTC day", () => {

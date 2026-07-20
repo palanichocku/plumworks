@@ -63,6 +63,7 @@ export default async function ReportsPage({
   ];
   const hasDifference = !report.reconciliation.salesPaymentDifference.isZero() ||
     !report.reconciliation.invoicePaidPaymentDifference.isZero();
+  const otherInternalTotal = report.payments.internalTotal.plus(report.payments.otherTotal);
 
   const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium shadow-2xs outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10";
 
@@ -135,35 +136,66 @@ export default async function ReportsPage({
       <ReportSection 
         title="Invoices in Range" 
         empty="No invoices or closed repair manifests were recorded in this date range." 
-        headings={["Invoice / RO", "Date", "Status", "Parts", "Labor", "Total"]}
+        headings={["Date", "RO / Invoice", "Customer", "Vehicle", "Total", "Parts", "Labor", "Shop Supplies", "Sales Tax", "Cash", "Check", "Card", "Other / Internal"]}
+        rowCount={report.invoices.length}
+        footer={(
+          <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-950">
+            <th className="px-4 py-3 text-left text-xs uppercase tracking-wider" colSpan={4} scope="row">Totals</th>
+            <MoneyCell value={report.sales.grossSalesTotal} strong />
+            <MoneyCell value={report.sales.partsTotal} />
+            <MoneyCell value={report.sales.laborTotal} />
+            <MoneyCell value={report.sales.shopSuppliesTotal} />
+            <MoneyCell value={report.sales.ordinarySalesTaxTotal} />
+            <MoneyCell value={report.payments.cashTotal} />
+            <MoneyCell value={report.payments.checkTotal} />
+            <MoneyCell value={report.payments.cardTotal} />
+            <MoneyCell value={otherInternalTotal} />
+          </tr>
+        )}
       >
         {report.invoices.map((invoice) => (
           <tr key={invoice.id} className="group transition-colors hover:bg-slate-50/60">
-            <td className="px-5 py-3.5 text-sm">
+            <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500">
+              {formatDate(invoice.invoiceDate)}
+            </td>
+            <td className="whitespace-nowrap px-4 py-3 text-sm">
               <Link 
                 href={`/invoices/${invoice.id}`} 
                 className="font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors"
               >
                 RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
               </Link>
+              {invoice.isSplitTender ? <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-sky-800">Split</span> : null}
             </td>
-            <td className="px-5 py-3.5 text-sm font-medium text-slate-500">
-              {formatDate(invoice.invoiceDate)}
+            <td className="max-w-48 px-4 py-3 text-sm font-medium text-slate-700">
+              {invoice.customer.displayName}
             </td>
-            <td className="px-5 py-3.5 text-sm">
-              <span className="inline-flex rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700 shadow-2xs capitalize">
-                {invoice.status}
-              </span>
+            <td className="max-w-52 px-4 py-3 text-sm text-slate-600">
+              {vehicleLabel(invoice.vehicle)}
             </td>
-            <td className="px-5 py-3.5 text-sm text-right font-medium text-slate-500">
-              {formatMoney(invoice.partsTotal)}
+            <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black text-slate-900 tabular-nums">
+              <span>{formatMoney(invoice.total)}</span>
+              {!invoice.discountsTotal.isZero() || !invoice.legacyChargeTotal.isZero() ? (
+                <span className="mt-1 block text-[10px] font-medium text-slate-500">
+                  {!invoice.discountsTotal.isZero() ? `Reductions ${formatMoney(invoice.discountsTotal)}` : null}
+                  {!invoice.discountsTotal.isZero() && !invoice.legacyChargeTotal.isZero() ? " · " : null}
+                  {!invoice.legacyChargeTotal.isZero() ? `Legacy ${formatMoney(invoice.legacyChargeTotal)}` : null}
+                </span>
+              ) : null}
+              {invoice.hasPaymentMismatch ? (
+                <span className="mt-1 block text-[10px] font-bold text-amber-700">
+                  Payment variance: paid {formatMoney(invoice.paymentDifference)}, total {formatMoney(invoice.totalPaymentDifference)}
+                </span>
+              ) : null}
             </td>
-            <td className="px-5 py-3.5 text-sm text-right font-medium text-slate-500">
-              {formatMoney(invoice.laborTotal)}
-            </td>
-            <td className="px-5 py-3.5 text-sm text-right font-black text-slate-900">
-              {formatMoney(invoice.total)}
-            </td>
+            <MoneyCell value={invoice.partsTotal} />
+            <MoneyCell value={invoice.laborTotal} />
+            <MoneyCell value={invoice.shopSuppliesAmount} />
+            <MoneyCell value={invoice.taxTotal} />
+            <MoneyCell value={invoice.cashTotal} />
+            <MoneyCell value={invoice.checkTotal} />
+            <MoneyCell value={invoice.cardTotal} />
+            <MoneyCell value={invoice.otherInternalTotal} />
           </tr>
         ))}
       </ReportSection>
@@ -189,7 +221,20 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReportSection({ title, empty, headings, children }: { title: string; empty: string; headings: string[]; children: React.ReactNode }) {
+function MoneyCell({ value, strong = false }: { value: { toString(): string }; strong?: boolean }) {
+  return (
+    <td className={`whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums ${strong ? "font-black text-slate-950" : "font-medium text-slate-600"}`}>
+      {formatMoney(value)}
+    </td>
+  );
+}
+
+function vehicleLabel(vehicle: { year: number | null; make: string | null; model: string | null } | null) {
+  if (!vehicle) return "—";
+  return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable";
+}
+
+function ReportSection({ title, empty, headings, children, footer, rowCount }: { title: string; empty: string; headings: string[]; children: React.ReactNode; footer?: React.ReactNode; rowCount: number }) {
   const rows = Array.isArray(children) ? children : [children];
   const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
   
@@ -203,13 +248,13 @@ function ReportSection({ title, empty, headings, children }: { title: string; em
         <p className="px-5 py-8 text-sm font-medium text-slate-400 text-center italic bg-white">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm border-collapse">
+          <table className="w-full min-w-[1560px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75">
                 {headings.map((heading, index) => (
                   <th 
                     key={heading} 
-                    className={`${thClass} ${index >= headings.length - 3 ? "text-right" : ""}`}
+                    className={`${thClass} whitespace-nowrap ${index >= 4 ? "text-right" : ""}`}
                   >
                     {heading}
                   </th>
@@ -219,11 +264,12 @@ function ReportSection({ title, empty, headings, children }: { title: string; em
             <tbody className="divide-y divide-slate-100 bg-white">
               {children}
             </tbody>
+            {footer ? <tfoot>{footer}</tfoot> : null}
           </table>
         </div>
       )}
       <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-3 text-xs font-medium text-slate-400 italic">
-        Showing up to 100 rows matching search parameters.
+        Showing all {rowCount.toLocaleString()} invoices in the selected range.
       </div>
     </section>
   );

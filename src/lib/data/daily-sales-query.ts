@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../generated/prisma/client";
 import {
   aggregatePaymentRows,
+  buildDailySalesInvoiceRows,
   buildSalesSummary,
   reconciliationDifferences,
 } from "../daily-sales-aggregation";
@@ -40,19 +41,21 @@ export async function loadDailySalesReport(prisma: PrismaClient, shopId: string,
     prisma.invoice.findMany({
       where: invoiceWhere,
       orderBy: [{ invoiceDate: "desc" }, { updatedAt: "desc" }],
-      take: 100,
       select: {
         id: true,
         repairOrderNumber: true,
         legacyRoNo: true,
         invoiceDate: true,
-        status: true,
+        customer: { select: { displayName: true } },
+        vehicle: { select: { year: true, make: true, model: true } },
         partsTotal: true,
         laborTotal: true,
+        subtotal: true,
         shopSuppliesAmount: true,
         taxTotal: true,
         total: true,
         paidTotal: true,
+        legacyCharges: { select: { amount: true } },
       },
     }),
   ]);
@@ -60,5 +63,6 @@ export async function loadDailySalesReport(prisma: PrismaClient, shopId: string,
   const sales = buildSalesSummary(invoiceAggregate, legacyChargeAggregate._sum.amount);
   const payments = aggregatePaymentRows(paymentRows);
   const reconciliation = reconciliationDifferences(sales, payments);
-  return { sales, payments, reconciliation, invoices };
+  const invoiceRows = buildDailySalesInvoiceRows(invoices, paymentRows);
+  return { sales, payments, reconciliation, invoices: invoiceRows };
 }
