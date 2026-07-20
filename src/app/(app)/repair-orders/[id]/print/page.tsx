@@ -75,6 +75,8 @@ export default async function PrintableRepairOrderPage({
           </InfoCard>
         </section>
 
+        {(order.customerComplaint || order.recommendation) && <section className="mb-7 break-inside-avoid rounded-xl border border-slate-200 p-5"><h2 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Customer Concerns &amp; Recommendations</h2><div className="mt-4 grid gap-5 sm:grid-cols-2">{order.customerComplaint && <div><h3 className="text-sm font-bold">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{order.customerComplaint}</p></div>}{order.recommendation && <div><h3 className="text-sm font-bold">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{order.recommendation}</p></div>}</div></section>}
+
         <EstimateTable title="Parts" empty="No parts recorded" headings={["Description", "Qty", "Unit price", "Amount"]}>
           {order.parts.map((part: PrintablePart) => <tr key={part.id}><td className="font-semibold text-slate-900">{part.description}</td><td className="text-right">{part.quantity.toString()}</td><td className="text-right">{formatMoney(part.unitPrice)}</td><td className="text-right font-semibold">{formatMoney(Number(part.quantity) * Number(part.unitPrice))}</td></tr>)}
         </EstimateTable>

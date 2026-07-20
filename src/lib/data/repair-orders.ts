@@ -69,10 +69,13 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
       repairOrderNumber: true,
       status: true,
       openedAt: true,
+      customerComplaint: true,
+      recommendation: true,
       partsTotal: true,
       laborTotal: true,
       taxTotal: true,
       estimatedTotal: true,
+      shopSuppliesAmount: true,
       shop: {
         select: {
           name: true,

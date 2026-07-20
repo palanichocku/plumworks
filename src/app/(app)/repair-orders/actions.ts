@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { optionalRepairOrderText } from "@/lib/repair-order-layout";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -24,6 +25,8 @@ export async function createRepairOrder(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
+  const customerComplaint = optionalRepairOrderText(formData.get("customerComplaint"));
+  const recommendation = optionalRepairOrderText(formData.get("recommendation"));
 
   if (customerMode === "existing" && !UUID.test(existingCustomerId)) {
     redirect("/repair-orders/new?error=invalid-selection");
@@ -130,6 +133,8 @@ export async function createRepairOrder(formData: FormData) {
         vehicleId,
         repairOrderNumber,
         status: "draft",
+        customerComplaint,
+        recommendation,
       },
       select: { id: true },
     });
@@ -139,4 +144,49 @@ export async function createRepairOrder(formData: FormData) {
 
   revalidatePath("/repair-orders");
   redirect(`/repair-orders/${repairOrder.id}`);
+}
+
+export async function updateRepairOrderConcerns(formData: FormData) {
+  const repairOrderId = String(formData.get("repairOrderId") ?? "");
+  if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
+
+  const customerComplaint = optionalRepairOrderText(formData.get("customerComplaint"));
+  const recommendation = optionalRepairOrderText(formData.get("recommendation"));
+  const { user, membership } = await requirePermission("edit_draft_repair_order");
+  const existing = await prisma.repairOrder.findFirst({
+    where: {
+      id: repairOrderId,
+      shopId: membership.shopId,
+      legacySourceTable: null,
+      status: { in: ["draft", "open"] },
+    },
+    select: { id: true, repairOrderNumber: true },
+  });
+  if (!existing) throw new Error("Editable repair order not found.");
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.repairOrder.update({
+      where: { id: repairOrderId },
+      data: { customerComplaint, recommendation },
+    });
+    await transaction.auditLog.create({
+      data: auditEntry(
+        membership.shopId,
+        user?.id,
+        "repair_order_concerns_updated",
+        "repair_order",
+        repairOrderId,
+        { fields: ["customerComplaint", "recommendation"] },
+        {
+          actorEmail: user?.email,
+          actorRole: membership.role,
+          entityLabel: `RO #${existing.repairOrderNumber}`,
+          entityHref: `/repair-orders/${repairOrderId}`,
+          contextSummary: "Customer concerns and recommendations updated",
+        },
+      ),
+    });
+  });
+
+  revalidatePath(`/repair-orders/${repairOrderId}`);
 }

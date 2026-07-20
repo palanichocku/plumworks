@@ -373,6 +373,8 @@ model RepairOrder {
   odometer                       Int?
   concern                        String?
   notes                          String?
+  customerComplaint              String?            @map("customer_complaint") @db.Text
+  recommendation                 String?            @db.Text
   partsTotal                     Decimal            @default(0) @map("parts_total") @db.Decimal(12, 2)
   laborTotal                     Decimal            @default(0) @map("labor_total") @db.Decimal(12, 2)
   taxTotal                       Decimal            @default(0) @map("tax_total") @db.Decimal(12, 2)
