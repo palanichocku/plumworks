@@ -8,6 +8,22 @@ function cleanText(value) {
   return value?.replaceAll(/\s+/g, " ").trim() || null;
 }
 
+export function legacyNote(value) {
+  if (typeof value !== "string") return null;
+  const note = value.trim();
+  if (!note || /^\[object\s+[^\]]+\]$/i.test(note)) return null;
+  return note;
+}
+
+function noteValue(rawData, field) {
+  if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) return null;
+  return legacyNote(rawData[field]);
+}
+
+export function preservedOperationalNote(existingNote, incomingNote) {
+  return typeof existingNote === "string" && existingNote.trim() ? existingNote : legacyNote(incomingNote);
+}
+
 function cleanEmail(value) {
   const email = cleanText(value)?.toLowerCase();
   return email && email.includes("@") ? email : null;
@@ -34,7 +50,7 @@ export function customerData(row) {
     city: cleanText(rawValue(row.rawData, "CITY")),
     state: cleanText(rawValue(row.rawData, "STATE"))?.toUpperCase() ?? null,
     postalCode: cleanText(rawValue(row.rawData, "ZIP")),
-    notes: cleanText(rawValue(row.rawData, "NOTE")),
+    notes: noteValue(row.rawData, "NOTE"),
     message: cleanText(rawValue(row.rawData, "MESSAGE")),
     legacySourceTable: "Cust.DBF",
   };
@@ -54,7 +70,7 @@ export function vehicleData(row) {
     vin: cleanText(rawValue(row.rawData, "VIN"))?.toUpperCase() ?? null,
     licensePlate: cleanText(rawValue(row.rawData, "LICENSE"))?.toUpperCase() ?? null,
     odometer: cleanInteger(rawValue(row.rawData, "ODOMETER")),
-    notes: cleanText(rawValue(row.rawData, "NOTE")) ?? cleanText(rawValue(row.rawData, "HISTNOTES")),
+    notes: noteValue(row.rawData, "NOTE") ?? noteValue(row.rawData, "HISTNOTES"),
     message: cleanText(rawValue(row.rawData, "MESSAGE")),
     legacySourceTable: "vehicles.DBF",
   };

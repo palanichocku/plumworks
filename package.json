@@ -21,6 +21,7 @@
     "legacy:transform:invoices": "node --env-file=.env.local scripts/transform-invoices.mjs",
     "legacy:payments:import": "node --env-file=.env.local scripts/import-legacy-payments.mjs",
     "cleanup:test-ro": "node --env-file=.env.local scripts/cleanup-test-repair-order.mjs",
+    "cleanup:legacy-notes": "node --env-file=.env.local scripts/cleanup-legacy-internal-notes.mjs",
     "legacy:import:open-orders": "node --env-file=.env.local scripts/import-open-orders.mjs",
     "legacy:transform:open-orders": "node --env-file=.env.local scripts/transform-open-orders.mjs",
     "legacy:cutover:dry-run": "node --env-file=.env.local scripts/legacy-cutover.mjs --dry-run",

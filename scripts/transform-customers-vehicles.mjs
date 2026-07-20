@@ -1,6 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-import { customerData, vehicleData } from "./lib/customer-vehicle-transform.mjs";
+import { customerData, preservedOperationalNote, vehicleData } from "./lib/customer-vehicle-transform.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -96,11 +96,11 @@ async function main() {
     const [existingCustomers, existingVehicles] = await Promise.all([
       prisma.customer.findMany({
         where: { shopId: SHOP_ID },
-        select: { legacyCustno: true },
+        select: { legacyCustno: true, notes: true },
       }),
       prisma.vehicle.findMany({
         where: { shopId: SHOP_ID },
-        select: { legacyCarno: true },
+        select: { legacyCarno: true, notes: true },
       }),
     ]);
     const existingCustomerIds = new Set(
@@ -108,9 +108,11 @@ async function main() {
         .map((customer) => customer.legacyCustno)
         .filter(Boolean),
     );
+    const existingCustomersByLegacyId = new Map(existingCustomers.filter((customer) => customer.legacyCustno).map((customer) => [customer.legacyCustno, customer]));
     const existingVehicleIds = new Set(
       existingVehicles.map((vehicle) => vehicle.legacyCarno).filter(Boolean),
     );
+    const existingVehiclesByLegacyId = new Map(existingVehicles.filter((vehicle) => vehicle.legacyCarno).map((vehicle) => [vehicle.legacyCarno, vehicle]));
     const customersUpdated = customers.filter((customer) =>
       existingCustomerIds.has(customer.legacyCustno),
     ).length;
@@ -141,7 +143,7 @@ async function main() {
             legacyCustno: customer.legacyCustno,
           },
         },
-        update: customer,
+        update: { ...customer, notes: preservedOperationalNote(existingCustomersByLegacyId.get(customer.legacyCustno)?.notes, customer.notes) },
         create: {
           shopId: SHOP_ID,
           ...customer,
@@ -176,6 +178,7 @@ async function main() {
         update: {
           customerId,
           ...cleanVehicle,
+          notes: preservedOperationalNote(existingVehiclesByLegacyId.get(cleanVehicle.legacyCarno)?.notes, cleanVehicle.notes),
         },
         create: {
           shopId: SHOP_ID,
