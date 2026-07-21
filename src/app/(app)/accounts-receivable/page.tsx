@@ -37,8 +37,9 @@ export default async function AccountsReceivablePage({
 
       {/* Control Strip Pane */}
       <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        
         {/* Premium Segmented Navigation Toggle */}
-        <nav className="inline-flex self-start rounded-lg bg-slate-100 p-1 text-xs font-medium" aria-label="Receivable status">
+        <nav className="inline-flex self-start rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold" aria-label="Receivable status">
           {(["open", "paid", "all"] as const).map((status) => {
             const query = new URLSearchParams();
             query.set("status", status);
@@ -50,8 +51,8 @@ export default async function AccountsReceivablePage({
                 href={`/accounts-receivable?${query}`} 
                 className={`rounded-md px-4 py-1.5 transition-all capitalize ${
                   isActive 
-                    ? "bg-white text-slate-900 shadow-sm font-semibold" 
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-brand-primary text-white shadow-sm font-bold" 
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
                 }`}
               >
                 {status}
