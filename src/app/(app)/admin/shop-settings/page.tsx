@@ -39,17 +39,6 @@ export default async function ShopSettingsPage({
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Structural Back Link Navigation Button */}
-      <div>
-        <Link 
-          href="/admin" 
-          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-primary transition-colors focus:outline-none"
-        >
-          <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
-          Back to Admin Panel
-        </Link>
-      </div>
-
       {/* Main Page Header */}
       <PageHeading
         eyebrow="Admin"
