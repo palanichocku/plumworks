@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { getDashboardSummary } from "@/lib/data/dashboard";
@@ -15,12 +16,12 @@ export default async function DashboardPage() {
 
   if (!shop || !summary) {
     return (
-      <>
+      <div className="space-y-6 animate-fadeIn">
         <PageHeading eyebrow="Overview" title="Dashboard" description="Your connected shop workspace." />
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold text-slate-950">No shop membership found</h2>
         </section>
-      </>
+      </div>
     );
   }
 
@@ -41,8 +42,8 @@ export default async function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <PageHeading eyebrow="Overview" title="Dashboard" description="Current shop activity, active drafts, and receivables ledger balances." />
         <div className="shrink-0 md:text-right">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200 shadow-2xs">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold tracking-wide text-emerald-700 border border-emerald-200 shadow-2xs">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             Live Sync Connected
           </span>
         </div>
@@ -54,11 +55,17 @@ export default async function DashboardPage() {
           <Link 
             key={label} 
             href={href} 
-            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-primary/30 hover:shadow-md"
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-primary/40 hover:shadow-lg"
           >
-            <div className="absolute top-0 bottom-0 left-0 w-1 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-brand-primary transition-colors">{label}</p>
-            <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight">{value}</p>
+            {/* Thickened the hover accent to match overall heavier UI */}
+            <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
+            {/* Boosted label contrast from text-slate-400 to text-slate-500 font-extrabold */}
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500 group-hover:text-brand-primary transition-colors">
+              {label}
+            </p>
+            <p className="mt-4 text-3xl font-black text-slate-900 tracking-tight">
+              {value}
+            </p>
           </Link>
         ))}
       </section>
@@ -70,14 +77,16 @@ export default async function DashboardPage() {
           {summary.recentRepairOrders.map((order) => {
             const isDraft = order.status.toLowerCase() === "draft";
             return (
-              <li key={order.id} className="transition-colors hover:bg-slate-50/70">
+              <li key={order.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
                 <Link 
                   href={order.legacySourceTable ? `/open-orders/${order.id}` : `/repair-orders/${order.id}`} 
                   className="block px-5 py-4"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-slate-900">RO #{order.repairOrderNumber ?? order.legacyRoNo ?? "Draft"}</span>
-                    <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
+                    <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
+                      RO #{order.repairOrderNumber ?? order.legacyRoNo ?? "Draft"}
+                    </span>
+                    <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border shadow-2xs ${
                       isDraft 
                         ? "bg-amber-50 text-amber-700 border-amber-200" 
                         : "bg-brand-subtle text-brand-primary border-brand-primary/30"
@@ -98,10 +107,12 @@ export default async function DashboardPage() {
         {/* RECENT INVOICES */}
         <ActivityCard title="Recent Closed Invoices" href="/invoices">
           {summary.recentInvoices.map((invoice) => (
-            <li key={invoice.id} className="transition-colors hover:bg-slate-50/70">
+            <li key={invoice.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
               <Link href={`/invoices/${invoice.id}`} className="block px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-bold text-slate-900">RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "N/A"}</span>
+                  <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
+                    RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "N/A"}
+                  </span>
                   <span className="text-sm font-black text-emerald-600">{formatMoney(invoice.total)}</span>
                 </div>
                 <div className="mt-1.5 flex justify-between text-xs text-slate-500 font-medium">
@@ -116,11 +127,13 @@ export default async function DashboardPage() {
         {/* UNPAID RECEIVABLES */}
         <ActivityCard title="Unpaid Accounts Receivable" href="/accounts-receivable">
           {summary.unpaidInvoices.map((row) => row.invoice ? (
-            <li key={row.id} className="transition-colors hover:bg-slate-50/70">
+            <li key={row.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
               <Link href={`/invoices/${row.invoice.id}`} className="block px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-bold text-slate-900">RO #{row.invoice.repairOrderNumber ?? row.invoice.legacyRoNo ?? "N/A"}</span>
-                  <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100">
+                  <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
+                    RO #{row.invoice.repairOrderNumber ?? row.invoice.legacyRoNo ?? "N/A"}
+                  </span>
+                  <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100 shadow-2xs">
                     {formatMoney(row.balance)}
                   </span>
                 </div>
@@ -137,20 +150,32 @@ export default async function DashboardPage() {
   );
 }
 
+// Upgraded inner component to match the table headers
 function ActivityCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
-  const items = Array.isArray(children) ? children : [children];
+  // Safely extract valid children to ensure empty states render correctly
+  const items = React.Children.toArray(children).filter(Boolean);
+  
   return (
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">{title}</h2>
-        <Link href={href} className="text-xs font-bold text-brand-primary hover:text-brand-primary tracking-wide uppercase">
+    <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+      {/* Header mimics the new table header rows (border-b-2, bg-slate-100/80) */}
+      <header className="flex items-center justify-between border-b-2 border-slate-200 bg-slate-100/80 px-5 py-4">
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-700">{title}</h2>
+        <Link 
+          href={href} 
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 shadow-xs transition-all hover:border-brand-primary/30 hover:text-brand-primary"
+        >
           View all
         </Link>
       </header>
+      
       {items.length ? (
-        <ul className="divide-y divide-slate-100">{children}</ul>
+        <ul className="flex-1 divide-y divide-slate-100">{items}</ul>
       ) : (
-        <p className="px-5 py-8 text-center text-xs font-medium text-slate-400">No active tracking history segments found.</p>
+        <div className="flex flex-1 items-center justify-center p-8">
+          <p className="text-center text-sm font-medium text-slate-400 italic">
+            No active tracking history segments found.
+          </p>
+        </div>
       )}
     </article>
   );
