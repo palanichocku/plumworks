@@ -107,11 +107,29 @@ export function NewRepairOrderForm({
       <fieldset className={sectionClass}>
         <legend className="text-sm font-bold text-slate-800 tracking-wide">Customer Information</legend>
         
-        <div className="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
-          <button type="button" disabled={!customers.length} onClick={() => selectCustomerMode("existing")} className={`rounded-md px-4 py-1.5 transition-all ${customerMode === "existing" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900 disabled:opacity-50"}`}>
+        {/* Customer Mode Segmented Toggle */}
+        <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold">
+          <button 
+            type="button" 
+            disabled={!customers.length} 
+            onClick={() => selectCustomerMode("existing")} 
+            className={`rounded-md px-4 py-1.5 transition-all ${
+              customerMode === "existing" 
+                ? "bg-brand-primary text-white shadow-sm font-bold" 
+                : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent"
+            }`}
+          >
             Existing Customer
           </button>
-          <button type="button" onClick={() => selectCustomerMode("new")} className={`rounded-md px-4 py-1.5 transition-all ${customerMode === "new" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}>
+          <button 
+            type="button" 
+            onClick={() => selectCustomerMode("new")} 
+            className={`rounded-md px-4 py-1.5 transition-all ${
+              customerMode === "new" 
+                ? "bg-brand-primary text-white shadow-sm font-bold" 
+                : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+            }`}
+          >
             New Customer
           </button>
           <input type="hidden" name="customerMode" value={customerMode} />
@@ -160,11 +178,29 @@ export function NewRepairOrderForm({
       <fieldset className={sectionClass}>
         <legend className="text-sm font-bold text-slate-800 tracking-wide">Vehicle Assignment</legend>
         
-        <div className="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
-          <button type="button" disabled={customerMode === "new" || !vehicles.length} onClick={() => setVehicleMode("existing")} className={`rounded-md px-4 py-1.5 transition-all ${vehicleMode === "existing" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900 disabled:opacity-40"}`}>
+        {/* Vehicle Mode Segmented Toggle */}
+        <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold">
+          <button 
+            type="button" 
+            disabled={customerMode === "new" || !vehicles.length} 
+            onClick={() => setVehicleMode("existing")} 
+            className={`rounded-md px-4 py-1.5 transition-all ${
+              vehicleMode === "existing" 
+                ? "bg-brand-primary text-white shadow-sm font-bold" 
+                : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent"
+            }`}
+          >
             Existing Vehicle
           </button>
-          <button type="button" onClick={() => setVehicleMode("new")} className={`rounded-md px-4 py-1.5 transition-all ${vehicleMode === "new" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}>
+          <button 
+            type="button" 
+            onClick={() => setVehicleMode("new")} 
+            className={`rounded-md px-4 py-1.5 transition-all ${
+              vehicleMode === "new" 
+                ? "bg-brand-primary text-white shadow-sm font-bold" 
+                : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+            }`}
+          >
             New Vehicle
           </button>
           <input type="hidden" name="vehicleMode" value={vehicleMode} />
@@ -241,14 +277,14 @@ export function NewRepairOrderForm({
             Drafting does not lock order sequence counters or affect live inventory items. Parts configuration interfaces activate once the workspace profile passes draft validation stages.
           </p>
           <div className="flex min-w-0 w-full flex-col-reverse gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-          <Link href="/repair-orders" className="inline-flex w-full min-w-0 items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white sm:w-auto">Cancel</Link>
-          <FormSubmitButton 
-            pendingLabel="Saving..." 
-            disabled={(customerMode === "existing" && !customerId) || (vehicleMode === "existing" && !vehicleId)} 
-            className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
-          >
-            Save Document Draft
-          </FormSubmitButton>
+            <Link href="/repair-orders" className="inline-flex w-full min-w-0 items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white sm:w-auto">Cancel</Link>
+            <FormSubmitButton 
+              pendingLabel="Saving..." 
+              disabled={(customerMode === "existing" && !customerId) || (vehicleMode === "existing" && !vehicleId)} 
+              className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
+            >
+              Save Draft
+            </FormSubmitButton>
           </div>
         </div>
       </div>
