@@ -19,7 +19,8 @@ export default async function InvoicesPage({
   const search = q?.trim() ?? "";
   const { invoices, hasNext } = await getInvoicesForCurrentShop(search, page);
 
-  const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
+  // Upgraded header styling for better contrast and visual weight
+  const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -73,8 +74,8 @@ export default async function InvoicesPage({
         </section>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Subtle informational sub-header panel */}
-          <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-3 text-xs font-medium text-slate-400 italic">
+          {/* Matched the slightly deeper sub-header styling */}
+          <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500">
             {search
               ? `Showing localized sequence results matching “${search}”`
               : "Showing most recent batch ledger invoices"}
@@ -83,7 +84,8 @@ export default async function InvoicesPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75">
+                {/* Beefed up the background and border of the table header row */}
+                <tr className="border-b-2 border-slate-200 bg-slate-100/80">
                   <th className={thClass}>Invoice / RO</th>
                   <th className={thClass}>Customer</th>
                   <th className={thClass}>Linked Vehicle</th>
@@ -103,7 +105,7 @@ export default async function InvoicesPage({
 
                   return (
                     <tr key={invoice.id} className="group transition-colors hover:bg-slate-50/60">
-                      <td className="px-5 py-3.5 text-sm">
+                      <td className="px-5 py-4 text-sm">
                         <Link href={`/invoices/${invoice.id}`} className="block font-bold text-slate-900 hover:text-brand-primary transition-colors">
                           RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
                         </Link>
@@ -111,16 +113,16 @@ export default async function InvoicesPage({
                           {formatDate(invoice.invoiceDate)}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-sm font-semibold text-slate-700 truncate max-w-[180px]">
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-700 truncate max-w-[180px]">
                         {invoice.customer.displayName}
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-500 font-medium truncate max-w-[200px]">
+                      <td className="px-5 py-4 text-sm text-slate-500 font-medium truncate max-w-[200px]">
                         {vehicleDescription}
                       </td>
-                      <td className="px-5 py-3.5 text-sm font-black text-slate-900">
+                      <td className="px-5 py-4 text-sm font-black text-slate-900">
                         {formatMoney(invoice.total)}
                       </td>
-                      <td className="px-5 py-3.5 text-sm font-medium">
+                      <td className="px-5 py-4 text-sm font-medium">
                         {balance && Number(balance) > 0 ? (
                           <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100 shadow-2xs">
                             {formatMoney(balance)}
