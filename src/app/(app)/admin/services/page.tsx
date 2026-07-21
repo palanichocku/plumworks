@@ -20,7 +20,7 @@ export default async function CannedServicesPage() {
   });
 
   const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-500 w-full";
-  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 shadow-2xs";
+  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -28,7 +28,7 @@ export default async function CannedServicesPage() {
       <div>
         <Link 
           href="/admin" 
-          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-sky-600 transition-colors focus:outline-none"
+          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-primary transition-colors focus:outline-none"
         >
           <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
           Back to Admin Panel
@@ -79,7 +79,7 @@ export default async function CannedServicesPage() {
               
               <div className="flex items-center gap-2 pt-2 lg:pt-0">
                 <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 bg-slate-50/40 cursor-pointer select-none transition-colors hover:bg-slate-50">
-                  <input name="active" type="checkbox" defaultChecked={service.active} className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" /> 
+                  <input name="active" type="checkbox" defaultChecked={service.active} className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /> 
                   Active
                 </label>
                 
@@ -134,11 +134,11 @@ export default async function CannedServicesPage() {
           
           <div className="flex items-center gap-3 pt-2 lg:pt-0">
             <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 bg-slate-50/40 cursor-pointer select-none transition-colors hover:bg-slate-50">
-              <input name="active" type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" /> 
+              <input name="active" type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" /> 
               Active
             </label>
             
-            <button type="submit" className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20">
+            <button type="submit" className="rounded-lg bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20">
               Add Template
             </button>
           </div>

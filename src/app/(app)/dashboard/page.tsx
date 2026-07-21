@@ -54,10 +54,10 @@ export default async function DashboardPage() {
           <Link 
             key={label} 
             href={href} 
-            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md"
+            className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-primary/30 hover:shadow-md"
           >
-            <div className="absolute top-0 bottom-0 left-0 w-1 bg-sky-600 opacity-0 transition-opacity group-hover:opacity-100" />
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-sky-700 transition-colors">{label}</p>
+            <div className="absolute top-0 bottom-0 left-0 w-1 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-brand-primary transition-colors">{label}</p>
             <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight">{value}</p>
           </Link>
         ))}
@@ -80,7 +80,7 @@ export default async function DashboardPage() {
                     <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
                       isDraft 
                         ? "bg-amber-50 text-amber-700 border-amber-200" 
-                        : "bg-sky-50 text-sky-700 border-sky-200"
+                        : "bg-brand-subtle text-brand-primary border-brand-primary/30"
                     }`}>
                       {order.status}
                     </span>
@@ -143,7 +143,7 @@ function ActivityCard({ title, href, children }: { title: string; href: string; 
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">{title}</h2>
-        <Link href={href} className="text-xs font-bold text-sky-600 hover:text-sky-700 tracking-wide uppercase">
+        <Link href={href} className="text-xs font-bold text-brand-primary hover:text-brand-primary tracking-wide uppercase">
           View all
         </Link>
       </header>

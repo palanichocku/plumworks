@@ -13,7 +13,7 @@ export default async function CreateInvoicePage({ params }: { params: Promise<{ 
   if (!order || !["draft", "open"].includes(order.status)) notFound();
 
   return <div className="mx-auto max-w-2xl">
-    <Link href={`/repair-orders/${order.id}`} className="text-sm font-semibold text-sky-700">← Back to repair order</Link>
+    <Link href={`/repair-orders/${order.id}`} className="text-sm font-semibold text-brand-primary">← Back to repair order</Link>
     <section className="mt-6 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-semibold uppercase tracking-wider text-amber-700">Create invoice</p>
       <h1 className="mt-2 text-3xl font-bold text-slate-950">Create invoice for RO #{order.repairOrderNumber}</h1>

@@ -87,7 +87,7 @@ export function NewRepairOrderForm({
     setVehicleId(customer?.vehicles[0]?.id ?? "");
   }
 
-  const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 transition-all duration-150 placeholder:text-slate-400 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-sky-500/10";
+  const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 transition-all duration-150 placeholder:text-slate-400 focus:border-brand-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
   const labelClass = "text-xs font-semibold tracking-wide text-slate-600 uppercase";
 
   const formClass = "mx-auto max-w-7xl space-y-6 overflow-x-clip rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8";
@@ -230,8 +230,8 @@ export function NewRepairOrderForm({
 
       <div className="min-w-0 space-y-4 border-t border-slate-100 pt-6" data-ro-section="actions">
         {customerMode === "new" && (
-          <div className="flex gap-3 rounded-xl bg-sky-50 p-4 text-sm text-sky-800">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-200 text-xs font-bold text-sky-900">i</span>
+          <div className="flex gap-3 rounded-xl bg-brand-subtle p-4 text-sm text-brand-primary">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-primary/30 text-xs font-bold text-brand-primary">i</span>
             <p className="font-medium">System Constraint: Creating a brand new customer requires capturing initial vehicle information context sequentially.</p>
           </div>
         )}
@@ -245,7 +245,7 @@ export function NewRepairOrderForm({
           <FormSubmitButton 
             pendingLabel="Saving..." 
             disabled={(customerMode === "existing" && !customerId) || (vehicleMode === "existing" && !vehicleId)} 
-            className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-sky-600 px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
+            className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
           >
             Save Document Draft
           </FormSubmitButton>

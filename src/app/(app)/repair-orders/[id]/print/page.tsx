@@ -37,14 +37,14 @@ export default async function PrintableRepairOrderPage({
   return (
     <article className="print-page mx-auto max-w-5xl overflow-hidden rounded-2xl bg-white text-slate-950 shadow-xl print:rounded-none print:shadow-none">
       <div className="print-hidden flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4 sm:px-10">
-        <Link href={`/repair-orders/${order.id}`} className="text-sm font-semibold text-sky-700 hover:text-sky-800">← Back to repair order</Link>
+        <Link href={`/repair-orders/${order.id}`} className="text-sm font-semibold text-brand-primary hover:text-brand-primary">← Back to repair order</Link>
         <PrintButton />
       </div>
-      <div className="h-2 bg-sky-700" />
+      <div className="h-2 bg-brand-primary" />
       <div className="p-6 sm:p-10 print:p-0">
         <header className="flex flex-col gap-8 border-b-2 border-slate-900 pb-7 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700">Repair Order / Estimate</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-primary">Repair Order / Estimate</p>
             <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{order.shop.name}</h1>
             <address className="mt-4 text-sm not-italic leading-6 text-slate-600">
               <span className="block">{order.shop.addressLine1 ?? "Address unavailable"}</span>

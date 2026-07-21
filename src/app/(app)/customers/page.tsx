@@ -41,11 +41,11 @@ export default async function CustomersPage({
           type="search"
           defaultValue={search}
           placeholder="Search by name or phone..."
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10"
         />
         <button
           type="submit"
-          className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
+          className="rounded-lg bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20"
         >
           Search
         </button>
@@ -64,7 +64,7 @@ export default async function CustomersPage({
           {search && (
             <Link
               href="/customers"
-              className="mt-4 inline-block text-xs font-bold uppercase tracking-wider text-sky-600 hover:text-sky-700"
+              className="mt-4 inline-block text-xs font-bold uppercase tracking-wider text-brand-primary hover:text-brand-primary"
             >
               Clear filter view
             </Link>
@@ -91,7 +91,7 @@ export default async function CustomersPage({
                 {customers.map((customer: CustomerListItem) => (
                   <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
                     <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">
-                      <Link href={`/customers/${customer.id}`} className="block hover:text-sky-600 transition-colors">
+                      <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
                         {customer.displayName}
                       </Link>
                     </td>

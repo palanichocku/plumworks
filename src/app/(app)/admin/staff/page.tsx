@@ -57,8 +57,8 @@ export default async function StaffPage() {
   ]);
 
   const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-500 w-full";
-  const selectClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 shadow-2xs cursor-pointer";
-  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 shadow-2xs";
+  const selectClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs cursor-pointer";
+  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -66,7 +66,7 @@ export default async function StaffPage() {
       <div>
         <Link 
           href="/admin" 
-          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-sky-600 transition-colors focus:outline-none"
+          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-primary transition-colors focus:outline-none"
         >
           <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
           Back to Admin Panel
@@ -168,7 +168,7 @@ export default async function StaffPage() {
           
           <button 
             type="submit" 
-            className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20 whitespace-nowrap"
+            className="rounded-lg bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 whitespace-nowrap"
           >
             Create Invite
           </button>

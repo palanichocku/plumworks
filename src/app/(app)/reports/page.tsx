@@ -79,11 +79,11 @@ export default async function ReportsPage({
               key={label} 
               className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
                 highlight 
-                  ? "border-sky-200 bg-sky-50/40 ring-1 ring-sky-100" 
+                  ? "border-brand-primary/30 bg-brand-subtle/40 ring-1 ring-brand-subtle" 
                   : "border-slate-200 bg-white"
               }`}
             >
-              <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-sky-700" : "text-slate-400"}`}>
+              <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-brand-primary" : "text-slate-400"}`}>
                 {label}
               </p>
               <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
@@ -138,11 +138,11 @@ export default async function ReportsPage({
             <td className="whitespace-nowrap px-4 py-3 text-sm">
               <Link 
                 href={`/invoices/${invoice.id}`} 
-                className="font-bold text-sky-600 hover:text-sky-700 hover:underline transition-colors"
+                className="font-bold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
               >
                 RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
               </Link>
-              {invoice.isSplitTender ? <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-sky-800">Split</span> : null}
+              {invoice.isSplitTender ? <span className="ml-2 rounded bg-brand-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-primary">Split</span> : null}
             </td>
             <td className="max-w-48 px-4 py-3 text-sm font-medium text-slate-700">
               {invoice.customer.displayName}

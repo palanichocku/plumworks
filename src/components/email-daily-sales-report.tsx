@@ -50,7 +50,7 @@ export function EmailDailySalesReport({ from, to, output, disabled = false }: { 
                   autoComplete="email"
                   value={recipient}
                   onChange={(event) => setRecipient(event.target.value)}
-                  className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10"
+                  className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10"
                 />
               </label>
               <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
@@ -77,7 +77,7 @@ export function EmailDailySalesReport({ from, to, output, disabled = false }: { 
 function SendButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+    <button type="submit" disabled={pending} className="rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:bg-brand-primary disabled:cursor-not-allowed disabled:opacity-60">
       {pending ? "Sending…" : "Send Report"}
     </button>
   );

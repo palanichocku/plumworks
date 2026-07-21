@@ -15,11 +15,11 @@ export function InternalNotesBlock({ recordId, notes, canEdit, emptyMessage, suc
     {canEdit ? <form action={formAction} onChange={() => setDirty(true)} onSubmit={() => setDirty(false)} className="mt-5">
       <input type="hidden" name="recordId" value={recordId} />
       <label htmlFor={`internal-notes-${recordId}`} className="sr-only">Internal Notes</label>
-      <textarea id={`internal-notes-${recordId}`} name="notes" rows={6} maxLength={5000} defaultValue={notes ?? ""} className="min-h-36 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/10" />
+      <textarea id={`internal-notes-${recordId}`} name="notes" rows={6} maxLength={5000} defaultValue={notes ?? ""} className="min-h-36 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10" />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         {!dirty && !pending && state.status === "success" ? <p role="status" aria-live="polite" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"><span aria-hidden="true">✓</span> {successMessage}</p> : null}
         {!dirty && !pending && state.status === "error" ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{state.message}</p> : null}
-        <button type="submit" disabled={pending} className="ml-auto inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save Notes"}</button>
+        <button type="submit" disabled={pending} className="ml-auto inline-flex items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save Notes"}</button>
       </div>
     </form> : <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-slate-700">{notes || emptyMessage}</p>}
   </section>;

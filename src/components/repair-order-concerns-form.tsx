@@ -6,7 +6,7 @@ import { updateRepairOrderConcerns, type RepairOrderSaveState } from "@/app/(app
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 
 const initialState: RepairOrderSaveState = { status: "idle" };
-const textareaClass = "mt-1.5 min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/10";
+const textareaClass = "mt-1.5 min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
 
 function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
   return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -25,7 +25,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
 
   const actions = <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="grid gap-2 sm:grid-cols-2">
-      <button form="repair-order-save-form" type="submit" disabled={pending} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+      <button form="repair-order-save-form" type="submit" disabled={pending} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
       <Link href={createInvoiceHref} className="inline-flex w-full items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Create Invoice</Link>
     </div>
     {!dirty && !pending && state.status === "success" ? <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"><span aria-hidden="true">✓</span> Repair Order saved.</p> : null}

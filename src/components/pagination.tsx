@@ -25,7 +25,7 @@ export function Pagination({
   const controlClass =
     "rounded-lg border px-4 py-2 text-sm font-semibold transition";
   const disabledClass = `${controlClass} cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400`;
-  const enabledClass = `${controlClass} border-slate-300 bg-white text-slate-700 hover:border-sky-300 hover:text-sky-700`;
+  const enabledClass = `${controlClass} border-slate-300 bg-white text-slate-700 hover:border-brand-primary/30 hover:text-brand-primary`;
 
   return (
     <nav aria-label="Pagination" className="mt-6 flex items-center justify-between gap-4">

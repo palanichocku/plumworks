@@ -35,7 +35,7 @@ export default async function ShopSettingsPage({
 
   if (!shop) return null;
 
-  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 font-medium outline-none transition-all focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 shadow-2xs";
+  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -43,7 +43,7 @@ export default async function ShopSettingsPage({
       <div>
         <Link 
           href="/admin" 
-          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-sky-600 transition-colors focus:outline-none"
+          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-primary transition-colors focus:outline-none"
         >
           <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
           Back to Admin Panel
@@ -115,7 +115,7 @@ export default async function ShopSettingsPage({
                 name="partsTaxable" 
                 type="checkbox" 
                 defaultChecked={shop.partsTaxable} 
-                className="h-4 w-4 rounded-md border-slate-300 text-sky-600 focus:ring-sky-500" 
+                className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" 
               /> 
               Parts are taxable
             </label>
@@ -125,7 +125,7 @@ export default async function ShopSettingsPage({
                 name="laborTaxable" 
                 type="checkbox" 
                 defaultChecked={shop.laborTaxable} 
-                className="h-4 w-4 rounded-md border-slate-300 text-sky-600 focus:ring-sky-500" 
+                className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" 
               /> 
               Labor is taxable
             </label>
@@ -157,7 +157,7 @@ export default async function ShopSettingsPage({
 
           <button 
             type="submit" 
-            className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
+            className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20"
           >
             Save Invoice Defaults
           </button>

@@ -32,18 +32,18 @@ export default async function AdminPage() {
           <Link
             key={section.href}
             href={section.href}
-            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md"
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-primary/30 hover:shadow-md"
           >
-            <div className="absolute top-0 bottom-0 left-0 w-1 bg-sky-600 opacity-0 transition-opacity group-hover:opacity-100" />
+            <div className="absolute top-0 bottom-0 left-0 w-1 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
             <div>
-              <h2 className="text-base font-bold text-slate-900 group-hover:text-sky-700 transition-colors">
+              <h2 className="text-base font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
                 {section.title}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-500 font-medium">
                 {section.description}
               </p>
             </div>
-            <div className="mt-6 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-sky-600 transition-colors">
+            <div className="mt-6 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-brand-primary transition-colors">
               Open Admin Tool
               <span className="font-mono text-sm transform transition-transform group-hover:translate-x-1">→</span>
             </div>

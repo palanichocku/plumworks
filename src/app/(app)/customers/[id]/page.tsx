@@ -32,20 +32,20 @@ export default async function CustomerDetailPage({
     <>
       <Link
         href="/customers"
-        className="text-sm font-semibold text-sky-700 hover:text-sky-800"
+        className="text-sm font-semibold text-brand-primary hover:text-brand-primary"
       >
         ← Customers
       </Link>
       <header className="mt-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-        <p className="text-sm font-semibold uppercase tracking-wider text-sky-700">
+        <p className="text-sm font-semibold uppercase tracking-wider text-brand-primary">
           Customer
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
           {customer.displayName}
         </h1>
         </div>
-        <Link href={`/customers/${customer.id}/edit`} className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white">Edit customer</Link>
+        <Link href={`/customers/${customer.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit customer</Link>
       </header>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">

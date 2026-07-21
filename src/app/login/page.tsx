@@ -8,11 +8,11 @@ export default function LoginPage() {
       <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
         <Link
           href="/"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-sky-600 text-sm font-bold text-white"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary text-sm font-bold text-white"
         >
           {softwareBrandName.charAt(0)}
         </Link>
-        <p className="mt-8 text-sm font-semibold uppercase tracking-wider text-sky-700">
+        <p className="mt-8 text-sm font-semibold uppercase tracking-wider text-brand-primary">
           Welcome back
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">

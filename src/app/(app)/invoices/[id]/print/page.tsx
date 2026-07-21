@@ -55,18 +55,18 @@ export default async function PrintableInvoicePage({
       <div className="print-hidden flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4 sm:px-10">
         <Link
           href={`/invoices/${invoice.id}`}
-          className="text-sm font-semibold text-sky-700 hover:text-sky-800"
+          className="text-sm font-semibold text-brand-primary hover:text-brand-primary"
         >
           ← Back to invoice
         </Link>
         <PrintButton />
       </div>
 
-      <div className="h-2 bg-sky-700" />
+      <div className="h-2 bg-brand-primary" />
       <div className="p-6 sm:p-10 print:p-0">
         <header className="flex flex-col gap-8 border-b-2 border-slate-900 pb-7 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-primary">
               Auto repair invoice
             </p>
             <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
@@ -179,10 +179,10 @@ export default async function PrintableInvoicePage({
               </dd>
               <dt className="text-slate-600">Paid</dt>
               <dd>{formatMoney(invoice.paidTotal)}</dd>
-              <dt className="rounded-l-lg bg-sky-700 px-3 py-2 text-base font-black text-white print:border-y print:border-l print:border-slate-900 print:bg-white print:text-slate-950">
+              <dt className="rounded-l-lg bg-brand-primary px-3 py-2 text-base font-black text-white print:border-y print:border-l print:border-slate-900 print:bg-white print:text-slate-950">
                 Balance due
               </dt>
-              <dd className="rounded-r-lg bg-sky-700 px-3 py-2 text-base font-black text-white print:border-y print:border-r print:border-slate-900 print:bg-white print:text-slate-950">
+              <dd className="rounded-r-lg bg-brand-primary px-3 py-2 text-base font-black text-white print:border-y print:border-r print:border-slate-900 print:bg-white print:text-slate-950">
                 {receivable ? formatMoney(receivable.balance) : "Unavailable"}
               </dd>
             </dl>

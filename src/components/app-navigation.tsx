@@ -41,12 +41,12 @@ function NavigationLink({
         mobile
           ? `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
               isActive
-                ? "bg-sky-50 text-sky-700"
+                ? "bg-brand-subtle text-brand-primary"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             }`
           : `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
               isActive
-                ? "bg-sky-50 text-sky-700"
+                ? "bg-brand-subtle text-brand-primary"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             }`
       }
@@ -55,7 +55,7 @@ function NavigationLink({
         <span
           className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${
             isActive
-              ? "bg-sky-600 text-white"
+              ? "bg-brand-primary text-white"
               : "bg-slate-100 text-slate-500"
           }`}
         >

@@ -32,7 +32,7 @@ export default async function RepairOrdersPage() {
         />
         <Link 
           href="/repair-orders/new" 
-          className="self-start sm:self-auto rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
+          className="self-start sm:self-auto rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20"
         >
           New Repair Order
         </Link>
@@ -78,7 +78,7 @@ export default async function RepairOrdersPage() {
                       <td className="px-5 py-3.5 text-sm">
                         <Link 
                           href={imported ? `/open-orders/${order.id}` : `/repair-orders/${order.id}`} 
-                          className="block font-bold text-slate-900 hover:text-sky-600 transition-colors"
+                          className="block font-bold text-slate-900 hover:text-brand-primary transition-colors"
                         >
                           RO #{order.repairOrderNumber ?? order.legacyRoNo ?? "Draft"}
                         </Link>
@@ -103,7 +103,7 @@ export default async function RepairOrdersPage() {
                           <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
                             imported 
                               ? "bg-amber-50 text-amber-700 border-amber-200 shadow-2xs" 
-                              : "bg-sky-50 text-sky-700 border-sky-200 shadow-2xs"
+                              : "bg-brand-subtle text-brand-primary border-brand-primary/30 shadow-2xs"
                           }`}>
                             {order.status}{imported ? " · Read Only" : ""}
                           </span>

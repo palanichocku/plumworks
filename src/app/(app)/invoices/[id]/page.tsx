@@ -50,12 +50,12 @@ export default async function InvoiceDetailPage({
 
   return (
     <>
-      <Link href="/invoices" className="text-sm font-semibold text-sky-700 hover:text-sky-800">
+      <Link href="/invoices" className="text-sm font-semibold text-brand-primary hover:text-brand-primary">
         ← Invoices
       </Link>
       <header className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-sky-700">Invoice</p>
+          <p className="text-sm font-semibold uppercase tracking-wider text-brand-primary">Invoice</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
             RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Not recorded"}
           </h1>
@@ -65,11 +65,11 @@ export default async function InvoiceDetailPage({
           <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium capitalize text-slate-700">
             {open ? "Open" : "Closed"}
           </span>
-          {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-sky-300 px-4 py-2.5 text-sm font-semibold text-sky-800 hover:bg-sky-50">Edit Invoice</Link> : null}
+          {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Edit Invoice</Link> : null}
           {canClose && closeBalanceIsZero ? <CloseInvoiceButton invoiceId={invoice.id} balance={formatMoney(receivable?.balance ?? 0)} /> : canClose ? <span aria-disabled="true" title={`Remaining balance ${formatMoney(receivable?.balance ?? 0)}`} className="cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400">Close Invoice</span> : null}
           <Link
             href={`/invoices/${invoice.id}/print`}
-            className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+            className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary"
           >
             Print
           </Link>
@@ -84,14 +84,14 @@ export default async function InvoiceDetailPage({
           <div className="mt-5 space-y-4 text-sm">
             <div>
               <p className="text-slate-500">Customer</p>
-              <Link href={`/customers/${invoice.customer.id}`} className="mt-1 inline-block font-semibold text-sky-700 hover:text-sky-800">
+              <Link href={`/customers/${invoice.customer.id}`} className="mt-1 inline-block font-semibold text-brand-primary hover:text-brand-primary">
                 {invoice.customer.displayName}
               </Link>
             </div>
             <div>
               <p className="text-slate-500">Vehicle</p>
               {invoice.vehicle ? (
-                <Link href={`/vehicles/${invoice.vehicle.id}`} className="mt-1 inline-block font-semibold text-sky-700 hover:text-sky-800">
+                <Link href={`/vehicles/${invoice.vehicle.id}`} className="mt-1 inline-block font-semibold text-brand-primary hover:text-brand-primary">
                   {vehicle}
                 </Link>
               ) : (
@@ -128,7 +128,7 @@ export default async function InvoiceDetailPage({
             <label className="text-sm font-semibold text-slate-700">Amount<input name="amount" type="number" required min="0.01" max={balance.toFixed(2)} step="0.01" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
             <label className="text-sm font-semibold text-slate-700">Method<select name="method" required defaultValue="card" className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="card">Card</option><option value="cash">Cash</option><option value="check">Check</option><option value="other">Other</option></select></label>
             <label className="text-sm font-semibold text-slate-700">Payment date<input name="paymentDate" type="date" required defaultValue={today} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-            <FormSubmitButton pendingLabel="Recording…" confirmTitle="Record this payment?" confirmDescription="Verify the amount, payment method, and date before continuing. This payment cannot be edited or deleted yet." confirmLabel="Record payment" className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">Record payment</FormSubmitButton>
+            <FormSubmitButton pendingLabel="Recording…" confirmTitle="Record this payment?" confirmDescription="Verify the amount, payment method, and date before continuing. This payment cannot be edited or deleted yet." confirmLabel="Record payment" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary disabled:opacity-50">Record payment</FormSubmitButton>
             <label className="text-sm font-semibold text-slate-700 md:col-span-2 lg:col-span-4">Note <span className="font-normal text-slate-500">(optional)</span><textarea name="note" maxLength={500} rows={2} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
           </form>
         </section>

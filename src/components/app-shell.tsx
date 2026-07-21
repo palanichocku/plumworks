@@ -22,7 +22,7 @@ export function AppShell({
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white shadow-sm print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-xs font-black text-white shadow-sm">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary text-xs font-black text-white shadow-sm">
               {shopInitials}
             </span>
             <span className="text-base font-bold tracking-tight text-slate-900">{shopName}</span>
@@ -41,7 +41,7 @@ export function AppShell({
 
       <aside className="fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r border-slate-200 bg-white p-6 print:hidden lg:flex lg:flex-col">
         <Link href="/dashboard" className="group flex shrink-0 items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-sm font-black text-white shadow-md shadow-sky-500/20 transition-transform group-hover:scale-[1.02]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-sm font-black text-white shadow-md shadow-brand-primary/20 transition-transform group-hover:scale-[1.02]">
             {shopInitials}
           </span>
           <div>
@@ -62,7 +62,7 @@ export function AppShell({
             name="q" 
             type="search" 
             placeholder="Search records..." 
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-9 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-sky-500/5" 
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-9 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-brand-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-primary/5" 
           />
         </form>
 

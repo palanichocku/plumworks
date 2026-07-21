@@ -55,7 +55,7 @@ export default function WorkflowHelpPage() {
       </div>
 
       {/* High-Contrast Daily Blueprint Panel */}
-      <div className="rounded-2xl border border-sky-100 bg-sky-50/10 p-6 shadow-sm">
+      <div className="rounded-2xl border border-brand-subtle bg-brand-subtle/10 p-6 shadow-sm">
         <HelpSection title="Daily pattern">
           <HelpList items={[
             "Begin on the primary Dashboard overview to inspect active garage floor work and open balances.",

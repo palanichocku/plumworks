@@ -66,16 +66,16 @@ export default function AppSettingsPage() {
               onClick={() => handleThemeChange(theme.id as ThemeOption)}
               className={`group flex flex-col p-4 rounded-xl border transition-all duration-200 text-left ${
                 activeTheme === theme.id 
-                  ? 'border-sky-600 bg-sky-50 ring-1 ring-sky-600' 
-                  : 'border-slate-200 bg-white hover:border-sky-300 hover:shadow-sm'
+                  ? 'border-brand-primary bg-brand-subtle ring-1 ring-brand-primary' 
+                  : 'border-slate-200 bg-white hover:border-brand-primary/30 hover:shadow-sm'
               }`}
             >
               <div className="flex items-center justify-between mb-4 w-full">
-                <span className={`font-bold ${activeTheme === theme.id ? 'text-sky-900' : 'text-slate-700 group-hover:text-sky-700'}`}>
+                <span className={`font-bold ${activeTheme === theme.id ? 'text-brand-primary' : 'text-slate-700 group-hover:text-brand-primary'}`}>
                   {theme.name}
                 </span>
                 {activeTheme === theme.id && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-600 text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-primary text-white">
                     <svg viewBox="0 0 14 14" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2.5 7.5L5.5 10.5L11.5 3.5" />
                     </svg>

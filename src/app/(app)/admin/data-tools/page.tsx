@@ -25,7 +25,7 @@ export default async function DataToolsPage() {
       <div>
         <Link 
           href="/admin" 
-          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-sky-600 transition-colors focus:outline-none"
+          className="group inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-brand-primary transition-colors focus:outline-none"
         >
           <span className="font-mono text-sm transition-transform group-hover:-translate-x-0.5">←</span>
           Back to Admin Panel
@@ -57,9 +57,9 @@ export default async function DataToolsPage() {
             <tbody className="divide-y divide-slate-100 bg-white">
               
               {/* Row 1: The Premium Highlighted Duplicate Finder Segment */}
-              <tr className="group transition-colors bg-sky-50/20 hover:bg-sky-50/50">
+              <tr className="group transition-colors bg-brand-subtle/20 hover:bg-brand-subtle/50">
                 <td className="px-5 py-4 font-bold text-slate-900">
-                  <span className="inline-flex items-center gap-2 text-sky-700">
+                  <span className="inline-flex items-center gap-2 text-brand-primary">
                     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -73,7 +73,7 @@ export default async function DataToolsPage() {
                 <td className="px-5 py-4 text-right pr-6 whitespace-nowrap">
                   <Link 
                     href="/admin/data-tools/duplicates" 
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-2xs transition-colors hover:bg-sky-700 focus:outline-none"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-2xs transition-colors hover:bg-brand-primary focus:outline-none"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
