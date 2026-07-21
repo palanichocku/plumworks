@@ -18,7 +18,8 @@ export default async function CustomersPage({
   const search = q?.trim() ?? "";
   const { customers, hasNext } = await getCustomersForCurrentShop(search, page);
 
-  const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
+  // Upgraded header styling for better contrast and visual weight
+  const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -72,7 +73,7 @@ export default async function CustomersPage({
         </section>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-3 text-xs font-medium text-slate-400 italic">
+          <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500">
             {search
               ? `Showing localized sequence results matching “${search}”`
               : "Showing the most recent customers"}
@@ -81,7 +82,8 @@ export default async function CustomersPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75">
+                {/* Beefed up the background and border of the table header row */}
+                <tr className="border-b-2 border-slate-200 bg-slate-100/80">
                   <th className={thClass}>Name</th>
                   <th className={thClass}>Email</th>
                   <th className={thClass}>Phone</th>
@@ -90,16 +92,16 @@ export default async function CustomersPage({
               <tbody className="divide-y divide-slate-100 bg-white">
                 {customers.map((customer: CustomerListItem) => (
                   <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
                       <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
                         {customer.displayName}
                       </Link>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 font-medium">
-                      {customer.email ?? <span className="text-slate-300 font-sans font-normal">No email</span>}
+                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                      {customer.email ?? <span className="text-slate-300 font-sans font-normal italic">No email</span>}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 font-medium">
-                      {customer.phone ?? <span className="text-slate-300 font-sans font-normal">No phone</span>}
+                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                      {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
                     </td>
                   </tr>
                 ))}
