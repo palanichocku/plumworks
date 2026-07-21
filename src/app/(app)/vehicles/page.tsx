@@ -18,7 +18,8 @@ export default async function VehiclesPage({
   const search = q?.trim() ?? "";
   const { vehicles, hasNext } = await getVehiclesForCurrentShop(search, page);
 
-  const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
+  // Upgraded header styling for better contrast and visual weight
+  const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -72,7 +73,8 @@ export default async function VehiclesPage({
         </section>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-3 text-xs font-medium text-slate-400 italic">
+          {/* Matched the slightly deeper sub-header styling from the Customers page */}
+          <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500">
             {search
               ? `Showing localized sequence results matching “${search}”`
               : "Showing the most recent vehicles"}
@@ -81,7 +83,8 @@ export default async function VehiclesPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75">
+                {/* Beefed up the background and border of the table header row */}
+                <tr className="border-b-2 border-slate-200 bg-slate-100/80">
                   <th className={thClass}>Make</th>
                   <th className={thClass}>Model</th>
                   <th className={thClass}>Year</th>
@@ -92,22 +95,22 @@ export default async function VehiclesPage({
               <tbody className="divide-y divide-slate-100 bg-white">
                 {vehicles.map((vehicle: VehicleListItem) => (
                   <tr key={vehicle.id} className="group transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
                       <Link href={`/vehicles/${vehicle.id}`} className="block hover:text-brand-primary transition-colors">
                         {vehicle.make ?? "Unknown Make"}
                       </Link>
                     </td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-slate-900">
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
                       {vehicle.model ?? "Unknown Model"}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-500 font-medium">
+                    <td className="px-5 py-4 text-sm text-slate-500 font-medium">
                       {vehicle.year ?? "—"}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600 font-mono font-medium tracking-tight">
-                      {vehicle.licensePlate ?? <span className="text-slate-300 font-sans font-normal">Not recorded</span>}
+                    <td className="px-5 py-4 text-sm text-slate-600 font-mono font-medium tracking-tight">
+                      {vehicle.licensePlate ?? <span className="text-slate-300 font-sans font-normal italic">Not recorded</span>}
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-400 font-mono select-all">
-                      {vehicle.vin ?? <span className="text-slate-300 font-sans font-normal">—</span>}
+                    <td className="px-5 py-4 text-xs text-slate-400 font-mono select-all">
+                      {vehicle.vin ?? <span className="text-slate-300 font-sans font-normal italic">—</span>}
                     </td>
                   </tr>
                 ))}
