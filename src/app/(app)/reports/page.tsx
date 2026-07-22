@@ -4,9 +4,17 @@ import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { getDailySalesReportModel } from "@/lib/data/reports";
-import { canEmailDailySalesReport, DAILY_SALES_COLUMNS, formatReportDateRange, formatReportGeneratedTime, isIsoReportDate, normalizeDailySalesReportOutput } from "@/lib/daily-sales-report-model";
+import { 
+  canEmailDailySalesReport, 
+  DAILY_SALES_COLUMNS, 
+  formatReportDateRange, 
+  formatReportGeneratedTime, 
+  isIsoReportDate, 
+  normalizeDailySalesReportOutput 
+} from "@/lib/daily-sales-report-model";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { hasPermission } from "@/lib/permissions";
+import { ReportFilterForm } from "@/components/report-filter-form";
 
 export const dynamic = "force-dynamic";
 
@@ -59,31 +67,31 @@ export default async function ReportsPage({
   const hasDifference = !report.reconciliation.salesPaymentDifference.isZero() ||
     !report.reconciliation.invoicePaidPaymentDifference.isZero();
 
-  // Construct the plain-text email payload to pass to the controls
   const reportPayload = `
 Daily Sales Report (${formatReportDateRange(report.from, report.to)})
 Generated: ${formatReportGeneratedTime(report.generatedAt)}
 
--- SALES SUMMARY --
+-- SUMMARY --
 Invoices: ${report.sales.invoiceCount.toLocaleString()}
 Gross Sales: ${formatMoney(report.sales.grossSalesTotal)}
-Parts: ${formatMoney(report.sales.partsTotal)}
-Labor: ${formatMoney(report.sales.laborTotal)}
-Shop Supplies: ${formatMoney(report.sales.shopSuppliesTotal)}
-Sales Tax: ${formatMoney(report.sales.ordinarySalesTaxTotal)}
-Discounts: ${formatMoney(report.sales.discountsTotal)}
-
--- PAYMENT SUMMARY --
-Cash: ${formatMoney(report.payments.cashTotal)}
-Check: ${formatMoney(report.payments.checkTotal)}
-Card: ${formatMoney(report.payments.cardTotal)}
-Internal: ${formatMoney(otherInternalTotal)}
 Payment Total: ${formatMoney(report.payments.paymentTotal)}
   `.trim();
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <PageHeading eyebrow="Analytics" title="Reports" description="Recorded shop activity, sales breakdowns, and balances for a selected date range." />
+      {/* Force Landscape and exact colors for printing */}
+      <style>{`
+        @media print {
+          @page { size: landscape; margin: 0.5in; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      <div className="print:hidden">
+        <PageHeading eyebrow="Analytics" title="Reports" description="Recorded shop activity, sales breakdowns, and balances for a selected date range." />
+      </div>
+      
+      <ReportFilterForm initialFrom={from} initialTo={to} output={output} />
       
       <DailySalesReportControls
         key={`${report.from}:${report.to}`}
@@ -102,16 +110,16 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
                 {salesCards.map(({ label, value, highlight }) => (
                   <article 
                     key={label} 
-                    className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
+                    className={`rounded-2xl border-2 p-6 shadow-sm transition-all hover:shadow-md print:break-inside-avoid print:p-4 ${
                       highlight 
-                        ? "border-brand-primary/30 bg-brand-subtle/40 ring-1 ring-brand-subtle" 
+                        ? "border-brand-primary bg-brand-subtle ring-1 ring-brand-subtle" 
                         : "border-slate-200 bg-white"
                     }`}
                   >
-                    <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-brand-primary" : "text-slate-400"}`}>
+                    <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-brand-primary" : "text-slate-500"}`}>
                       {label}
                     </p>
-                    <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                    <p className="mt-2 text-3xl font-black tracking-tight text-slate-900 print:text-2xl">
                       {value}
                     </p>
                   </article>
@@ -125,13 +133,13 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
                   <MetricCard key={label} label={label} value={value} />
                 ))}
               </section>
-              <div className={`mt-4 rounded-xl border p-4 text-sm ${hasDifference ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>
-                <p className="font-semibold">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
-                <p className="mt-1 font-semibold">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
-                <p className="mt-2 text-xs leading-relaxed opacity-80">
+              <div className={`mt-6 rounded-xl border-2 p-5 text-sm print:break-inside-avoid ${hasDifference ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-950"}`}>
+                <p className="font-bold text-base">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
+                <p className="mt-1 font-bold text-base">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
+                <p className="mt-2 font-medium leading-relaxed opacity-90 print:hidden">
                   Sales use invoice date; payments use payment date. A difference can be valid when payment timing differs from the invoice date.
                 </p>
-                {hasDifference ? <p className="mt-2 font-bold">Review the nonzero reconciliation difference.</p> : null}
+                {hasDifference ? <p className="mt-3 font-black text-amber-800">Review the nonzero reconciliation difference.</p> : null}
               </div>
             </SummarySection>
           </>
@@ -143,52 +151,53 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
             headings={[...DAILY_SALES_COLUMNS]}
             rowCount={report.invoices.length}
             footer={(
-              <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-950">
-                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider" colSpan={4} scope="row">Totals</th>
+              <tr className="border-t-4 border-slate-300 bg-slate-200 font-black text-slate-950">
+                <th className="px-5 py-4 print:px-2 print:py-2 text-left text-xs uppercase tracking-wider" colSpan={4} scope="row">Totals</th>
                 <MoneyCell value={report.sales.grossSalesTotal} strong />
-                <MoneyCell value={report.sales.partsTotal} />
-                <MoneyCell value={report.sales.laborTotal} />
-                <MoneyCell value={report.sales.shopSuppliesTotal} />
-                <MoneyCell value={report.sales.ordinarySalesTaxTotal} />
-                <MoneyCell value={report.payments.cashTotal} />
-                <MoneyCell value={report.payments.checkTotal} />
-                <MoneyCell value={report.payments.cardTotal} />
-                <MoneyCell value={otherInternalTotal} />
+                <MoneyCell value={report.sales.partsTotal} strong />
+                <MoneyCell value={report.sales.laborTotal} strong />
+                <MoneyCell value={report.sales.shopSuppliesTotal} strong />
+                <MoneyCell value={report.sales.ordinarySalesTaxTotal} strong />
+                <MoneyCell value={report.payments.cashTotal} strong />
+                <MoneyCell value={report.payments.checkTotal} strong />
+                <MoneyCell value={report.payments.cardTotal} strong />
+                <MoneyCell value={otherInternalTotal} strong />
               </tr>
             )}
           >
             {report.invoices.map((invoice) => (
-              <tr key={invoice.id} className="group transition-colors hover:bg-slate-50/60">
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500">
+              <tr key={invoice.id} className="group transition-colors hover:bg-slate-50 border-b border-slate-100 last:border-0 print:break-inside-avoid">
+                <td className="whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px] font-bold text-slate-600">
                   {formatDate(invoice.invoiceDate)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">
+                <td className="whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px]">
                   <Link 
                     href={`/invoices/${invoice.id}`} 
-                    className="font-bold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
+                    className="font-black text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                   >
                     RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
                   </Link>
-                  {invoice.isSplitTender ? <span className="ml-2 rounded bg-brand-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-primary">Split</span> : null}
+                  {invoice.isSplitTender ? <span className="ml-2 rounded-md bg-brand-subtle px-2 py-1 text-[10px] print:text-[8px] font-black uppercase text-brand-primary">Split</span> : null}
                 </td>
-                <td className="max-w-48 px-4 py-3 text-sm font-medium text-slate-700">
+                <td className="max-w-48 px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px] font-bold text-slate-800">
                   {invoice.customer.displayName}
                 </td>
-                <td className="max-w-52 px-4 py-3 text-sm text-slate-600">
+                <td className="max-w-52 px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px] font-medium text-slate-600">
                   {vehicleLabel(invoice.vehicle)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black text-slate-900 tabular-nums">
-                  <span>{formatMoney(invoice.total)}</span>
+                <td className="whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-right text-sm print:text-[10px] font-black text-slate-900 tabular-nums">
+                  <span className="text-base print:text-xs">{formatMoney(invoice.total)}</span>
                   {!invoice.discountsTotal.isZero() || !invoice.legacyChargeTotal.isZero() ? (
-                    <span className="mt-1 block text-[10px] font-medium text-slate-500">
+                    <span className="mt-1 block text-[11px] print:text-[9px] font-bold text-slate-500">
                       {!invoice.discountsTotal.isZero() ? `Reductions ${formatMoney(invoice.discountsTotal)}` : null}
                       {!invoice.discountsTotal.isZero() && !invoice.legacyChargeTotal.isZero() ? " · " : null}
                       {!invoice.legacyChargeTotal.isZero() ? `Legacy ${formatMoney(invoice.legacyChargeTotal)}` : null}
                     </span>
                   ) : null}
+                  {/* Cleaned up variance to stack smoothly under the total */}
                   {invoice.hasPaymentMismatch ? (
-                    <span className="mt-1 block text-[10px] font-bold text-amber-700">
-                      Payment variance: paid {formatMoney(invoice.paymentDifference)}, total {formatMoney(invoice.totalPaymentDifference)}
+                    <span className="mt-1 block text-[11px] print:text-[9px] font-black text-amber-700">
+                      Var: {formatMoney(invoice.totalPaymentDifference)}
                     </span>
                   ) : null}
                 </td>
@@ -211,8 +220,8 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
 
 function SummarySection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-base font-bold text-slate-900">{title}</h2>
+    <section className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-6 print:border-none print:p-0 print:bg-transparent shadow-sm print:shadow-none">
+      <h2 className="mb-5 text-lg font-black text-slate-900 print:mb-3">{title}</h2>
       {children}
     </section>
   );
@@ -220,16 +229,16 @@ function SummarySection({ title, children }: { title: string; children: React.Re
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</p>
+    <article className="rounded-2xl border-2 border-slate-200 bg-white p-6 print:p-4 print:break-inside-avoid shadow-sm print:shadow-none">
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-black tracking-tight text-slate-900 print:text-2xl">{value}</p>
     </article>
   );
 }
 
 function MoneyCell({ value, strong = false }: { value: { toString(): string }; strong?: boolean }) {
   return (
-    <td className={`whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums ${strong ? "font-black text-slate-950" : "font-medium text-slate-600"}`}>
+    <td className={`whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-right text-sm print:text-[10px] tabular-nums ${strong ? "font-black text-slate-950 text-base print:text-xs" : "font-bold text-slate-600"}`}>
       {formatMoney(value)}
     </td>
   );
@@ -242,21 +251,22 @@ function vehicleLabel(vehicle: { year: number | null; make: string | null; model
 
 function ReportSection({ title, empty, headings, children, footer, rowCount }: { title: string; empty: string; headings: string[]; children: React.ReactNode; footer?: React.ReactNode; rowCount: number }) {
   const rows = Array.isArray(children) ? children : [children];
-  const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
+  const thClass = "px-5 py-4 print:px-2 print:py-2 text-xs print:text-[9px] font-black uppercase tracking-wider text-slate-500 select-none bg-slate-100 print:bg-transparent print:border-b-2 print:border-slate-300";
   
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-        <h2 className="text-base font-bold text-slate-900">{title}</h2>
+    <section className="mt-8 overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-sm print:mt-4 print:border-none print:shadow-none">
+      <div className="border-b-2 border-slate-200 bg-slate-50 px-6 py-5 print:px-2 print:py-2 print:bg-transparent">
+        <h2 className="text-lg font-black text-slate-900">{title}</h2>
       </div>
       
       {rows.length === 0 ? (
-        <p className="px-5 py-8 text-sm font-medium text-slate-400 text-center italic bg-white">{empty}</p>
+        <p className="px-6 py-10 text-base font-bold text-slate-500 text-center italic bg-white">{empty}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1560px] border-collapse text-left text-sm">
+        // Print overrides to allow the table to flex naturally on standard page widths
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-[1560px] print:min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/75">
+              <tr className="border-b-2 border-slate-200">
                 {headings.map((heading, index) => (
                   <th 
                     key={heading} 
@@ -267,14 +277,14 @@ function ReportSection({ title, empty, headings, children, footer, rowCount }: {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="bg-white">
               {children}
             </tbody>
             {footer ? <tfoot>{footer}</tfoot> : null}
           </table>
         </div>
       )}
-      <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-3 text-xs font-medium text-slate-400 italic">
+      <div className="border-t-2 border-slate-200 bg-slate-50 px-6 py-4 print:px-2 print:py-2 text-sm print:text-xs font-bold text-slate-500 italic print:bg-transparent">
         Showing all {rowCount.toLocaleString()} invoices in the selected range.
       </div>
     </section>
