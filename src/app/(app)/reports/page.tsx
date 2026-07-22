@@ -59,6 +59,28 @@ export default async function ReportsPage({
   const hasDifference = !report.reconciliation.salesPaymentDifference.isZero() ||
     !report.reconciliation.invoicePaidPaymentDifference.isZero();
 
+  // Construct the plain-text email payload to pass to the controls
+  const reportPayload = `
+Daily Sales Report (${formatReportDateRange(report.from, report.to)})
+Generated: ${formatReportGeneratedTime(report.generatedAt)}
+
+-- SALES SUMMARY --
+Invoices: ${report.sales.invoiceCount.toLocaleString()}
+Gross Sales: ${formatMoney(report.sales.grossSalesTotal)}
+Parts: ${formatMoney(report.sales.partsTotal)}
+Labor: ${formatMoney(report.sales.laborTotal)}
+Shop Supplies: ${formatMoney(report.sales.shopSuppliesTotal)}
+Sales Tax: ${formatMoney(report.sales.ordinarySalesTaxTotal)}
+Discounts: ${formatMoney(report.sales.discountsTotal)}
+
+-- PAYMENT SUMMARY --
+Cash: ${formatMoney(report.payments.cashTotal)}
+Check: ${formatMoney(report.payments.checkTotal)}
+Card: ${formatMoney(report.payments.cardTotal)}
+Internal: ${formatMoney(otherInternalTotal)}
+Payment Total: ${formatMoney(report.payments.paymentTotal)}
+  `.trim();
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <PageHeading eyebrow="Analytics" title="Reports" description="Recorded shop activity, sales breakdowns, and balances for a selected date range." />
@@ -72,110 +94,116 @@ export default async function ReportsPage({
         invoiceCount={report.invoices.length}
         initialOutput={output}
         canEmail={canEmailDailySalesReport(membership.role)}
-        summary={<><SummarySection title="Sales Summary">
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {salesCards.map(({ label, value, highlight }) => (
-            <article 
-              key={label} 
-              className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
-                highlight 
-                  ? "border-brand-primary/30 bg-brand-subtle/40 ring-1 ring-brand-subtle" 
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-brand-primary" : "text-slate-400"}`}>
-                {label}
-              </p>
-              <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
-                {value}
-              </p>
-            </article>
-          ))}
-        </section>
-      </SummarySection>
+        reportPayload={reportPayload}
+        summary={
+          <>
+            <SummarySection title="Sales Summary">
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {salesCards.map(({ label, value, highlight }) => (
+                  <article 
+                    key={label} 
+                    className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
+                      highlight 
+                        ? "border-brand-primary/30 bg-brand-subtle/40 ring-1 ring-brand-subtle" 
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <p className={`text-xs font-bold uppercase tracking-wider ${highlight ? "text-brand-primary" : "text-slate-400"}`}>
+                      {label}
+                    </p>
+                    <p className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      {value}
+                    </p>
+                  </article>
+                ))}
+              </section>
+            </SummarySection>
 
-      <SummarySection title="Payment Summary">
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {paymentCards.map(({ label, value }) => (
-            <MetricCard key={label} label={label} value={value} />
-          ))}
-        </section>
-        <div className={`mt-4 rounded-xl border p-4 text-sm ${hasDifference ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>
-          <p className="font-semibold">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
-          <p className="mt-1 font-semibold">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
-          <p className="mt-2 text-xs leading-relaxed opacity-80">
-            Sales use invoice date; payments use payment date. A difference can be valid when payment timing differs from the invoice date.
-          </p>
-          {hasDifference ? <p className="mt-2 font-bold">Review the nonzero reconciliation difference.</p> : null}
-        </div>
-      </SummarySection></>}
-
-      detail={<ReportSection
-        title="Invoices in Range" 
-        empty="No invoices or closed repair manifests were recorded in this date range." 
-        headings={[...DAILY_SALES_COLUMNS]}
-        rowCount={report.invoices.length}
-        footer={(
-          <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-950">
-            <th className="px-4 py-3 text-left text-xs uppercase tracking-wider" colSpan={4} scope="row">Totals</th>
-            <MoneyCell value={report.sales.grossSalesTotal} strong />
-            <MoneyCell value={report.sales.partsTotal} />
-            <MoneyCell value={report.sales.laborTotal} />
-            <MoneyCell value={report.sales.shopSuppliesTotal} />
-            <MoneyCell value={report.sales.ordinarySalesTaxTotal} />
-            <MoneyCell value={report.payments.cashTotal} />
-            <MoneyCell value={report.payments.checkTotal} />
-            <MoneyCell value={report.payments.cardTotal} />
-            <MoneyCell value={otherInternalTotal} />
-          </tr>
-        )}
-      >
-        {report.invoices.map((invoice) => (
-          <tr key={invoice.id} className="group transition-colors hover:bg-slate-50/60">
-            <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500">
-              {formatDate(invoice.invoiceDate)}
-            </td>
-            <td className="whitespace-nowrap px-4 py-3 text-sm">
-              <Link 
-                href={`/invoices/${invoice.id}`} 
-                className="font-bold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
-              >
-                RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
-              </Link>
-              {invoice.isSplitTender ? <span className="ml-2 rounded bg-brand-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-primary">Split</span> : null}
-            </td>
-            <td className="max-w-48 px-4 py-3 text-sm font-medium text-slate-700">
-              {invoice.customer.displayName}
-            </td>
-            <td className="max-w-52 px-4 py-3 text-sm text-slate-600">
-              {vehicleLabel(invoice.vehicle)}
-            </td>
-            <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black text-slate-900 tabular-nums">
-              <span>{formatMoney(invoice.total)}</span>
-              {!invoice.discountsTotal.isZero() || !invoice.legacyChargeTotal.isZero() ? (
-                <span className="mt-1 block text-[10px] font-medium text-slate-500">
-                  {!invoice.discountsTotal.isZero() ? `Reductions ${formatMoney(invoice.discountsTotal)}` : null}
-                  {!invoice.discountsTotal.isZero() && !invoice.legacyChargeTotal.isZero() ? " · " : null}
-                  {!invoice.legacyChargeTotal.isZero() ? `Legacy ${formatMoney(invoice.legacyChargeTotal)}` : null}
-                </span>
-              ) : null}
-              {invoice.hasPaymentMismatch ? (
-                <span className="mt-1 block text-[10px] font-bold text-amber-700">
-                  Payment variance: paid {formatMoney(invoice.paymentDifference)}, total {formatMoney(invoice.totalPaymentDifference)}
-                </span>
-              ) : null}
-            </td>
-            <MoneyCell value={invoice.partsTotal} />
-            <MoneyCell value={invoice.laborTotal} />
-            <MoneyCell value={invoice.shopSuppliesAmount} />
-            <MoneyCell value={invoice.taxTotal} />
-            <MoneyCell value={invoice.cashTotal} />
-            <MoneyCell value={invoice.checkTotal} />
-            <MoneyCell value={invoice.cardTotal} />
-            <MoneyCell value={invoice.otherInternalTotal} />
-          </tr>
-        ))}
-      </ReportSection>}
+            <SummarySection title="Payment Summary">
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {paymentCards.map(({ label, value }) => (
+                  <MetricCard key={label} label={label} value={value} />
+                ))}
+              </section>
+              <div className={`mt-4 rounded-xl border p-4 text-sm ${hasDifference ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>
+                <p className="font-semibold">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
+                <p className="mt-1 font-semibold">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
+                <p className="mt-2 text-xs leading-relaxed opacity-80">
+                  Sales use invoice date; payments use payment date. A difference can be valid when payment timing differs from the invoice date.
+                </p>
+                {hasDifference ? <p className="mt-2 font-bold">Review the nonzero reconciliation difference.</p> : null}
+              </div>
+            </SummarySection>
+          </>
+        }
+        detail={
+          <ReportSection
+            title="Invoices in Range" 
+            empty="No invoices or closed repair manifests were recorded in this date range." 
+            headings={[...DAILY_SALES_COLUMNS]}
+            rowCount={report.invoices.length}
+            footer={(
+              <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-950">
+                <th className="px-4 py-3 text-left text-xs uppercase tracking-wider" colSpan={4} scope="row">Totals</th>
+                <MoneyCell value={report.sales.grossSalesTotal} strong />
+                <MoneyCell value={report.sales.partsTotal} />
+                <MoneyCell value={report.sales.laborTotal} />
+                <MoneyCell value={report.sales.shopSuppliesTotal} />
+                <MoneyCell value={report.sales.ordinarySalesTaxTotal} />
+                <MoneyCell value={report.payments.cashTotal} />
+                <MoneyCell value={report.payments.checkTotal} />
+                <MoneyCell value={report.payments.cardTotal} />
+                <MoneyCell value={otherInternalTotal} />
+              </tr>
+            )}
+          >
+            {report.invoices.map((invoice) => (
+              <tr key={invoice.id} className="group transition-colors hover:bg-slate-50/60">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500">
+                  {formatDate(invoice.invoiceDate)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm">
+                  <Link 
+                    href={`/invoices/${invoice.id}`} 
+                    className="font-bold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
+                  >
+                    RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}
+                  </Link>
+                  {invoice.isSplitTender ? <span className="ml-2 rounded bg-brand-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-primary">Split</span> : null}
+                </td>
+                <td className="max-w-48 px-4 py-3 text-sm font-medium text-slate-700">
+                  {invoice.customer.displayName}
+                </td>
+                <td className="max-w-52 px-4 py-3 text-sm text-slate-600">
+                  {vehicleLabel(invoice.vehicle)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black text-slate-900 tabular-nums">
+                  <span>{formatMoney(invoice.total)}</span>
+                  {!invoice.discountsTotal.isZero() || !invoice.legacyChargeTotal.isZero() ? (
+                    <span className="mt-1 block text-[10px] font-medium text-slate-500">
+                      {!invoice.discountsTotal.isZero() ? `Reductions ${formatMoney(invoice.discountsTotal)}` : null}
+                      {!invoice.discountsTotal.isZero() && !invoice.legacyChargeTotal.isZero() ? " · " : null}
+                      {!invoice.legacyChargeTotal.isZero() ? `Legacy ${formatMoney(invoice.legacyChargeTotal)}` : null}
+                    </span>
+                  ) : null}
+                  {invoice.hasPaymentMismatch ? (
+                    <span className="mt-1 block text-[10px] font-bold text-amber-700">
+                      Payment variance: paid {formatMoney(invoice.paymentDifference)}, total {formatMoney(invoice.totalPaymentDifference)}
+                    </span>
+                  ) : null}
+                </td>
+                <MoneyCell value={invoice.partsTotal} />
+                <MoneyCell value={invoice.laborTotal} />
+                <MoneyCell value={invoice.shopSuppliesAmount} />
+                <MoneyCell value={invoice.taxTotal} />
+                <MoneyCell value={invoice.cashTotal} />
+                <MoneyCell value={invoice.checkTotal} />
+                <MoneyCell value={invoice.cardTotal} />
+                <MoneyCell value={invoice.otherInternalTotal} />
+              </tr>
+            ))}
+          </ReportSection>
+        }
       />
     </div>
   );

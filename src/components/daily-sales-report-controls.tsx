@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { EmailDailySalesReport } from "@/components/email-daily-sales-report";
+import { sendReportEmail } from "@/lib/actions/email-reports"; // Using your new server action
 import type { DailySalesReportOutput } from "@/lib/daily-sales-report-model";
 
 const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-2xs outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10";
@@ -18,6 +18,7 @@ export function DailySalesReportControls({
   canEmail,
   summary,
   detail,
+  reportPayload = "Please review the Daily Sales Report inside the application.", // Default text if omitted
 }: {
   loadedFrom: string;
   loadedTo: string;
@@ -28,6 +29,7 @@ export function DailySalesReportControls({
   canEmail: boolean;
   summary: ReactNode;
   detail: ReactNode;
+  reportPayload?: string;
 }) {
   const router = useRouter();
   const [from, setFrom] = useState(loadedFrom);
@@ -35,6 +37,11 @@ export function DailySalesReportControls({
   const [output, setOutput] = useState<DailySalesReportOutput>(initialOutput);
   const [isPending, startTransition] = useTransition();
   const dirty = from !== loadedFrom || to !== loadedTo;
+
+  // New Email Form State
+  const [email, setEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "success" | "error">("idle");
+  const [isEmailing, startEmailTransition] = useTransition();
 
   function runReport(formData: FormData) {
     const nextFrom = String(formData.get("from") ?? loadedFrom);
@@ -50,6 +57,25 @@ export function DailySalesReportControls({
     url.searchParams.set("output", next);
     window.history.replaceState(window.history.state, "", url);
   }
+
+  // Handle the server action submission
+  const handleEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !reportPayload) return;
+
+    setEmailStatus("idle");
+    
+    startEmailTransition(async () => {
+      const result = await sendReportEmail(email, reportPayload);
+      if (result.success) {
+        setEmailStatus("success");
+        setEmail(""); // Clear the input so it's ready for another
+        setTimeout(() => setEmailStatus("idle"), 3000); // Revert button text after 3s
+      } else {
+        setEmailStatus("error");
+      }
+    });
+  };
 
   const actionsDisabled = dirty || isPending;
   
@@ -103,7 +129,34 @@ export function DailySalesReportControls({
               Print Report
             </Link>
           )}
-          {canEmail ? <EmailDailySalesReport from={loadedFrom} to={loadedTo} output={output} disabled={actionsDisabled} /> : null}
+
+          {/* New Inline Email Form */}
+          {canEmail ? (
+            <form onSubmit={handleEmail} className="flex w-full gap-2 sm:w-auto">
+               <label htmlFor="inline-email-input" className="sr-only">Recipient Email</label>
+               <input 
+                 id="inline-email-input"
+                 type="email" 
+                 placeholder="recipient@example.com"
+                 value={email}
+                 onChange={(e) => setEmail(e.target.value)}
+                 disabled={actionsDisabled || isEmailing}
+                 required
+                 className="block w-full sm:w-48 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-2xs outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+               />
+               <button 
+                 type="submit"
+                 disabled={actionsDisabled || isEmailing || !email}
+                 className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto ${
+                   emailStatus === "success" ? "bg-emerald-600 hover:bg-emerald-700" : 
+                   emailStatus === "error" ? "bg-red-600 hover:bg-red-700" : 
+                   "bg-brand-primary hover:bg-brand-primary/90"
+                 }`}
+               >
+                 {isEmailing ? "Sending..." : emailStatus === "success" ? "Sent!" : emailStatus === "error" ? "Failed" : "Email"}
+               </button>
+            </form>
+          ) : null}
         </div>
       </div>
 
