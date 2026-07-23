@@ -58,7 +58,7 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
         shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true } },
         customer: { select: { displayName: true, phone: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
         vehicle: { select: { year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true } },
-        parts: { orderBy: { createdAt: "asc" }, select: { description: true, partNumber: true, quantity: true, unitPrice: true, legacyLineKey: true } },
+        parts: { orderBy: { createdAt: "asc" }, select: { description: true, partNumber: true, quantity: true, unitPrice: true, vendorNameSnapshot: true, legacyLineKey: true } },
         labor: { orderBy: { createdAt: "asc" }, select: { description: true, hours: true, hourlyRate: true, legacyLineKey: true } },
       },
     });
@@ -123,6 +123,7 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
             partNumber: line.partNumber,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
+            vendorNameSnapshot: line.vendorNameSnapshot,
             legacyLineKey: line.legacyLineKey,
           })),
         },

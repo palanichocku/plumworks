@@ -93,6 +93,10 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
             orderBy: { name: "asc" },
             select: { id: true, name: true },
           },
+          vendors: {
+            orderBy: { name: "asc" },
+            select: { id: true, name: true },
+          },
         },
       },
       customer: {
@@ -125,6 +129,8 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           description: true,
           quantity: true,
           unitPrice: true,
+          vendorNameSnapshot: true,
+          vendor: { select: { id: true, name: true } },
         },
       },
       labor: {
