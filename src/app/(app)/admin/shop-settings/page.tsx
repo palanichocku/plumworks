@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
 import { hasPermission } from "@/lib/permissions";
@@ -34,6 +33,13 @@ export default async function ShopSettingsPage({
       shopSuppliesCap: true,
       invoiceFooterMessage: true,
       warrantyText: true,
+      invoicePartsWarrantyText: true,
+      invoiceAuthorizationText: true,
+      invoiceCertificationText: true,
+      repairFacilityRegistrationNumber: true,
+      defaultAuthorizedRepresentative: true,
+      defaultInvoiceTechnicianName: true,
+      defaultInvoiceTechnicianLicenseNumber: true,
     },
   });
 
@@ -149,6 +155,28 @@ export default async function ShopSettingsPage({
               className={`${inputClass} font-normal`} 
             />
           </label>
+
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+            Parts warranty text
+            <textarea name="invoicePartsWarrantyText" rows={4} maxLength={4000} defaultValue={shop.invoicePartsWarrantyText ?? ""} placeholder="Optional manufacturer or supplier warranty wording..." className={`${inputClass} font-normal`} />
+          </label>
+
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+            Customer authorization text
+            <textarea name="invoiceAuthorizationText" rows={4} maxLength={4000} defaultValue={shop.invoiceAuthorizationText ?? ""} placeholder="Optional customer authorization wording..." className={`${inputClass} font-normal`} />
+          </label>
+
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+            Repair certification text
+            <textarea name="invoiceCertificationText" rows={4} maxLength={4000} defaultValue={shop.invoiceCertificationText ?? ""} placeholder="Optional repair and parts certification wording..." className={`${inputClass} font-normal`} />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Repair-facility registration number<input name="repairFacilityRegistrationNumber" maxLength={100} defaultValue={shop.repairFacilityRegistrationNumber ?? ""} className={inputClass} /></label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Authorized representative<input name="defaultAuthorizedRepresentative" maxLength={150} defaultValue={shop.defaultAuthorizedRepresentative ?? ""} className={inputClass} /></label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Default Invoice technician<input name="defaultInvoiceTechnicianName" maxLength={150} defaultValue={shop.defaultInvoiceTechnicianName ?? ""} className={inputClass} /></label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Technician or mechanic license<input name="defaultInvoiceTechnicianLicenseNumber" maxLength={100} defaultValue={shop.defaultInvoiceTechnicianLicenseNumber ?? ""} className={inputClass} /></label>
+          </div>
 
           <button 
             type="submit" 

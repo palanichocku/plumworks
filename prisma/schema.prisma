@@ -40,59 +40,66 @@ enum LegacyChargeSourceBucket {
 }
 
 model Shop {
-  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                  String
-  addressLine1          String?                @map("address_line1")
-  city                  String?
-  state                 String?
-  postalCode            String?                @map("postal_code")
-  phone                 String?
-  defaultTaxRate        Decimal                @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
-  defaultLaborRate      Decimal                @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
-  partsTaxable          Boolean                @default(true) @map("parts_taxable")
-  laborTaxable          Boolean                @default(false) @map("labor_taxable")
-  shopSuppliesEnabled   Boolean                @default(false) @map("shop_supplies_enabled")
-  shopSuppliesRate      Decimal                @default(0) @map("shop_supplies_rate") @db.Decimal(7, 6)
-  shopSuppliesCap       Decimal                @default(0) @map("shop_supplies_cap") @db.Decimal(12, 2)
-  shopSuppliesTaxable   Boolean                @default(true) @map("shop_supplies_taxable")
-  invoiceFooterMessage  String?                @map("invoice_footer_message")
-  warrantyText          String?                @map("warranty_text")
-  nextRepairOrderNumber Int                    @default(1) @map("next_repair_order_number")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at")
-  customers             Customer[]
-  customerLegacyAliases CustomerLegacyAlias[]
-  vehicles              Vehicle[]
-  repairOrders          RepairOrder[]
-  repairOrderParts      RepairOrderPart[]
-  vendors               Vendor[]
-  repairOrderLabor      RepairOrderLabor[]
-  invoices              Invoice[]
-  invoiceParts          InvoicePart[]
-  invoiceLabor          InvoiceLabor[]
-  payments              Payment[]
-  accountsReceivable    AccountReceivable[]
-  employees             Employee[]
-  memberships           ShopMembership[]
-  rawLegacyCustomers    RawLegacyCustomer[]
-  rawLegacyVehicles     RawLegacyVehicle[]
-  rawLegacyFinal        RawLegacyFinal[]
-  rawLegacyLaborFinal   RawLegacyLaborFinal[]
-  rawLegacyAr           RawLegacyAr[]
-  rawLegacyOrderParts   RawLegacyOrderPart[]
-  rawLegacyOrderLabor   RawLegacyOrderLabor[]
-  legacyImportRuns      LegacyImportRun[]
-  legacyImportErrors    LegacyImportError[]
-  cannedServices        CannedService[]
-  auditLogs             AuditLog[]
-  staffInvites          StaffInvite[]
-  marketingLeads        MarketingLead[]
-  marketingSettings     MarketingSetting?
-  marketingPages        MarketingPage[]
-  marketingServices     MarketingService[]
-  marketingCoupons      MarketingCoupon[]
-  marketingTestimonials MarketingTestimonial[]
-  marketingGalleryItems MarketingGalleryItem[]
+  id                                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                  String
+  addressLine1                          String?                @map("address_line1")
+  city                                  String?
+  state                                 String?
+  postalCode                            String?                @map("postal_code")
+  phone                                 String?
+  defaultTaxRate                        Decimal                @default(0) @map("default_tax_rate") @db.Decimal(6, 3)
+  defaultLaborRate                      Decimal                @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
+  partsTaxable                          Boolean                @default(true) @map("parts_taxable")
+  laborTaxable                          Boolean                @default(false) @map("labor_taxable")
+  shopSuppliesEnabled                   Boolean                @default(false) @map("shop_supplies_enabled")
+  shopSuppliesRate                      Decimal                @default(0) @map("shop_supplies_rate") @db.Decimal(7, 6)
+  shopSuppliesCap                       Decimal                @default(0) @map("shop_supplies_cap") @db.Decimal(12, 2)
+  shopSuppliesTaxable                   Boolean                @default(true) @map("shop_supplies_taxable")
+  invoiceFooterMessage                  String?                @map("invoice_footer_message")
+  warrantyText                          String?                @map("warranty_text")
+  invoicePartsWarrantyText              String?                @map("invoice_parts_warranty_text")
+  invoiceAuthorizationText              String?                @map("invoice_authorization_text")
+  invoiceCertificationText              String?                @map("invoice_certification_text")
+  repairFacilityRegistrationNumber      String?                @map("repair_facility_registration_number")
+  defaultAuthorizedRepresentative       String?                @map("default_authorized_representative")
+  defaultInvoiceTechnicianName          String?                @map("default_invoice_technician_name")
+  defaultInvoiceTechnicianLicenseNumber String?                @map("default_invoice_technician_license_number")
+  nextRepairOrderNumber                 Int                    @default(1) @map("next_repair_order_number")
+  createdAt                             DateTime               @default(now()) @map("created_at")
+  updatedAt                             DateTime               @default(now()) @updatedAt @map("updated_at")
+  customers                             Customer[]
+  customerLegacyAliases                 CustomerLegacyAlias[]
+  vehicles                              Vehicle[]
+  repairOrders                          RepairOrder[]
+  repairOrderParts                      RepairOrderPart[]
+  vendors                               Vendor[]
+  repairOrderLabor                      RepairOrderLabor[]
+  invoices                              Invoice[]
+  invoiceParts                          InvoicePart[]
+  invoiceLabor                          InvoiceLabor[]
+  payments                              Payment[]
+  accountsReceivable                    AccountReceivable[]
+  employees                             Employee[]
+  memberships                           ShopMembership[]
+  rawLegacyCustomers                    RawLegacyCustomer[]
+  rawLegacyVehicles                     RawLegacyVehicle[]
+  rawLegacyFinal                        RawLegacyFinal[]
+  rawLegacyLaborFinal                   RawLegacyLaborFinal[]
+  rawLegacyAr                           RawLegacyAr[]
+  rawLegacyOrderParts                   RawLegacyOrderPart[]
+  rawLegacyOrderLabor                   RawLegacyOrderLabor[]
+  legacyImportRuns                      LegacyImportRun[]
+  legacyImportErrors                    LegacyImportError[]
+  cannedServices                        CannedService[]
+  auditLogs                             AuditLog[]
+  staffInvites                          StaffInvite[]
+  marketingLeads                        MarketingLead[]
+  marketingSettings                     MarketingSetting?
+  marketingPages                        MarketingPage[]
+  marketingServices                     MarketingService[]
+  marketingCoupons                      MarketingCoupon[]
+  marketingTestimonials                 MarketingTestimonial[]
+  marketingGalleryItems                 MarketingGalleryItem[]
 
   @@map("shops")
 }

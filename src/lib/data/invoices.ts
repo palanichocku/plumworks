@@ -122,7 +122,7 @@ export async function getInvoiceForCurrentShop(id: string) {
         },
       },
       customer: {
-        select: { id: true, displayName: true },
+        select: { id: true, displayName: true, email: true },
       },
       vehicle: {
         select: {

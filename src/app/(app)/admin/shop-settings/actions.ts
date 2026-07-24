@@ -35,14 +35,21 @@ export async function updateInvoiceSettings(formData: FormData) {
 
   const invoiceFooterMessage = optionalText(formData.get("invoiceFooterMessage"));
   const warrantyText = optionalText(formData.get("warrantyText"));
-  if ((invoiceFooterMessage?.length ?? 0) > 2000 || (warrantyText?.length ?? 0) > 4000) {
+  const invoicePartsWarrantyText = optionalText(formData.get("invoicePartsWarrantyText"));
+  const invoiceAuthorizationText = optionalText(formData.get("invoiceAuthorizationText"));
+  const invoiceCertificationText = optionalText(formData.get("invoiceCertificationText"));
+  const repairFacilityRegistrationNumber = optionalText(formData.get("repairFacilityRegistrationNumber"));
+  const defaultAuthorizedRepresentative = optionalText(formData.get("defaultAuthorizedRepresentative"));
+  const defaultInvoiceTechnicianName = optionalText(formData.get("defaultInvoiceTechnicianName"));
+  const defaultInvoiceTechnicianLicenseNumber = optionalText(formData.get("defaultInvoiceTechnicianLicenseNumber"));
+  if ((invoiceFooterMessage?.length ?? 0) > 2000 || [warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText].some((value) => (value?.length ?? 0) > 4000) || [repairFacilityRegistrationNumber, defaultInvoiceTechnicianLicenseNumber].some((value) => (value?.length ?? 0) > 100) || [defaultAuthorizedRepresentative, defaultInvoiceTechnicianName].some((value) => (value?.length ?? 0) > 150)) {
     throw new Error("Invoice settings text is too long.");
   }
 
   await prisma.$transaction(async (transaction) => {
     await transaction.shop.update({
       where: { id: membership.shopId },
-      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: true, invoiceFooterMessage, warrantyText },
+      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: true, invoiceFooterMessage, warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText, repairFacilityRegistrationNumber, defaultAuthorizedRepresentative, defaultInvoiceTechnicianName, defaultInvoiceTechnicianLicenseNumber },
     });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }) });
   });

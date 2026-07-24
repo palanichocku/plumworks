@@ -56,7 +56,7 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
         shopSuppliesOverrideReason: true,
         shopSuppliesOverriddenByUserId: true,
         shopSuppliesOverriddenAt: true,
-        shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true } },
+        shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true, invoicePartsWarrantyText: true, invoiceAuthorizationText: true, invoiceCertificationText: true, repairFacilityRegistrationNumber: true, defaultAuthorizedRepresentative: true, defaultInvoiceTechnicianName: true, defaultInvoiceTechnicianLicenseNumber: true } },
         customer: { select: { displayName: true, phone: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
         vehicle: { select: { year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true } },
         parts: { orderBy: { createdAt: "asc" }, select: { description: true, partNumber: true, quantity: true, unitPrice: true, vendorNameSnapshot: true, legacyLineKey: true } },

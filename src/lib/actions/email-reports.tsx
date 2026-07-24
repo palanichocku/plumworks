@@ -1,9 +1,9 @@
 "use server";
 
-import nodemailer from "nodemailer";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { DailySalesReportPDF } from "@/components/pdf/daily-sales-report-pdf";
 import { getDailySalesReportModel } from "@/lib/data/reports";
+import { sendGmailMessage } from "@/lib/email/gmail";
 
 export async function sendDailySalesReportEmail(
   emailAddress: string,
@@ -12,11 +12,6 @@ export async function sendDailySalesReportEmail(
 ) {
   try {
     console.log(`[Email Action] Starting generation for ${from} to ${to}...`);
-
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      console.error("[Email Action] Missing SMTP environment variables.");
-      return { success: false, error: "Server email configuration is missing." };
-    }
 
     const report = await getDailySalesReportModel({ from, to });
     if (!report) {
@@ -30,37 +25,21 @@ export async function sendDailySalesReportEmail(
       <DailySalesReportPDF report={report} fromDate={from} toDate={to} />
     );
 
-    console.log("[Email Action] Connecting to SMTP...");
-    const transporter = nodemailer.createTransport({
-      service: "gmail", 
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-
-    // Verify connection configuration
-    await transporter.verify();
-
-    console.log("[Email Action] Sending email...");
-    const info = await transporter.sendMail({
-      from: `"CAR DOC LLC Reports" <${process.env.EMAIL_USER}>`,
+    const result = await sendGmailMessage({
       to: emailAddress,
       subject: `Daily Sales Report: ${from} to ${to}`,
       text: `Please find the requested daily sales report for CAR DOC LLC attached as a PDF.\n\nInvoice Range: ${from} to ${to}`,
       attachments: [
         {
           filename: `CAR_DOC_Daily_Sales_${from}_to_${to}.pdf`,
-          content: pdfBuffer,
+          content: Buffer.from(pdfBuffer),
+          contentType: "application/pdf",
         },
       ],
     });
 
-    console.log("[Email Action] Email sent successfully:", info.messageId);
-    return { success: true };
-  } catch (error: any) {
-    console.error("[Email Action] Fatal error:", error);
-    // Return the actual error message to the toast notification for easier debugging
-    return { success: false, error: error.message || "Failed to send the report email." };
+    return result.ok ? { success: true } : { success: false, error: result.message };
+  } catch {
+    return { success: false, error: "Failed to send the report email." };
   }
 }
