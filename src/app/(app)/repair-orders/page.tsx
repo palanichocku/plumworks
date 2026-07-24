@@ -62,7 +62,7 @@ export default async function RepairOrdersPage() {
                   <th className={thClass}>Vehicle</th>
                   <th className={thClass}>Status / Scope</th>
                   <th className={thClass}>Estimated Total</th>
-                  <th className={`${thClass} text-right pr-6`}>Actions</th>
+                  <th aria-label="Row actions" className="w-14 px-2 py-3"><span className="sr-only">Row actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -119,14 +119,12 @@ export default async function RepairOrdersPage() {
                       </td>
 
                       {/* Structural Row Trailing Context Button Elements */}
-                      <td className="px-5 py-3.5 text-right pr-6 whitespace-nowrap">
+                      <td className="w-14 px-2 py-3.5 text-right whitespace-nowrap">
                         {!imported && canDelete ? (
                           <div className="inline-block opacity-60 group-hover:opacity-100 transition-opacity">
                             <DeleteRepairOrderButton repairOrderId={order.id} compact />
                           </div>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-300 select-none cursor-default">—</span>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   );
