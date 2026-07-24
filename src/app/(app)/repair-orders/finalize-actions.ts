@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { calculateEditableInvoiceTotals } from "@/lib/invoice-lifecycle";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -67,22 +68,18 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
     }
 
     const zero = new Prisma.Decimal(0);
-    const partsTotal = order.parts.reduce(
-      (sum, line) => sum.plus(line.quantity.mul(line.unitPrice).toDecimalPlaces(2)),
-      zero,
-    ).toDecimalPlaces(2);
-    const laborTotal = order.labor.reduce(
-      (sum, line) => sum.plus(line.hours.mul(line.hourlyRate).toDecimalPlaces(2)),
-      zero,
-    ).toDecimalPlaces(2);
-    const subtotal = partsTotal.plus(laborTotal).toDecimalPlaces(2);
-    const taxableTotal = (order.shop.partsTaxable ? partsTotal : zero).plus(
-      order.shop.laborTaxable ? laborTotal : zero,
-    );
-    const taxTotal = taxableTotal
-      .mul(order.shop.defaultTaxRate)
-      .toDecimalPlaces(2);
-    const total = subtotal.plus(taxTotal).toDecimalPlaces(2);
+    const totals = calculateEditableInvoiceTotals({
+      parts: order.parts,
+      labor: order.labor,
+      shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,
+      shopSuppliesRate: order.shopSuppliesRateSnapshot,
+      shopSuppliesCap: order.shopSuppliesCapSnapshot,
+      taxRate: order.shop.defaultTaxRate,
+      partsTaxable: order.shop.partsTaxable,
+      laborTaxable: order.shop.laborTaxable,
+      shopSuppliesTaxable: order.shopSuppliesTaxableSnapshot,
+    });
+    const { partsTotal, laborTotal, subtotal, taxTotal, total } = totals;
     const now = new Date();
 
     const createdInvoice = await transaction.invoice.create({
@@ -102,13 +99,13 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
         paidTotal: zero,
         customerComplaint: order.customerComplaint,
         recommendation: order.recommendation,
-        shopSuppliesAmount: order.shopSuppliesAmount,
+        shopSuppliesAmount: totals.shopSuppliesAmount,
         shopSuppliesEnabledSnapshot: order.shopSuppliesEnabledSnapshot,
         shopSuppliesRateSnapshot: order.shopSuppliesRateSnapshot,
         shopSuppliesCapSnapshot: order.shopSuppliesCapSnapshot,
         shopSuppliesTaxableSnapshot: order.shopSuppliesTaxableSnapshot,
-        shopSuppliesEligibleLaborTotal: order.shopSuppliesEligibleLaborTotal,
-        shopSuppliesCalculatedAmount: order.shopSuppliesCalculatedAmount,
+        shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+        shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
         shopSuppliesWasOverridden: order.shopSuppliesOverrideAmount !== null,
         shopSuppliesOverrideReason: order.shopSuppliesOverrideReason,
         shopSuppliesOverriddenByUserId: order.shopSuppliesOverriddenByUserId,
@@ -157,6 +154,9 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
         laborTotal,
         taxTotal,
         estimatedTotal: total,
+        shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+        shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
+        shopSuppliesAmount: totals.shopSuppliesAmount,
       },
     });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_created", "repair_order", order.id, { invoiceId: createdInvoice.id }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/invoices/${createdInvoice.id}`, contextSummary: "Invoice created from repair order" }) });

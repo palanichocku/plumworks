@@ -76,6 +76,9 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
       taxTotal: true,
       estimatedTotal: true,
       shopSuppliesAmount: true,
+      shopSuppliesEnabledSnapshot: true,
+      shopSuppliesRateSnapshot: true,
+      shopSuppliesCapSnapshot: true,
       invoices: { take: 1, select: { id: true, status: true } },
       shop: {
         select: {
@@ -91,7 +94,7 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           cannedServices: {
             where: { active: true },
             orderBy: { name: "asc" },
-            select: { id: true, name: true },
+            select: { id: true, name: true, description: true, defaultHours: true, defaultLaborRate: true },
           },
           vendors: {
             orderBy: { name: "asc" },

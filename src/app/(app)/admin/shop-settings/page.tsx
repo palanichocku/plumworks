@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
 import { updateInvoiceSettings } from "./actions";
+import { ShopSuppliesSettings } from "@/components/shop-supplies-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,9 @@ export default async function ShopSettingsPage({
       defaultLaborRate: true,
       partsTaxable: true,
       laborTaxable: true,
+      shopSuppliesEnabled: true,
+      shopSuppliesRate: true,
+      shopSuppliesCap: true,
       invoiceFooterMessage: true,
       warrantyText: true,
     },
@@ -119,6 +123,8 @@ export default async function ShopSettingsPage({
               Labor is taxable
             </label>
           </div>
+
+          <ShopSuppliesSettings enabled={shop.shopSuppliesEnabled} ratePercent={shop.shopSuppliesRate.mul(100).toString()} maximumCharge={shop.shopSuppliesCap.toString()} />
 
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Invoice footer message

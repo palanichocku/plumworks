@@ -122,7 +122,7 @@ export async function createRepairOrder(formData: FormData) {
     const shop = await transaction.shop.update({
       where: { id: membership.shopId },
       data: { nextRepairOrderNumber: { increment: 1 } },
-      select: { nextRepairOrderNumber: true },
+      select: { nextRepairOrderNumber: true, shopSuppliesEnabled: true, shopSuppliesRate: true, shopSuppliesCap: true, shopSuppliesTaxable: true },
     });
     const repairOrderNumber = shop.nextRepairOrderNumber - 1;
 
@@ -135,6 +135,10 @@ export async function createRepairOrder(formData: FormData) {
         status: "draft",
         customerComplaint,
         recommendation,
+        shopSuppliesEnabledSnapshot: shop.shopSuppliesEnabled,
+        shopSuppliesRateSnapshot: shop.shopSuppliesRate,
+        shopSuppliesCapSnapshot: shop.shopSuppliesCap,
+        shopSuppliesTaxableSnapshot: shop.shopSuppliesTaxable,
       },
       select: { id: true },
     });

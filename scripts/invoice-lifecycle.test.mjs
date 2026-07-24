@@ -15,7 +15,7 @@ test("only explicit nonlegacy OPEN invoices are editable", () => {
 });
 
 test("invoice recalculation and balance remain Decimal exact", () => {
-  const totals = calculateEditableInvoiceTotals({ parts: [{ quantity: "2", unitPrice: "10.10" }], labor: [{ hours: "1.5", hourlyRate: "100" }], shopSuppliesAmount: "5", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
+  const totals = calculateEditableInvoiceTotals({ parts: [{ quantity: "2", unitPrice: "10.10" }], labor: [{ hours: "1.5", hourlyRate: "100" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "5", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
   assert.equal(totals.partsTotal.toFixed(2), "20.20");
   assert.equal(totals.laborTotal.toFixed(2), "150.00");
   assert.equal(totals.taxTotal.toFixed(2), "1.51");

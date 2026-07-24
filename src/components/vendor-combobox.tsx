@@ -1,13 +1,18 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { cleanVendorName, MAX_VENDOR_NAME_LENGTH, normalizeVendorName } from "@/lib/vendors";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  buildVendorChoices,
+  MAX_VENDOR_NAME_LENGTH,
+  resolveVendorSubmission,
+} from "@/lib/vendors";
 
 export type VendorOption = { id: string; name: string };
 
-export function VendorCombobox({ vendors, defaultVendor = null }: {
+export function VendorCombobox({ vendors, defaultVendor = null, onValueChange }: {
   vendors: VendorOption[];
   defaultVendor?: VendorOption | null;
+  onValueChange?: (value: { vendorId: string; newVendorName: string; input: string }) => void;
 }) {
   const inputId = useId();
   const listId = `${inputId}-listbox`;
@@ -16,19 +21,38 @@ export function VendorCombobox({ vendors, defaultVendor = null }: {
   const [vendorId, setVendorId] = useState(defaultVendor?.id ?? "");
   const [newVendorName, setNewVendorName] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const cleanedQuery = cleanVendorName(query);
-  const normalizedQuery = normalizeVendorName(query);
-  const filtered = useMemo(() => vendors.filter((vendor) =>
-    normalizeVendorName(vendor.name).includes(normalizedQuery)
-  ), [normalizedQuery, vendors]);
-  const exactMatch = vendors.some((vendor) => normalizeVendorName(vendor.name) === normalizedQuery);
-  const canAdd = Boolean(cleanedQuery) && !exactMatch && cleanedQuery.length <= MAX_VENDOR_NAME_LENGTH;
-  const optionCount = filtered.length + (canAdd ? 1 : 0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const vendorIdInputRef = useRef<HTMLInputElement>(null);
+  const newVendorNameInputRef = useRef<HTMLInputElement>(null);
+  const vendorInputRef = useRef<HTMLInputElement>(null);
+  const { cleanedQuery, choices } = useMemo(
+    () => buildVendorChoices(vendors, query),
+    [query, vendors],
+  );
+  const optionCount = choices.length;
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const form = input.form;
+    if (!form) return;
+
+    function resolveSubmittedVendor() {
+      const resolved = resolveVendorSubmission(vendors, inputRef.current?.value ?? "");
+      if (vendorIdInputRef.current) vendorIdInputRef.current.value = resolved.vendorId;
+      if (newVendorNameInputRef.current) newVendorNameInputRef.current.value = resolved.newVendorName;
+      if (vendorInputRef.current) vendorInputRef.current.value = resolved.vendorInput;
+    }
+
+    form.addEventListener("submit", resolveSubmittedVendor, true);
+    return () => form.removeEventListener("submit", resolveSubmittedVendor, true);
+  }, [vendors]);
 
   function chooseExisting(vendor: VendorOption) {
     setVendorId(vendor.id);
     setNewVendorName("");
     setQuery(vendor.name);
+    onValueChange?.({ vendorId: vendor.id, newVendorName: "", input: vendor.name });
     setOpen(false);
   }
 
@@ -36,20 +60,23 @@ export function VendorCombobox({ vendors, defaultVendor = null }: {
     setVendorId("");
     setNewVendorName(cleanedQuery);
     setQuery(cleanedQuery);
+    onValueChange?.({ vendorId: "", newVendorName: cleanedQuery, input: cleanedQuery });
     setOpen(false);
   }
 
   function chooseActive() {
-    if (activeIndex < filtered.length) chooseExisting(filtered[activeIndex]);
-    else if (canAdd) chooseNew();
+    const choice = choices[activeIndex];
+    if (choice?.type === "new") chooseNew();
+    else if (choice?.type === "existing") chooseExisting(choice.vendor);
   }
 
-  return <label htmlFor={inputId} className="relative text-sm font-semibold text-slate-700">
+  return <label htmlFor={inputId} className="relative z-30 min-w-0 text-sm font-semibold text-slate-700 focus-within:z-40">
     Vendor <span className="font-normal text-slate-500">(optional)</span>
-    <input type="hidden" name="vendorId" value={vendorId} />
-    <input type="hidden" name="newVendorName" value={newVendorName} />
-    <input type="hidden" name="vendorInput" value={query} />
+    <input ref={vendorIdInputRef} type="hidden" name="vendorId" value={vendorId} />
+    <input ref={newVendorNameInputRef} type="hidden" name="newVendorName" value={newVendorName} />
+    <input ref={vendorInputRef} type="hidden" name="vendorInput" value={query} />
     <input
+      ref={inputRef}
       id={inputId}
       type="text"
       role="combobox"
@@ -64,9 +91,12 @@ export function VendorCombobox({ vendors, defaultVendor = null }: {
       className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10"
       onFocus={() => { setOpen(true); setActiveIndex(0); }}
       onChange={(event) => {
-        setQuery(event.target.value);
-        setVendorId("");
+        const nextQuery = event.target.value;
+        const nextExactVendor = buildVendorChoices(vendors, nextQuery).exactVendor;
+        setQuery(nextQuery);
+        setVendorId(nextExactVendor?.id ?? "");
         setNewVendorName("");
+        onValueChange?.({ vendorId: nextExactVendor?.id ?? "", newVendorName: "", input: nextQuery });
         setOpen(true);
         setActiveIndex(0);
       }}
@@ -89,28 +119,28 @@ export function VendorCombobox({ vendors, defaultVendor = null }: {
         }
       }}
     />
-    {open && <div id={listId} role="listbox" aria-label="Vendors" className="absolute z-20 mt-1 max-h-56 w-full min-w-48 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 font-normal shadow-lg">
-      {filtered.map((vendor, index) => <button
-        key={vendor.id}
+    {open && <div id={listId} role="listbox" aria-label="Vendors" className="absolute left-0 z-50 mt-1 max-h-56 w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 font-normal shadow-lg">
+      {choices.map((choice, index) => choice.type === "new" ? <button
+        key={`new:${choice.name}`}
         id={`${inputId}-option-${index}`}
         type="button"
         role="option"
         aria-selected={activeIndex === index}
-        className={`block w-full rounded-md px-3 py-2 text-left text-sm ${activeIndex === index ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}
+        className={`block w-full break-words rounded-md px-3 py-2 text-left text-sm font-medium ${activeIndex === index ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}
         onMouseDown={(event) => event.preventDefault()}
         onMouseEnter={() => setActiveIndex(index)}
-        onClick={() => chooseExisting(vendor)}
-      >{vendor.name}</button>)}
-      {canAdd && <button
-        id={`${inputId}-option-${filtered.length}`}
+        onClick={chooseNew}
+      >Add “{choice.name}”</button> : <button
+        key={choice.vendor.id}
+        id={`${inputId}-option-${index}`}
         type="button"
         role="option"
-        aria-selected={activeIndex === filtered.length}
-        className={`block w-full rounded-md px-3 py-2 text-left text-sm font-medium ${activeIndex === filtered.length ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}
+        aria-selected={activeIndex === index}
+        className={`block w-full break-words rounded-md px-3 py-2 text-left text-sm ${activeIndex === index ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}
         onMouseDown={(event) => event.preventDefault()}
-        onMouseEnter={() => setActiveIndex(filtered.length)}
-        onClick={chooseNew}
-      >Add “{cleanedQuery}”</button>}
+        onMouseEnter={() => setActiveIndex(index)}
+        onClick={() => chooseExisting(choice.vendor)}
+      >{choice.vendor.name}</button>)}
       {!optionCount && <p className="px-3 py-2 text-sm text-slate-500">No vendors found. Type a name to add one.</p>}
       {cleanedQuery.length > MAX_VENDOR_NAME_LENGTH && <p role="alert" className="px-3 py-2 text-sm text-red-700">Vendor name must be {MAX_VENDOR_NAME_LENGTH} characters or fewer.</p>}
     </div>}

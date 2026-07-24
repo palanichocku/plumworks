@@ -18,11 +18,19 @@ export async function updateInvoiceSettings(formData: FormData) {
   const taxRateText = String(formData.get("defaultTaxRate") ?? "").trim();
   const taxPercent = new Prisma.Decimal(taxRateText || "0");
   const laborRate = new Prisma.Decimal(String(formData.get("defaultLaborRate") ?? "0"));
+  const shopSuppliesRatePercent = new Prisma.Decimal(String(formData.get("shopSuppliesRate") ?? "0"));
+  const shopSuppliesCap = new Prisma.Decimal(String(formData.get("shopSuppliesCap") ?? "0"));
   if (!taxPercent.isFinite() || taxPercent.isNegative() || taxPercent.greaterThan(100)) {
     throw new Error("Default tax rate must be between 0 and 100.");
   }
   if (!laborRate.isFinite() || laborRate.isNegative() || laborRate.greaterThan(1_000_000)) {
     throw new Error("Default labor rate is invalid.");
+  }
+  if (!shopSuppliesRatePercent.isFinite() || shopSuppliesRatePercent.isNegative() || shopSuppliesRatePercent.greaterThan(100)) {
+    throw new Error("Shop Supplies rate must be between 0 and 100.");
+  }
+  if (!shopSuppliesCap.isFinite() || shopSuppliesCap.isNegative() || shopSuppliesCap.greaterThan(1_000_000)) {
+    throw new Error("Shop Supplies maximum charge is invalid.");
   }
 
   const invoiceFooterMessage = optionalText(formData.get("invoiceFooterMessage"));
@@ -34,11 +42,12 @@ export async function updateInvoiceSettings(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     await transaction.shop.update({
       where: { id: membership.shopId },
-      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", invoiceFooterMessage, warrantyText },
+      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: true, invoiceFooterMessage, warrantyText },
     });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }) });
   });
 
   revalidatePath("/admin/shop-settings");
+  revalidatePath("/repair-orders");
   redirect("/admin/shop-settings?saved=1");
 }

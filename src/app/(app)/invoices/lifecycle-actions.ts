@@ -17,11 +17,11 @@ const money = (value: FormDataEntryValue | null) => {
 
 async function refreshInvoice(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string) {
   const invoice = await transaction.invoice.findFirstOrThrow({ where: { id: invoiceId, shopId, status: "open", legacySourceTable: null }, select: {
-    id: true, total: true, paidTotal: true, shopSuppliesAmount: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,
+    id: true, total: true, paidTotal: true, shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,
     parts: { select: { quantity: true, unitPrice: true } }, labor: { select: { hours: true, hourlyRate: true } }, accountsReceivable: { take: 1, select: { id: true } },
   } });
   const shop = (invoice.shopSnapshot ?? {}) as { defaultTaxRate?: string | number; partsTaxable?: boolean; laborTaxable?: boolean };
-  const totals = calculateEditableInvoiceTotals({ parts: invoice.parts, labor: invoice.labor, shopSuppliesAmount: invoice.shopSuppliesAmount, taxRate: shop.defaultTaxRate ?? 0, partsTaxable: shop.partsTaxable ?? true, laborTaxable: shop.laborTaxable ?? false, shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true });
+  const totals = calculateEditableInvoiceTotals({ parts: invoice.parts, labor: invoice.labor, shopSuppliesEnabled: invoice.shopSuppliesEnabledSnapshot ?? false, shopSuppliesRate: invoice.shopSuppliesRateSnapshot ?? 0, shopSuppliesCap: invoice.shopSuppliesCapSnapshot ?? 0, taxRate: shop.defaultTaxRate ?? 0, partsTaxable: shop.partsTaxable ?? true, laborTaxable: shop.laborTaxable ?? false, shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true });
   const paid = await transaction.payment.aggregate({ where: { invoiceId, shopId }, _sum: { amount: true } });
   const paidTotal = paid._sum.amount ?? new Prisma.Decimal(0);
   const balance = invoiceBalance(totals.total, paidTotal);

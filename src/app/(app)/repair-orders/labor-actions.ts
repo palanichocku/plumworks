@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export type LaborActionState = { status: "idle" | "success" | "error"; message?: string };
 
 function laborValues(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim();
@@ -121,4 +122,22 @@ export async function deleteLaborLine(formData: FormData) {
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_deleted", "repair_order_labor", laborLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line deleted" }) });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
+}
+
+export async function addLaborLineWithState(_state: LaborActionState, formData: FormData): Promise<LaborActionState> {
+  try {
+    await addLaborLine(formData);
+    return { status: "success" };
+  } catch {
+    return { status: "error", message: "The labor line could not be saved. Check the values and try again." };
+  }
+}
+
+export async function updateLaborLineWithState(_state: LaborActionState, formData: FormData): Promise<LaborActionState> {
+  try {
+    await updateLaborLine(formData);
+    return { status: "success" };
+  } catch {
+    return { status: "error", message: "The labor line could not be saved. Check the values and try again." };
+  }
 }

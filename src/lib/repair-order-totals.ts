@@ -1,13 +1,18 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
+import { calculateShopSupplies } from "@/lib/shop-supplies";
 
 export async function refreshRepairOrderTotals(
   transaction: Prisma.TransactionClient,
   shopId: string,
   repairOrderId: string,
 ) {
-  const [shop, parts, labor] = await Promise.all([
+  const [order, shop, parts, labor] = await Promise.all([
+    transaction.repairOrder.findFirstOrThrow({
+      where: { id: repairOrderId, shopId, legacySourceTable: null },
+      select: { shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true },
+    }),
     transaction.shop.findUniqueOrThrow({
       where: { id: shopId },
       select: { defaultTaxRate: true, partsTaxable: true, laborTaxable: true },
@@ -31,9 +36,15 @@ export async function refreshRepairOrderTotals(
     (sum, line) => sum.plus(line.hours.mul(line.hourlyRate)),
     zero,
   ).toDecimalPlaces(2);
+  const supplies = calculateShopSupplies({
+    enabled: order.shopSuppliesEnabledSnapshot,
+    laborSubtotal: laborTotal,
+    rate: order.shopSuppliesRateSnapshot,
+    maximumCap: order.shopSuppliesCapSnapshot,
+  });
   const taxableTotal = (shop.partsTaxable ? partsTotal : zero).plus(
     shop.laborTaxable ? laborTotal : zero,
-  );
+  ).plus(order.shopSuppliesTaxableSnapshot ? supplies.appliedAmount : zero);
   const taxTotal = taxableTotal.mul(shop.defaultTaxRate).toDecimalPlaces(2);
 
   await transaction.repairOrder.update({
@@ -41,8 +52,11 @@ export async function refreshRepairOrderTotals(
     data: {
       partsTotal,
       laborTotal,
+      shopSuppliesEligibleLaborTotal: laborTotal,
+      shopSuppliesCalculatedAmount: supplies.appliedAmount,
+      shopSuppliesAmount: supplies.appliedAmount,
       taxTotal,
-      estimatedTotal: partsTotal.plus(laborTotal).plus(taxTotal).toDecimalPlaces(2),
+      estimatedTotal: partsTotal.plus(laborTotal).plus(supplies.appliedAmount).plus(taxTotal).toDecimalPlaces(2),
     },
   });
 }
