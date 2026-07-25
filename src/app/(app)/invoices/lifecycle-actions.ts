@@ -88,6 +88,37 @@ export async function deleteInvoiceLabor(formData: FormData) {
   await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const result = await transaction.invoiceLabor.deleteMany({ where: { id: laborId, invoiceId, shopId } }); if (result.count !== 1) throw new Error("Labor not found."); });
 }
 
+export type InvoiceEditActionState = { status: "idle" | "success" | "error"; message?: string };
+
+async function invoiceEditResult(action: (formData: FormData) => Promise<void>, formData: FormData, message: string): Promise<InvoiceEditActionState> {
+  try {
+    await action(formData);
+    return { status: "success" };
+  } catch {
+    return { status: "error", message };
+  }
+}
+
+export async function updateInvoiceDetailsWithState(_state: InvoiceEditActionState, formData: FormData) {
+  return invoiceEditResult(updateInvoiceDetails, formData, "Invoice details could not be saved. Check the values and try again.");
+}
+
+export async function addInvoicePartWithState(_state: InvoiceEditActionState, formData: FormData) {
+  return invoiceEditResult(addInvoicePart, formData, "The Invoice part could not be added. Check the values and try again.");
+}
+
+export async function updateInvoicePartWithState(_state: InvoiceEditActionState, formData: FormData) {
+  return invoiceEditResult(updateInvoicePart, formData, "The Invoice part could not be saved. Check the values and try again.");
+}
+
+export async function addInvoiceLaborWithState(_state: InvoiceEditActionState, formData: FormData) {
+  return invoiceEditResult(addInvoiceLabor, formData, "The Invoice labor could not be added. Check the values and try again.");
+}
+
+export async function updateInvoiceLaborWithState(_state: InvoiceEditActionState, formData: FormData) {
+  return invoiceEditResult(updateInvoiceLabor, formData, "The Invoice labor could not be saved. Check the values and try again.");
+}
+
 export async function closeInvoice(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? "");
   if (!UUID.test(invoiceId) || formData.get("vehicleDelivered") !== "yes") throw new Error("Vehicle delivery confirmation is required.");

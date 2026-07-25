@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [lineItems, page, workspace, styles, loader, partActions, laborActions, vendor, totals] = await Promise.all([
+const [lineItems, layout, page, workspace, styles, loader, partActions, laborActions, vendor, totals] = await Promise.all([
   read("src/components/repair-order-line-items.tsx"),
+  read("src/components/line-item-layout.tsx"),
   read("src/app/(app)/repair-orders/[id]/page.tsx"),
   read("src/components/repair-order-workspace.tsx"),
   read("src/app/globals.css"),
@@ -66,10 +67,11 @@ test("Labor rows use existing persistence and exact amount inputs", () => {
 });
 
 test("rows are responsive, accessible, independent forms with no horizontal scroller", () => {
-  assert.match(lineItems, /ro-part-row/);
-  assert.match(lineItems, /ro-labor-row/);
-  assert.match(styles, /@container \(min-width: 40rem\)[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /@container \(min-width: 48rem\)[\s\S]*\.ro-part-row[\s\S]*minmax\(0, 1fr\)[\s\S]*\.ro-labor-row/);
+  assert.match(lineItems, /partLineItemRowClass/);
+  assert.match(lineItems, /laborLineItemRowClass/);
+  assert.match(layout, /baseLineItemRowClass = "grid min-w-0 items-end gap-3"/);
+  assert.match(layout, /partLineItemRowClass = `\$\{baseLineItemRowClass\} ro-part-row`/);
+  assert.match(layout, /laborLineItemRowClass = `\$\{baseLineItemRowClass\} ro-labor-row`/);
   assert.doesNotMatch(lineItems, /overflow-x-(?:auto|scroll)/);
   assert.match(lineItems, /ariaLabel=\{label\}/);
   assert.match(lineItems, /title=\{label\}/);
@@ -90,15 +92,15 @@ test("summary is allocated real space and stacks before line controls can overfl
 });
 
 test("amount and icon actions stay in one compact accessible cluster", () => {
-  assert.match(lineItems, /function ActionCluster/);
-  assert.match(lineItems, /flex min-w-48 items-end justify-between/);
+  assert.match(lineItems, /LineItemAmountActions/);
+  assert.match(layout, /flex min-w-48 items-end justify-between/);
   for (const label of ["Add part", "Clear part", "Save part", "Delete part", "Add labor", "Clear labor", "Save labor", "Delete labor"]) assert.match(lineItems, new RegExp(`(?:ariaLabel|label)="${label}"`));
   assert.match(lineItems, /pendingAriaLabel="Adding part"/);
   assert.match(lineItems, /pendingAriaLabel="Saving labor"/);
   assert.match(lineItems, /<PlusIcon \/>/);
   assert.match(lineItems, /<CheckIcon \/>/);
   assert.doesNotMatch(lineItems, />\s*(?:Add Part|Add Labor|Save|Update|Delete)\s*</);
-  const clearButton = lineItems.slice(lineItems.indexOf("function ClearDraftButton"), lineItems.indexOf("function Amount"));
+  const clearButton = layout.slice(layout.indexOf("function ClearLineItemButton"));
   assert.match(clearButton, /type="button"/);
   assert.doesNotMatch(clearButton, /formAction|deletePartLine|deleteLaborLine/);
 });
