@@ -6,8 +6,9 @@ import { calculateShopSuppliesFromPercentage } from "@/lib/shop-supplies";
 const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-2xs outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10";
 const money = (value: { toFixed(digits: number): string }) => `$${value.toFixed(2)}`;
 
-export function ShopSuppliesSettings({ enabled, ratePercent, maximumCharge }: { enabled: boolean; ratePercent: string; maximumCharge: string }) {
+export function ShopSuppliesSettings({ enabled, ratePercent, maximumCharge, partsTaxable, laborTaxable, taxable }: { enabled: boolean; ratePercent: string; maximumCharge: string; partsTaxable: boolean; laborTaxable: boolean; taxable: boolean }) {
   const [isEnabled, setIsEnabled] = useState(enabled);
+  const [isTaxable, setIsTaxable] = useState(taxable);
   const [rate, setRate] = useState(ratePercent);
   const [cap, setCap] = useState(maximumCharge);
   const [labor, setLabor] = useState("120.00");
@@ -24,11 +25,16 @@ export function ShopSuppliesSettings({ enabled, ratePercent, maximumCharge }: { 
       <div>
         <h3 id="shop-supplies-heading" className="font-bold text-slate-900">Shop Supplies</h3>
         <p className="mt-1 text-sm text-slate-600">Calculation basis: Labor subtotal</p>
-        <p className="mt-1 text-sm text-slate-600">Shop Supplies are included in the taxable amount. Labor is not.</p>
+        <p className="mt-1 text-sm text-slate-600">Shop Supplies are calculated from Labor and, when marked taxable, are included in the taxable amount.</p>
+        <p className="mt-1 text-sm text-slate-600">Sales-tax taxable amount: {partsTaxable ? "taxable Parts" : "Parts excluded"} + {isTaxable ? "taxable Shop Supplies" : "Shop Supplies excluded"} + {laborTaxable ? "taxable Labor" : "Labor excluded"}.</p>
       </div>
       <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
         <input name="shopSuppliesEnabled" type="checkbox" checked={isEnabled} onChange={(event) => setIsEnabled(event.target.checked)} className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" />
         Enable Shop Supplies
+      </label>
+      <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+        <input name="shopSuppliesTaxable" type="checkbox" checked={isTaxable} onChange={(event) => setIsTaxable(event.target.checked)} className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" />
+        Shop Supplies are taxable
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Rate (%)<input name="shopSuppliesRate" type="number" min="0" max="100" step="0.001" required value={rate} onChange={(event) => setRate(event.target.value)} className={inputClass} /></label>
@@ -36,6 +42,7 @@ export function ShopSuppliesSettings({ enabled, ratePercent, maximumCharge }: { 
       </div>
       <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
         <p className="font-semibold text-slate-900">Shop Supplies = the lesser of labor subtotal × rate or maximum charge.</p>
+        <p className="mt-2 text-slate-600">Sales tax = configured tax rate × (taxable Parts + taxable Shop Supplies + taxable Labor when enabled).</p>
         <label className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-500">Example labor subtotal ($)<input type="number" min="0" max="1000000" step="0.01" value={labor} onChange={(event) => setLabor(event.target.value)} className={inputClass} /></label>
         {preview ? <dl className="mt-4 grid grid-cols-[1fr_auto] gap-2 tabular-nums"><dt>Rate</dt><dd>{rate || "0"}%</dd><dt>Percentage calculation</dt><dd>{money(preview.uncappedAmount)}</dd><dt>Maximum cap</dt><dd>{money(preview.configuredCap)}</dd><dt className="font-semibold text-slate-900">Applied Shop Supplies</dt><dd className="font-semibold text-slate-900">{money(preview.appliedAmount)}</dd><dt>Cap reached</dt><dd>{preview.capApplied ? "Yes" : "No"}</dd></dl> : <p role="alert" className="mt-3 text-red-700">Enter valid nonnegative example and setting values.</p>}
       </div>

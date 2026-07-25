@@ -55,6 +55,14 @@ export default function RepairOrdersHelpPage() {
             "Finalization cannot be repeated or undone, and explicitly requires a valid customer, vehicle, and repair-order number."
           ]} />
         </HelpSection>
+        <HelpSection title="Estimate calculations">
+          <HelpList items={[
+            "Shop Supplies are calculated from Labor using the saved rate and maximum charge.",
+            "When Shop Supplies are marked taxable, they are included in the taxable amount.",
+            "Sales tax uses taxable Parts, taxable Shop Supplies, and Labor only when Labor taxability is enabled in Shop Settings.",
+            "The estimated total includes Parts, Labor, Shop Supplies, and estimated sales tax."
+          ]} />
+        </HelpSection>
       </div>
 
       {/* High-Contrast Critical Finalization Panel */}

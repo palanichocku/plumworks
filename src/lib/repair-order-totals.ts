@@ -1,7 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
-import { calculateShopSupplies } from "@/lib/shop-supplies";
+import { calculateWebTransactionTotals } from "@/lib/invoice-lifecycle";
 
 export async function refreshRepairOrderTotals(
   transaction: Prisma.TransactionClient,
@@ -27,36 +27,28 @@ export async function refreshRepairOrderTotals(
     }),
   ]);
 
-  const zero = new Prisma.Decimal(0);
-  const partsTotal = parts.reduce(
-    (sum, line) => sum.plus(line.quantity.mul(line.unitPrice)),
-    zero,
-  ).toDecimalPlaces(2);
-  const laborTotal = labor.reduce(
-    (sum, line) => sum.plus(line.hours.mul(line.hourlyRate)),
-    zero,
-  ).toDecimalPlaces(2);
-  const supplies = calculateShopSupplies({
-    enabled: order.shopSuppliesEnabledSnapshot,
-    laborSubtotal: laborTotal,
-    rate: order.shopSuppliesRateSnapshot,
-    maximumCap: order.shopSuppliesCapSnapshot,
+  const totals = calculateWebTransactionTotals({
+    parts,
+    labor,
+    shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,
+    shopSuppliesRate: order.shopSuppliesRateSnapshot,
+    shopSuppliesCap: order.shopSuppliesCapSnapshot,
+    shopSuppliesTaxable: order.shopSuppliesTaxableSnapshot,
+    taxRate: shop.defaultTaxRate,
+    partsTaxable: shop.partsTaxable,
+    laborTaxable: shop.laborTaxable,
   });
-  const taxableTotal = (shop.partsTaxable ? partsTotal : zero).plus(
-    shop.laborTaxable ? laborTotal : zero,
-  ).plus(order.shopSuppliesTaxableSnapshot ? supplies.appliedAmount : zero);
-  const taxTotal = taxableTotal.mul(shop.defaultTaxRate).toDecimalPlaces(2);
 
   await transaction.repairOrder.update({
     where: { id: repairOrderId },
     data: {
-      partsTotal,
-      laborTotal,
-      shopSuppliesEligibleLaborTotal: laborTotal,
-      shopSuppliesCalculatedAmount: supplies.appliedAmount,
-      shopSuppliesAmount: supplies.appliedAmount,
-      taxTotal,
-      estimatedTotal: partsTotal.plus(laborTotal).plus(supplies.appliedAmount).plus(taxTotal).toDecimalPlaces(2),
+      partsTotal: totals.partsTotal,
+      laborTotal: totals.laborTotal,
+      shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+      shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
+      shopSuppliesAmount: totals.shopSuppliesAmount,
+      taxTotal: totals.taxTotal,
+      estimatedTotal: totals.total,
     },
   });
 }

@@ -10,7 +10,7 @@ export function invoiceBalance(total: DecimalInput, payments: DecimalInput) {
   return new Prisma.Decimal(total).minus(payments).toDecimalPlaces(2);
 }
 
-export function calculateEditableInvoiceTotals(input: {
+export function calculateWebTransactionTotals(input: {
   parts: Array<{ quantity: DecimalInput; unitPrice: DecimalInput }>;
   labor: Array<{ hours: DecimalInput; hourlyRate: DecimalInput }>;
   shopSuppliesEnabled: boolean;
@@ -33,3 +33,5 @@ export function calculateEditableInvoiceTotals(input: {
   const taxTotal = taxable.mul(input.taxRate).toDecimalPlaces(2);
   return { partsTotal, laborTotal, subtotal, shopSuppliesAmount, shopSuppliesEligibleLaborTotal: laborTotal, shopSuppliesCalculatedAmount: shopSuppliesAmount, taxTotal, total: subtotal.plus(shopSuppliesAmount).plus(taxTotal).toDecimalPlaces(2) };
 }
+
+export const calculateEditableInvoiceTotals = calculateWebTransactionTotals;

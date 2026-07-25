@@ -31,6 +31,7 @@ export default async function ShopSettingsPage({
       shopSuppliesEnabled: true,
       shopSuppliesRate: true,
       shopSuppliesCap: true,
+      shopSuppliesTaxable: true,
       invoiceFooterMessage: true,
       warrantyText: true,
       invoicePartsWarrantyText: true,
@@ -130,7 +131,7 @@ export default async function ShopSettingsPage({
             </label>
           </div>
 
-          <ShopSuppliesSettings enabled={shop.shopSuppliesEnabled} ratePercent={shop.shopSuppliesRate.mul(100).toString()} maximumCharge={shop.shopSuppliesCap.toString()} />
+          <ShopSuppliesSettings enabled={shop.shopSuppliesEnabled} ratePercent={shop.shopSuppliesRate.mul(100).toString()} maximumCharge={shop.shopSuppliesCap.toString()} partsTaxable={shop.partsTaxable} laborTaxable={shop.laborTaxable} taxable={shop.shopSuppliesTaxable} />
 
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Invoice footer message

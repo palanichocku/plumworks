@@ -34,7 +34,7 @@ export default function AdminHelpPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <HelpCard 
           title="Shop Settings" 
-          description="Invoice configurations, tax baseline values, standard hourly labor rates, document footers, and legal warranty text." 
+          description="Configure tax rates and taxability for Parts, Labor, and Shop Supplies; set the labor-based Shop Supplies rate and cap; and manage document defaults."
         />
         <HelpCard 
           title="Services" 
