@@ -40,6 +40,7 @@ export default async function InvoiceDetailPage({
     : null;
   const receivable = invoice.accountsReceivable[0];
   const balance = Number(receivable?.balance ?? 0);
+  const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const open = isEditableOpenInvoice(invoice);
   const canClose = open && Boolean(membership && ["OWNER", "ADMIN"].includes(membership.role));
   const closeBalanceIsZero = Boolean(receivable?.balance?.isZero());
@@ -109,7 +110,8 @@ export default async function InvoiceDetailPage({
           <dl className="mt-5 grid grid-cols-[1fr_auto] gap-3 text-sm">
             <dt className="text-slate-500">Parts</dt><dd>{formatMoney(invoice.partsTotal)}</dd>
             <dt className="text-slate-500">Labor</dt><dd>{formatMoney(invoice.laborTotal)}</dd>
-            <dt className="text-slate-500">Subtotal</dt><dd>{formatMoney(invoice.subtotal)}</dd>
+            <dt className="text-slate-500">Shop supplies</dt><dd>{formatMoney(invoice.shopSuppliesAmount)}</dd>
+            <dt className="text-slate-500">Subtotal before tax</dt><dd>{formatMoney(displaySubtotalBeforeTax)}</dd>
             <dt className="text-slate-500">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
             <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-900">Total</dt>
             <dd className="border-t border-slate-200 pt-3 font-semibold">{formatMoney(invoice.total)}</dd>

@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { Prisma } from "@prisma/client";
 import { invoiceEmailMessage, normalizeEmailRecipient, safeEmailHeader } from "../src/lib/email/invoice-email-core.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [model, html, pdf, printPage, css, action, emailUi, delivery, gmail, reportsEmail, schema, migration, detail, lifecycle, payment, conversion, vendorTest] = await Promise.all([
+const [model, html, pdf, printPage, css, action, emailUi, delivery, gmail, reportsEmail, schema, migration, detail, invoiceLoader, lifecycle, payment, conversion, vendorTest] = await Promise.all([
   read("src/lib/invoice-document.ts"), read("src/components/invoice-document-html.tsx"),
   read("src/components/pdf/invoice-document-pdf.tsx"), read("src/app/(documents)/invoices/[id]/print/page.tsx"),
   read("src/app/globals.css"), read("src/app/(app)/invoices/email-actions.tsx"),
   read("src/components/email-invoice-button.tsx"), read("src/lib/email/invoice-email.tsx"),
   read("src/lib/email/gmail.ts"), read("src/lib/actions/email-reports.tsx"),
   read("prisma/schema.prisma"), read("prisma/migrations/20260724120000_add_invoice_document_settings/migration.sql"),
-  read("src/app/(app)/invoices/[id]/page.tsx"), read("src/app/(app)/invoices/lifecycle-actions.ts"),
+  read("src/app/(app)/invoices/[id]/page.tsx"), read("src/lib/data/invoices.ts"), read("src/app/(app)/invoices/lifecycle-actions.ts"),
   read("src/app/(app)/invoices/payment-actions.ts"), read("src/app/(app)/repair-orders/finalize-actions.ts"),
   read("tests/vendor-feature.test.mjs"),
 ]);
@@ -44,12 +45,30 @@ test("shared document maps authoritative values and customer/vehicle data withou
     assert.match(model, new RegExp(`${field}: true`));
   }
   assert.match(model, /accountsReceivable\[0\]\?\.balance \?\? invoice\.total\.minus\(invoice\.paidTotal\)/);
+  assert.match(model, /displaySubtotalBeforeTax = invoice\.partsTotal\.plus\(invoice\.laborTotal\)\.plus\(invoice\.shopSuppliesAmount\)\.toDecimalPlaces\(2\)/);
+  assert.match(model, /displaySubtotalBeforeTax: formatMoney\(displaySubtotalBeforeTax\)/);
   assert.match(model, /customerSnapshot/);
   assert.match(model, /vehicleSnapshot/);
   assert.match(model, /complaint: invoice\.customerComplaint/);
   assert.match(model, /recommendation: invoice\.recommendation/);
   assert.doesNotMatch(model + html + pdf, /vendorNameSnapshot|Vendor/);
   assert.doesNotMatch(model, /sublet|freight|towing|discount/i);
+});
+
+test("customer-facing Invoice totals expose stored Shop Supplies in matching order", () => {
+  const displaySubtotal = new Prisma.Decimal("50.00").plus("30.00").plus("2.40").toDecimalPlaces(2);
+  assert.equal(displaySubtotal.toFixed(2), "82.40");
+  assert.equal(displaySubtotal.plus("3.14").toFixed(2), "85.54");
+  const detailTotals = detail.slice(detail.indexOf("Totals and balance"), detail.indexOf("Customer Concerns"));
+  assert.match(detailTotals, /Parts[\s\S]*Labor[\s\S]*Shop supplies[\s\S]*Subtotal before tax[\s\S]*Tax[\s\S]*Total[\s\S]*Paid[\s\S]*Balance/);
+  assert.match(detail, /formatMoney\(invoice\.shopSuppliesAmount\)/);
+  assert.match(invoiceLoader, /shopSuppliesAmount: true/);
+  assert.doesNotMatch(detailTotals, /formatMoney\(invoice\.subtotal\)/);
+  for (const renderer of [html, pdf]) {
+    assert.match(renderer, /Parts[\s\S]*Labor[\s\S]*Shop supplies[\s\S]*Subtotal before tax[\s\S]*Tax[\s\S]*Total/);
+    assert.match(renderer, /model\.totals\.shopSupplies/);
+    assert.match(renderer, /model\.totals\.displaySubtotalBeforeTax/);
+  }
 });
 
 test("browser print and PDF share one model and contain matching business sections", () => {

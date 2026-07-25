@@ -57,6 +57,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
   const vehicle = invoice.vehicle;
   const invoiceNumber = String(invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Not assigned");
   const balance = invoice.accountsReceivable[0]?.balance ?? invoice.total.minus(invoice.paidTotal).toDecimalPlaces(2);
+  const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const paymentTotals = new Map<string, Prisma.Decimal>();
   for (const payment of invoice.payments) {
     const method = payment.method?.trim() || "Other";
@@ -126,7 +127,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
     })),
     legacyCharges: invoice.legacyCharges.map((charge) => ({ label: charge.sourceLabel?.trim() || charge.sourceBucket, amount: formatMoney(charge.amount) })),
     totals: {
-      parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal),
+      parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), displaySubtotalBeforeTax: formatMoney(displaySubtotalBeforeTax),
       shopSupplies: formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total),
       amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance),
     },
