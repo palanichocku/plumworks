@@ -28,7 +28,7 @@ test("invoice creation is locked, unique, idempotent, and creates OPEN", async (
   assert.match(schema, /@@unique\(\[repairOrderId\]\)/);
   assert.match(action, /FOR UPDATE/);
   assert.match(action, /isolationLevel: "Serializable"/);
-  assert.match(action, /const existingInvoice[\s\S]*if \(existingInvoice\) return existingInvoice/);
+  assert.match(action, /const existingInvoice[\s\S]*shopId: membership\.shopId[\s\S]*if \(existingInvoice\) return existingInvoice/);
   assert.match(action, /status: "open"/);
   assert.match(action, /redirect\(`\/invoices\/\$\{invoice\.id\}`\)/);
   assert.doesNotMatch(action, /status: "finalized"/);
@@ -72,8 +72,8 @@ test("schema migration is additive and leaves historical statuses untouched", as
 });
 
 test("visible creation wording is Create Invoice and no Finalize/Create label remains", async () => {
-  const pages = (await Promise.all([read("src/app/(app)/repair-orders/[id]/page.tsx"), read("src/app/(app)/repair-orders/[id]/create-invoice/page.tsx")])).join("\n");
-  assert.match(pages, />Create Invoice</);
+  const pages = (await Promise.all([read("src/app/(app)/repair-orders/[id]/page.tsx"), read("src/components/repair-order-concerns-form.tsx")])).join("\n");
+  assert.match(pages, /"Create Invoice"/);
   assert.doesNotMatch(pages, /Finalize\s*\/\s*Create Invoice|Finalize and create invoice/);
   assert.match(pages, /Open Invoice/);
 });

@@ -10,24 +10,29 @@ import { calculateEditableInvoiceTotals } from "@/lib/invoice-lifecycle";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function createInvoiceFromRepairOrder(formData: FormData) {
-  const repairOrderId = String(formData.get("repairOrderId") ?? "");
-  if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
-  const { user, membership } = await requirePermission("finalize_repair_order");
+export type CreateInvoiceState = { status: "idle" | "error"; message?: string };
 
-  const invoice = await prisma.$transaction(async (transaction) => {
-    await transaction.$queryRaw`
+export async function createInvoiceFromRepairOrder(_previousState: CreateInvoiceState, formData: FormData): Promise<CreateInvoiceState> {
+  let invoice: { id: string };
+
+  try {
+    const repairOrderId = String(formData.get("repairOrderId") ?? "");
+    if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
+    const { user, membership } = await requirePermission("finalize_repair_order");
+
+    invoice = await prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`
       SELECT id FROM repair_orders
       WHERE id = ${repairOrderId}::uuid
         AND shop_id = ${membership.shopId}::uuid
       FOR UPDATE
     `;
 
-    const existingInvoice = await transaction.invoice.findUnique({
-      where: { repairOrderId },
-      select: { id: true },
-    });
-    if (existingInvoice) return existingInvoice;
+      const existingInvoice = await transaction.invoice.findFirst({
+        where: { repairOrderId, shopId: membership.shopId },
+        select: { id: true },
+      });
+      if (existingInvoice) return existingInvoice;
 
     const order = await transaction.repairOrder.findFirst({
       where: {
@@ -160,8 +165,11 @@ export async function createInvoiceFromRepairOrder(formData: FormData) {
       },
     });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_created", "repair_order", order.id, { invoiceId: createdInvoice.id }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/invoices/${createdInvoice.id}`, contextSummary: "Invoice created from repair order" }) });
-    return createdInvoice;
-  }, { isolationLevel: "Serializable" });
+      return createdInvoice;
+    }, { isolationLevel: "Serializable" });
+  } catch {
+    return { status: "error", message: "The Invoice could not be created. Please review the Repair Order and try again." };
+  }
 
   revalidatePath("/repair-orders");
   revalidatePath("/invoices");

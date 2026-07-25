@@ -43,7 +43,6 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
-        createInvoiceHref={`/repair-orders/${order.id}/create-invoice`}
       /> : <RepairOrderWorkspace
         overview={<OrderOverview order={order} vehicle={vehicle} />}
         concerns={<ConcernsSection order={order} />}

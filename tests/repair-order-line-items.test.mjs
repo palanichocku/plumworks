@@ -105,7 +105,7 @@ test("amount and icon actions stay in one compact accessible cluster", () => {
 
 test("surrounding workflow and server-authoritative calculations are unchanged", () => {
   assert.match(page, /Repair Order Summary/);
-  assert.match(page, /createInvoiceHref/);
+  assert.match(page, /EditableRepairOrderWorkspace/);
   assert.match(page, /EditableRepairOrderWorkspace/);
   assert.match(totals, /refreshRepairOrderTotals/);
   assert.doesNotMatch(lineItems, /shopSupplies|taxTotal|estimatedTotal|calculateShopSupplies/);
