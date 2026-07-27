@@ -20,6 +20,7 @@ import {
   parseLegacyInvoiceTransformerArguments,
 } from "./lib/legacy-invoice-transformer-safety.mjs";
 import {
+  deterministicLegacyInvoiceId,
   projectWritableInvoicePeriods,
   skippedOrderDiagnostic,
 } from "./lib/legacy-invoice-projection.mjs";
@@ -113,7 +114,7 @@ function proposedInvoiceRow(shopId, legacyRoNo, link) {
   const amounts = link.financials;
   const snapshot = link.shopSuppliesSnapshot;
   return {
-    shopId, legacyRoNo, customerId: link.customerId, vehicleId: link.vehicleId,
+    id: deterministicLegacyInvoiceId(shopId, legacyRoNo), shopId, legacyRoNo, customerId: link.customerId, vehicleId: link.vehicleId,
     status: amounts.balanceCents <= 0 ? "paid" : "open", invoiceDate: link.invoiceDate,
     partsTotal: centsToDecimal(amounts.partsCents), laborTotal: centsToDecimal(amounts.laborCents),
     subtotal: centsToDecimal(amounts.subtotalCents), taxTotal: centsToDecimal(amounts.salesTaxCents),
@@ -252,20 +253,30 @@ async function main() {
 
   try {
     const SHOP_ID = await resolveSingleShopId(prisma, options.shopId);
-    const latest = await prisma.legacyImportRun.findFirst({
-      where: {
-        shopId: SHOP_ID,
-        OR: [
-          { rawFinal: { some: {} } },
-          { rawLaborFinal: { some: {} } },
-          { rawAr: { some: {} } },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
+    const latest = options.importRunId
+      ? await prisma.legacyImportRun.findFirst({
+          where: {
+            id: options.importRunId,
+            shopId: SHOP_ID,
+            rawAr: { some: {} },
+          },
+          select: { id: true },
+        })
+      : await prisma.legacyImportRun.findFirst({
+          where: {
+            shopId: SHOP_ID,
+            OR: [
+              { rawFinal: { some: {} } },
+              { rawLaborFinal: { some: {} } },
+              { rawAr: { some: {} } },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        });
 
     if (!latest) {
+      if (options.importRunId) throw new Error("The requested Invoice/AR import run does not belong to this shop or has no staged AR rows.");
       report({
         dryRun,
         invoices: 0,
@@ -308,6 +319,7 @@ async function main() {
       });
       return;
     }
+    console.log(`import run id: ${latest.id}`);
 
     const [rawFinal, rawLabor, rawAr, customers, customerAliases, vehicles] = await Promise.all([
       prisma.rawLegacyFinal.findMany({
@@ -636,7 +648,7 @@ async function main() {
         await prisma.$transaction(async (transaction) => {
     const invoiceIds = new Map(existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
     const invoiceColumns = [
-      "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
+      "id", "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
       "parts_total", "labor_total", "subtotal", "tax_total", "total",
       "paid_total", "shop_supplies_amount", "shop_supplies_enabled_snapshot",
       "shop_supplies_rate_snapshot", "shop_supplies_cap_snapshot",
@@ -647,7 +659,7 @@ async function main() {
     if (!laborOnly) {
       for (const batch of chunks(writableClassifications(invoiceClassification))) {
         const rows = batch.map(({ proposed: row }) => [
-          row.shopId, row.customerId, row.vehicleId, row.status, row.invoiceDate,
+          row.id, row.shopId, row.customerId, row.vehicleId, row.status, row.invoiceDate,
           row.partsTotal, row.laborTotal, row.subtotal, row.taxTotal, row.total,
           row.paidTotal, row.shopSuppliesAmount, row.shopSuppliesEnabledSnapshot,
           row.shopSuppliesRateSnapshot, row.shopSuppliesCapSnapshot,
@@ -658,7 +670,7 @@ async function main() {
         const invoices = await transaction.$queryRawUnsafe(
           bulkUpsertSql(
             "invoices", invoiceColumns, ["shop_id", "legacy_ro_no"],
-            invoiceColumns.slice(1, 19).concat("legacy_source_table"), rows.length,
+            invoiceColumns.filter((column) => !["id", "shop_id", "legacy_ro_no"].includes(column)), rows.length,
             "id, legacy_ro_no",
           ),
           ...rows.flat(),

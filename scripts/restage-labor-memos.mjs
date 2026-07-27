@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
-const DBF_PATH = "OriginalWinApp/Shopman32/data/laborfinal.DBF";
-const FPT_PATH = "OriginalWinApp/Shopman32/data/laborfinal.FPT";
+const source = await resolveLegacySource({ requiredFiles: ["laborfinal.DBF", "laborfinal.FPT"] });
+printLegacySourceSummary(source);
+const DBF_PATH = source.files["laborfinal.DBF"];
+const FPT_PATH = source.files["laborfinal.FPT"];
 const decoder = new TextDecoder("windows-1252");
 
 function parseFields(file, headerLength) {
@@ -136,8 +138,8 @@ async function main() {
   if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 
   const [dbfFile, memoFile] = await Promise.all([
-    readFile(resolve(process.cwd(), DBF_PATH)),
-    readFile(resolve(process.cwd(), FPT_PATH)),
+    readFile(DBF_PATH),
+    readFile(FPT_PATH),
   ]);
   const sourceRows = readLaborRows(dbfFile, memoFile);
   const prisma = new PrismaClient({

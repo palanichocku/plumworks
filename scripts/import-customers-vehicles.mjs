@@ -1,8 +1,8 @@
 import { open, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
 
 const BATCH_SIZE = 100;
 const decoder = new TextDecoder("windows-1252");
@@ -12,9 +12,10 @@ function getArgument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const sourceFolder = getArgument("--source");
-const CUSTOMER_DBF = sourceFolder ? resolve(sourceFolder, "Cust.DBF") : "OriginalWinApp/Shopman32/data/Cust.DBF";
-const VEHICLE_DBF = sourceFolder ? resolve(sourceFolder, "vehicles.DBF") : "OriginalWinApp/Shopman32/data/vehicles.DBF";
+const source = await resolveLegacySource({ requiredFiles: ["Cust.DBF", "vehicles.DBF"] });
+printLegacySourceSummary(source);
+const CUSTOMER_DBF = source.files["Cust.DBF"];
+const VEHICLE_DBF = source.files["vehicles.DBF"];
 
 function parseFields(file, headerLength) {
   const fields = [];
@@ -111,7 +112,7 @@ function decodeRecord(record, fields) {
 }
 
 async function readDbf(relativePath) {
-  const file = await readFile(resolve(process.cwd(), relativePath));
+  const file = await readFile(relativePath);
   const recordCount = file.readUInt32LE(4);
   const headerLength = file.readUInt16LE(8);
   const recordLength = file.readUInt16LE(10);
@@ -139,7 +140,7 @@ async function readDbf(relativePath) {
 }
 
 async function readDbfSample(relativePath, limit = 5) {
-  const file = await open(resolve(process.cwd(), relativePath), "r");
+  const file = await open(relativePath, "r");
 
   try {
     const headerStart = Buffer.alloc(32);

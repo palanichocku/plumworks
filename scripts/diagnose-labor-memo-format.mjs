@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
 
-const DBF_PATH = "OriginalWinApp/Shopman32/data/laborfinal.DBF";
-const FPT_PATH = "OriginalWinApp/Shopman32/data/laborfinal.FPT";
+const source = await resolveLegacySource({ requiredFiles: ["laborfinal.DBF", "laborfinal.FPT"] });
+printLegacySourceSummary(source);
+const DBF_PATH = source.files["laborfinal.DBF"];
+const FPT_PATH = source.files["laborfinal.FPT"];
 const decoder = new TextDecoder("windows-1252");
 
 function parseFields(file, headerLength) {
@@ -168,8 +170,8 @@ function fieldIsNonEmpty(record, field) {
 
 async function main() {
   const [dbfFile, memoFile] = await Promise.all([
-    readFile(resolve(process.cwd(), DBF_PATH)),
-    readFile(resolve(process.cwd(), FPT_PATH)),
+    readFile(DBF_PATH),
+    readFile(FPT_PATH),
   ]);
   const recordCount = dbfFile.readUInt32LE(4);
   const headerLength = dbfFile.readUInt16LE(8);

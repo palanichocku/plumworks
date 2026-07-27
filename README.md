@@ -43,10 +43,13 @@ After the raw-table migration is approved and applied, stage a specific shop
 manually:
 
 ~~~bash
-npm run legacy:import:customers-vehicles -- --shop-id <shop-uuid>
+npm run legacy:import:customers-vehicles -- \
+  --source /protected/plumworks-snapshots/<dated-snapshot>/Shopman32/data \
+  --shop-id <shop-uuid>
 ~~~
 
-The command is never run automatically. It reads the two approved DBF paths
+The command is never run automatically. An explicit immutable snapshot `--source`
+is required; repository seed data is never used as a fallback. It reads the two approved DBF paths
 without changing them and reports counts/status only; it does not print record
 contents. Memo pointers are staged without opening any related legacy files.
 

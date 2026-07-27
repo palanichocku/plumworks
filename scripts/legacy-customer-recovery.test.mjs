@@ -7,6 +7,7 @@ import {
   manifestOrderSummary,
   planAliasRecovery,
   planCustomerRecovery,
+  resolveRecoverySourceReferences,
   resolveLegacyCustomerId,
 } from "./lib/legacy-customer-recovery.mjs";
 
@@ -45,6 +46,52 @@ test("conflicting exact and alias resolution fails", () => {
     () => resolveLegacyCustomerId("CONFLICT", new Map([["CONFLICT", "customer-1"]]), new Map([["CONFLICT", "customer-2"]])),
     /conflicting alias customer/,
   );
+});
+
+test("authoritative AR references override FINAL differences and retain aggregate diagnostics", () => {
+  const result = resolveRecoverySourceReferences([
+    { legacyRoNo: "12659", legacyCustno: "0", sourceTable: "FINAL.DBF" },
+    { legacyRoNo: "12659", legacyCustno: "87605505", total: "97.63", sourceTable: "ar.DBF" },
+    { legacyRoNo: "21246", legacyCustno: "87612026", sourceTable: "FINAL.DBF" },
+    { legacyRoNo: "21246", legacyCustno: "87611248", sourceTable: "FINAL.DBF" },
+    { legacyRoNo: "21246", legacyCustno: "87612026", total: "1204.79", sourceTable: "ar.DBF" },
+  ]);
+  assert.deepEqual(result.map.get("12659"), { legacyRoNo: "12659", legacyCustno: "87605505", total: "97.63", sourceTable: "ar.DBF" });
+  assert.equal(result.map.get("21246").conflicting, undefined);
+  assert.deepEqual(result.diagnostics, {
+    finalToArCustomerReferenceDifferences: 2,
+    finalOnlyConflictingReferencesIgnored: 1,
+    authoritativeArConflicts: 0,
+    fallbackResolutions: 0,
+  });
+});
+
+test("materially conflicting authoritative AR identifiers or totals remain conflicts", () => {
+  for (const second of [
+    { legacyCustno: "OTHER", total: "10.00" },
+    { legacyCustno: "PRIMARY", total: "11.00" },
+  ]) {
+    const result = resolveRecoverySourceReferences([
+      { legacyRoNo: "10", legacyCustno: "PRIMARY", total: "10", sourceTable: "ar.DBF" },
+      { legacyRoNo: "10", ...second, sourceTable: "AR.DBF" },
+    ]);
+    assert.equal(result.map.get("10").conflicting, true);
+    assert.equal(result.map.get("10").conflictCode, "authoritative-ar-conflict");
+    assert.equal(result.diagnostics.authoritativeArConflicts, 1);
+  }
+});
+
+test("FINAL fallback preserves existing selection and conflict behavior when AR is unavailable", () => {
+  const resolved = resolveRecoverySourceReferences([
+    { legacyRoNo: "20", legacyCustno: "PRIMARY", total: "20.00", sourceTable: "FINAL.DBF" },
+  ]);
+  assert.equal(resolved.map.get("20").legacyCustno, "PRIMARY");
+  assert.equal(resolved.diagnostics.fallbackResolutions, 1);
+  const conflict = resolveRecoverySourceReferences([
+    { legacyRoNo: "21", legacyCustno: "PRIMARY", sourceTable: "FINAL.DBF" },
+    { legacyRoNo: "21", legacyCustno: "OTHER", sourceTable: "FINAL.DBF" },
+  ]);
+  assert.equal(conflict.map.get("21").conflicting, true);
 });
 
 test("alias rerun is idempotent and a conflicting alias fails planning", () => {

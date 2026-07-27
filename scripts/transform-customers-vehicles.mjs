@@ -9,6 +9,7 @@ function argument(name) {
 
 const SHOP_ID = argument("--shop-id");
 if (!SHOP_ID) throw new Error("--shop-id is required.");
+const IMPORT_RUN_ID = argument("--import-run-id");
 
 function report({
   customersInserted,
@@ -39,13 +40,19 @@ async function main() {
   });
 
   try {
-    const latestRawCustomer = await prisma.rawLegacyCustomer.findFirst({
-      where: { shopId: SHOP_ID },
-      orderBy: { createdAt: "desc" },
-      select: { legacyImportRunId: true },
-    });
+    const latestRawCustomer = IMPORT_RUN_ID
+      ? await prisma.rawLegacyCustomer.findFirst({
+          where: { shopId: SHOP_ID, legacyImportRunId: IMPORT_RUN_ID },
+          select: { legacyImportRunId: true },
+        })
+      : await prisma.rawLegacyCustomer.findFirst({
+          where: { shopId: SHOP_ID },
+          orderBy: { createdAt: "desc" },
+          select: { legacyImportRunId: true },
+        });
 
     if (!latestRawCustomer) {
+      if (IMPORT_RUN_ID) throw new Error("The requested Customer import run has no staged Customer rows for this shop.");
       report({
         customersInserted: 0,
         customersUpdated: 0,

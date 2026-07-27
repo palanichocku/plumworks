@@ -69,6 +69,8 @@ export function reconcileOpenOrderRows({ partRows, laborRows, customerIds, vehic
     }
   }
   let validOrders = 0;
+  let validParts = 0;
+  let validLabor = 0;
   let missingCustomerLink = 0;
   let missingVehicleLink = 0;
   for (const group of groups.values()) {
@@ -79,10 +81,16 @@ export function reconcileOpenOrderRows({ partRows, laborRows, customerIds, vehic
     const hasVehicle = Boolean(legacyCarno && vehicleIds.has(legacyCarno));
     if (!hasCustomer) missingCustomerLink += 1;
     if (!hasVehicle) missingVehicleLink += 1;
-    if (hasCustomer && hasVehicle) validOrders += 1;
+    if (hasCustomer && hasVehicle) {
+      validOrders += 1;
+      validParts += group.parts.length;
+      validLabor += group.labor.length;
+    }
   }
   return {
     orders: validOrders,
+    parts: validParts,
+    labor: validLabor,
     reasons: {
       blankRoRows: partRows.filter((row) => !row.legacyRoNo).length + laborRows.filter((row) => !row.legacyRoNo).length,
       additionalRows: partRows.length + laborRows.length - groups.size,

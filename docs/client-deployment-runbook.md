@@ -130,18 +130,23 @@ Do not create an owner membership for an unverified email, and never use a servi
 
 ## 8. Import legacy data
 
-1. Obtain a final, read-only copy of the approved Shopman32 data folder outside `OriginalWinApp/` and outside source control.
-2. Confirm all required DBF/FPT files are readable and record checksums in the protected cutover record. Never commit source files or extracted sample JSON.
-3. Run the consolidated cutover dry-run with explicit source path:
+1. Run `legacy:snapshot:intake` against the received `shopman32.zip` and an explicit protected destination. Retain the accepted immutable snapshot outside source control.
+2. Review its manifest, required DBF/FPT validation, and checksums. Never commit source files or extracted sample JSON.
+3. Run the consolidated cutover dry-run with the exact data directory printed by snapshot intake:
 
 ```bash
-npm run legacy:cutover:dry-run -- --source /approved/read-only/Shopman32/data --report --summary-only
+npm run legacy:cutover -- \
+  --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --payment-date-policy invoice-date-proxy \
+  --dry-run --report --summary-only
 ```
 
-4. Review source counts, reconciliation gaps, expected clean counts, accounting totals, and validation issues. Dry-run must report zero database writes.
-5. Before production reload, confirm managed backup/PITR and follow `docs/cutover-runbook.md`. Use the explicit shop-scoping enhancement required by the readiness audit once available; until then, independently verify the database contains exactly one shop.
-6. Store cutover reports and backups in encrypted, access-controlled client storage. Do not commit them.
-7. Schedule downtime and perform the confirmed backup/reset/reload command only after client approval. The reload preserves the shop, memberships, invites, canned services, settings, Auth users, migrations, and security configuration, but replaces scoped operational/staging data.
+4. Supply the explicitly reviewed, snapshot-specific Customer recovery manifest. Its source fingerprint and shop binding must match this accepted snapshot; never reuse seed recovery decisions after the source changes.
+5. Review source counts, recovery/alias/unresolved counts, the exact Invoice/AR staging run, projected Payment rows and tender totals, reconciliation gaps, expected clean counts, accounting totals, and validation issues. Dry-run must report zero database writes.
+6. Before production reload, confirm managed backup/PITR and follow `docs/cutover-runbook.md`. Use the explicit shop-scoping enhancement required by the readiness audit once available; until then, independently verify the database contains exactly one shop.
+7. Store cutover reports, private recovery manifests, and backups in encrypted, access-controlled client storage. Do not commit them.
+8. Schedule downtime and perform the confirmed backup/reset/reload command only after client approval. The reload preserves the shop, memberships, invites, canned services, settings, Auth users, migrations, and security configuration, but replaces scoped operational/staging data, including web-created Payments. Customer recovery runs before Invoice transformation. Historical Payment tender rows are then projected from the exact Invoice/AR run and must pass before open Repair Orders load. `ar.DBF` remains authoritative for Invoice total, paid total, and AR balance; Payment rows are tender-allocation detail. Invoice dates are disclosed proxies, not proven payment receipt timestamps, and any Payment mismatch blocks cutover.
 
 ## 8a. Import client marketing content
 

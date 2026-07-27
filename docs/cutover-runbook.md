@@ -1,14 +1,30 @@
 # Legacy cutover runbook
 
-The licensed shop deployment uses one safe-by-default driver for legacy cutover. The source argument must point to the latest `Shopman32/data` folder. The driver reads that folder but never modifies it, and its output contains counts only.
+For the complete zero-write rehearsal command, including snapshot intake, snapshot-bound recovery validation, Payment projection, count equality, and focused validation, see `docs/legacy-refresh-rehearsal.md` and run `npm run legacy:rehearse` before scheduling the confirmed workflow below.
+
+The licensed shop deployment uses one safe-by-default driver for legacy cutover. The required source argument must point to the accepted immutable snapshot data directory printed by `legacy:snapshot:intake`. Repository seed data is never used as a fallback. The driver reads that folder but never modifies it, and its output contains counts only.
 
 ## Dry-run
 
 ```sh
-npm run legacy:cutover:dry-run -- --source /path/to/Shopman32/data
+npm run legacy:cutover -- \
+  --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --payment-date-policy invoice-date-proxy \
+  --dry-run
 ```
 
-This is the default mode. It checks the shop database connection and required source files, reads DBF header row counts, and reports the operational rows that would be reset. It performs no writes.
+This is the default mode. It checks the shop database connection and required source files, reads DBF header row counts, validates the approved Customer recovery plan, builds the exact-run Invoice/AR and Payment projections, and reports the operational rows that would be reset. It performs no writes.
+
+## Snapshot-specific Customer recovery
+
+Some historical Invoice/AR rows reference Customers that cannot be imported normally from `Cust.DBF`. Their reviewed recovery decisions are supplied explicitly with `--customer-recovery-manifest`; the cutover never searches for or chooses a manifest. The version 2 manifest must bind the review to the exact combined source fingerprint, shop UUID, expected source tables, and reviewed recovered/alias/unresolved counts.
+
+A manifest created for the original seed is not valid for a later snapshot. Even when filenames are unchanged, a changed source fingerprint requires regenerating and reviewing the recovery evidence and approving a new manifest. The manifest may keep an unresolved order skipped only when its non-sensitive order/customer identity and authoritative total still exactly match the approved entry. New or materially changed unresolved evidence blocks the cutover.
+
+During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are then recreated transactionally, before `FINAL`, `laborfinal`, and `ar` are staged and transformed. A recovery conflict or transaction failure stops the workflow before Invoice staging.
+
+Historical Payment tender allocation is part of the complete replacement. After Invoice and Accounts Receivable transformation, the cutover passes that exact staging-run ID and the completed recovery result into the shared hardened Payment projection. `ar.DBF.TOTAL`, `PAYMENT`, and `BALANCE` remain authoritative; Payment rows only preserve normalized tender-bucket detail and never recalculate Invoice paid totals or receivable balances. `--payment-date-policy invoice-date-proxy` is mandatory because the source does not prove receipt timestamps. Reports label these day/month groupings as **Legacy payment tender allocation using Invoice date proxy**, not actual payment chronology. Any reconciliation, identity, recovery, or deterministic-row conflict blocks Payment insertion and prevents open Repair Order staging.
 
 ## Snapshot
 
@@ -36,7 +52,9 @@ Review the dry-run immediately before cutover. Then run:
 
 ```sh
 node --env-file=.env.local scripts/legacy-cutover.mjs \
-  --source /path/to/Shopman32/data \
+  --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --payment-date-policy invoice-date-proxy \
   --backup \
   --reset-operational-data \
   --reload-legacy \
@@ -45,12 +63,30 @@ node --env-file=.env.local scripts/legacy-cutover.mjs \
   --confirm RESET_SHOP_OPERATIONAL_DATA
 ```
 
-The confirmation phrase and `--backup` are mandatory. The backup must complete with all four non-empty files before reset begins. The reset preserves shops, memberships, staff invites, canned services, shop settings, Auth users, migrations, and database security configuration. It clears only operational/staging data before importing customers, vehicles, invoices, AR, and open repair orders in dependency order.
+The confirmation phrase and `--backup` are mandatory. The backup must complete with all four non-empty files before reset begins. The reset preserves shops, memberships, staff invites, canned services, shop settings, Auth users, migrations, and database security configuration. It clears operational/staging data, including web-created Payments, before importing normal Customers/Vehicles, applying approved Customer recovery, importing Invoices/AR, importing historical Payment tender detail, and importing open Repair Orders in dependency order.
+
+The confirmation phrase is authorization, not an execution request. A full replacement requires all five execution safeguards together: `--backup`, `--reset-operational-data`, `--reload-legacy`, `--verify`, and `--report`. Supplying confirmation without those flags fails clearly and cannot start a reset.
+
+Run a read-only readiness report before the confirmed command:
+
+```sh
+npm run legacy:cutover -- \
+  --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --payment-date-policy invoice-date-proxy \
+  --preflight --report
+```
+
+Preflight prints the backup destination, rows that would be deleted, authoritative projected reload counts, preserved counts, source and recovery-manifest fingerprints, and projection-count inconsistencies. It never accepts reset, reload, or confirmation flags and performs zero database writes.
 
 ## Verify only
 
 ```sh
-npm run legacy:cutover:verify
+npm run legacy:cutover -- \
+  --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --payment-date-policy invoice-date-proxy \
+  --verify --report
 ```
 
 Verification reports counts only, confirms server-side Prisma access, and checks that all Prisma-managed public tables retain RLS with browser API privileges revoked.

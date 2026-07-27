@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
 
 const BATCH_SIZE = 100;
 const decoder = new TextDecoder("windows-1252");
@@ -11,19 +11,19 @@ function argument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const sourceFolder = argument("--source");
-const sourcePath = (name) => sourceFolder ? resolve(sourceFolder, name) : `OriginalWinApp/Shopman32/data/${name}`;
+const source = await resolveLegacySource({ requiredFiles: ["orders.DBF", "LABORorder.DBF"] });
+printLegacySourceSummary(source);
 const SHOP_ID = argument("--shop-id");
 if (!SHOP_ID) throw new Error("--shop-id is required.");
 const SOURCES = [
   {
     label: "open order part",
-    path: sourcePath("orders.DBF"),
+    path: source.files["orders.DBF"],
     model: "rawLegacyOrderPart",
   },
   {
     label: "open order labor",
-    path: sourcePath("LABORorder.DBF"),
+    path: source.files["LABORorder.DBF"],
     model: "rawLegacyOrderLabor",
   },
 ];
@@ -138,7 +138,7 @@ async function loadSources() {
   return Promise.all(
     SOURCES.map(async (source) => ({
       ...source,
-      rows: readRows(await readFile(resolve(process.cwd(), source.path))),
+      rows: readRows(await readFile(source.path)),
     })),
   );
 }

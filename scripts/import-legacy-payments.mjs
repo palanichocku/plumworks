@@ -3,12 +3,12 @@ import { PrismaClient } from "@prisma/client";
 import { aliasResolutionMaps, resolveLegacyCustomerId } from "./lib/legacy-customer-recovery.mjs";
 import { centsToDecimal } from "./lib/legacy-invoice-financials.mjs";
 import {
-  classifyLegacyPaymentRows,
   executeLegacyPaymentInsertTransaction,
+  LEGACY_PAYMENT_DATE_LABEL,
   LEGACY_PAYMENT_PERSISTED_FIELDS,
   LEGACY_TENDER_BUCKETS,
   parseLegacyPaymentImportArguments,
-  planLegacyPaymentOrder,
+  projectLegacyPayments,
 } from "./lib/legacy-payment-import.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 
@@ -16,58 +16,34 @@ const options = parseLegacyPaymentImportArguments(process.argv.slice(2));
 console.log(`Execution mode: ${options.dryRun ? "DRY RUN" : "CONFIRMED WRITE"}`);
 console.log(`Confirmation status: ${options.confirmationStatus}`);
 console.log(`Database writes permitted: ${options.confirmedWrite ? "yes" : "no"}`);
-console.log("Historical paidAt proxy: transformed operational Invoice.invoiceDate (exact legacy receipt timestamps did not survive).");
+console.log(`Import run: ${options.importRunId}`);
+console.log(`Payment date policy: ${LEGACY_PAYMENT_DATE_LABEL}`);
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not configured.");
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 
-function add(map, key, cents) {
-  map.set(key, (map.get(key) ?? 0) + cents);
-}
-
-function periodKey(date) {
-  const time = date.getTime();
-  if (time >= Date.UTC(2026, 0, 1) && time < Date.UTC(2026, 1, 1)) return ["all history", "January 2026", "January-June 2026"];
-  if (time >= Date.UTC(2026, 1, 1) && time < Date.UTC(2026, 6, 1)) return ["all history", "January-June 2026"];
-  if (time >= Date.UTC(2025, 0, 1) && time < Date.UTC(2026, 0, 1)) return ["all history", "calendar year 2025"];
-  return ["all history"];
-}
-
-function printMethodAmounts(label, amounts) {
-  console.log(`${label}:`);
-  for (const method of ["cash", "check", "card", "internal", "other"]) {
-    console.log(`  ${method}: ${centsToDecimal(amounts.get(method) ?? 0)}`);
-  }
-  console.log(`  total: ${centsToDecimal([...amounts.values()].reduce((sum, cents) => sum + cents, 0))}`);
-}
-
-function duplicateValues(rows, key) {
-  const seen = new Set();
-  const duplicates = new Set();
-  for (const row of rows) {
-    const value = key(row);
-    if (seen.has(value)) duplicates.add(value);
-    seen.add(value);
-  }
-  return duplicates;
+function printAggregate(label, aggregate) {
+  console.log(`${label}: ${aggregate.count} / ${centsToDecimal(aggregate.amountCents)}`);
 }
 
 try {
   // Passing null deliberately prevents an environment variable from silently selecting a shop.
   const shopId = await resolveSingleShopId(prisma, options.shopId ?? null);
-  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: { id: true, name: true } });
-  const latest = await prisma.legacyImportRun.findFirst({
-    where: { shopId, rawAr: { some: {} } },
-    orderBy: { createdAt: "desc" },
-    select: { id: true },
-  });
-  if (!latest) throw new Error("No staged RawLegacyAr import run was found.");
+  const [shop, importRun] = await Promise.all([
+    prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: { id: true, name: true } }),
+    prisma.legacyImportRun.findFirst({
+      where: { id: options.importRunId, shopId },
+      select: { id: true },
+    }),
+  ]);
+  if (!importRun) throw new Error("The requested import run does not exist in the selected shop.");
 
   const [sourceRows, invoices, customers, aliases] = await Promise.all([
     prisma.rawLegacyAr.findMany({
-      where: { shopId, legacyImportRunId: latest.id },
-      select: { legacyRoNo: true, legacyCustno: true, rawData: true },
+      where: { shopId, legacyImportRunId: options.importRunId },
+      select: { id: true, shopId: true, legacyImportRunId: true, legacyRoNo: true, legacyCustno: true, rawData: true },
+      orderBy: { id: "asc" },
     }),
     prisma.invoice.findMany({
       where: { shopId, legacyRoNo: { not: null } },
@@ -82,95 +58,61 @@ try {
       select: { customerId: true, aliasLegacyCustno: true },
     }),
   ]);
+  if (sourceRows.length === 0) throw new Error("The requested import run has no RawLegacyAr rows for the selected shop.");
 
-  const blankSourceRos = sourceRows.filter((row) => !row.legacyRoNo?.trim()).length;
-  if (blankSourceRos) throw new Error(`${blankSourceRos} RawLegacyAr row(s) have no legacy RO number.`);
-  const sourceDuplicates = duplicateValues(sourceRows, (row) => row.legacyRoNo.trim());
-  if (sourceDuplicates.size) throw new Error(`Duplicate RawLegacyAr RO numbers: ${[...sourceDuplicates].join(", ")}`);
-  const invoiceDuplicates = duplicateValues(invoices, (row) => row.legacyRoNo.trim());
-  if (invoiceDuplicates.size) throw new Error(`Duplicate operational shopId + legacyRoNo values: ${[...invoiceDuplicates].join(", ")}`);
-
-  const invoiceByRo = new Map(invoices.map((invoice) => [invoice.legacyRoNo.trim(), invoice]));
   const { exactCustomerIds, aliasCustomerIds } = aliasResolutionMaps(customers, aliases);
-  const plans = [];
-  const unmatched = [];
-  let customerMismatches = 0;
-  for (const source of sourceRows) {
-    const ro = source.legacyRoNo.trim();
-    const invoice = invoiceByRo.get(ro) ?? null;
-    if (invoice) {
-      const expectedCustomerId = resolveLegacyCustomerId(source.legacyCustno?.trim(), exactCustomerIds, aliasCustomerIds);
-      if (!expectedCustomerId || expectedCustomerId !== invoice.customerId) customerMismatches += 1;
-    } else unmatched.push(ro);
-    plans.push(planLegacyPaymentOrder({ shopId, source: { ...source, legacyRoNo: ro }, invoice }));
-  }
+  const resolvedCustomers = [...new Set(sourceRows.map((row) => row.legacyCustno?.trim()).filter(Boolean))].map((legacyCustno) => ({
+    legacyCustno,
+    customerId: resolveLegacyCustomerId(legacyCustno, exactCustomerIds, aliasCustomerIds),
+  })).filter((resolution) => resolution.customerId);
 
-  const matchedPlans = plans.filter((plan) => plan.matched);
-  const proposedRows = matchedPlans.flatMap((plan) => plan.rows);
-  const tenderMismatches = plans.filter((plan) => !plan.tenderReconciles);
-  const invoiceMismatches = matchedPlans.filter((plan) => !plan.invoiceReconciles);
-  const positiveInvoices = matchedPlans.filter((plan) => plan.paymentCents > 0).length;
-  const zeroInvoices = matchedPlans.filter((plan) => plan.paymentCents === 0).length;
-  const splitInvoices = matchedPlans.filter((plan) => plan.rows.length > 1);
-
-  const existing = proposedRows.length === 0 ? [] : await prisma.payment.findMany({
-    where: { id: { in: proposedRows.map((row) => row.id) } },
+  const projectionInputs = {
+    shopId,
+    importRunId: options.importRunId,
+    stagedArRows: sourceRows,
+    invoices,
+    resolvedCustomers,
+    paymentDatePolicy: options.paymentDatePolicy,
+  };
+  const initialProjection = projectLegacyPayments(projectionInputs);
+  const existingRows = initialProjection.proposedRows.length === 0 ? [] : await prisma.payment.findMany({
+    where: { id: { in: initialProjection.proposedRows.map((row) => row.id) } },
     select: Object.fromEntries(LEGACY_PAYMENT_PERSISTED_FIELDS.map((field) => [field, true])),
   });
-  const classification = classifyLegacyPaymentRows(proposedRows, existing);
-  const bucketRows = new Map();
-  const bucketAmounts = new Map();
-  const methodRows = new Map();
-  const methodAmounts = new Map();
-  const periods = new Map();
-  for (const label of ["all history", "calendar year 2025", "January-June 2026", "January 2026"]) periods.set(label, new Map());
-  for (const row of proposedRows) {
-    add(bucketRows, row.sourceBucket, 1);
-    add(bucketAmounts, row.sourceBucket, row.amountCents);
-    add(methodRows, row.method, 1);
-    add(methodAmounts, row.method, row.amountCents);
-    for (const label of periodKey(row.paidAt)) add(periods.get(label), row.method, row.amountCents);
-  }
+  const projection = projectLegacyPayments({ ...projectionInputs, existingRows });
 
   console.log(`Target shop: ${shop.name} (${shop.id})`);
-  console.log(`Source AR orders reviewed: ${sourceRows.length}`);
-  console.log(`Operational invoices matched: ${matchedPlans.length}`);
-  console.log(`Source orders without operational invoice: ${unmatched.length}`);
-  console.log(`Unmatched legacy ROs: ${unmatched.length ? unmatched.join(", ") : "none"}`);
-  console.log(`Operational invoice customer mismatches: ${customerMismatches}`);
-  console.log(`Positive-payment operational invoices: ${positiveInvoices}`);
-  console.log(`Zero-dollar operational invoices: ${zeroInvoices}`);
-  console.log(`Split-tender invoices: ${splitInvoices.length}`);
-  console.log(`Tender rows proposed: ${proposedRows.length}`);
-  console.log(`Payment rows to insert: ${classification.inserts.length}`);
-  console.log(`Payment rows unchanged: ${classification.unchanged.length}`);
-  console.log(`Payment conflicts: ${classification.conflicts.length}`);
-  console.log(`Tender reconciliation matches: ${plans.length - tenderMismatches.length}`);
-  console.log(`Tender reconciliation mismatches: ${tenderMismatches.length}`);
-  console.log(`Invoice paid-total reconciliation matches: ${matchedPlans.length - invoiceMismatches.length}`);
-  console.log(`Invoice paid-total mismatches: ${invoiceMismatches.length}`);
-  console.log("Rows and amounts by source bucket:");
-  for (const { bucket } of LEGACY_TENDER_BUCKETS) {
-    console.log(`  ${bucket}: ${bucketRows.get(bucket) ?? 0} / ${centsToDecimal(bucketAmounts.get(bucket) ?? 0)}`);
+  console.log(`Report basis: ${projection.label}`);
+  console.log(`Staged AR rows: ${projection.stagedArRowCount}`);
+  console.log(`Eligible matched Invoices: ${projection.eligibleInvoiceCount}`);
+  console.log(`Matched / unmatched Invoices: ${projection.matchedInvoiceCount} / ${projection.unmatchedInvoiceCount}`);
+  console.log(`Matched / unmatched Customers: ${projection.matchedCustomerCount} / ${projection.unmatchedCustomerCount}`);
+  console.log(`Unmatched zero-payment / nonzero-payment source orders: ${projection.counts.unmatchedZeroPaymentCount} / ${projection.counts.unmatchedNonzeroPaymentCount}`);
+  console.log(`Proposed Payment rows: ${projection.proposedRows.length}`);
+  console.log(`Total proposed Payment amount: ${centsToDecimal(projection.proposedPaymentAmountCents)}`);
+  console.log(`Payment rows to insert / unchanged / conflicting: ${projection.existing.inserts.length} / ${projection.existing.unchanged.length} / ${projection.existing.conflicts.length}`);
+  console.log(`Zero / partial / fully paid orders: ${projection.counts.zeroPaymentOrderCount} / ${projection.counts.partialPaymentOrderCount} / ${projection.counts.fullyPaidOrderCount}`);
+  console.log(`Split-tender orders: ${projection.counts.splitTenderOrderCount}`);
+  console.log(`Identical duplicate / conflicting source keys: ${projection.counts.identicalDuplicateSourceKeyCount} / ${projection.counts.conflictingSourceKeyCount}`);
+  console.log(`Duplicate deterministic keys: ${projection.counts.duplicateDeterministicKeyCount}`);
+  console.log(`Invalid or missing Invoice date proxies: ${projection.counts.invalidProxyDateCount}`);
+  console.log(`Tender / Invoice reconciliation mismatches: ${projection.counts.tenderMismatchCount} / ${projection.counts.invoiceMismatchCount}`);
+  console.log("Source tender buckets:");
+  for (const { bucket } of LEGACY_TENDER_BUCKETS) printAggregate(`  ${bucket}`, projection.sourceBucketTotals[bucket]);
+  console.log("Normalized methods:");
+  for (const method of ["cash", "check", "card", "internal", "other"]) printAggregate(`  ${method}`, projection.normalizedMethodTotals[method]);
+  console.log(`Period totals (${projection.label}):`);
+  for (const [period, aggregate] of Object.entries(projection.periodTotals).sort()) printAggregate(`  ${period}`, aggregate);
+  console.log("Unsupported/source-context fields with meaningful values:");
+  if (projection.unsupportedFieldClassifications.length === 0) console.log("  none");
+  for (const item of projection.unsupportedFieldClassifications) {
+    console.log(`  ${item.field} [${item.classification}]: ${item.count} / ${centsToDecimal(item.amountCents)}`);
   }
-  console.log("Rows and amounts by normalized method:");
-  for (const method of ["cash", "check", "card", "internal", "other"]) {
-    console.log(`  ${method}: ${methodRows.get(method) ?? 0} / ${centsToDecimal(methodAmounts.get(method) ?? 0)}`);
-  }
-  for (const [label, amounts] of periods) printMethodAmounts(label, amounts);
-  const januarySplit = splitInvoices.filter((plan) => {
-    const date = invoiceByRo.get(plan.legacyRoNo).invoiceDate;
-    return date >= new Date(Date.UTC(2026, 0, 1)) && date < new Date(Date.UTC(2026, 1, 1));
-  });
-  console.log(`January 2026 split-tender invoices: ${januarySplit.length}`);
-  for (const plan of januarySplit) {
-    console.log(`  RO ${plan.legacyRoNo}: ${plan.rows.map((row) => `${row.method} ${row.amount}`).join(", ")} / total ${centsToDecimal(plan.totalCents)}`);
-  }
+  console.log(`Warnings: ${projection.warnings.length}`);
+  console.log(`Fatal issues: ${projection.fatalIssues.length}`);
 
-  if (customerMismatches || tenderMismatches.length || invoiceMismatches.length || classification.conflicts.length) {
-    throw new Error("Legacy payment safety validation failed; no writes were attempted.");
-  }
-  const writeResult = await executeLegacyPaymentInsertTransaction({ confirmedWrite: options.confirmedWrite, prisma, proposedRows });
+  if (projection.fatalIssues.length > 0) throw new Error("Legacy payment safety validation failed; no writes were attempted.");
+  const writeResult = await executeLegacyPaymentInsertTransaction({ confirmedWrite: options.confirmedWrite, prisma, projection });
   console.log(`Database writes performed: ${writeResult.databaseWrites}`);
 } finally {
   await prisma.$disconnect();

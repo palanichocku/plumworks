@@ -15,11 +15,12 @@ export function parseLegacyInvoiceTransformerArguments(argv = []) {
     confirmation: undefined,
     laborOnly: false,
     headersOnly: false,
+    importRunId: undefined,
   };
   const seen = new Set();
   for (let index = 0; index < argv.length; index += 1) {
     const option = argv[index];
-    if (!["--shop-id", "--dry-run", "--confirm", "--labor-only", "--headers-only"].includes(option)) {
+    if (!["--shop-id", "--import-run-id", "--dry-run", "--confirm", "--labor-only", "--headers-only"].includes(option)) {
       throw new Error(`Unknown argument: ${option}`);
     }
     if (seen.has(option)) throw new Error(`Duplicate argument: ${option}`);
@@ -31,6 +32,7 @@ export function parseLegacyInvoiceTransformerArguments(argv = []) {
       const value = requireValue(argv, index, option);
       index += 1;
       if (option === "--shop-id") parsed.shopId = value;
+      else if (option === "--import-run-id") parsed.importRunId = value;
       else parsed.confirmation = value;
     }
   }
@@ -48,6 +50,7 @@ export function parseLegacyInvoiceTransformerArguments(argv = []) {
     confirmationStatus: confirmedWrite ? "valid confirmation supplied" : "not supplied",
     laborOnly: parsed.laborOnly,
     headersOnly: parsed.headersOnly,
+    importRunId: parsed.importRunId,
   };
 }
 

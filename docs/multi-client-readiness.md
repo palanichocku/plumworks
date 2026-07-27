@@ -43,7 +43,7 @@ Status meanings:
 | --- | --- | --- |
 | Fixed shop UUID | **Ready** | Setup generates a UUID for a new shop and preserves the sole existing shop UUID. Client-facing import/transform commands require `--shop-id`; maintenance/cutover commands resolve the sole shop or accept explicit `PLUMWORKS_SHOP_ID`/`--shop-id` selection. |
 | Fixed shop name/contact details | **Ready** | Setup requires explicit CLI/environment inputs and keeps canonical values in `shops`. |
-| Fixed source paths | **Needs cleanup** | Some import scripts fall back to `OriginalWinApp/Shopman32/data`; labor memo utilities require that path. Production cutover already accepts `--source`. All client-facing imports should require an explicit readable source folder and never default to repository data. |
+| Fixed source paths | **Addressed** | Filesystem-backed legacy import, cutover, and labor memo utilities require an explicit validated immutable snapshot `--source`; repository seed data is rejected. |
 | Fixed Vercel project name | **Ready** | No fixed Vercel project/domain was found. A naming convention is still needed operationally. |
 | Fixed Supabase project | **Ready** | Runtime selects Supabase solely through environment variables; no project ref or hostname is hard-coded. |
 | Implicit first shop | **Needs cleanup** | Membership lookup and cutover use the first matching/oldest row. This works with exactly one shop but does not assert that invariant. Provisioning and cutover should abort unless exactly one shop exists or an explicit shop ID is supplied. |
@@ -86,7 +86,7 @@ Recommended promotion flow: merge and tag the shared release, deploy the tag to 
 
 ## Highest-priority fixes before a public marketing website
 
-1. Remove repository-local legacy source defaults from the remaining import/restaging utilities and require explicit approved source paths.
+1. Retain the immutable snapshot intake and explicit-source boundary for every filesystem-backed legacy utility.
 2. Add validated deployment configuration, including separate preview/staging credentials, Supabase Auth redirect URLs, and a policy that previews never use production databases.
 3. Exercise generic setup and owner bootstrap against synthetic staging as a release gate.
 4. Make all existing shop identity/contact fields editable by authorized Admin users; add audit logging consistent with existing settings updates.

@@ -1,30 +1,30 @@
 import { open, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const sourceFolder = argument("--source");
-const sourcePath = (name) => sourceFolder ? resolve(sourceFolder, name) : `OriginalWinApp/Shopman32/data/${name}`;
+const source = await resolveLegacySource({ requiredFiles: ["FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF"] });
+printLegacySourceSummary(source);
 const SOURCES = [
   {
     label: "FINAL",
-    path: sourcePath("FINAL.DBF"),
+    path: source.files["FINAL.DBF"],
     model: "rawLegacyFinal",
   },
   {
     label: "Labor final",
-    path: sourcePath("laborfinal.DBF"),
-    memoPath: sourcePath("laborfinal.FPT"),
+    path: source.files["laborfinal.DBF"],
+    memoPath: source.files["laborfinal.FPT"],
     model: "rawLegacyLaborFinal",
   },
   {
     label: "AR",
-    path: sourcePath("ar.DBF"),
+    path: source.files["ar.DBF"],
     model: "rawLegacyAr",
   },
 ];
@@ -112,10 +112,10 @@ function decodeRecord(record, fields, memoFile) {
 }
 
 async function readSample(relativePath, limit = 5, memoRelativePath) {
-  const file = await open(resolve(process.cwd(), relativePath), "r");
+  const file = await open(relativePath, "r");
   try {
     const memoFile = memoRelativePath
-      ? await readFile(resolve(process.cwd(), memoRelativePath))
+      ? await readFile(memoRelativePath)
       : null;
     const start = Buffer.alloc(32);
     const firstRead = await file.read(start, 0, 32, 0);
@@ -150,9 +150,9 @@ async function readSample(relativePath, limit = 5, memoRelativePath) {
 }
 
 async function readAll(relativePath, memoRelativePath) {
-  const file = await readFile(resolve(process.cwd(), relativePath));
+  const file = await readFile(relativePath);
   const memoFile = memoRelativePath
-    ? await readFile(resolve(process.cwd(), memoRelativePath))
+    ? await readFile(memoRelativePath)
     : null;
   const recordCount = file.readUInt32LE(4);
   const headerLength = file.readUInt16LE(8);
