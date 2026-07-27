@@ -41,8 +41,11 @@ export async function sendGmailMessage(message: EmailMessage): Promise<EmailSend
     });
 
     return { ok: true };
-  } catch (error) {
-    console.error("Resend SMTP sending error:", error);
-    return { ok: false, message: "Email delivery failed. Please try again." };
+  } catch (error: any) {
+    console.error("Resend SMTP Error:", error);
+    return { 
+      ok: false, 
+      message: error?.message || "Email delivery failed. Please try again." 
+    };
   }
 }
