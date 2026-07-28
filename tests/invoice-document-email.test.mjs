@@ -97,14 +97,48 @@ test("Invoice Email dialog is accessible, prefillable, and blocks duplicate subm
   assert.match(emailUi, /pending \? "Sending…" : "Send Invoice"/);
   assert.match(action, /Invoice emailed successfully/);
   assert.match(emailUi, /aria-live="polite"/);
+  assert.match(emailUi, /submittingRef\.current/);
+  assert.match(emailUi, /if \(submittingRef\.current\) event\.preventDefault\(\)/);
   assert.equal((emailUi.match(/<form\b/g) ?? []).length, 1);
   assert.match(emailUi, /type="button"[^>]*[\s\S]*?>Cancel</);
 });
 
-test("PDF is generated server-side and sent through the Reports Gmail transport with a size guard", () => {
+test("successful Invoice email closes the dialog and shows temporary page-level feedback", () => {
+  assert.match(emailUi, /if \(state\.status === "success"\) onSuccess\(state\.message\)/);
+  assert.match(emailUi, /setOpen\(false\)[\s\S]*setSuccess/);
+  assert.match(emailUi, /INVOICE_EMAIL_SUCCESS_DURATION_MS = 5_000/);
+  assert.match(emailUi, /setTimeout\(\(\) => setSuccess\(null\), INVOICE_EMAIL_SUCCESS_DURATION_MS\)/);
+  assert.match(emailUi, /buttonRef\.current\?\.focus\(\)/);
+  assert.match(emailUi, /<p role="status" className="text-sm font-medium text-emerald-700">\{success\}<\/p>/);
+  assert.doesNotMatch(emailUi, /state\.status === "success" \? <p/);
+});
+
+test("Invoice status, Email, and Print share one aligned action row without a status placeholder", () => {
+  assert.match(detail, /status=\{open \? "Open" : "Closed"\}/);
+  assert.match(detail, /printHref=\{`\/invoices\/\$\{invoice\.id\}\/print`\}/);
+  const rowMarker = emailUi.indexOf("data-invoice-action-row");
+  const actionRow = emailUi.slice(emailUi.lastIndexOf("<div", rowMarker), emailUi.indexOf("{success ?"));
+  assert.match(actionRow, /items-center/);
+  assert.match(actionRow, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.doesNotMatch(actionRow, /success|role="status"|aria-live/);
+  assert.match(emailUi, /<\/div>\s*\{success \? <div aria-live="polite"/);
+  assert.doesNotMatch(emailUi.slice(0, emailUi.indexOf("function EmailInvoiceDialog")), /min-h-[0-9]/);
+});
+
+test("failed Invoice email remains inline in the dialog and preserves editable recipient state", () => {
+  assert.match(emailUi, /state\.status === "error" && !errorDismissed \? state\.message \|\| fallbackError/);
+  assert.match(emailUi, /Invoice could not be emailed\. Please try again\./);
+  assert.match(emailUi, /value=\{recipient\}/);
+  assert.match(emailUi, /onChange=\{\(event\) => \{ setRecipient\(event\.target\.value\); if \(error\) setErrorDismissed\(true\); \}\}/);
+  assert.match(emailUi, /aria-live="assertive"/);
+  assert.match(emailUi, /role="alert" className="text-sm font-medium text-red-700"/);
+  assert.match(emailUi, /open \? <EmailInvoiceDialog/);
+});
+
+test("PDF is generated server-side and sent through the shared Reports email transport with a size guard", () => {
   assert.match(delivery, /renderToBuffer/);
   assert.match(delivery, /sendGmailMessage/);
-  assert.match(gmail, /nodemailer\.createTransport\(\{ service: "gmail"/);
+  assert.match(gmail, /nodemailer\.createTransport\(/);
   assert.match(gmail, /MAX_EMAIL_ATTACHMENT_BYTES/);
   assert.match(gmail, /isEmailAttachmentSizeAllowed/);
   assert.match(reportsEmail, /sendGmailMessage/);
