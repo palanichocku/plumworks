@@ -11,6 +11,7 @@
     "prisma:generate": "node --env-file=.env.local ./node_modules/prisma/build/index.js generate",
     "prisma:validate": "node --env-file=.env.local ./node_modules/prisma/build/index.js validate",
     "prisma:migrate:deploy": "node --env-file=.env.local ./node_modules/prisma/build/index.js migrate deploy",
+    "prisma:migrations:verify-security": "node --env-file=.env.local scripts/verify-prisma-migrations-security.mjs",
     "client:setup": "node --env-file=.env.local scripts/setup-client.mjs",
     "marketing:import": "node --env-file=.env.local scripts/import-marketing-content.mjs",
     "db:seed": "node --env-file=.env.local prisma/seed.mjs",
