@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCustomerForEdit } from "@/lib/data/customers";
 import { updateCustomer } from "../../edit-actions";
+import { CustomerPhoneInput } from "@/components/customer-phone-input";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
     <form action={updateCustomer} className="mt-8 grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-2">
       <input type="hidden" name="customerId" value={customer.id} />
       <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Display name<input name="displayName" required maxLength={200} defaultValue={customer.displayName} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-      <label className="text-sm font-semibold text-slate-700">Phone<input name="phone" type="tel" maxLength={40} defaultValue={customer.phone ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+      <label className="text-sm font-semibold text-slate-700">Phone<CustomerPhoneInput maxLength={40} defaultValue={customer.phone} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700">Email<input name="email" type="email" maxLength={254} defaultValue={customer.email ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Address<input name="addressLine1" maxLength={200} defaultValue={customer.addressLine1 ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
       <label className="text-sm font-semibold text-slate-700">City<input name="city" maxLength={100} defaultValue={customer.city ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>

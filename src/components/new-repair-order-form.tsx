@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createRepairOrder } from "@/app/(app)/repair-orders/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { CustomerPhoneInput } from "@/components/customer-phone-input";
 
 type CustomerOption = {
   id: string;
@@ -148,7 +149,7 @@ export function NewRepairOrderForm({
               <input name="displayName" type="text" maxLength={200} required placeholder="John Doe" className={inputClass} />
             </label>
             <label className={`${labelClass} sm:col-span-3`}>Phone Number
-              <input name="phone" type="tel" maxLength={40} placeholder="(555) 000-0000" className={inputClass} />
+              <CustomerPhoneInput maxLength={40} placeholder="(555) 000-0000" className={inputClass} />
             </label>
             <label className={`${labelClass} sm:col-span-3`}>Email Address
               <input name="email" type="email" maxLength={254} placeholder="name@example.com" className={inputClass} />

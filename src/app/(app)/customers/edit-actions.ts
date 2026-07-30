@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { customerPhoneForStorage } from "@/lib/customer-phone";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -23,10 +24,17 @@ export async function updateCustomer(formData: FormData) {
     throw new Error("Invalid customer information.");
   }
   const { user, membership } = await requirePermission("edit_customer_vehicle");
+  const existing = await prisma.customer.findFirst({
+    where: { id: customerId, shopId: membership.shopId },
+    select: { phone: true },
+  });
+  if (!existing) throw new Error("Customer was not found.");
+  const storedPhone = phone === (existing.phone ?? "") ? existing.phone : customerPhoneForStorage(phone);
+  if (storedPhone === undefined) throw new Error("Enter a complete 10-digit phone number.");
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({
       where: { id: customerId, shopId: membership.shopId },
-      data: { displayName, phone: phone || null, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
+      data: { displayName, phone: storedPhone, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
     });
     if (result.count !== 1) throw new Error("Customer was not found.");
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: displayName, entityHref: `/customers/${customerId}`, contextSummary: "Customer record updated" }) });
