@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { Prisma } from "@prisma/client";
 import { invoiceEmailMessage, normalizeEmailRecipient, safeEmailHeader } from "../src/lib/email/invoice-email-core.ts";
+import { sendResendSmtpMessage } from "../src/lib/email/smtp-core.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const [model, html, pdf, printPage, css, action, emailUi, delivery, gmail, reportsEmail, schema, migration, detail, invoiceLoader, lifecycle, payment, conversion, vendorTest] = await Promise.all([
@@ -144,6 +145,36 @@ test("PDF is generated server-side and sent through the shared Reports email tra
   assert.match(reportsEmail, /sendGmailMessage/);
   assert.doesNotMatch(action + emailUi, /EMAIL_PASSWORD|EMAIL_USER|createTransport|sendMail/);
   assert.doesNotMatch(action, /prisma\.(?:create|update|upsert|delete)/);
+});
+
+test("complete Resend SMTP configuration sends the unchanged PDF attachment through an injected transport", async () => {
+  const attachment = { filename: "invoice-123.pdf", content: Buffer.from("test PDF"), contentType: "application/pdf" };
+  let sent;
+  const result = await sendResendSmtpMessage(
+    { to: "recipient@example.com", subject: "Invoice 123", text: "Attached", attachments: [attachment] },
+    { apiKey: "test-api-key", fromAddress: "Car Doc <billing@example.com>", sendMail: async (message) => { sent = message; } },
+  );
+  assert.deepEqual(result, { ok: true });
+  assert.equal(sent.from, "Car Doc <billing@example.com>");
+  assert.strictEqual(sent.attachments[0], attachment);
+});
+
+test("missing or failed Resend SMTP configuration is safe and never exposes secrets", async () => {
+  const secret = "test-secret-that-must-not-appear";
+  const diagnostics = [];
+  let sendCount = 0;
+  const message = { to: "recipient@example.com", subject: "Invoice 123", text: "Attached", attachments: [] };
+  const missing = await sendResendSmtpMessage(message, {
+    apiKey: " ", sendMail: async () => { sendCount += 1; }, logError: (entry) => diagnostics.push(entry),
+  });
+  const failed = await sendResendSmtpMessage(message, {
+    apiKey: secret, sendMail: async () => { throw new Error(secret); }, logError: (entry) => diagnostics.push(entry),
+  });
+  assert.deepEqual(missing, { ok: false, message: "Email delivery is not configured." });
+  assert.deepEqual(failed, { ok: false, message: "Email delivery failed. Please try again." });
+  assert.equal(sendCount, 0);
+  assert.match(diagnostics[0], /RESEND_API_KEY/);
+  assert.doesNotMatch(JSON.stringify({ missing, failed, diagnostics }), new RegExp(secret));
 });
 
 test("additive settings migration is optional and nondestructive", () => {
