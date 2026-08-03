@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
+import { RepairOrderHistoryDrawer } from "@/components/repair-order-history-drawer";
 
 const initialState: RepairOrderEmailState = { status: "idle" };
 export const REPAIR_ORDER_EMAIL_SUCCESS_DURATION_MS = 5_000;
@@ -17,8 +18,10 @@ export function EmailRepairOrderButton({ repairOrderId, defaultRecipient, status
   printHref: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!success) return;
@@ -32,9 +35,22 @@ export function EmailRepairOrderButton({ repairOrderId, defaultRecipient, status
     window.requestAnimationFrame(() => buttonRef.current?.focus());
   }, []);
 
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false);
+    window.requestAnimationFrame(() => historyButtonRef.current?.focus());
+  }, []);
+
   return <div className="flex min-w-0 flex-col items-end gap-1.5">
     <div className="flex flex-wrap items-center justify-end gap-3" data-repair-order-action-row>
       <span className="w-fit rounded-full bg-brand-subtle px-3 py-1 text-xs font-bold uppercase text-brand-primary">{status}</span>
+      <button
+        ref={historyButtonRef}
+        type="button"
+        onClick={() => setHistoryOpen(true)}
+        className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
+      >
+        History
+      </button>
       <button
         ref={buttonRef}
         type="button"
@@ -49,6 +65,7 @@ export function EmailRepairOrderButton({ repairOrderId, defaultRecipient, status
       <p role="status" className="text-sm font-medium text-emerald-700">{success}</p>
     </div> : null}
     {open ? <EmailRepairOrderDialog repairOrderId={repairOrderId} defaultRecipient={defaultRecipient} onClose={() => setOpen(false)} onSuccess={sent} /> : null}
+    {historyOpen ? <RepairOrderHistoryDrawer currentRepairOrderId={repairOrderId} onClose={closeHistory} /> : null}
   </div>;
 }
 

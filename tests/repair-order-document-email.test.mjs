@@ -17,14 +17,14 @@ const [detail, ui, action, model, pdf, delivery, sharedDelivery, invoiceDelivery
   read("src/lib/email/gmail.ts"),
 ]);
 
-test("Repair Order detail exposes an aligned Status, Email, Print action row", () => {
+test("Repair Order detail exposes an aligned Status, History, Email, Print action row", () => {
   assert.match(detail, /<EmailRepairOrderButton/);
   assert.match(detail, /defaultRecipient=\{normalizeEmailRecipient\(order\.customer\.email \?\? ""\) \?\? ""\}/);
   assert.match(detail, /printHref=\{`\/repair-orders\/\$\{order\.id\}\/print`\}/);
   const marker = ui.indexOf("data-repair-order-action-row");
   const row = ui.slice(ui.lastIndexOf("<div", marker), ui.indexOf("{success ?"));
   assert.match(row, /items-center/);
-  assert.match(row, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.match(row, /\{status\}[\s\S]*History[\s\S]*Email[\s\S]*Print/);
   assert.doesNotMatch(row, /success|role="status"|aria-live/);
   assert.match(ui, /<\/div>\s*\{success \? <div aria-live="polite"/);
   assert.doesNotMatch(ui.slice(0, ui.indexOf("function EmailRepairOrderDialog")), /min-h-[0-9]/);
