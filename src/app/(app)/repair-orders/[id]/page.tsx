@@ -8,6 +8,8 @@ import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { EditableRepairOrderWorkspace } from "@/components/repair-order-concerns-form";
 import { RepairOrderLaborCard, RepairOrderPartsCard } from "@/components/repair-order-line-items";
+import { EmailRepairOrderButton } from "@/components/email-repair-order-button";
+import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -28,8 +30,8 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         <Link href="/repair-orders" className="text-sm font-semibold text-brand-primary">← Repair Orders</Link>
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Repair Order / Estimate</p>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1><span className="rounded-full bg-brand-subtle px-3 py-1 text-xs font-bold uppercase text-brand-primary">{order.status}</span></div>
-          <div className="flex flex-wrap gap-3"><Link href={`/repair-orders/${order.id}/print`} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : editable && canDelete ? <DeleteRepairOrderButton repairOrderId={order.id} /> : null}</div>
+          <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1></div>
+          <div className="flex flex-wrap items-start gap-3"><EmailRepairOrderButton repairOrderId={order.id} defaultRecipient={normalizeEmailRecipient(order.customer.email ?? "") ?? ""} status={order.status} printHref={`/repair-orders/${order.id}/print`} />{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : editable && canDelete ? <DeleteRepairOrderButton repairOrderId={order.id} /> : null}</div>
         </div>
         <p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>
         {!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p>}

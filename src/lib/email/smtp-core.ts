@@ -22,7 +22,7 @@ export async function sendResendSmtpMessage(
   const fromAddress = dependencies.fromAddress?.trim() || DEFAULT_EMAIL_FROM;
 
   if (!apiKey) {
-    dependencies.logError?.("Invoice/report email configuration is missing: RESEND_API_KEY");
+    dependencies.logError?.("Document email configuration is missing: RESEND_API_KEY");
     return { ok: false, message: "Email delivery is not configured." };
   }
 

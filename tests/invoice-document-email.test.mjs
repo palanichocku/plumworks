@@ -6,11 +6,12 @@ import { invoiceEmailMessage, normalizeEmailRecipient, safeEmailHeader } from ".
 import { sendResendSmtpMessage } from "../src/lib/email/smtp-core.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [model, html, pdf, printPage, css, action, emailUi, delivery, gmail, reportsEmail, schema, migration, detail, invoiceLoader, lifecycle, payment, conversion, vendorTest] = await Promise.all([
+const [model, html, pdf, printPage, css, action, emailUi, delivery, sharedDelivery, gmail, reportsEmail, schema, migration, detail, invoiceLoader, lifecycle, payment, conversion, vendorTest] = await Promise.all([
   read("src/lib/invoice-document.ts"), read("src/components/invoice-document-html.tsx"),
   read("src/components/pdf/invoice-document-pdf.tsx"), read("src/app/(documents)/invoices/[id]/print/page.tsx"),
   read("src/app/globals.css"), read("src/app/(app)/invoices/email-actions.tsx"),
   read("src/components/email-invoice-button.tsx"), read("src/lib/email/invoice-email.tsx"),
+  read("src/lib/email/document-email.ts"),
   read("src/lib/email/gmail.ts"), read("src/lib/actions/email-reports.tsx"),
   read("prisma/schema.prisma"), read("prisma/migrations/20260724120000_add_invoice_document_settings/migration.sql"),
   read("src/app/(app)/invoices/[id]/page.tsx"), read("src/lib/data/invoices.ts"), read("src/app/(app)/invoices/lifecycle-actions.ts"),
@@ -143,6 +144,9 @@ test("PDF is generated server-side and sent through the shared Reports email tra
   assert.match(gmail, /MAX_EMAIL_ATTACHMENT_BYTES/);
   assert.match(gmail, /isEmailAttachmentSizeAllowed/);
   assert.match(reportsEmail, /sendGmailMessage/);
+  assert.match(model, /filename: `invoice-\$\{invoiceNumber/);
+  assert.match(delivery, /attachmentFilename: model\.filename/);
+  assert.match(sharedDelivery, /contentType: "application\/pdf"/);
   assert.doesNotMatch(action + emailUi, /EMAIL_PASSWORD|EMAIL_USER|createTransport|sendMail/);
   assert.doesNotMatch(action, /prisma\.(?:create|update|upsert|delete)/);
 });

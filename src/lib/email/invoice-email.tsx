@@ -5,6 +5,7 @@ import { InvoiceDocumentPDF } from "@/components/pdf/invoice-document-pdf";
 import type { InvoiceDocumentModel } from "@/lib/invoice-document";
 import { sendGmailMessage } from "@/lib/email/gmail";
 import { invoiceEmailMessage } from "@/lib/email/invoice-email-core";
+import { sendPdfDocumentEmail } from "@/lib/email/document-email";
 
 export async function deliverInvoiceEmail(model: InvoiceDocumentModel, recipient: string, dependencies: {
   renderPdf?: (model: InvoiceDocumentModel) => Promise<Buffer>;
@@ -16,8 +17,5 @@ export async function deliverInvoiceEmail(model: InvoiceDocumentModel, recipient
   } catch {
     return { ok: false as const, message: "The Invoice PDF could not be generated. Please try again." };
   }
-  return (dependencies.sendEmail ?? sendGmailMessage)({
-    ...invoiceEmailMessage(model, recipient),
-    attachments: [{ filename: model.filename, content: pdf, contentType: "application/pdf" }],
-  });
+  return sendPdfDocumentEmail({ message: invoiceEmailMessage(model, recipient), attachmentFilename: model.filename, pdfBuffer: pdf }, dependencies.sendEmail);
 }
