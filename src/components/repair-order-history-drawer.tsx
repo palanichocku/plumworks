@@ -110,7 +110,7 @@ function RepairOrderHistoryList({ rows, nextCursor, loadingMore, onSelect, onLoa
         <button type="button" onClick={() => onSelect(row.source, row.id)} className="grid w-full min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-brand-primary/40 hover:bg-brand-subtle/30 focus:outline-none focus:ring-4 focus:ring-brand-primary/10 sm:grid-cols-[minmax(0,1fr)_auto]">
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-2"><span className="font-bold text-slate-950">RO #{row.number}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase text-slate-600">{row.status}</span></span>
-            <span className="mt-1 block text-sm text-slate-600">{row.date}{row.odometer ? ` · ${row.odometer} miles` : " · Mileage not recorded"}</span>
+            <span className="mt-1 block text-sm text-slate-600">{row.date} · Mileage at service: {row.odometer ?? "Not recorded"}</span>
             <span className="mt-2 block truncate text-sm text-slate-800">{row.summary}</span>
           </span>
           <span className="self-center font-bold text-slate-950">{row.total}</span>
@@ -125,7 +125,7 @@ function RepairOrderHistoryDetailView({ detail }: { detail: RepairOrderHistoryDe
   return <div className="space-y-5">
     <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
       <HistoryValue label="Repair Order" value={`#${detail.number}`} /><HistoryValue label="Date" value={detail.date} />
-      <HistoryValue label="Status" value={detail.status} capitalize /><HistoryValue label="Mileage" value={detail.odometer ? `${detail.odometer} miles` : "Not recorded"} />
+      <HistoryValue label="Status" value={detail.status} capitalize /><HistoryValue label="Mileage at service" value={detail.odometer ?? "Not recorded"} />
       <HistoryValue label="Customer" value={detail.customerName} /><HistoryValue label="Vehicle" value={detail.vehicle} />
       <HistoryValue label="Created" value={detail.createdDate} /><HistoryValue label="Completed" value={detail.completedDate ?? "Not completed"} />
     </section>

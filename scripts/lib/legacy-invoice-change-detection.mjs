@@ -22,6 +22,7 @@ export const PERSISTED_FIELDS = {
     vehicleId: [scalar, "customer/vehicle relationship"],
     status: [scalar, "status"],
     invoiceDate: [normalizeDate, "invoice date"],
+    odometer: [scalar, "odometer"],
     partsTotal: [normalizeDecimal, "financial"],
     laborTotal: [normalizeDecimal, "financial"],
     subtotal: [normalizeDecimal, "financial"],

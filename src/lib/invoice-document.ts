@@ -10,7 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 const invoiceDocumentSelect = {
   id: true, repairOrderNumber: true, legacyRoNo: true, legacySourceTable: true,
-  invoiceDate: true, status: true, closedAt: true, deliveredAt: true, createdAt: true,
+  invoiceDate: true, odometer: true, status: true, closedAt: true, deliveredAt: true, createdAt: true,
   customerComplaint: true, recommendation: true, partsTotal: true, laborTotal: true,
   subtotal: true, shopSuppliesAmount: true, taxTotal: true, total: true, paidTotal: true,
   shopSnapshot: true, customerSnapshot: true, vehicleSnapshot: true,
@@ -112,7 +112,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
       engine: snapshotString(invoice.vehicleSnapshot, "engine", vehicle?.engine ?? null),
       vin: snapshotString(invoice.vehicleSnapshot, "vin", vehicle?.vin ?? null),
       licensePlate: snapshotString(invoice.vehicleSnapshot, "licensePlate", vehicle?.licensePlate ?? null),
-      odometer: snapshotNumber(invoice.vehicleSnapshot, "odometer", invoice.repairOrder?.odometer ?? vehicle?.odometer ?? null),
+      odometer: invoice.odometer ?? invoice.repairOrder?.odometer ?? null,
     } : null,
     complaint: invoice.customerComplaint,
     recommendation: invoice.recommendation,

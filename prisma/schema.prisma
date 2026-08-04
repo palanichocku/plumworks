@@ -510,6 +510,7 @@ model Invoice {
   customerComplaint              String?               @map("customer_complaint") @db.Text
   recommendation                 String?               @db.Text
   invoiceDate                    DateTime?             @map("invoice_date")
+  odometer                       Int?
   dueAt                          DateTime?             @map("due_at")
   partsTotal                     Decimal               @default(0) @map("parts_total") @db.Decimal(12, 2)
   laborTotal                     Decimal               @default(0) @map("labor_total") @db.Decimal(12, 2)

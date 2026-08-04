@@ -30,6 +30,7 @@ import {
   writableClassifications,
 } from "./lib/legacy-invoice-change-detection.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
+import { normalizeLegacyOdometer } from "./lib/legacy-odometer.mjs";
 
 const options = parseLegacyInvoiceTransformerArguments(process.argv.slice(2));
 
@@ -116,6 +117,7 @@ function proposedInvoiceRow(shopId, legacyRoNo, link) {
   return {
     id: deterministicLegacyInvoiceId(shopId, legacyRoNo), shopId, legacyRoNo, customerId: link.customerId, vehicleId: link.vehicleId,
     status: amounts.balanceCents <= 0 ? "paid" : "open", invoiceDate: link.invoiceDate,
+    odometer: link.odometer,
     partsTotal: centsToDecimal(amounts.partsCents), laborTotal: centsToDecimal(amounts.laborCents),
     subtotal: centsToDecimal(amounts.subtotalCents), taxTotal: centsToDecimal(amounts.salesTaxCents),
     total: centsToDecimal(amounts.totalCents), paidTotal: centsToDecimal(amounts.paidCents),
@@ -420,6 +422,12 @@ async function main() {
         skippedOrders.push(skippedOrderDiagnostic(ro, "conflicting AR source records"));
         continue;
       }
+      const odometerValues = new Set(arRows.map((row) => normalizeLegacyOdometer(row.rawData?.ODOMETER)).filter((value) => value !== null));
+      if (odometerValues.size > 1) {
+        conflictingArRecords += 1;
+        skippedOrders.push(skippedOrderDiagnostic(ro, "conflicting AR odometer values"));
+        continue;
+      }
       const arRow = arRows[0];
       const financials = mapLegacyInvoiceFinancials(arRow.rawData);
       if (!financials.valid) {
@@ -462,6 +470,7 @@ async function main() {
         invoiceDate: selectedDate.date,
         financials,
         shopSuppliesSnapshot,
+        odometer: odometerValues.size === 1 ? [...odometerValues][0] : null,
       };
       if (!customerId) {
         missingCustomers += 1;
@@ -492,7 +501,7 @@ async function main() {
       where: { shopId: SHOP_ID, legacyRoNo: { in: [...validInvoices.keys()] } },
       select: {
         id: true, legacyRoNo: true, customerId: true, vehicleId: true, status: true,
-        invoiceDate: true, partsTotal: true, laborTotal: true, subtotal: true,
+        invoiceDate: true, odometer: true, partsTotal: true, laborTotal: true, subtotal: true,
         taxTotal: true, total: true, paidTotal: true, shopSuppliesAmount: true,
         shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true,
         shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true,
@@ -648,7 +657,7 @@ async function main() {
         await prisma.$transaction(async (transaction) => {
     const invoiceIds = new Map(existingInvoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
     const invoiceColumns = [
-      "id", "shop_id", "customer_id", "vehicle_id", "status", "invoice_date",
+      "id", "shop_id", "customer_id", "vehicle_id", "status", "invoice_date", "odometer",
       "parts_total", "labor_total", "subtotal", "tax_total", "total",
       "paid_total", "shop_supplies_amount", "shop_supplies_enabled_snapshot",
       "shop_supplies_rate_snapshot", "shop_supplies_cap_snapshot",
@@ -659,7 +668,7 @@ async function main() {
     if (!laborOnly) {
       for (const batch of chunks(writableClassifications(invoiceClassification))) {
         const rows = batch.map(({ proposed: row }) => [
-          row.id, row.shopId, row.customerId, row.vehicleId, row.status, row.invoiceDate,
+          row.id, row.shopId, row.customerId, row.vehicleId, row.status, row.invoiceDate, row.odometer,
           row.partsTotal, row.laborTotal, row.subtotal, row.taxTotal, row.total,
           row.paidTotal, row.shopSuppliesAmount, row.shopSuppliesEnabledSnapshot,
           row.shopSuppliesRateSnapshot, row.shopSuppliesCapSnapshot,

@@ -121,6 +121,32 @@ test("list includes both sources and all scan fields; invoices prevent empty sta
   assert.match(loader, /conciseSummary\(invoice, "invoice"\)/);
   assert.match(loader, /conciseSummary\(order, "repairOrder"\)/);
   assert.match(loader, /status: "completed"/);
+  assert.match(drawer, /Mileage at service: \{row\.odometer \?\? "Not recorded"\}/);
+});
+
+test("history mileage uses service records, formats values, and never uses current Vehicle mileage", () => {
+  assert.match(loader, /serviceOdometer\(invoice\.odometer, invoice\.repairOrder\?\.odometer\)/);
+  assert.match(loader, /serviceOdometer\(order\.odometer\)/);
+  assert.match(loader, /value\.toLocaleString\(\)/);
+  assert.match(loader, /value > 0/);
+  assert.doesNotMatch(loader, /invoice\.vehicle\?\.odometer|snapshotNumber\(invoice\.vehicleSnapshot, "odometer"/);
+  assert.match(drawer, /Mileage at service/);
+  assert.match(drawer, /Not recorded/);
+});
+
+test("Invoice mileage takes precedence over its linked Repair Order mileage", () => {
+  assert.match(loader, /serviceOdometer\(invoice\.odometer, invoice\.repairOrder\?\.odometer\)/);
+});
+
+test("current Repair Order mileage is stored and copied into the completed Invoice", async () => {
+  const createAction = await read("src/app/(app)/repair-orders/actions.ts");
+  const finalization = await read("src/app/(app)/repair-orders/finalize-actions.ts");
+  const newOrderForm = await read("src/components/new-repair-order-form.tsx");
+  assert.match(newOrderForm, /Mileage at service/);
+  assert.match(newOrderForm, /name="mileage" type="number" min="1"/);
+  assert.match(createAction, /status: "draft",\s*odometer: mileage/);
+  assert.match(finalization, /repairOrderNumber: true,\s*odometer: true/);
+  assert.match(finalization, /invoiceDate: now,\s*odometer: order\.odometer/);
 });
 
 test("browser sends source and ID; unsupported and cross-scope details are rejected", () => {
@@ -143,6 +169,7 @@ test("Invoice and Repair Order detail both stay in drawer with work-only fields"
   assert.match(drawer, /Shop Supplies/);
   assert.match(drawer, /Stored Service Totals/);
   assert.match(loader, /vehicleSnapshot: true/);
+  assert.match(loader, /odometer: true/);
   assert.match(loader, /repairOrder: \{ select: \{ odometer: true \} \}/);
   assert.match(loader, /partsTotal: true, laborTotal: true, subtotal: true, shopSuppliesAmount: true/);
   assert.doesNotMatch(drawer + loader, /accountsReceivable|paidTotal|paymentMethods|tender|balanceDue/);

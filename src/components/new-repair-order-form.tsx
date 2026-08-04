@@ -238,11 +238,11 @@ export function NewRepairOrderForm({
             <label className={`${labelClass} sm:col-span-2`}>VIN
               <input name="vin" type="text" maxLength={50} placeholder="17-Digit Vehicle ID" className={inputClass} />
             </label>
-            <label className={`${labelClass} sm:col-span-2`}>Current Odometer
-              <input name="mileage" type="number" min="0" max="10000000" placeholder="0" className={inputClass} />
-            </label>
           </div>
         )}
+        <label className={`${labelClass} mt-4 block max-w-sm`}>Mileage at service <span className="font-normal text-slate-500">(optional)</span>
+          <input name="mileage" type="number" min="1" max="10000000" className={inputClass} />
+        </label>
       </fieldset>
       </div>
 

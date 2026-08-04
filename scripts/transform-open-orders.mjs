@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { normalizeLegacyOdometer } from "./lib/legacy-odometer.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -105,7 +106,7 @@ async function main() {
         (sum, field) => sum + (numberValue(taxSource, field) ?? 0), 0,
       );
       const openedAt = dateValue(header.rawData, "RO_DATE", "DATE_SOLD") ?? new Date(0);
-      const odometer = Math.trunc(numberValue(header.rawData, "ODOMETER") ?? 0) || null;
+      const odometer = normalizeLegacyOdometer(header.rawData?.ODOMETER);
       const repairOrder = await prisma.repairOrder.upsert({
         where: { shopId_legacyRoNo: { shopId: SHOP_ID, legacyRoNo: ro } },
         create: {

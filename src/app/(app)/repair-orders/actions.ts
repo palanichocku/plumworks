@@ -52,6 +52,10 @@ export async function createRepairOrder(formData: FormData) {
   const mileage = mileageValue ? Number(mileageValue) : null;
   const maximumYear = new Date().getFullYear() + 1;
 
+  if (mileage !== null && (!Number.isInteger(mileage) || mileage <= 0 || mileage > 10_000_000)) {
+    redirect("/repair-orders/new?error=invalid-vehicle");
+  }
+
   if (vehicleMode === "existing" && !UUID.test(existingVehicleId)) {
     redirect("/repair-orders/new?error=invalid-selection");
   }
@@ -59,8 +63,7 @@ export async function createRepairOrder(formData: FormData) {
     vehicleMode === "new" &&
     (!Number.isInteger(year) || year < 1886 || year > maximumYear ||
       !make || make.length > 100 || !model || model.length > 100 ||
-      licensePlate.length > 30 || vin.length > 50 ||
-      (mileage !== null && (!Number.isInteger(mileage) || mileage < 0 || mileage > 10_000_000)))
+      licensePlate.length > 30 || vin.length > 50)
   ) {
     redirect("/repair-orders/new?error=invalid-vehicle");
   }
@@ -135,6 +138,7 @@ export async function createRepairOrder(formData: FormData) {
         vehicleId,
         repairOrderNumber,
         status: "draft",
+        odometer: mileage,
         customerComplaint,
         recommendation,
         shopSuppliesEnabledSnapshot: shop.shopSuppliesEnabled,
