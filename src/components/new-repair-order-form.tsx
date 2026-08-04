@@ -5,18 +5,8 @@ import Link from "next/link";
 import { createRepairOrder } from "@/app/(app)/repair-orders/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CustomerPhoneInput } from "@/components/customer-phone-input";
-
-type CustomerOption = {
-  id: string;
-  displayName: string;
-  vehicles: Array<{
-    id: string;
-    year: number | null;
-    make: string | null;
-    model: string | null;
-    licensePlate: string | null;
-  }>;
-};
+import { RepairOrderCustomerCombobox } from "@/components/repair-order-customer-combobox";
+import type { RepairOrderCustomerSearchResult } from "@/app/(app)/repair-orders/customer-search-actions";
 
 type VehicleSuggestion = { make: string | null; model: string | null };
 
@@ -25,32 +15,20 @@ function cleanSuggestion(value: string) {
 }
 
 export function NewRepairOrderForm({
-  customers,
   citySuggestions,
   vehicleSuggestions,
 }: {
-  customers: CustomerOption[];
   citySuggestions: string[];
   vehicleSuggestions: VehicleSuggestion[];
 }) {
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear + 2 - 1970 }, (_, index) => currentYear + 1 - index);
-  const initialCustomer = customers[0];
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">(
-    customers.length ? "existing" : "new",
-  );
-  const [customerId, setCustomerId] = useState(initialCustomer?.id ?? "");
-  const [vehicleId, setVehicleId] = useState(
-    initialCustomer?.vehicles[0]?.id ?? "",
-  );
-  const [vehicleMode, setVehicleMode] = useState<"existing" | "new">(
-    initialCustomer?.vehicles.length ? "existing" : "new",
-  );
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
+  const [selectedCustomer, setSelectedCustomer] = useState<RepairOrderCustomerSearchResult | null>(null);
+  const [vehicleId, setVehicleId] = useState("");
+  const [vehicleMode, setVehicleMode] = useState<"existing" | "new">("new");
   const [newVehicleMake, setNewVehicleMake] = useState("");
-  const vehicles = useMemo(
-    () => customers.find((customer) => customer.id === customerId)?.vehicles ?? [],
-    [customerId, customers],
-  );
+  const vehicles = selectedCustomer?.vehicles ?? [];
   const makeSuggestions = useMemo(
     () => Array.from(new Set(vehicleSuggestions.flatMap(({ make }) => make ? [cleanSuggestion(make)] : []))).sort(),
     [vehicleSuggestions],
@@ -67,11 +45,8 @@ export function NewRepairOrderForm({
     [citySuggestions],
   );
 
-  function selectCustomer(nextCustomerId: string) {
-    const nextCustomer = customers.find(
-      (customer) => customer.id === nextCustomerId,
-    );
-    setCustomerId(nextCustomerId);
+  function selectCustomer(nextCustomer: RepairOrderCustomerSearchResult | null) {
+    setSelectedCustomer(nextCustomer);
     setVehicleId(nextCustomer?.vehicles[0]?.id ?? "");
     setVehicleMode(nextCustomer?.vehicles.length ? "existing" : "new");
   }
@@ -83,9 +58,8 @@ export function NewRepairOrderForm({
       setVehicleId("");
       return;
     }
-    const customer = customers.find((entry) => entry.id === customerId);
-    setVehicleMode(customer?.vehicles.length ? "existing" : "new");
-    setVehicleId(customer?.vehicles[0]?.id ?? "");
+    setVehicleMode(selectedCustomer?.vehicles.length ? "existing" : "new");
+    setVehicleId(selectedCustomer?.vehicles[0]?.id ?? "");
   }
 
   const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 transition-all duration-150 placeholder:text-slate-400 focus:border-brand-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
@@ -112,7 +86,6 @@ export function NewRepairOrderForm({
         <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold">
           <button 
             type="button" 
-            disabled={!customers.length} 
             onClick={() => selectCustomerMode("existing")} 
             className={`rounded-md px-4 py-1.5 transition-all ${
               customerMode === "existing" 
@@ -137,12 +110,7 @@ export function NewRepairOrderForm({
         </div>
 
         {customerMode === "existing" ? (
-          <div className="animate-fadeIn">
-            <label className={labelClass} htmlFor="customerId">Select Profile</label>
-            <select id="customerId" name="customerId" required value={customerId} onChange={(event) => selectCustomer(event.target.value)} className={inputClass}>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName}</option>)}
-            </select>
-          </div>
+          <RepairOrderCustomerCombobox selected={selectedCustomer} onSelect={selectCustomer} inputClass={inputClass} labelClass={labelClass} />
         ) : (
           <div className="grid gap-x-6 gap-y-4 sm:grid-cols-6 animate-fadeIn">
             <label className={`${labelClass} sm:col-span-6`}>Customer Name <span className="text-red-500">*</span>
@@ -281,7 +249,7 @@ export function NewRepairOrderForm({
             <Link href="/repair-orders" className="inline-flex w-full min-w-0 items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white sm:w-auto">Cancel</Link>
             <FormSubmitButton 
               pendingLabel="Saving..." 
-              disabled={(customerMode === "existing" && !customerId) || (vehicleMode === "existing" && !vehicleId)} 
+              disabled={(customerMode === "existing" && !selectedCustomer) || (vehicleMode === "existing" && !vehicleId)}
               className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
             >
               Save Draft

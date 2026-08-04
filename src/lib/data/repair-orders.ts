@@ -5,27 +5,9 @@ import { getCurrentMembership } from "./membership";
 
 export async function getRepairOrderFormOptions() {
   const { membership } = await getCurrentMembership();
-  if (!membership) return { customers: [], citySuggestions: [], vehicleSuggestions: [] };
+  if (!membership) return { citySuggestions: [], vehicleSuggestions: [] };
 
-  const [customers, customerCities, vehicleSuggestions] = await Promise.all([
-    prisma.customer.findMany({
-      where: { shopId: membership.shopId },
-      orderBy: { displayName: "asc" },
-      select: {
-        id: true,
-        displayName: true,
-        vehicles: {
-          orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
-          select: {
-            id: true,
-            year: true,
-            make: true,
-            model: true,
-            licensePlate: true,
-          },
-        },
-      },
-    }),
+  const [customerCities, vehicleSuggestions] = await Promise.all([
     prisma.customer.findMany({
       where: { shopId: membership.shopId, city: { not: null } },
       distinct: ["city"],
@@ -44,7 +26,6 @@ export async function getRepairOrderFormOptions() {
   ]);
 
   return {
-    customers,
     citySuggestions: customerCities.flatMap(({ city }) => city?.trim() ? [city.trim()] : []),
     vehicleSuggestions: vehicleSuggestions.map(({ make, model }) => ({
       make: make?.trim() || null,
