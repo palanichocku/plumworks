@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 import { callClickMessage } from "@/lib/marketing-lead-context";
 import { currentUtcMonthRange } from "@/lib/dashboard-summary";
 import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
+import { CLOSED_INVOICE_STATUS, OPEN_INVOICE_STATUS } from "@/lib/invoice-lifecycle";
 
 export async function getDashboardSummary() {
   const { membership } = await getCurrentMembership();
@@ -14,7 +15,7 @@ export async function getDashboardSummary() {
   const currentMonth = currentUtcMonthRange();
 
   const canViewAdmin = hasPermission(membership.role, "edit_shop_settings");
-  const [openRepairOrders, customers, vehicles, monthlyInvoices, recentRepairOrders, recentInvoices, newLeadCount] = await Promise.all([
+  const [openRepairOrders, customers, vehicles, monthlyInvoices, inProgressInvoices, closedInvoices, newLeadCount] = await Promise.all([
     prisma.repairOrder.count({ where: operationalRepairOrderWhere(shopId) }),
     prisma.customer.count({ where: { shopId } }),
     prisma.vehicle.count({ where: { shopId } }),
@@ -23,17 +24,25 @@ export async function getDashboardSummary() {
       _count: { _all: true },
       _sum: { total: true },
     }),
-    prisma.repairOrder.findMany({
-      where: operationalRepairOrderWhere(shopId),
-      orderBy: [{ openedAt: "desc" }, { createdAt: "desc" }],
-      take: 5,
-      select: { id: true, repairOrderNumber: true, legacyRoNo: true, status: true, openedAt: true, customer: { select: { displayName: true } } },
-    }),
     prisma.invoice.findMany({
-      where: { shopId },
+      where: { shopId, status: OPEN_INVOICE_STATUS },
       orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
       take: 5,
-      select: { id: true, repairOrderNumber: true, legacyRoNo: true, invoiceDate: true, total: true, customer: { select: { displayName: true } } },
+      select: {
+        id: true,
+        repairOrderNumber: true,
+        legacyRoNo: true,
+        invoiceDate: true,
+        total: true,
+        customer: { select: { displayName: true } },
+        accountsReceivable: { take: 1, select: { balance: true } },
+      },
+    }),
+    prisma.invoice.findMany({
+      where: { shopId, status: CLOSED_INVOICE_STATUS },
+      orderBy: [{ closedAt: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      select: { id: true, repairOrderNumber: true, legacyRoNo: true, closedAt: true, total: true, customer: { select: { displayName: true } } },
     }),
     canViewAdmin ? prisma.marketingLead.count({
       where: { shopId, status: "NEW", NOT: { source: "CONTACT", message: callClickMessage } },
@@ -46,8 +55,8 @@ export async function getDashboardSummary() {
     vehicles,
     monthlyInvoiceCount: monthlyInvoices._count._all,
     monthlyInvoiceTotal: monthlyInvoices._sum.total,
-    recentRepairOrders,
-    recentInvoices,
+    inProgressInvoices,
+    closedInvoices,
     newLeadCount,
   };
 }

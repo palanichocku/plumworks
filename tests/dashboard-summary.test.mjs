@@ -13,6 +13,8 @@ const [page, data, formatters, leadContext] = await Promise.all([
   read("src/lib/marketing-lead-context.ts"),
 ]);
 
+const lifecycle = await read("src/lib/invoice-lifecycle.ts");
+
 test("dashboard renders exactly the five requested summary cards", () => {
   for (const label of ["Open Repair Orders", "Customers", "Vehicles", "Invoices This Month", "New Leads"]) assert.match(page, new RegExp(`label: "${label}"`));
   assert.equal((page.match(/label: "/g) ?? []).length, 5);
@@ -61,4 +63,38 @@ test("card destinations remain existing routes and zero values remain renderable
   for (const href of ["/repair-orders", "/customers", "/vehicles", "/invoices", "/admin/leads?status=NEW"]) assert.match(page, new RegExp(href.replace(/[/?]/g, "\\$&")));
   assert.match(page, /monthlyInvoiceCount === 1/);
   assert.match(formatters, /const source = value\?\.toString\(\)\.trim\(\) \?\? "0"/);
+});
+
+test("lower Dashboard panels use stored Invoice lifecycle statuses", () => {
+  assert.match(lifecycle, /OPEN_INVOICE_STATUS = "open"/);
+  assert.match(lifecycle, /CLOSED_INVOICE_STATUS = "closed"/);
+  assert.match(data, /where: \{ shopId, status: OPEN_INVOICE_STATUS \}/);
+  assert.match(data, /where: \{ shopId, status: CLOSED_INVOICE_STATUS \}/);
+  assert.doesNotMatch(page, /Recent Repair Orders|Recent Closed Invoices/);
+  assert.match(page, /title="Invoices in Progress"/);
+  assert.match(page, /title="Closed Invoices"/);
+});
+
+test("in-progress invoices show authoritative total, balance, and workflow labels", () => {
+  assert.match(data, /accountsReceivable: \{ take: 1, select: \{ balance: true \} \}/);
+  assert.match(page, /balance\.greaterThan\(0\)/);
+  assert.match(page, /Awaiting payment/);
+  assert.match(page, /Ready to close/);
+  assert.match(page, /Total \{formatMoney\(invoice\.total\)\}/);
+  assert.match(page, /Balance \{balance \? formatMoney\(balance\) : "Unavailable"\}/);
+});
+
+test("closed invoices use stored total and closed timestamp", () => {
+  assert.match(data, /orderBy: \[\{ closedAt: "desc" \}, \{ createdAt: "desc" \}\]/);
+  assert.match(data, /closedAt: true, total: true/);
+  assert.match(page, /Closed \{formatDate\(invoice\.closedAt\)\}/);
+  assert.match(page, /formatMoney\(invoice\.total\)/);
+});
+
+test("invoice panels remain bounded, shop scoped, linked, and have explicit empty states", () => {
+  assert.equal((data.match(/where: \{ shopId, status: (?:OPEN|CLOSED)_INVOICE_STATUS \}/g) ?? []).length, 2);
+  assert.equal((data.match(/take: 5/g) ?? []).length, 2);
+  assert.match(page, /href=\{`\/invoices\/\$\{invoice\.id\}`\}/);
+  assert.match(page, /No invoices are currently in progress\./);
+  assert.match(page, /No closed invoices are available\./);
 });

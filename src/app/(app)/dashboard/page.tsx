@@ -62,53 +62,33 @@ export default async function DashboardPage() {
 
       {/* --- MAIN OPERATIONAL ACTIVITY LAYOUT --- */}
       <section className="grid gap-6 xl:grid-cols-2">
-        {/* RECENT REPAIR ORDERS */}
-        <ActivityCard title="Recent Repair Orders" href="/repair-orders">
-          {summary.recentRepairOrders.map((order) => {
-            const isDraft = order.status.toLowerCase() === "draft";
-            return (
-              <li key={order.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
-                <Link 
-                  href={`/repair-orders/${order.id}`}
-                  className="block px-5 py-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
-                      RO #{order.repairOrderNumber ?? order.legacyRoNo ?? "Draft"}
-                    </span>
-                    <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border shadow-2xs ${
-                      isDraft 
-                        ? "bg-amber-50 text-amber-700 border-amber-200" 
-                        : "bg-brand-subtle text-brand-primary border-brand-primary/30"
-                    }`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex justify-between text-xs text-slate-500 font-medium">
-                    <span className="truncate max-w-[150px] font-semibold text-slate-700">{order.customer.displayName}</span>
-                    <span>{formatDate(order.openedAt)}</span>
-                  </div>
-                </Link>
-              </li>
-            );
+        <ActivityCard title="Invoices in Progress" href="/invoices" emptyMessage="No invoices are currently in progress.">
+          {summary.inProgressInvoices.map((invoice) => {
+            const balance = invoice.accountsReceivable[0]?.balance;
+            const workflowLabel = !balance ? "Balance unavailable" : balance.greaterThan(0) ? "Awaiting payment" : balance.isZero() ? "Ready to close" : "Balance review";
+            const readyToClose = workflowLabel === "Ready to close";
+            return <li key={invoice.id} className="group border-l-2 border-transparent transition-colors hover:border-brand-primary hover:bg-slate-50/70">
+              <Link href={`/invoices/${invoice.id}`} className="block px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-bold text-slate-900 transition-colors group-hover:text-brand-primary">RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "N/A"}</span>
+                  <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-2xs ${readyToClose ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>{workflowLabel}</span>
+                </div>
+                <div className="mt-1.5 flex justify-between gap-3 text-xs font-medium text-slate-500"><span className="max-w-[150px] truncate font-semibold text-slate-700">{invoice.customer.displayName}</span><span>{formatDate(invoice.invoiceDate)}</span></div>
+                <div className="mt-2 flex justify-between gap-3 text-xs font-semibold text-slate-600"><span>Total {formatMoney(invoice.total)}</span><span>Balance {balance ? formatMoney(balance) : "Unavailable"}</span></div>
+              </Link>
+            </li>;
           })}
         </ActivityCard>
 
-        {/* RECENT INVOICES */}
-        <ActivityCard title="Recent Closed Invoices" href="/invoices">
-          {summary.recentInvoices.map((invoice) => (
-            <li key={invoice.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
+        <ActivityCard title="Closed Invoices" href="/invoices" emptyMessage="No closed invoices are available.">
+          {summary.closedInvoices.map((invoice) => (
+            <li key={invoice.id} className="group border-l-2 border-transparent transition-colors hover:border-brand-primary hover:bg-slate-50/70">
               <Link href={`/invoices/${invoice.id}`} className="block px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
-                    RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "N/A"}
-                  </span>
+                  <span className="text-sm font-bold text-slate-900 transition-colors group-hover:text-brand-primary">RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "N/A"}</span>
                   <span className="text-sm font-black text-emerald-600">{formatMoney(invoice.total)}</span>
                 </div>
-                <div className="mt-1.5 flex justify-between text-xs text-slate-500 font-medium">
-                  <span className="truncate max-w-[150px] font-semibold text-slate-700">{invoice.customer.displayName}</span>
-                  <span>{formatDate(invoice.invoiceDate)}</span>
-                </div>
+                <div className="mt-1.5 flex justify-between gap-3 text-xs font-medium text-slate-500"><span className="max-w-[150px] truncate font-semibold text-slate-700">{invoice.customer.displayName}</span><span>Closed {formatDate(invoice.closedAt)}</span></div>
               </Link>
             </li>
           ))}
@@ -120,7 +100,7 @@ export default async function DashboardPage() {
 }
 
 // Upgraded inner component to match the table headers
-function ActivityCard({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
+function ActivityCard({ title, href, emptyMessage, children }: { title: string; href: string; emptyMessage: string; children: React.ReactNode }) {
   // Safely extract valid children to ensure empty states render correctly
   const items = React.Children.toArray(children).filter(Boolean);
   
@@ -142,7 +122,7 @@ function ActivityCard({ title, href, children }: { title: string; href: string; 
       ) : (
         <div className="flex flex-1 items-center justify-center p-8">
           <p className="text-center text-sm font-medium text-slate-400 italic">
-            No active tracking history segments found.
+            {emptyMessage}
           </p>
         </div>
       )}

@@ -2,8 +2,11 @@ import { Prisma } from "../generated/prisma/client.ts";
 import { calculateShopSupplies } from "./shop-supplies.ts";
 type DecimalInput = ConstructorParameters<typeof Prisma.Decimal>[0];
 
+export const OPEN_INVOICE_STATUS = "open";
+export const CLOSED_INVOICE_STATUS = "closed";
+
 export function isEditableOpenInvoice(invoice: { status: string; legacySourceTable: string | null }) {
-  return invoice.legacySourceTable === null && invoice.status === "open";
+  return invoice.legacySourceTable === null && invoice.status === OPEN_INVOICE_STATUS;
 }
 
 export function invoiceBalance(total: DecimalInput, payments: DecimalInput) {
