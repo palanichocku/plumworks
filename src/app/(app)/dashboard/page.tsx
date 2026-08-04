@@ -69,7 +69,7 @@ export default async function DashboardPage() {
             return (
               <li key={order.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
                 <Link 
-                  href={order.legacySourceTable ? `/open-orders/${order.id}` : `/repair-orders/${order.id}`} 
+                  href={`/repair-orders/${order.id}`}
                   className="block px-5 py-4"
                 >
                   <div className="flex items-center justify-between gap-3">

@@ -44,7 +44,7 @@ test("monthly invoices use one shop-scoped aggregate over stored total", () => {
 });
 
 test("open repair orders, customers, vehicles, and leads remain shop scoped", () => {
-  assert.match(data, /repairOrder\.count\(\{ where: \{ shopId, status: \{ in: \["draft", "open"\] \}/);
+  assert.match(data, /repairOrder\.count\(\{ where: operationalRepairOrderWhere\(shopId\) \}\)/);
   assert.match(data, /customer\.count\(\{ where: \{ shopId \} \}/);
   assert.match(data, /vehicle\.count\(\{ where: \{ shopId \} \}/);
   assert.match(data, /marketingLead\.count/);

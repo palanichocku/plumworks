@@ -22,7 +22,7 @@ export default async function OpenOrderDetailPage({ params }: { params: Promise<
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Repair Order / Estimate</p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold tracking-tight text-slate-950">RO #{order.legacyRoNo ?? "Not recorded"}</h1>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">Open · read-only legacy order</span></div>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">Legacy · read only</span></div>
           <Link href={`/open-orders/${order.id}/print`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">Print</Link>
         </div>
         <p className="mt-2 text-sm text-slate-600">Opened {formatDate(order.openedAt)}</p>

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
 import { getCurrentMembership } from "./membership";
 
 export async function getOpenOrdersForCurrentShop() {
@@ -8,14 +9,13 @@ export async function getOpenOrdersForCurrentShop() {
   if (!membership) return [];
 
   return prisma.repairOrder.findMany({
-    where: { shopId: membership.shopId, status: { in: ["draft", "open"] } },
+    where: operationalRepairOrderWhere(membership.shopId),
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
       id: true,
       legacyRoNo: true,
       repairOrderNumber: true,
-      legacySourceTable: true,
       status: true,
       openedAt: true,
       estimatedTotal: true,

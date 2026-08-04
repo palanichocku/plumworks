@@ -67,7 +67,6 @@ export default async function RepairOrdersPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {orders.map((order: RepairOrder) => {
-                  const imported = Boolean(order.legacySourceTable);
                   const vehicleDescription = [order.vehicle.year, order.vehicle.make, order.vehicle.model]
                     .filter(Boolean)
                     .join(" ") || "Vehicle details unavailable";
@@ -77,7 +76,7 @@ export default async function RepairOrdersPage() {
                       {/* RO Reference Target */}
                       <td className="px-5 py-3.5 text-sm">
                         <Link 
-                          href={imported ? `/open-orders/${order.id}` : `/repair-orders/${order.id}`} 
+                          href={`/repair-orders/${order.id}`}
                           className="block font-bold text-slate-900 hover:text-brand-primary transition-colors"
                         >
                           RO #{order.repairOrderNumber ?? order.legacyRoNo ?? "Draft"}
@@ -100,12 +99,8 @@ export default async function RepairOrdersPage() {
                       {/* Operational Phase Flags */}
                       <td className="px-5 py-3.5 text-sm">
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
-                            imported 
-                              ? "bg-amber-50 text-amber-700 border-amber-200 shadow-2xs" 
-                              : "bg-brand-subtle text-brand-primary border-brand-primary/30 shadow-2xs"
-                          }`}>
-                            {order.status}{imported ? " · Read Only" : ""}
+                          <span className="inline-flex rounded-md border border-brand-primary/30 bg-brand-subtle px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-primary shadow-2xs">
+                            {order.status}
                           </span>
                         </div>
                         <span className="block text-xs font-medium text-slate-400 mt-1">
@@ -120,7 +115,7 @@ export default async function RepairOrdersPage() {
 
                       {/* Structural Row Trailing Context Button Elements */}
                       <td className="w-14 px-2 py-3.5 text-right whitespace-nowrap">
-                        {!imported && canDelete ? (
+                        {canDelete ? (
                           <div className="inline-block opacity-60 group-hover:opacity-100 transition-opacity">
                             <DeleteRepairOrderButton repairOrderId={order.id} compact />
                           </div>
