@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { marketingContentTablesAvailable } from "@/lib/marketing-schema";
+import { getMarketingContentPreview } from "@/lib/marketing-content-preview";
 
 export type PublicShop = {
   id: string | null;
@@ -23,6 +24,7 @@ export const getPublicShop = cache(async (): Promise<PublicShop> => {
       select: { id: true, name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true },
     });
     if (shops.length !== 1) throw new Error("Public website requires exactly one configured shop.");
+    const previewHours = (await getMarketingContentPreview())?.settings.hoursText ?? null;
     let databaseHours: string | null = null;
     try {
       if (!await marketingContentTablesAvailable()) throw new Error("Marketing content tables are unavailable.");
@@ -30,7 +32,7 @@ export const getPublicShop = cache(async (): Promise<PublicShop> => {
     } catch {
       databaseHours = null;
     }
-    return { ...shops[0], hours: databaseHours || process.env.PLUMWORKS_PUBLIC_HOURS?.trim() || "Monday–Friday, 8:00 AM–5:30 PM" };
+    return { ...shops[0], hours: previewHours || databaseHours || process.env.PLUMWORKS_PUBLIC_HOURS?.trim() || "Monday–Friday, 8:00 AM–5:30 PM" };
   } catch {
     return {
       id: null,

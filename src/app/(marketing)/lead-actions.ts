@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyNewMarketingLead } from "@/lib/marketing-lead-notifications";
+import { leadAttributionData, marketingAttributionCookie } from "@/lib/marketing-attribution";
 
 function field(formData: FormData, name: string, max: number) {
   return String(formData.get(name) ?? "").trim().slice(0, max) || null;
@@ -31,11 +33,13 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
   if (source === "APPOINTMENT" && (!year || !vehicleMake || !vehicleModel || !preferredDate || !requestedService)) redirect(`${destination}?error=1`);
   if (source === "DROP_OFF" && (!year || !vehicleMake || !vehicleModel || !requestedService)) redirect(`${destination}?error=1`);
   try {
+    const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, destination);
     const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
     if (shops.length !== 1) redirect(`${destination}?error=1`);
     const lead = await prisma.marketingLead.create({ data: {
       shopId: shops[0].id, source, name, phone, email, vehicleYear: year,
       vehicleMake, vehicleModel, requestedService, preferredDate, preferredTime, message,
+      ...attribution,
     } });
     await notifyNewMarketingLead(lead);
   } catch {

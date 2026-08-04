@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getPublicShop } from "@/lib/marketing";
 import { marketingServices } from "@/lib/marketing-services";
 import { marketingContentTablesAvailable } from "@/lib/marketing-schema";
+import { getMarketingContentPreview } from "@/lib/marketing-content-preview";
 
 export const fallbackMarketingSettings = {
   headline: "Auto repair built around trust.",
@@ -29,6 +30,8 @@ export const fallbackTestimonials = [{ id: "fallback-review", quote: "Verified c
 export const fallbackGallery = ["Front of shop", "Customer area", "Service bays", "Team at work", "Diagnostic equipment", "Community moment"].map((title, index) => ({ id: `fallback-${index}`, title, caption: null, imageUrl: null }));
 
 export const getMarketingSettings = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return { ...fallbackMarketingSettings, ...Object.fromEntries(Object.entries(preview.settings).filter(([, value]) => value !== null)) };
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackMarketingSettings;
   try {
@@ -38,6 +41,8 @@ export const getMarketingSettings = cache(async () => {
 });
 
 export const getMarketingPage = cache(async (slug: keyof typeof fallbackPages) => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.pages.find((page) => page.slug === slug && page.active) ?? fallbackPages[slug];
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackPages[slug];
   try { return await prisma.marketingPage.findFirst({ where: { shopId: shop.id, slug, active: true }, select: { eyebrow: true, title: true, description: true, body: true } }) ?? fallbackPages[slug]; }
@@ -45,6 +50,8 @@ export const getMarketingPage = cache(async (slug: keyof typeof fallbackPages) =
 });
 
 export const getMarketingServices = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.services.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name) || left.previewIndex - right.previewIndex).map(({ slug, name, summary, detail }) => ({ slug, name, summary, detail }));
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return [...marketingServices];
   try { const rows = await prisma.marketingService.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { slug: true, name: true, summary: true, detail: true } }); return rows.length ? rows : [...marketingServices]; }
@@ -52,6 +59,8 @@ export const getMarketingServices = cache(async () => {
 });
 
 export const getMarketingCoupons = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.coupons.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title) || left.previewIndex - right.previewIndex).map(({ id, title, body, terms }) => ({ id, title, body, terms }));
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackCoupons;
   try {
@@ -62,6 +71,8 @@ export const getMarketingCoupons = cache(async () => {
 });
 
 export const getMarketingTestimonials = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.testimonials.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.previewIndex - right.previewIndex).map(({ id, quote, attribution, rating }) => ({ id, quote, attribution, rating }));
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackTestimonials;
   try {
@@ -72,6 +83,8 @@ export const getMarketingTestimonials = cache(async () => {
 });
 
 export const getMarketingGallery = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.gallery.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title) || left.previewIndex - right.previewIndex).map(({ id, title, caption, imageUrl }) => ({ id, title, caption, imageUrl }));
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackGallery;
   try {

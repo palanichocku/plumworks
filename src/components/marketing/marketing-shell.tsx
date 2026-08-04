@@ -8,10 +8,11 @@ const primaryLinks = [["Home", "/"], ["Services", "/services"], ["About", "/abou
 
 const linkFocus = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/25 focus-visible:ring-offset-2";
 
-export function MarketingShell({ shop, optionalLinks = [], children }: { shop: PublicShop; optionalLinks?: readonly (readonly [string, string])[]; children: React.ReactNode }) {
+export function MarketingShell({ shop, optionalLinks = [], previewMode = false, children }: { shop: PublicShop; optionalLinks?: readonly (readonly [string, string])[]; previewMode?: boolean; children: React.ReactNode }) {
   const address = shopAddress(shop);
   const navigationLinks = [...primaryLinks, ...optionalLinks];
   return <div className="min-h-screen bg-stone-50 text-slate-950">
+    {previewMode ? <div role="status" className="bg-amber-300 px-4 py-2 text-center text-xs font-black text-amber-950">Local marketing-content preview — database content is not being used</div> : null}
     <div className="border-b border-slate-800 bg-slate-950 px-4 py-2.5 text-center text-xs font-semibold text-slate-200">
       <span>{shop.hours}</span>{shop.phone ? <><span className="mx-2 text-slate-600">•</span><TrackedCallLink href={phoneHref(shop.phone)} className={`hover:text-white ${linkFocus}`}>{shop.phone}</TrackedCallLink></> : null}
     </div>
