@@ -80,6 +80,7 @@ export async function getCustomerForCurrentShop(id: string) {
           repairOrderNumber: true,
           invoiceDate: true,
           total: true,
+          parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, vendorNameSnapshot: true } },
           vehicle: {
             select: { id: true, year: true, make: true, model: true },
           },

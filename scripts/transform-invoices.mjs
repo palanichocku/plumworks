@@ -136,7 +136,7 @@ function proposedPartRow(shopId, invoiceId, row) {
   return {
     shopId, invoiceId, description: textValue(row.rawData, "DESC") ?? textValue(row.rawData, "PARTNO") ?? "Legacy part",
     partNumber: textValue(row.rawData, "PARTNO"), quantity: quantity(textValue(row.rawData, "QTY")),
-    unitPrice: decimal(textValue(row.rawData, "PRICE")), legacyLineKey: row.lineKey,
+    unitPrice: decimal(textValue(row.rawData, "PRICE")), vendorNameSnapshot: textValue(row.rawData, "SOURCE"), legacyLineKey: row.lineKey,
     legacyRoNo: row.legacyRoNo, legacySourceTable: "FINAL.DBF",
   };
 }
@@ -173,6 +173,14 @@ function report(counts) {
     console.log(`part lines to insert: ${counts.partsInserted}`);
     console.log(`part lines to update: ${counts.partsUpdated}`);
     console.log(`part lines unchanged: ${counts.partsUnchanged}`);
+    console.log(`source part lines evaluated for Vendor: ${counts.vendorSourcePartLines}`);
+    console.log(`source Vendor values found: ${counts.vendorSourceValues}`);
+    console.log(`destination part lines matched by exact legacy line key: ${counts.vendorDestinationMatches}`);
+    console.log(`Vendor snapshots already correct: ${counts.vendorAlreadyCorrect}`);
+    console.log(`Vendor snapshot updates proposed: ${counts.vendorProposedUpdates}`);
+    console.log(`source part lines with Vendor missing: ${counts.vendorMissingValues}`);
+    console.log(`Vendor matches unresolved: ${counts.vendorUnresolved}`);
+    console.log(`Vendor matches ambiguous: ${counts.vendorAmbiguous}`);
     console.log(`part lines to delete: ${counts.partsDeleted}`);
     console.log(`labor lines to insert: ${counts.laborInserted}`);
     console.log(`labor lines to update: ${counts.laborUpdated}`);
@@ -311,6 +319,9 @@ async function main() {
         legacyChargesUnchanged: 0,
         legacyChargesExisting: 0,
         partsInserted: 0, partsUpdated: 0, partsUnchanged: 0, partsDeleted: 0,
+        vendorSourcePartLines: 0, vendorSourceValues: 0, vendorDestinationMatches: 0,
+        vendorAlreadyCorrect: 0, vendorProposedUpdates: 0, vendorMissingValues: 0,
+        vendorUnresolved: 0, vendorAmbiguous: 0,
         laborInserted: 0, laborUpdated: 0, laborUnchanged: 0, laborDeleted: 0,
         arInserted: 0, arUpdated: 0, arUnchanged: 0, arDeleted: 0,
         reconciliationMatches: 0,
@@ -543,7 +554,7 @@ async function main() {
     const [existingParts, existingLabor, existingAr, existingCharges] = await Promise.all([
       prisma.invoicePart.findMany({
         where: { shopId: SHOP_ID, legacyLineKey: { in: partProposals.map((row) => row.legacyLineKey) } },
-        select: { id:true, invoiceId:true, description:true, partNumber:true, quantity:true, unitPrice:true, legacyLineKey:true, legacyRoNo:true, legacySourceTable:true },
+        select: { id:true, invoiceId:true, description:true, partNumber:true, quantity:true, unitPrice:true, vendorNameSnapshot:true, legacyLineKey:true, legacyRoNo:true, legacySourceTable:true },
       }),
       prisma.invoiceLabor.findMany({
         where: { shopId: SHOP_ID, legacyLineKey: { in: laborProposals.map((row) => row.legacyLineKey) } },
@@ -620,6 +631,14 @@ async function main() {
       partsUpdated: partClassification.updates.length,
       partsUnchanged: partClassification.unchanged.length,
       partsDeleted: 0,
+      vendorSourcePartLines: partProposals.length,
+      vendorSourceValues: partProposals.filter((part) => part.vendorNameSnapshot).length,
+      vendorDestinationMatches: existingParts.length,
+      vendorAlreadyCorrect: partClassification.unchanged.filter(({ proposed }) => proposed.vendorNameSnapshot).length,
+      vendorProposedUpdates: partClassification.updates.filter(({ changedFields }) => changedFields.includes("vendorNameSnapshot")).length,
+      vendorMissingValues: partProposals.filter((part) => !part.vendorNameSnapshot).length,
+      vendorUnresolved: 0,
+      vendorAmbiguous: 0,
       labor: keyedLabor.length,
       laborInserted: laborClassification.inserts.length,
       laborUpdated: laborClassification.updates.length,
@@ -714,17 +733,17 @@ async function main() {
 
     const partColumns = [
       "shop_id", "invoice_id", "description", "part_number", "quantity",
-      "unit_price", "legacy_line_key", "legacy_ro_no", "legacy_source_table",
+      "unit_price", "vendor_name_snapshot", "legacy_line_key", "legacy_ro_no", "legacy_source_table",
     ];
     for (const batch of laborOnly || headersOnly ? [] : chunks(writableClassifications(partClassification))) {
       const rows = batch.map(({ proposed: row }) => [
         row.shopId, invoiceIds.get(row.legacyRoNo), row.description, row.partNumber,
-        row.quantity, row.unitPrice, row.legacyLineKey, row.legacyRoNo, row.legacySourceTable,
+        row.quantity, row.unitPrice, row.vendorNameSnapshot, row.legacyLineKey, row.legacyRoNo, row.legacySourceTable,
       ]);
       await transaction.$executeRawUnsafe(
         bulkUpsertSql(
           "invoice_parts", partColumns, ["shop_id", "legacy_line_key"],
-          ["invoice_id", "description", "part_number", "quantity", "unit_price", "legacy_ro_no", "legacy_source_table"],
+          ["invoice_id", "description", "part_number", "quantity", "unit_price", "vendor_name_snapshot", "legacy_ro_no", "legacy_source_table"],
           rows.length,
         ),
         ...rows.flat(),

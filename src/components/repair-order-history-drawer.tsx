@@ -134,7 +134,7 @@ function RepairOrderHistoryDetailView({ detail }: { detail: RepairOrderHistoryDe
       <HistoryText title="Recommendations" value={detail.recommendation} />
       <HistoryText title="Shop Notes" value={detail.notes} />
     </section> : null}
-    <HistoryLines title="Parts" empty="No parts recorded" headings={["Description", "Qty", "Unit price", "Amount"]} rows={detail.parts.map((part) => [part.partNumber ? `${part.description} · Part #${part.partNumber}` : part.description, part.quantity, part.unitPrice, part.amount])} />
+    <HistoryLines title="Parts" empty="No parts recorded" headings={["Description", "Qty", "Unit price", "Amount"]} rows={detail.parts.map((part) => [`${part.partNumber ? `${part.description} · Part #${part.partNumber}` : part.description} · Vendor: ${part.vendor ?? "Not recorded"}`, part.quantity, part.unitPrice, part.amount])} />
     <HistoryLines title="Labor" empty="No labor recorded" headings={["Description", "Hours", "Rate", "Amount"]} rows={detail.labor.map((labor) => [labor.description, labor.hours, labor.hourlyRate, labor.amount])} />
     {detail.complimentaryServices.length > 0 && <HistoryLines title="Complimentary Services" empty="No complimentary services recorded" headings={["Description", "Charge"]} rows={detail.complimentaryServices.map((service) => [service.description, "No charge"])} />}
     <section className="ml-auto w-full rounded-xl border border-slate-200 bg-white p-5 sm:max-w-md">

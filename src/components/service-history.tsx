@@ -7,6 +7,7 @@ type ServiceHistoryItem = {
   repairOrderNumber: number | null;
   invoiceDate: Date | null;
   total: { toString(): string };
+  parts: Array<{ id: string; description: string; partNumber: string | null; vendorNameSnapshot: string | null }>;
   vehicle?: {
     id: string;
     year: number | null;
@@ -57,6 +58,7 @@ export function ServiceHistory({
                     <span className="text-sm text-slate-500">
                       {formatDate(invoice.invoiceDate)}
                     </span>
+                    {invoice.parts.length > 0 && <span className="mt-3 block space-y-2">{invoice.parts.map((part) => <span key={part.id} className="block text-sm"><span className="block font-medium text-slate-800">{part.description}</span><span className="block text-xs text-slate-500">Part #: {part.partNumber ?? "Not recorded"} · Vendor: {part.vendorNameSnapshot?.trim() || "Not recorded"}</span></span>)}</span>}
                   </span>
                   <span className="text-sm text-slate-600">
                     {showVehicle ? vehicle : null}

@@ -129,6 +129,7 @@ async function main() {
           partNumber: textValue(row.rawData, "PARTNO"),
           quantity: numberValue(row.rawData, "QTY") ?? 1,
           unitPrice: numberValue(row.rawData, "PRICE") ?? 0,
+          vendorNameSnapshot: textValue(row.rawData, "SOURCE"),
           legacyRoNo: ro, legacySourceTable: "orders",
         };
         await prisma.repairOrderPart.upsert({

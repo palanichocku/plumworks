@@ -104,6 +104,7 @@ export async function getVehicleForCurrentShop(id: string) {
           repairOrderNumber: true,
           invoiceDate: true,
           total: true,
+          parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, vendorNameSnapshot: true } },
           customer: { select: { id: true, displayName: true } },
         },
       },

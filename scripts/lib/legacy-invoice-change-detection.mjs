@@ -42,7 +42,7 @@ export const PERSISTED_FIELDS = {
   invoicePart: {
     invoiceId: [scalar, "relationship"], description: [scalar, "description"],
     partNumber: [scalar, "part number"], quantity: [normalizeDecimal, "amount"],
-    unitPrice: [normalizeDecimal, "amount"], legacyRoNo: [scalar, "legacy source metadata"],
+    unitPrice: [normalizeDecimal, "amount"], vendorNameSnapshot: [scalar, "vendor snapshot"], legacyRoNo: [scalar, "legacy source metadata"],
     legacySourceTable: [scalar, "legacy source metadata"],
   },
   invoiceLabor: {
