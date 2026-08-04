@@ -1,0 +1,8 @@
+import type { Metadata } from "next";
+import { MarketingPageHero } from "@/components/marketing/page-hero";
+
+export const metadata: Metadata = { title: "Privacy", description: "How information submitted through the shop website is used." };
+
+export default function PrivacyPage() {
+  return <><MarketingPageHero eyebrow="Privacy" title="Website privacy" description="A concise overview of information submitted through this website." /><section className="mx-auto max-w-3xl space-y-8 px-4 py-16 text-sm leading-7 text-slate-700 sm:px-6"><div><h2 className="text-xl font-black text-slate-950">Information you submit</h2><p className="mt-3">Contact, appointment, and drop-off request forms collect the information you provide so the shop can review and respond to your request. Avoid submitting sensitive personal or payment information through these forms.</p></div><div><h2 className="text-xl font-black text-slate-950">How requests are used</h2><p className="mt-3">Submitted information is used to communicate about the vehicle concern, requested service, timing, and related follow-up. A service request is not an automatically confirmed appointment.</p></div><div><h2 className="text-xl font-black text-slate-950">Call interaction</h2><p className="mt-3">The website may record that the Call Now control was selected so the shop can understand website inquiry activity. The website does not record the content of a telephone call.</p></div><div><h2 className="text-xl font-black text-slate-950">Questions</h2><p className="mt-3">Use the Contact page to ask the shop about information submitted through this website.</p></div></section></>;
+}
