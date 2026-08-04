@@ -26,21 +26,18 @@ export default async function DashboardPage() {
   }
 
   const cards = [
-    ["Open repair orders", summary.openRepairOrders, "/repair-orders"],
-    ["Web draft/open orders", summary.webRepairOrders, "/repair-orders"],
-    ["Open receivables", summary.openReceivables, "/accounts-receivable"],
-    ["Open AR balance", formatMoney(summary.openReceivableBalance), "/accounts-receivable"],
-    ["Customers", summary.customers, "/customers"],
-    ["Vehicles", summary.vehicles, "/vehicles"],
-    ["Invoices, last 30 days", summary.recentInvoiceCount, "/invoices"],
-    ...(summary.newLeadCount === null ? [] : [["New leads", summary.newLeadCount, "/admin/leads"]] as const),
+    { label: "Open Repair Orders", value: String(summary.openRepairOrders), supporting: "Draft and open", href: "/repair-orders" },
+    { label: "Customers", value: String(summary.customers), supporting: "Customer records", href: "/customers" },
+    { label: "Vehicles", value: String(summary.vehicles), supporting: "Registered vehicles", href: "/vehicles" },
+    { label: "Invoices This Month", value: `${summary.monthlyInvoiceCount} ${summary.monthlyInvoiceCount === 1 ? "invoice" : "invoices"}`, supporting: `${formatMoney(summary.monthlyInvoiceTotal)} billed`, href: "/invoices" },
+    { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Admin access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/admin/leads?status=NEW" },
   ] as const;
 
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Dynamic Header Frame */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <PageHeading eyebrow="Overview" title="Dashboard" description="Current shop activity, active drafts, and receivables ledger balances." />
+        <PageHeading eyebrow="Overview" title="Dashboard" description="Current shop activity and customer workflow at a glance." />
         <div className="shrink-0 md:text-right">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold tracking-wide text-emerald-700 border border-emerald-200 shadow-2xs">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -50,28 +47,21 @@ export default async function DashboardPage() {
       </div>
 
       {/* --- METRIC CARD GRID ARCHITECTURE --- */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map(([label, value, href]) => (
-          <Link 
-            key={label} 
-            href={href} 
-            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-primary/40 hover:shadow-lg"
-          >
-            {/* Thickened the hover accent to match overall heavier UI */}
-            <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
-            {/* Boosted label contrast from text-slate-400 to text-slate-500 font-extrabold */}
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500 group-hover:text-brand-primary transition-colors">
-              {label}
-            </p>
-            <p className="mt-4 text-3xl font-black text-slate-900 tracking-tight">
-              {value}
-            </p>
-          </Link>
-        ))}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {cards.map((card) => {
+          const content = <>
+            <div className="absolute bottom-0 left-0 top-0 w-1.5 bg-brand-primary opacity-0 transition-opacity group-hover:opacity-100" />
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500 transition-colors group-hover:text-brand-primary">{card.label}</p>
+            <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{card.value}</p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">{card.supporting}</p>
+          </>;
+          const className = "group relative flex min-h-40 flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200";
+          return card.href ? <Link key={card.label} href={card.href} className={`${className} hover:-translate-y-1 hover:border-brand-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20`}>{content}</Link> : <article key={card.label} className={`${className} opacity-75`}>{content}</article>;
+        })}
       </section>
 
       {/* --- MAIN OPERATIONAL ACTIVITY LAYOUT --- */}
-      <section className="grid gap-6 xl:grid-cols-3">
+      <section className="grid gap-6 xl:grid-cols-2">
         {/* RECENT REPAIR ORDERS */}
         <ActivityCard title="Recent Repair Orders" href="/repair-orders">
           {summary.recentRepairOrders.map((order) => {
@@ -124,27 +114,6 @@ export default async function DashboardPage() {
           ))}
         </ActivityCard>
 
-        {/* UNPAID RECEIVABLES */}
-        <ActivityCard title="Unpaid Accounts Receivable" href="/accounts-receivable">
-          {summary.unpaidInvoices.map((row) => row.invoice ? (
-            <li key={row.id} className="group transition-colors hover:bg-slate-50/70 border-l-2 border-transparent hover:border-brand-primary">
-              <Link href={`/invoices/${row.invoice.id}`} className="block px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-bold text-slate-900 group-hover:text-brand-primary transition-colors">
-                    RO #{row.invoice.repairOrderNumber ?? row.invoice.legacyRoNo ?? "N/A"}
-                  </span>
-                  <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100 shadow-2xs">
-                    {formatMoney(row.balance)}
-                  </span>
-                </div>
-                <div className="mt-1.5 flex justify-between text-xs text-slate-500 font-medium">
-                  <span className="truncate max-w-[150px] font-semibold text-slate-700">{row.customer.displayName}</span>
-                  <span>{formatDate(row.invoice.invoiceDate)}</span>
-                </div>
-              </Link>
-            </li>
-          ) : null)}
-        </ActivityCard>
       </section>
     </div>
   );

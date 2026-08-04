@@ -3,22 +3,25 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 import { hasPermission } from "@/lib/permissions";
+import { callClickMessage } from "@/lib/marketing-lead-context";
+import { currentUtcMonthRange } from "@/lib/dashboard-summary";
 
 export async function getDashboardSummary() {
   const { membership } = await getCurrentMembership();
   if (!membership) return null;
   const shopId = membership.shopId;
-  const recentSince = new Date();
-  recentSince.setUTCDate(recentSince.getUTCDate() - 30);
+  const currentMonth = currentUtcMonthRange();
 
   const canViewAdmin = hasPermission(membership.role, "edit_shop_settings");
-  const [openRepairOrders, webRepairOrders, openReceivables, customers, vehicles, recentInvoiceCount, recentRepairOrders, recentInvoices, unpaidInvoices, newLeadCount] = await Promise.all([
+  const [openRepairOrders, customers, vehicles, monthlyInvoices, recentRepairOrders, recentInvoices, newLeadCount] = await Promise.all([
     prisma.repairOrder.count({ where: { shopId, status: { in: ["draft", "open"] } } }),
-    prisma.repairOrder.count({ where: { shopId, status: { in: ["draft", "open"] }, legacySourceTable: null, repairOrderNumber: { not: null } } }),
-    prisma.accountReceivable.aggregate({ where: { shopId, status: "open", balance: { gt: 0 } }, _count: true, _sum: { balance: true } }),
     prisma.customer.count({ where: { shopId } }),
     prisma.vehicle.count({ where: { shopId } }),
-    prisma.invoice.count({ where: { shopId, invoiceDate: { gte: recentSince } } }),
+    prisma.invoice.aggregate({
+      where: { shopId, invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+      _count: { _all: true },
+      _sum: { total: true },
+    }),
     prisma.repairOrder.findMany({
       where: { shopId, status: { in: ["draft", "open"] } },
       orderBy: [{ openedAt: "desc" }, { createdAt: "desc" }],
@@ -31,26 +34,19 @@ export async function getDashboardSummary() {
       take: 5,
       select: { id: true, repairOrderNumber: true, legacyRoNo: true, invoiceDate: true, total: true, customer: { select: { displayName: true } } },
     }),
-    prisma.accountReceivable.findMany({
-      where: { shopId, status: "open", balance: { gt: 0 }, invoiceId: { not: null } },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, balance: true, customer: { select: { displayName: true } }, invoice: { select: { id: true, repairOrderNumber: true, legacyRoNo: true, invoiceDate: true } } },
-    }),
-    canViewAdmin ? prisma.marketingLead.count({ where: { shopId, status: "NEW" } }) : Promise.resolve(null),
+    canViewAdmin ? prisma.marketingLead.count({
+      where: { shopId, status: "NEW", NOT: { source: "CONTACT", message: callClickMessage } },
+    }) : Promise.resolve(null),
   ]);
 
   return {
     openRepairOrders,
-    webRepairOrders,
-    openReceivables: openReceivables._count,
-    openReceivableBalance: openReceivables._sum.balance,
     customers,
     vehicles,
-    recentInvoiceCount,
+    monthlyInvoiceCount: monthlyInvoices._count._all,
+    monthlyInvoiceTotal: monthlyInvoices._sum.total,
     recentRepairOrders,
     recentInvoices,
-    unpaidInvoices,
     newLeadCount,
   };
 }
