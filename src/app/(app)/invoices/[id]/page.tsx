@@ -177,7 +177,7 @@ export default async function InvoiceDetailPage({
       </LineSection>
 
       <LineSection title="Labor" empty="No labor is recorded for this invoice.">
-        {invoice.labor.map((labor: InvoiceLabor) => (
+        {invoice.labor.filter((labor: InvoiceLabor) => !labor.complimentary).map((labor: InvoiceLabor) => (
           <li key={labor.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
             <span className="font-medium text-slate-950">
               {formatLaborDescription(labor.description)}
@@ -187,6 +187,9 @@ export default async function InvoiceDetailPage({
           </li>
         ))}
       </LineSection>
+      {invoice.labor.some((labor: InvoiceLabor) => labor.complimentary) && <LineSection title="Complimentary Services" empty="No complimentary services are recorded for this invoice.">
+        {invoice.labor.filter((labor: InvoiceLabor) => labor.complimentary).map((labor: InvoiceLabor) => <li key={labor.id} className="flex items-center justify-between gap-4 px-6 py-4"><span className="font-medium text-slate-950">{formatLaborDescription(labor.description)}</span><span className="shrink-0 text-sm font-semibold text-emerald-700">No charge</span></li>)}
+      </LineSection>}
     </>
   );
 }

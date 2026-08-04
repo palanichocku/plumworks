@@ -35,6 +35,7 @@ export type RepairOrderHistoryDetail = RepairOrderHistoryRow & {
   concern: string | null;
   parts: Array<{ id: string; description: string; partNumber: string | null; quantity: string; unitPrice: string; amount: string }>;
   labor: Array<{ id: string; description: string; hours: string; hourlyRate: string; amount: string }>;
+  complimentaryServices: Array<{ id: string; description: string }>;
   totals: { parts: string; labor: string; subtotal: string; shopSupplies: string | null; tax: string; total: string };
 };
 
@@ -131,7 +132,7 @@ export async function getRepairOrderHistory(currentRepairOrderId: string, cursor
         invoiceDate: true, createdAt: true, status: true, total: true, customerComplaint: true,
         recommendation: true, odometer: true,
         repairOrder: { select: { odometer: true } },
-        labor: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
+        labor: { where: { complimentary: false }, orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
         parts: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
       },
     }),
@@ -141,7 +142,7 @@ export async function getRepairOrderHistory(currentRepairOrderId: string, cursor
         id: true, customerId: true, vehicleId: true, repairOrderNumber: true, legacyRoNo: true,
         openedAt: true, createdAt: true, status: true, odometer: true, estimatedTotal: true,
         customerComplaint: true, recommendation: true,
-        labor: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
+        labor: { where: { complimentary: false }, orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
         parts: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
       },
     }),
@@ -179,14 +180,14 @@ export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, 
         vehicle: { select: { year: true, make: true, model: true } },
         repairOrder: { select: { odometer: true } },
         parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, quantity: true, unitPrice: true } },
-        labor: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, hours: true, hourlyRate: true } },
+        labor: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, hours: true, hourlyRate: true, complimentary: true } },
       },
     });
     if (!invoice || !invoice.vehicleId) return null;
     const serviceDate = invoice.invoiceDate ?? invoice.createdAt;
     const odometer = serviceOdometer(invoice.odometer, invoice.repairOrder?.odometer);
     const vehicle = [snapshotNumber(invoice.vehicleSnapshot, "year", invoice.vehicle?.year ?? null), snapshotString(invoice.vehicleSnapshot, "make", invoice.vehicle?.make ?? null), snapshotString(invoice.vehicleSnapshot, "model", invoice.vehicle?.model ?? null)].filter(Boolean).join(" ") || "Vehicle details unavailable";
-    return { source, id: invoice.id, number: historyNumber(invoice.repairOrderNumber, invoice.legacyRoNo), serviceDate: serviceDate.toISOString(), date: formatDate(serviceDate), createdDate: formatDate(invoice.createdAt), completedDate: formatDate(invoice.closedAt ?? serviceDate), status: "completed", odometer, summary: conciseSummary(invoice, source), total: formatMoney(invoice.total), customerId: invoice.customerId, vehicleId: invoice.vehicleId, customerName: snapshotString(invoice.customerSnapshot, "displayName", invoice.customer.displayName) ?? invoice.customer.displayName, vehicle, complaint: invoice.customerComplaint, recommendation: invoice.recommendation, concern: null, notes: null, parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: invoice.labor.map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), totals: { parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), shopSupplies: invoice.shopSuppliesEnabledSnapshot === false || invoice.shopSuppliesAmount.isZero() ? null : formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total) } };
+    return { source, id: invoice.id, number: historyNumber(invoice.repairOrderNumber, invoice.legacyRoNo), serviceDate: serviceDate.toISOString(), date: formatDate(serviceDate), createdDate: formatDate(invoice.createdAt), completedDate: formatDate(invoice.closedAt ?? serviceDate), status: "completed", odometer, summary: conciseSummary(invoice, source), total: formatMoney(invoice.total), customerId: invoice.customerId, vehicleId: invoice.vehicleId, customerName: snapshotString(invoice.customerSnapshot, "displayName", invoice.customer.displayName) ?? invoice.customer.displayName, vehicle, complaint: invoice.customerComplaint, recommendation: invoice.recommendation, concern: null, notes: null, parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: invoice.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), shopSupplies: invoice.shopSuppliesEnabledSnapshot === false || invoice.shopSuppliesAmount.isZero() ? null : formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total) } };
   }
   const order = await prisma.repairOrder.findFirst({
     where: { id: historicalId, shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId, invoices: { none: {} } },
@@ -196,10 +197,10 @@ export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, 
       partsTotal: true, laborTotal: true, shopSuppliesEnabledSnapshot: true, shopSuppliesAmount: true, taxTotal: true, estimatedTotal: true,
       customer: { select: { displayName: true } }, vehicle: { select: { year: true, make: true, model: true } },
       parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, quantity: true, unitPrice: true } },
-      labor: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, hours: true, hourlyRate: true } },
+      labor: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, hours: true, hourlyRate: true, complimentary: true } },
     },
   });
   if (!order) return null;
   const subtotal = order.partsTotal.plus(order.laborTotal).toDecimalPlaces(2);
-  return { source, id: order.id, number: historyNumber(order.repairOrderNumber, order.legacyRoNo), serviceDate: order.openedAt.toISOString(), date: formatDate(order.openedAt), createdDate: formatDate(order.createdAt), completedDate: order.closedAt ? formatDate(order.closedAt) : null, status: order.status, odometer: serviceOdometer(order.odometer), summary: conciseSummary(order, source), total: formatMoney(order.estimatedTotal), customerId: order.customerId, vehicleId: order.vehicleId, customerName: order.customer.displayName, vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable", complaint: order.customerComplaint, recommendation: order.recommendation, concern: order.concern, notes: order.notes, parts: order.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: order.labor.map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), totals: { parts: formatMoney(order.partsTotal), labor: formatMoney(order.laborTotal), subtotal: formatMoney(subtotal), shopSupplies: order.shopSuppliesEnabledSnapshot ? formatMoney(order.shopSuppliesAmount) : null, tax: formatMoney(order.taxTotal), total: formatMoney(order.estimatedTotal) } };
+  return { source, id: order.id, number: historyNumber(order.repairOrderNumber, order.legacyRoNo), serviceDate: order.openedAt.toISOString(), date: formatDate(order.openedAt), createdDate: formatDate(order.createdAt), completedDate: order.closedAt ? formatDate(order.closedAt) : null, status: order.status, odometer: serviceOdometer(order.odometer), summary: conciseSummary(order, source), total: formatMoney(order.estimatedTotal), customerId: order.customerId, vehicleId: order.vehicleId, customerName: order.customer.displayName, vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable", complaint: order.customerComplaint, recommendation: order.recommendation, concern: order.concern, notes: order.notes, parts: order.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: order.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: order.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(order.partsTotal), labor: formatMoney(order.laborTotal), subtotal: formatMoney(subtotal), shopSupplies: order.shopSuppliesEnabledSnapshot ? formatMoney(order.shopSuppliesAmount) : null, tax: formatMoney(order.taxTotal), total: formatMoney(order.estimatedTotal) } };
 }

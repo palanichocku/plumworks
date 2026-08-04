@@ -136,6 +136,7 @@ function RepairOrderHistoryDetailView({ detail }: { detail: RepairOrderHistoryDe
     </section> : null}
     <HistoryLines title="Parts" empty="No parts recorded" headings={["Description", "Qty", "Unit price", "Amount"]} rows={detail.parts.map((part) => [part.partNumber ? `${part.description} · Part #${part.partNumber}` : part.description, part.quantity, part.unitPrice, part.amount])} />
     <HistoryLines title="Labor" empty="No labor recorded" headings={["Description", "Hours", "Rate", "Amount"]} rows={detail.labor.map((labor) => [labor.description, labor.hours, labor.hourlyRate, labor.amount])} />
+    {detail.complimentaryServices.length > 0 && <HistoryLines title="Complimentary Services" empty="No complimentary services recorded" headings={["Description", "Charge"]} rows={detail.complimentaryServices.map((service) => [service.description, "No charge"])} />}
     <section className="ml-auto w-full rounded-xl border border-slate-200 bg-white p-5 sm:max-w-md">
       <h3 className="font-bold text-slate-950">Stored Service Totals</h3>
       <dl className="mt-4 space-y-2 text-sm"><TotalRow label="Parts" value={detail.totals.parts} /><TotalRow label="Labor" value={detail.totals.labor} /><TotalRow label="Subtotal" value={detail.totals.subtotal} />{detail.totals.shopSupplies ? <TotalRow label="Shop Supplies" value={detail.totals.shopSupplies} /> : null}<TotalRow label={detail.source === "invoice" ? "Tax" : "Estimated Tax"} value={detail.totals.tax} /><div className="border-t border-slate-300 pt-2"><TotalRow label={detail.source === "invoice" ? "Total" : "Estimated Total"} value={detail.totals.total} strong /></div></dl>
@@ -153,7 +154,8 @@ function HistoryText({ title, value }: { title: string; value: string | null }) 
 }
 
 function HistoryLines({ title, empty, headings, rows }: { title: string; empty: string; headings: string[]; rows: string[][] }) {
-  return <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="font-bold text-slate-950">{title}</h3>{rows.length ? <div className="mt-4 space-y-3">{rows.map((row, index) => <div key={`${row[0]}-${index}`} className="grid min-w-0 gap-1 border-t border-slate-100 pt-3 first:border-0 first:pt-0 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_7rem]">{row.map((value, cell) => <div key={headings[cell]} className={cell ? "sm:text-right" : "min-w-0"}><span className="block text-xs font-medium text-slate-500 sm:hidden">{headings[cell]}</span><span className="block break-words text-sm text-slate-800">{value}</span></div>)}</div>)}</div> : <p className="mt-3 text-sm text-slate-500">{empty}</p>}</section>;
+  const columns = headings.length === 2 ? "sm:grid-cols-[minmax(0,1fr)_7rem]" : "sm:grid-cols-[minmax(0,1fr)_5rem_7rem_7rem]";
+  return <section className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="font-bold text-slate-950">{title}</h3>{rows.length ? <div className="mt-4 space-y-3">{rows.map((row, index) => <div key={`${row[0]}-${index}`} className={`grid min-w-0 gap-1 border-t border-slate-100 pt-3 first:border-0 first:pt-0 ${columns}`}>{row.map((value, cell) => <div key={headings[cell]} className={cell ? "sm:text-right" : "min-w-0"}><span className="block text-xs font-medium text-slate-500 sm:hidden">{headings[cell]}</span><span className="block break-words text-sm text-slate-800">{value}</span></div>)}</div>)}</div> : <p className="mt-3 text-sm text-slate-500">{empty}</p>}</section>;
 }
 
 function TotalRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {

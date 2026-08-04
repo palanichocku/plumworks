@@ -71,7 +71,9 @@ function PartsSection({ order, editable }: { order: RepairOrder; editable: boole
 }
 
 function LaborSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
-  return <RepairOrderLaborCard repairOrderId={order.id} total={order.laborTotal.toString()} lines={order.labor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))} services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))} defaultRate={order.shop.defaultLaborRate.toString()} editable={editable} />;
+  const ordinaryLabor = order.labor.filter((line) => !line.complimentary);
+  const complimentaryLabor = order.labor.filter((line) => line.complimentary);
+  return <RepairOrderLaborCard repairOrderId={order.id} total={order.laborTotal.toString()} lines={ordinaryLabor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))} complimentaryLines={complimentaryLabor.map(({ id, description }) => ({ id, description }))} services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))} defaultRate={order.shop.defaultLaborRate.toString()} editable={editable} />;
 }
 
 function TotalsSection({ order }: { order: RepairOrder }) {

@@ -18,6 +18,6 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     partsTotal: invoice.partsTotal.toString(),
     laborTotal: invoice.laborTotal.toString(),
     parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, quantity: part.quantity.toString(), unitPrice: part.unitPrice.toString() })),
-    labor: invoice.labor.map((labor) => ({ id: labor.id, description: labor.description, hours: labor.hours.toString(), hourlyRate: labor.hourlyRate.toString() })),
+    labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: labor.description, hours: labor.hours.toString(), hourlyRate: labor.hourlyRate.toString() })),
   }} />;
 }

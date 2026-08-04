@@ -33,6 +33,7 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
     <DocumentTable title="Labor / Services" headings={["Service Description", "Labor Amount", "Technician"]} empty="No labor recorded.">
       {model.labor.map((labor, index) => <tr key={`${labor.description}-${index}`}><td>{labor.description}<small>{labor.hours} hr × {labor.hourlyRate}</small></td><td>{labor.amount}</td><td>{labor.technician}</td></tr>)}
     </DocumentTable>
+    {model.complimentaryServices.length > 0 && <section className="invoice-document-section"><h2>Complimentary Services</h2><ul>{model.complimentaryServices.map((service, index) => <li key={`${service.description}-${index}`}>{service.description} — No charge</li>)}</ul></section>}
 
     <section className="invoice-document-bottom">
       <div className="invoice-document-legal">

@@ -481,6 +481,7 @@ model RepairOrderLabor {
   description          String
   hours                Decimal     @default(0) @db.Decimal(8, 2)
   hourlyRate           Decimal     @default(0) @map("hourly_rate") @db.Decimal(12, 2)
+  complimentary        Boolean     @default(false)
   /// Defaults false so existing labor cannot affect totals before calculation wiring is added.
   shopSuppliesEligible Boolean     @default(false) @map("shop_supplies_eligible")
   legacyLineKey        String      @map("legacy_line_key")
@@ -604,6 +605,7 @@ model InvoiceLabor {
   description       String
   hours             Decimal  @default(0) @db.Decimal(8, 2)
   hourlyRate        Decimal  @default(0) @map("hourly_rate") @db.Decimal(12, 2)
+  complimentary     Boolean  @default(false)
   legacyLineKey     String   @map("legacy_line_key")
   legacyRoNo        String?  @map("legacy_ro_no")
   legacySourceTable String?  @map("legacy_source_table")

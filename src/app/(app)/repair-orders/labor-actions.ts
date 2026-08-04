@@ -46,6 +46,7 @@ export async function addLaborLine(formData: FormData) {
         shopId: membership.shopId,
         repairOrderId,
         ...values,
+        complimentary: false,
         legacyLineKey: `web:${randomUUID()}`,
       },
       select: { id: true },
@@ -76,6 +77,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
         description: service.description,
         hours: service.defaultHours,
         hourlyRate: service.defaultLaborRate,
+        complimentary: false,
         legacyLineKey: `web:${randomUUID()}`,
       },
       select: { id: true },
@@ -96,7 +98,7 @@ export async function updateLaborLine(formData: FormData) {
 
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.repairOrderLabor.updateMany({
-      where: { id: laborLineId, repairOrderId, shopId: membership.shopId },
+      where: { id: laborLineId, repairOrderId, shopId: membership.shopId, complimentary: false },
       data: values,
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
@@ -115,7 +117,7 @@ export async function deleteLaborLine(formData: FormData) {
 
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.repairOrderLabor.deleteMany({
-      where: { id: laborLineId, repairOrderId, shopId: membership.shopId },
+      where: { id: laborLineId, repairOrderId, shopId: membership.shopId, complimentary: false },
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);

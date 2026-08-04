@@ -22,7 +22,7 @@ export async function refreshRepairOrderTotals(
       select: { quantity: true, unitPrice: true },
     }),
     transaction.repairOrderLabor.findMany({
-      where: { repairOrderId, shopId },
+      where: { repairOrderId, shopId, complimentary: false },
       select: { hours: true, hourlyRate: true },
     }),
   ]);

@@ -98,6 +98,8 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
         {model.labor.length ? model.labor.map((labor, index) => <View key={`${labor.description}-${index}`} style={styles.tableRow} wrap={false}><Text style={styles.description}>{labor.description}</Text><Text style={styles.quantity}>{labor.hours}</Text><Text style={styles.unit}>{labor.hourlyRate}</Text><Text style={styles.amount}>{labor.amount}</Text></View>) : <Text>No labor recorded.</Text>}
       </View>
 
+      {model.complimentaryServices.length ? <View style={styles.section}><Text style={styles.sectionTitle}>COMPLIMENTARY SERVICES</Text>{model.complimentaryServices.map((service, index) => <Text key={`${service.description}-${index}`}>• {service.description} — No charge</Text>)}</View> : null}
+
       <View style={styles.bottom} wrap={false}>
         <View style={styles.legal}>{model.shop.warrantyText ? <><Text style={styles.sectionTitle}>WARRANTY</Text><Text>{model.shop.warrantyText}</Text></> : null}</View>
         <View style={styles.totals}>

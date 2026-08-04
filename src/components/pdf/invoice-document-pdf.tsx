@@ -108,6 +108,8 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
         {model.labor.length ? model.labor.map((labor, index) => <View key={`${labor.description}-${index}`} style={styles.tableRow} wrap={false}><Text style={styles.laborDescription}>{labor.description}{`\n${labor.hours} hr × ${labor.hourlyRate}`}</Text><Text style={styles.laborAmount}>{labor.amount}</Text><Text style={styles.technician}>{labor.technician ?? ""}</Text></View>) : <Text>No labor recorded.</Text>}
       </View>
 
+      {model.complimentaryServices.length ? <View style={styles.section}><Text style={styles.sectionTitle}>COMPLIMENTARY SERVICES</Text>{model.complimentaryServices.map((service, index) => <Text key={`${service.description}-${index}`}>• {service.description} — No charge</Text>)}</View> : null}
+
       <View style={styles.bottom} wrap={false}>
         <View style={styles.legal}>
           {model.shop.laborWarrantyText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>LABOR WARRANTY</Text><Text>{model.shop.laborWarrantyText}</Text></View> : null}

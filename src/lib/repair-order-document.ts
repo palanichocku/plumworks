@@ -37,7 +37,7 @@ const repairOrderDocumentSelect = {
     description: true, partNumber: true, quantity: true, unitPrice: true,
   } },
   labor: { orderBy: { createdAt: "asc" as const }, select: {
-    description: true, hours: true, hourlyRate: true,
+    description: true, hours: true, hourlyRate: true, complimentary: true,
   } },
 } satisfies Prisma.RepairOrderSelect;
 
@@ -79,12 +79,13 @@ function mapRepairOrderDocument(order: RepairOrderDocumentRecord) {
       unitPrice: formatMoney(part.unitPrice),
       amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)),
     })),
-    labor: order.labor.map((labor) => ({
+    labor: order.labor.filter((labor) => !labor.complimentary).map((labor) => ({
       description: labor.description,
       hours: labor.hours.toString(),
       hourlyRate: formatMoney(labor.hourlyRate),
       amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)),
     })),
+    complimentaryServices: order.labor.filter((labor) => labor.complimentary).map((labor) => ({ description: labor.description })),
     totals: {
       parts: formatMoney(order.partsTotal),
       labor: formatMoney(order.laborTotal),

@@ -124,6 +124,7 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           description: true,
           hours: true,
           hourlyRate: true,
+          complimentary: true,
         },
       },
     },

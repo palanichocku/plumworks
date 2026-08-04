@@ -38,7 +38,7 @@ const invoiceDocumentSelect = {
     description: true, partNumber: true, quantity: true, unitPrice: true,
   } },
   labor: { orderBy: { createdAt: "asc" as const }, select: {
-    description: true, hours: true, hourlyRate: true,
+    description: true, hours: true, hourlyRate: true, complimentary: true,
   } },
   legacyCharges: { orderBy: { sourceBucket: "asc" as const }, select: { sourceLabel: true, sourceBucket: true, amount: true } },
 } satisfies Prisma.InvoiceSelect;
@@ -120,11 +120,12 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
       description: part.description, partNumber: part.partNumber, quantity: part.quantity.toString(),
       unitPrice: formatMoney(part.unitPrice), extendedAmount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)),
     })),
-    labor: invoice.labor.map((labor) => ({
+    labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({
       description: formatLaborDescription(labor.description), hours: labor.hours.toString(),
       hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)),
       technician: technicianName,
     })),
+    complimentaryServices: invoice.labor.filter((labor) => labor.complimentary).map((labor) => ({ description: formatLaborDescription(labor.description) })),
     legacyCharges: invoice.legacyCharges.map((charge) => ({ label: charge.sourceLabel?.trim() || charge.sourceBucket, amount: formatMoney(charge.amount) })),
     totals: {
       parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), displaySubtotalBeforeTax: formatMoney(displaySubtotalBeforeTax),
