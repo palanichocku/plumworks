@@ -29,7 +29,12 @@ export default async function DashboardPage() {
     { label: "Open Repair Orders", value: String(summary.openRepairOrders), supporting: "Draft and open", href: "/repair-orders" },
     { label: "Customers", value: String(summary.customers), supporting: "Customer records", href: "/customers" },
     { label: "Vehicles", value: String(summary.vehicles), supporting: "Registered vehicles", href: "/vehicles" },
-    { label: "Invoices This Month", value: `${summary.monthlyInvoiceCount} ${summary.monthlyInvoiceCount === 1 ? "invoice" : "invoices"}`, supporting: `${formatMoney(summary.monthlyInvoiceTotal)} billed`, href: "/invoices" },
+    {
+  label: "Invoices This Month",
+  value: summary.monthlyInvoiceCount.toLocaleString(),
+  supporting: `${formatMoney(summary.monthlyInvoiceTotal)} billed`,
+  href: "/invoices",
+},
     { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Admin access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/admin/leads?status=NEW" },
   ] as const;
 
