@@ -91,7 +91,7 @@ export default async function VehicleDetailPage({
         </article>
       </section>
       <InternalNotesBlock recordId={vehicle.id} notes={vehicle.notes} canEdit={canEditNotes} emptyMessage="No vehicle notes have been added." successMessage="Vehicle notes saved." action={updateVehicleNotes} />
-      <ServiceHistory invoices={vehicle.invoices} showCustomer />
+      <ServiceHistory context="vehicle" contextId={vehicle.id} invoices={vehicle.invoices} repairOrders={vehicle.repairOrders} showCustomer />
     </>
   );
 }

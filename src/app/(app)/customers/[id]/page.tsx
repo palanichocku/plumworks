@@ -110,7 +110,7 @@ export default async function CustomerDetailPage({
           </ul>
         )}
       </section>
-      <ServiceHistory invoices={customer.invoices} showVehicle />
+      <ServiceHistory context="customer" contextId={customer.id} invoices={customer.invoices} repairOrders={customer.repairOrders} showVehicle />
     </>
   );
 }

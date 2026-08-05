@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { loadRepairOrderHistory, loadRepairOrderHistoryDetail } from "@/app/(app)/repair-orders/history-actions";
 import type { RepairOrderHistoryCursor, RepairOrderHistoryDetail, RepairOrderHistoryRow, RepairOrderHistorySource } from "@/lib/data/repair-order-history";
 
@@ -121,11 +122,12 @@ function RepairOrderHistoryList({ rows, nextCursor, loadingMore, onSelect, onLoa
   </div>;
 }
 
-function RepairOrderHistoryDetailView({ detail }: { detail: RepairOrderHistoryDetail }) {
+export function RepairOrderHistoryDetailView({ detail, showRecordAction = false }: { detail: RepairOrderHistoryDetail; showRecordAction?: boolean }) {
   return <div className="space-y-5">
+    {showRecordAction ? <div className="flex justify-end"><Link href={detail.source === "invoice" ? `/invoices/${detail.id}` : detail.legacyReadOnly ? `/open-orders/${detail.id}` : `/repair-orders/${detail.id}`} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-primary/10">{detail.source === "invoice" ? "View Invoice" : "View Repair Order"}</Link></div> : null}
     <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
       <HistoryValue label="Repair Order" value={`#${detail.number}`} /><HistoryValue label="Date" value={detail.date} />
-      <HistoryValue label="Status" value={detail.status} capitalize /><HistoryValue label="Mileage at service" value={detail.odometer ?? "Not recorded"} />
+      <HistoryValue label="Status" value={detail.lifecycleLabel} /><HistoryValue label="Mileage at service" value={detail.odometer ?? "Not recorded"} />
       <HistoryValue label="Customer" value={detail.customerName} /><HistoryValue label="Vehicle" value={detail.vehicle} />
       <HistoryValue label="Created" value={detail.createdDate} /><HistoryValue label="Completed" value={detail.completedDate ?? "Not completed"} />
     </section>

@@ -86,6 +86,17 @@ export async function getCustomerForCurrentShop(id: string) {
           },
         },
       },
+      repairOrders: {
+        where: { invoices: { none: {} } },
+        orderBy: [{ openedAt: "desc" }, { createdAt: "desc" }],
+        take: 50,
+        select: {
+          id: true, legacyRoNo: true, repairOrderNumber: true, openedAt: true,
+          estimatedTotal: true, status: true, odometer: true, legacySourceTable: true,
+          parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, vendorNameSnapshot: true } },
+          vehicle: { select: { id: true, year: true, make: true, model: true } },
+        },
+      },
     },
   });
 }

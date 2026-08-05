@@ -25,6 +25,8 @@ export type RepairOrderHistoryRow = {
 };
 
 export type RepairOrderHistoryDetail = RepairOrderHistoryRow & {
+  lifecycleLabel: string;
+  legacyReadOnly: boolean;
   createdDate: string;
   completedDate: string | null;
   customerName: string;
@@ -164,15 +166,16 @@ export async function getRepairOrderHistory(currentRepairOrderId: string, cursor
   return { rows, nextCursor: keys.length > REPAIR_ORDER_HISTORY_PAGE_SIZE && lastKey ? { serviceDate: lastKey.serviceDate.toISOString(), source: lastKey.source, id: lastKey.id } satisfies RepairOrderHistoryCursor : null };
 }
 
-export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, source: unknown, historicalId: string): Promise<RepairOrderHistoryDetail | null> {
-  if (!isHistorySource(source)) return null;
-  const scope = await getHistoryScope(currentRepairOrderId);
-  if (!scope || historicalId === scope.currentRepairOrderId) return null;
+type DetailScope = { shopId: string; customerId: string | undefined; vehicleId: string | undefined; excludedRepairOrderId?: string };
+
+async function getScopedHistoryDetail(scope: DetailScope, source: RepairOrderHistorySource, historicalId: string): Promise<RepairOrderHistoryDetail | null> {
+  if (historicalId === scope.excludedRepairOrderId) return null;
   if (source === "invoice") {
     const invoice = await prisma.invoice.findFirst({
       where: { id: historicalId, shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId },
       select: {
         id: true, customerId: true, vehicleId: true, repairOrderNumber: true, legacyRoNo: true,
+        legacySourceTable: true,
         invoiceDate: true, createdAt: true, closedAt: true, odometer: true, customerComplaint: true, recommendation: true,
         partsTotal: true, laborTotal: true, subtotal: true, shopSuppliesAmount: true,
         shopSuppliesEnabledSnapshot: true, taxTotal: true, total: true, customerSnapshot: true, vehicleSnapshot: true,
@@ -187,13 +190,13 @@ export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, 
     const serviceDate = invoice.invoiceDate ?? invoice.createdAt;
     const odometer = serviceOdometer(invoice.odometer, invoice.repairOrder?.odometer);
     const vehicle = [snapshotNumber(invoice.vehicleSnapshot, "year", invoice.vehicle?.year ?? null), snapshotString(invoice.vehicleSnapshot, "make", invoice.vehicle?.make ?? null), snapshotString(invoice.vehicleSnapshot, "model", invoice.vehicle?.model ?? null)].filter(Boolean).join(" ") || "Vehicle details unavailable";
-    return { source, id: invoice.id, number: historyNumber(invoice.repairOrderNumber, invoice.legacyRoNo), serviceDate: serviceDate.toISOString(), date: formatDate(serviceDate), createdDate: formatDate(invoice.createdAt), completedDate: formatDate(invoice.closedAt ?? serviceDate), status: "completed", odometer, summary: conciseSummary(invoice, source), total: formatMoney(invoice.total), customerId: invoice.customerId, vehicleId: invoice.vehicleId, customerName: snapshotString(invoice.customerSnapshot, "displayName", invoice.customer.displayName) ?? invoice.customer.displayName, vehicle, complaint: invoice.customerComplaint, recommendation: invoice.recommendation, concern: null, notes: null, parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, vendor: part.vendorNameSnapshot?.trim() || null, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: invoice.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), shopSupplies: invoice.shopSuppliesEnabledSnapshot === false || invoice.shopSuppliesAmount.isZero() ? null : formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total) } };
+    return { source, id: invoice.id, number: historyNumber(invoice.repairOrderNumber, invoice.legacyRoNo), serviceDate: serviceDate.toISOString(), date: formatDate(serviceDate), createdDate: formatDate(invoice.createdAt), completedDate: formatDate(invoice.closedAt ?? serviceDate), status: "completed", lifecycleLabel: invoice.legacySourceTable ? "Legacy service" : "Completed service", legacyReadOnly: Boolean(invoice.legacySourceTable), odometer, summary: conciseSummary(invoice, source), total: formatMoney(invoice.total), customerId: invoice.customerId, vehicleId: invoice.vehicleId, customerName: snapshotString(invoice.customerSnapshot, "displayName", invoice.customer.displayName) ?? invoice.customer.displayName, vehicle, complaint: invoice.customerComplaint, recommendation: invoice.recommendation, concern: null, notes: null, parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, vendor: part.vendorNameSnapshot?.trim() || null, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: invoice.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), shopSupplies: invoice.shopSuppliesEnabledSnapshot === false || invoice.shopSuppliesAmount.isZero() ? null : formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total) } };
   }
   const order = await prisma.repairOrder.findFirst({
     where: { id: historicalId, shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId, invoices: { none: {} } },
     select: {
       id: true, customerId: true, vehicleId: true, repairOrderNumber: true, legacyRoNo: true, openedAt: true, createdAt: true,
-      closedAt: true, status: true, odometer: true, concern: true, notes: true, customerComplaint: true, recommendation: true,
+      closedAt: true, status: true, legacySourceTable: true, odometer: true, concern: true, notes: true, customerComplaint: true, recommendation: true,
       partsTotal: true, laborTotal: true, shopSuppliesEnabledSnapshot: true, shopSuppliesAmount: true, taxTotal: true, estimatedTotal: true,
       customer: { select: { displayName: true } }, vehicle: { select: { year: true, make: true, model: true } },
       parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, vendorNameSnapshot: true, quantity: true, unitPrice: true } },
@@ -202,5 +205,25 @@ export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, 
   });
   if (!order) return null;
   const subtotal = order.partsTotal.plus(order.laborTotal).toDecimalPlaces(2);
-  return { source, id: order.id, number: historyNumber(order.repairOrderNumber, order.legacyRoNo), serviceDate: order.openedAt.toISOString(), date: formatDate(order.openedAt), createdDate: formatDate(order.createdAt), completedDate: order.closedAt ? formatDate(order.closedAt) : null, status: order.status, odometer: serviceOdometer(order.odometer), summary: conciseSummary(order, source), total: formatMoney(order.estimatedTotal), customerId: order.customerId, vehicleId: order.vehicleId, customerName: order.customer.displayName, vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable", complaint: order.customerComplaint, recommendation: order.recommendation, concern: order.concern, notes: order.notes, parts: order.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, vendor: part.vendorNameSnapshot?.trim() || null, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: order.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: order.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(order.partsTotal), labor: formatMoney(order.laborTotal), subtotal: formatMoney(subtotal), shopSupplies: order.shopSuppliesEnabledSnapshot ? formatMoney(order.shopSuppliesAmount) : null, tax: formatMoney(order.taxTotal), total: formatMoney(order.estimatedTotal) } };
+  return { source, id: order.id, number: historyNumber(order.repairOrderNumber, order.legacyRoNo), serviceDate: order.openedAt.toISOString(), date: formatDate(order.openedAt), createdDate: formatDate(order.createdAt), completedDate: order.closedAt ? formatDate(order.closedAt) : null, status: order.status, lifecycleLabel: order.legacySourceTable ? "Legacy · read only" : order.status === "open" || order.status === "draft" ? "Open Repair Order" : order.status, legacyReadOnly: Boolean(order.legacySourceTable), odometer: serviceOdometer(order.odometer), summary: conciseSummary(order, source), total: formatMoney(order.estimatedTotal), customerId: order.customerId, vehicleId: order.vehicleId, customerName: order.customer.displayName, vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable", complaint: order.customerComplaint, recommendation: order.recommendation, concern: order.concern, notes: order.notes, parts: order.parts.map((part) => ({ id: part.id, description: part.description, partNumber: part.partNumber, vendor: part.vendorNameSnapshot?.trim() || null, quantity: part.quantity.toString(), unitPrice: formatMoney(part.unitPrice), amount: formatMoney(part.quantity.mul(part.unitPrice).toDecimalPlaces(2)) })), labor: order.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description), hours: labor.hours.toString(), hourlyRate: formatMoney(labor.hourlyRate), amount: formatMoney(labor.hours.mul(labor.hourlyRate).toDecimalPlaces(2)) })), complimentaryServices: order.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: formatLaborDescription(labor.description) })), totals: { parts: formatMoney(order.partsTotal), labor: formatMoney(order.laborTotal), subtotal: formatMoney(subtotal), shopSupplies: order.shopSuppliesEnabledSnapshot ? formatMoney(order.shopSuppliesAmount) : null, tax: formatMoney(order.taxTotal), total: formatMoney(order.estimatedTotal) } };
+}
+
+export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, source: unknown, historicalId: string): Promise<RepairOrderHistoryDetail | null> {
+  if (!isHistorySource(source)) return null;
+  const scope = await getHistoryScope(currentRepairOrderId);
+  if (!scope) return null;
+  if (historicalId === scope.currentRepairOrderId) return null;
+  return getScopedHistoryDetail({ shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId, excludedRepairOrderId: scope.currentRepairOrderId }, source, historicalId);
+}
+
+export async function getServiceHistoryDetail(context: unknown, contextId: string, source: unknown, historicalId: string) {
+  if ((context !== "customer" && context !== "vehicle") || !isHistorySource(source)) return null;
+  const { user, membership } = await getCurrentMembership();
+  if (!user || !membership) return null;
+  if (context === "customer") {
+    const customer = await prisma.customer.findFirst({ where: { id: contextId, shopId: membership.shopId }, select: { id: true } });
+    return customer ? getScopedHistoryDetail({ shopId: membership.shopId, customerId: customer.id, vehicleId: undefined }, source, historicalId) : null;
+  }
+  const vehicle = await prisma.vehicle.findFirst({ where: { id: contextId, shopId: membership.shopId }, select: { id: true } });
+  return vehicle ? getScopedHistoryDetail({ shopId: membership.shopId, customerId: undefined, vehicleId: vehicle.id }, source, historicalId) : null;
 }
