@@ -130,3 +130,16 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
     },
   });
 }
+
+export async function getRepairOrderInternalNotesForCurrentShop(id: string) {
+  const { membership } = await getCurrentMembership();
+  if (!membership) return null;
+
+  return prisma.repairOrder.findFirst({
+    where: { id, shopId: membership.shopId, legacySourceTable: null },
+    select: {
+      customer: { select: { id: true, notes: true } },
+      vehicle: { select: { id: true, customerId: true, notes: true } },
+    },
+  });
+}

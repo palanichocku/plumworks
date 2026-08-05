@@ -6,6 +6,7 @@ import { createRepairOrder } from "@/app/(app)/repair-orders/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CustomerPhoneInput } from "@/components/customer-phone-input";
 import { RepairOrderCustomerCombobox } from "@/components/repair-order-customer-combobox";
+import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
 import type { RepairOrderCustomerSearchResult } from "@/app/(app)/repair-orders/customer-search-actions";
 
 type VehicleSuggestion = { make: string | null; model: string | null };
@@ -29,6 +30,7 @@ export function NewRepairOrderForm({
   const [vehicleMode, setVehicleMode] = useState<"existing" | "new">("new");
   const [newVehicleMake, setNewVehicleMake] = useState("");
   const vehicles = selectedCustomer?.vehicles ?? [];
+  const selectedVehicle = vehicleMode === "existing" ? vehicles.find((vehicle) => vehicle.id === vehicleId) ?? null : null;
   const makeSuggestions = useMemo(
     () => Array.from(new Set(vehicleSuggestions.flatMap(({ make }) => make ? [cleanSuggestion(make)] : []))).sort(),
     [vehicleSuggestions],
@@ -216,6 +218,8 @@ export function NewRepairOrderForm({
         </label>
       </fieldset>
       </div>
+
+      {selectedCustomer ? <RepairOrderInternalNotesPanel customer={selectedCustomer} vehicle={selectedVehicle} canEdit /> : null}
 
       <section className={sectionClass} aria-labelledby="new-repair-order-concerns-title" data-ro-section="concerns">
         <div>

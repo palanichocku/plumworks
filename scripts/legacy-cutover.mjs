@@ -274,6 +274,9 @@ function printReconciliation(source, currentCounts) {
   console.log(`  secondary contact destination values: ${result.secondaryContact.destinationValues}`);
   console.log(`  missing secondary contact values: ${result.secondaryContact.missingValues}`);
   console.log(`  secondary contact mismatches: ${result.secondaryContact.mismatches}`);
+  console.log(`  customer persistent-context source values: ${result.persistentContext.customerSourceValues}`);
+  console.log(`  customer persistent-context destination values: ${result.persistentContext.customerDestinationValues}`);
+  console.log(`  customer persistent-context mismatches: ${result.persistentContext.customerMismatches}`);
   console.log(`current database rows that would be deleted: ${currentCounts.customers}`);
   console.log(`current DB minus expected post-reload rows: ${currentCounts.customers - result.customers.length}`);
   console.log("vehicle reconciliation");
@@ -284,6 +287,9 @@ function printReconciliation(source, currentCounts) {
   console.log(`  invalid legacy/customer id: ${result.reasons.invalidVehicleId}`);
   console.log(`  missing customer link: ${result.reasons.missingCustomerLink}`);
   console.log(`  duplicate legacy id: ${result.reasons.duplicateVehicleId}`);
+  console.log(`  vehicle persistent-context source values: ${result.persistentContext.vehicleSourceValues}`);
+  console.log(`  vehicle persistent-context destination values: ${result.persistentContext.vehicleDestinationValues}`);
+  console.log(`  vehicle persistent-context mismatches: ${result.persistentContext.vehicleMismatches}`);
   console.log(`current database rows that would be deleted: ${currentCounts.vehicles}`);
   console.log(`current DB minus expected post-reload rows: ${currentCounts.vehicles - result.vehicles.length}`);
   console.log("Raw DBF rows may be higher than clean imported rows because invalid, blank, duplicate, or unlinked legacy rows are skipped during transformation.");
@@ -335,6 +341,9 @@ function reportReconciliation(source) {
       secondaryContactDestinationValues: reconciliation.secondaryContact.destinationValues,
       secondaryContactMissingValues: reconciliation.secondaryContact.missingValues,
       secondaryContactMismatches: reconciliation.secondaryContact.mismatches,
+      persistentContextSourceValues: reconciliation.persistentContext.customerSourceValues,
+      persistentContextDestinationValues: reconciliation.persistentContext.customerDestinationValues,
+      persistentContextMismatches: reconciliation.persistentContext.customerMismatches,
     },
     vehicles: {
       raw: vehicleRaw, expectedClean: expected.vehicles, skipped: vehicleRaw - expected.vehicles,
@@ -342,6 +351,9 @@ function reportReconciliation(source) {
       invalidLegacyOrCustomerId: reconciliation.reasons.invalidVehicleId,
       missingCustomerLink: reconciliation.reasons.missingCustomerLink,
       duplicateLegacyId: reconciliation.reasons.duplicateVehicleId,
+      persistentContextSourceValues: reconciliation.persistentContext.vehicleSourceValues,
+      persistentContextDestinationValues: reconciliation.persistentContext.vehicleDestinationValues,
+      persistentContextMismatches: reconciliation.persistentContext.vehicleMismatches,
     },
     invoices: {
       raw: finalRaw, expectedClean: expected.invoices, skippedOrCollapsed: finalRaw - expected.invoices,

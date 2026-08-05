@@ -7,5 +7,5 @@ export function normalizeInternalNotes(value: FormDataEntryValue | null) {
 }
 
 export function canEditInternalNotes(role: string | null | undefined) {
-  return role === "OWNER" || role === "ADMIN";
+  return role === "OWNER" || role === "ADMIN" || role === "STAFF";
 }

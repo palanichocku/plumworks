@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
+import { getRepairOrderInternalNotesForCurrentShop, getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { DeleteRepairOrderButton } from "@/components/delete-repair-order-button";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
@@ -10,6 +10,8 @@ import { EditableRepairOrderWorkspace } from "@/components/repair-order-concerns
 import { RepairOrderLaborCard, RepairOrderPartsCard } from "@/components/repair-order-line-items";
 import { EmailRepairOrderButton } from "@/components/email-repair-order-button";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
+import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
+import { canEditInternalNotes } from "@/lib/internal-notes";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -17,11 +19,12 @@ export const dynamic = "force-dynamic";
 
 export default async function RepairOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [order, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getCurrentMembership()]);
-  if (!order) notFound();
+  const [order, internalNotes, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getRepairOrderInternalNotesForCurrentShop(id), getCurrentMembership()]);
+  if (!order || !internalNotes || internalNotes.vehicle.customerId !== internalNotes.customer.id) notFound();
   const editable = order.status === "draft" || order.status === "open";
   const invoice = order.invoices[0];
   const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
+  const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
   return (
@@ -41,12 +44,12 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
-        overview={<OrderOverview order={order} vehicle={vehicle} />}
+        overview={<><OrderOverview order={order} vehicle={vehicle} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
       /> : <RepairOrderWorkspace
-        overview={<OrderOverview order={order} vehicle={vehicle} />}
+        overview={<><OrderOverview order={order} vehicle={vehicle} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         concerns={<ConcernsSection order={order} />}
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}

@@ -25,10 +25,10 @@ test("notes normalization preserves internal line breaks, trims edges, nulls bla
   assert.match(normalizeInternalNotes("x".repeat(MAX_INTERNAL_NOTES_LENGTH + 1)).error, /5,000/);
 });
 
-test("OWNER and ADMIN can edit internal notes while STAFF cannot", () => {
+test("all authenticated shop roles with customer/vehicle edit permission can edit internal notes", () => {
   assert.equal(canEditInternalNotes("OWNER"), true);
   assert.equal(canEditInternalNotes("ADMIN"), true);
-  assert.equal(canEditInternalNotes("STAFF"), false);
+  assert.equal(canEditInternalNotes("STAFF"), true);
 });
 
 test("detail loaders select notes only for tenant-scoped detail records", async () => {
@@ -48,16 +48,17 @@ test("server actions are tenant scoped, role guarded, size checked, and never au
   assert.doesNotMatch(actions, /metadata[^\n]*parsed\.notes|console\.(?:log|error)[^\n]*notes/i);
 });
 
-test("Customer and Vehicle notes blocks expose accessible save feedback and staff read-only states", async () => {
-  const [block, customerPage, vehiclePage] = await Promise.all([read("src/components/internal-notes-block.tsx"), read("src/app/(app)/customers/[id]/page.tsx"), read("src/app/(app)/vehicles/[id]/page.tsx")]);
+test("Customer and Vehicle notes blocks reuse the accessible independent editor", async () => {
+  const [block, editor, customerPage, vehiclePage] = await Promise.all([read("src/components/internal-notes-block.tsx"), read("src/components/internal-note-editor.tsx"), read("src/app/(app)/customers/[id]/page.tsx"), read("src/app/(app)/vehicles/[id]/page.tsx")]);
   assert.match(block, /Internal Notes/);
-  assert.match(block, /Visible only to authorized shop users\./);
-  assert.match(block, /whitespace-pre-wrap/);
-  assert.match(block, /maxLength=\{5000\}/);
-  assert.match(block, /type="submit" disabled=\{pending\}/);
-  assert.match(block, /pending \? "Saving…" : "Save Notes"/);
-  assert.match(block, /role="status" aria-live="polite"/);
-  assert.match(block, /onChange=\{\(\) => setDirty\(true\)\}/);
+  assert.match(block, /Internal only — not shown to customers\./);
+  assert.match(block, /<InternalNoteEditor/);
+  assert.match(editor, /whitespace-pre-wrap/);
+  assert.match(editor, /maxLength=\{MAX_INTERNAL_NOTES_LENGTH\}/);
+  assert.match(editor, /type="button" onClick=\{save\} disabled=\{pending\}/);
+  assert.match(editor, /pending \? "Saving…" : "Save note"/);
+  assert.match(editor, /role="status" aria-live="polite"/);
+  assert.match(editor, /type="button" onClick=\{cancel\}/);
   assert.match(customerPage, /No customer notes have been added\./);
   assert.match(customerPage, /Customer notes saved\./);
   assert.match(vehiclePage, /No vehicle notes have been added\./);
@@ -65,7 +66,7 @@ test("Customer and Vehicle notes blocks expose accessible save feedback and staf
 });
 
 test("internal notes are excluded from invoice, print, public, and Daily Sales models", async () => {
-  const paths = ["src/lib/data/invoices.ts", "src/lib/daily-sales-report-model.ts", "src/lib/data/daily-sales-query.ts", "src/app/(app)/invoices/[id]/print/page.tsx", "src/app/(app)/repair-orders/[id]/print/page.tsx"];
+  const paths = ["src/lib/data/invoices.ts", "src/lib/daily-sales-report-model.ts", "src/lib/data/daily-sales-query.ts", "src/lib/invoice-document.ts", "src/components/pdf/invoice-document-pdf.tsx", "src/app/(app)/repair-orders/[id]/print/page.tsx"];
   const sources = await Promise.all(paths.map(read));
   for (const source of sources) {
     assert.doesNotMatch(source, /customer\.notes|vehicle\.notes|customerNotes|vehicleNotes/);

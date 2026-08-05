@@ -12,12 +12,14 @@ export type RepairOrderCustomerSearchResult = {
   displayName: string;
   phone: string | null;
   email: string | null;
+  notes: string | null;
   vehicles: Array<{
     id: string;
     year: number | null;
     make: string | null;
     model: string | null;
     licensePlate: string | null;
+    notes: string | null;
   }>;
 };
 
@@ -44,9 +46,10 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       displayName: true,
       phone: true,
       email: true,
+      notes: true,
       vehicles: {
         orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
-        select: { id: true, year: true, make: true, model: true, licensePlate: true },
+        select: { id: true, year: true, make: true, model: true, licensePlate: true, notes: true },
       },
     },
   });

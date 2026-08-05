@@ -34,12 +34,13 @@ export async function updateCustomerNotes(_state: InternalNotesState, formData: 
 
 export async function updateVehicleNotes(_state: InternalNotesState, formData: FormData): Promise<InternalNotesState> {
   const vehicleId = String(formData.get("recordId") ?? "");
+  const contextCustomerId = String(formData.get("contextCustomerId") ?? "");
   const parsed = normalizeInternalNotes(formData.get("notes"));
-  if (!UUID.test(vehicleId)) return { status: "error", message: "Invalid vehicle." };
+  if (!UUID.test(vehicleId) || (contextCustomerId && !UUID.test(contextCustomerId))) return { status: "error", message: "Invalid vehicle." };
   if (parsed.error) return { status: "error", message: parsed.error };
   const { user, membership } = await access();
   const updated = await prisma.$transaction(async (transaction) => {
-    const result = await transaction.vehicle.updateMany({ where: { id: vehicleId, shopId: membership.shopId }, data: { notes: parsed.notes } });
+    const result = await transaction.vehicle.updateMany({ where: { id: vehicleId, shopId: membership.shopId, ...(contextCustomerId ? { customerId: contextCustomerId } : {}) }, data: { notes: parsed.notes } });
     if (result.count !== 1) return false;
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "vehicle_notes_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Vehicle internal notes", entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle internal notes updated" }) });
     return true;

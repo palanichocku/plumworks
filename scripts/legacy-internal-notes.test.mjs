@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { customerData, legacyNote, preservedOperationalNote, vehicleData } from "./lib/customer-vehicle-transform.mjs";
+import { customerData, legacyNote, preservedOperationalNote, reconcileCustomerVehicleRows, vehicleData } from "./lib/customer-vehicle-transform.mjs";
 import { customerCreateData } from "./lib/legacy-customer-recovery.mjs";
 import { affectedNotesIntegrity, assertCleanupCounts, assertCleanupIntegrity, classifyLegacyNotes, parseLegacyNotesCleanupArguments, runLegacyNotesCleanup } from "./lib/legacy-notes-cleanup.mjs";
 
@@ -27,6 +27,17 @@ test("Customer NOTE and Vehicle NOTE/HISTNOTES mappings use only valid decoded s
   assert.equal(fallback.notes, "History\nLine");
   const pointer = vehicleData({ legacyCustno: "1", legacyCarno: "2", rawData: { NOTE: { memoPointer: "4" }, HISTNOTES: { memoPointer: "5" } } });
   assert.equal(pointer.notes, null);
+});
+
+test("fresh-cutover reconciliation reports dynamic persistent-context coverage", () => {
+  const result = reconcileCustomerVehicleRows(
+    [{ legacyCustno: "1", rawData: { CUSTOMER: "Example", NOTE: "Customer context" } }],
+    [{ legacyCustno: "1", legacyCarno: "2", rawData: { NOTE: "Vehicle context" } }],
+  );
+  assert.deepEqual(result.persistentContext, {
+    customerSourceValues: 1, customerDestinationValues: 1, customerMismatches: 0,
+    vehicleSourceValues: 1, vehicleDestinationValues: 1, vehicleMismatches: 0,
+  });
 });
 
 test("reruns preserve nonblank operational notes and populate only blank notes from valid legacy text", () => {

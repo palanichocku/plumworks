@@ -86,6 +86,8 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const additionalPhoneSourceValues = validCustomers.filter((row) => row.phone2 !== null).length;
   const additionalPhoneDestinationValues = transformedCustomers.filter((row) => row.phone2 !== null).length;
   const additionalPhoneMissingValues = transformedCustomers.filter((row) => row.phone2 === null).length;
+  const customerContextSourceValues = validCustomers.filter((row) => row.notes !== null).length;
+  const customerContextDestinationValues = transformedCustomers.filter((row) => row.notes !== null).length;
 
   const invalidVehicleId = rawVehicles.filter((row) => !cleanText(row.legacyCustno) || !cleanText(row.legacyCarno)).length;
   const validVehicles = rawVehicles.map(vehicleData).filter(Boolean);
@@ -93,10 +95,13 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const missingCustomerLink = validVehicles.length - linkedVehicles.length;
   const vehiclesById = new Map(linkedVehicles.map((row) => [row.legacyCarno, row]));
   const duplicateVehicleId = linkedVehicles.length - vehiclesById.size;
+  const transformedVehicles = [...vehiclesById.values()];
+  const vehicleContextSourceValues = linkedVehicles.filter((row) => row.notes !== null).length;
+  const vehicleContextDestinationValues = transformedVehicles.filter((row) => row.notes !== null).length;
 
   return {
     customers: transformedCustomers,
-    vehicles: [...vehiclesById.values()],
+    vehicles: transformedVehicles,
     reasons: {
       invalidCustomerId,
       blankCustomerName,
@@ -110,6 +115,14 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
       destinationValues: additionalPhoneDestinationValues,
       missingValues: additionalPhoneMissingValues,
       mismatches: 0,
+    },
+    persistentContext: {
+      customerSourceValues: customerContextSourceValues,
+      customerDestinationValues: customerContextDestinationValues,
+      customerMismatches: 0,
+      vehicleSourceValues: vehicleContextSourceValues,
+      vehicleDestinationValues: vehicleContextDestinationValues,
+      vehicleMismatches: 0,
     },
   };
 }
