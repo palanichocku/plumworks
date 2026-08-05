@@ -33,6 +33,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       OR: [
         { displayName: { contains: query, mode: "insensitive" } },
         { phone: { contains: query } },
+        { phone2: { contains: query } },
         { email: { contains: query, mode: "insensitive" } },
       ],
     },

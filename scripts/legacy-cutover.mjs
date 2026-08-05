@@ -270,6 +270,10 @@ function printReconciliation(source, currentCounts) {
   console.log(`  invalid legacy id: ${result.reasons.invalidCustomerId}`);
   console.log(`  blank customer name: ${result.reasons.blankCustomerName}`);
   console.log(`  duplicate legacy id: ${result.reasons.duplicateCustomerId}`);
+  console.log(`  secondary contact source values: ${result.secondaryContact.sourceValues}`);
+  console.log(`  secondary contact destination values: ${result.secondaryContact.destinationValues}`);
+  console.log(`  missing secondary contact values: ${result.secondaryContact.missingValues}`);
+  console.log(`  secondary contact mismatches: ${result.secondaryContact.mismatches}`);
   console.log(`current database rows that would be deleted: ${currentCounts.customers}`);
   console.log(`current DB minus expected post-reload rows: ${currentCounts.customers - result.customers.length}`);
   console.log("vehicle reconciliation");
@@ -327,6 +331,10 @@ function reportReconciliation(source) {
       invalidLegacyId: reconciliation.reasons.invalidCustomerId,
       blankName: reconciliation.reasons.blankCustomerName,
       duplicateLegacyId: reconciliation.reasons.duplicateCustomerId,
+      secondaryContactSourceValues: reconciliation.secondaryContact.sourceValues,
+      secondaryContactDestinationValues: reconciliation.secondaryContact.destinationValues,
+      secondaryContactMissingValues: reconciliation.secondaryContact.missingValues,
+      secondaryContactMismatches: reconciliation.secondaryContact.mismatches,
     },
     vehicles: {
       raw: vehicleRaw, expectedClean: expected.vehicles, skipped: vehicleRaw - expected.vehicles,

@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { formatExistingCustomerPhone, formatPhoneInput } from "@/lib/customer-phone";
 
-type CustomerPhoneInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "defaultValue" | "name" | "type" | "inputMode"> & {
+type CustomerPhoneInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "defaultValue" | "type" | "inputMode"> & {
   defaultValue?: string | null;
 };
 
-export function CustomerPhoneInput({ defaultValue = "", onChange, ...props }: CustomerPhoneInputProps) {
+export function CustomerPhoneInput({ defaultValue = "", name = "phone", onChange, ...props }: CustomerPhoneInputProps) {
   const [value, setValue] = useState(() => formatExistingCustomerPhone(defaultValue ?? ""));
 
   return <input
     {...props}
-    name="phone"
+    name={name}
     type="tel"
     inputMode="tel"
     value={value}

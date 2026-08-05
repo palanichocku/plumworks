@@ -116,10 +116,13 @@ export function NewRepairOrderForm({
             <label className={`${labelClass} sm:col-span-6`}>Customer Name <span className="text-red-500">*</span>
               <input name="displayName" type="text" maxLength={200} required placeholder="John Doe" className={inputClass} />
             </label>
-            <label className={`${labelClass} sm:col-span-3`}>Phone Number
+            <label className={`${labelClass} sm:col-span-3`}>Primary phone
               <CustomerPhoneInput maxLength={40} placeholder="(555) 000-0000" className={inputClass} />
             </label>
-            <label className={`${labelClass} sm:col-span-3`}>Email Address
+            <label className={`${labelClass} sm:col-span-3`}>Additional phone (optional)
+              <CustomerPhoneInput name="phone2" maxLength={40} placeholder="(555) 000-0000" className={inputClass} />
+            </label>
+            <label className={`${labelClass} sm:col-span-6`}>Email Address
               <input name="email" type="email" maxLength={254} placeholder="name@example.com" className={inputClass} />
             </label>
             <label className={`${labelClass} sm:col-span-6`}>Street Address

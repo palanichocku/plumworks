@@ -175,9 +175,18 @@ export function sanitizeRehearsalReport(report) {
   return report;
 }
 
+function sourceSnapshotDate(manifest) {
+  const value = manifest?.snapshotBinding?.snapshotDate;
+  if (value == null) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) !== value) {
+    throw new Error("Recovery manifest snapshotBinding.snapshotDate must be a valid YYYY-MM-DD date.");
+  }
+  return value;
+}
+
 function markdownReport(report) {
   const section = (title, value) => `## ${title}\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
-  return `# Legacy refresh rehearsal\n\n- Status: **${report.status}**\n- Mode: ${report.sourceMode}\n- Started: ${report.startedAt}\n- Finished: ${report.finishedAt}\n- Git HEAD: ${report.git.head}\n- ZIP SHA-256: ${report.zip.sha256}\n- ZIP bytes: ${report.zip.bytes}\n- Source fingerprint: ${report.sourceFingerprint}\n- Recovery manifest: valid and snapshot-bound\n- Stage order: valid\n- Database counts unchanged: yes\n- Database writes: 0\n\n${section("Mileage coverage", report.acceptance.mileage)}\n\n${section("Vendor/source coverage", report.acceptance.vendor)}\n\n${section("Complimentary-service compatibility", report.acceptance.complimentary)}\n\n${section("Operational Repair Order eligibility", report.acceptance.operational)}\n\n${section("Unified-history readiness", report.acceptance.history)}\n\n${section("Recovery-backfill zero-delta status", report.acceptance.recoveryBackfill)}\n\n${section("Schema/migration readiness", report.schemaReadiness)}\n\n${section("Existing financial reconciliation summary", report.aggregates.invoiceAr)}\n\n## Stages\n\n${report.stageOrder.stages.map((stage) => `1. ${stage}`).join("\n")}\n\n## Payment aggregates\n\n\`\`\`json\n${JSON.stringify(report.aggregates.payment, null, 2)}\n\`\`\`\n\n## Warnings\n\n${report.warnings.length ? report.warnings.map((warning) => `- ${warning}`).join("\n") : "- None"}\n`;
+  return `# Legacy refresh rehearsal\n\n- Status: **${report.status}**\n- Mode: ${report.sourceMode}\n- Source snapshot date: ${report.sourceSnapshotDate ?? "Unavailable"}\n- Rehearsal execution date: ${report.rehearsalExecutionDate}\n- Rehearsal started at: ${report.rehearsalStartedAt}\n- Rehearsal finished at: ${report.rehearsalFinishedAt}\n- Temporary intake date: ${report.temporaryIntakeDate}\n- Git HEAD: ${report.git.head}\n- ZIP SHA-256: ${report.zip.sha256}\n- ZIP bytes: ${report.zip.bytes}\n- Source fingerprint: ${report.sourceFingerprint}\n- Recovery manifest: valid and snapshot-bound\n- Stage order: valid\n- Database counts unchanged: yes\n- Database writes: 0\n\n${section("Mileage coverage", report.acceptance.mileage)}\n\n${section("Vendor/source coverage", report.acceptance.vendor)}\n\n${section("Complimentary-service compatibility", report.acceptance.complimentary)}\n\n${section("Operational Repair Order eligibility", report.acceptance.operational)}\n\n${section("Unified-history readiness", report.acceptance.history)}\n\n${section("Recovery-backfill zero-delta status", report.acceptance.recoveryBackfill)}\n\n${section("Schema/migration readiness", report.schemaReadiness)}\n\n${section("Existing financial reconciliation summary", report.aggregates.invoiceAr)}\n\n## Stages\n\n${report.stageOrder.stages.map((stage) => `1. ${stage}`).join("\n")}\n\n## Payment aggregates\n\n\`\`\`json\n${JSON.stringify(report.aggregates.payment, null, 2)}\n\`\`\`\n\n## Warnings\n\n${report.warnings.length ? report.warnings.map((warning) => `- ${warning}`).join("\n") : "- None"}\n`;
 }
 
 async function oneJson(directory) {
@@ -226,6 +235,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const source = await (dependencies.sourceResolver ?? resolveLegacySource)({ args: ["--source", snapshot.dataDirectory], requiredFiles: snapshot.manifest.requiredFileValidation.required, repositoryRoot });
     failedStage = "recovery-manifest-validation";
     const loadedManifest = await (dependencies.manifestLoader ?? loadRecoveryManifest)({ path: options.recoveryManifest, repositoryRoot });
+    const authoritativeSourceSnapshotDate = sourceSnapshotDate(loadedManifest.manifest);
     const before = await databaseState();
     failedStage = "schema-migration-readiness";
     const schemaReadiness = dependencies.schemaReadiness
@@ -257,8 +267,10 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const diffCheck = await (dependencies.diffCheck ?? (() => command("git", ["diff", "--check"], { cwd: repositoryRoot, label: "git diff --check" })))();
     const finalStatus = dependencies.finalStatus ? await dependencies.finalStatus() : await command("git", ["status", "--short"], { cwd: repositoryRoot, label: "git status" });
     const report = sanitizeRehearsalReport({
-      formatVersion: 1, status: "PASS", startedAt, finishedAt: now().toISOString(), sourceMode: options.mode,
-      snapshotDate: options.snapshotDate, git, zip: { bytes: zip.bytes, sha256: zip.sha256 },
+      formatVersion: 1, status: "PASS", sourceMode: options.mode,
+      sourceSnapshotDate: authoritativeSourceSnapshotDate, rehearsalExecutionDate: startedAt.slice(0, 10),
+      rehearsalStartedAt: startedAt, rehearsalFinishedAt: now().toISOString(), temporaryIntakeDate: options.snapshotDate,
+      git: { head: git.head, dirtyFileCount: git.status.length }, zip: { bytes: zip.bytes, sha256: zip.sha256 },
       immutableSnapshotPath: options.keepSnapshot ? snapshot.finalPath : null, sourceFingerprint: source.fingerprint,
       recoveryManifest: { valid: true, path: loadedManifest.path }, stageOrder,
       schemaReadiness: { ...schemaReadiness, schemaValidationPassed: true, clientGenerationPassed: true },
@@ -268,7 +280,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       databaseCounts: { before: before.counts, after: after.counts, equal: true },
       tests: { passed: true, exitCode: tests.code ?? 0 }, focusedLint: { passed: true, exitCode: focusedLint.code ?? 0 }, repositoryLint,
       prismaValidate: { passed: true, exitCode: prismaValidate.code ?? 0 }, prismaGenerate: { passed: true, exitCode: prismaGenerate.code ?? 0 },
-      diffCheck: { passed: true, exitCode: diffCheck.code ?? 0 }, finalGitStatus: finalStatus.stdout?.split("\n").filter(Boolean) ?? git.status,
+      diffCheck: { passed: true, exitCode: diffCheck.code ?? 0 }, finalGitStatus: { dirtyFileCount: (finalStatus.stdout?.split("\n").filter(Boolean) ?? git.status).length },
       cutoverReport: cutover.path, warnings: repositoryLint.passed ? [] : ["Repository lint has unrelated existing failures."], failedStage: null,
     });
     const jsonPath = join(directories.reports, "legacy-refresh-rehearsal.json");
@@ -278,7 +290,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     if (!options.keepSnapshot) { await rm(snapshot.finalPath, { recursive: true, force: true }); snapshotPath = null; }
     return { report, jsonPath, markdownPath, snapshotPath, runDirectory };
   } catch (error) {
-    const failure = { formatVersion: 1, status: "FAIL", startedAt, finishedAt: now().toISOString(), sourceMode: options.mode, snapshotDate: options.snapshotDate, failedStage, rootCause: safeMessage(error), warnings: [] };
+    const failure = { formatVersion: 1, status: "FAIL", sourceMode: options.mode, rehearsalExecutionDate: startedAt.slice(0, 10), rehearsalStartedAt: startedAt, rehearsalFinishedAt: now().toISOString(), temporaryIntakeDate: options.snapshotDate, failedStage, rootCause: safeMessage(error), warnings: [] };
     const jsonPath = join(directories.reports, "legacy-refresh-rehearsal.json");
     const markdownPath = join(directories.reports, "legacy-refresh-rehearsal.md");
     await writeFile(jsonPath, `${JSON.stringify(failure, null, 2)}\n`, { mode: 0o600 });

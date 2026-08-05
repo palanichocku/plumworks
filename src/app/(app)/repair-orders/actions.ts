@@ -22,6 +22,8 @@ export async function createRepairOrder(formData: FormData) {
   const displayName = String(formData.get("displayName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const storedPhone = customerPhoneForStorage(phone);
+  const phone2 = String(formData.get("phone2") ?? "").trim();
+  const storedPhone2 = customerPhoneForStorage(phone2);
   const email = String(formData.get("email") ?? "").trim();
   const addressLine1 = String(formData.get("addressLine1") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
@@ -35,7 +37,7 @@ export async function createRepairOrder(formData: FormData) {
   }
   if (
     customerMode === "new" &&
-    (!displayName || displayName.length > 200 || storedPhone === undefined ||
+    (!displayName || displayName.length > 200 || storedPhone === undefined || storedPhone2 === undefined ||
       email.length > 254 || (email && !/^\S+@\S+\.\S+$/.test(email)) ||
       addressLine1.length > 200 || city.length > 100 || state.length > 30 ||
       postalCode.length > 20 || vehicleMode !== "new")
@@ -89,6 +91,7 @@ export async function createRepairOrder(formData: FormData) {
           shopId: membership.shopId,
           displayName,
           phone: storedPhone,
+          phone2: storedPhone2,
           email: email || null,
           addressLine1: addressLine1 || null,
           city: city || null,

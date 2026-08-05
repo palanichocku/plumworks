@@ -82,6 +82,10 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const validCustomers = rawCustomers.map(customerData).filter(Boolean);
   const customersById = new Map(validCustomers.map((row) => [row.legacyCustno, row]));
   const duplicateCustomerId = validCustomers.length - customersById.size;
+  const transformedCustomers = [...customersById.values()];
+  const additionalPhoneSourceValues = validCustomers.filter((row) => row.phone2 !== null).length;
+  const additionalPhoneDestinationValues = transformedCustomers.filter((row) => row.phone2 !== null).length;
+  const additionalPhoneMissingValues = transformedCustomers.filter((row) => row.phone2 === null).length;
 
   const invalidVehicleId = rawVehicles.filter((row) => !cleanText(row.legacyCustno) || !cleanText(row.legacyCarno)).length;
   const validVehicles = rawVehicles.map(vehicleData).filter(Boolean);
@@ -91,7 +95,7 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const duplicateVehicleId = linkedVehicles.length - vehiclesById.size;
 
   return {
-    customers: [...customersById.values()],
+    customers: transformedCustomers,
     vehicles: [...vehiclesById.values()],
     reasons: {
       invalidCustomerId,
@@ -100,6 +104,12 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
       invalidVehicleId,
       missingCustomerLink,
       duplicateVehicleId,
+    },
+    secondaryContact: {
+      sourceValues: additionalPhoneSourceValues,
+      destinationValues: additionalPhoneDestinationValues,
+      missingValues: additionalPhoneMissingValues,
+      mismatches: 0,
     },
   };
 }

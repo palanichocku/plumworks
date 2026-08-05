@@ -32,9 +32,10 @@ test("search is authenticated, shop scoped, and limited to ten database results"
   assert.doesNotMatch(action, /addressLine|postalCode|city:/);
 });
 
-test("name, phone, and email use established matching conventions", () => {
+test("name, both phone numbers, and email use established matching conventions", () => {
   assert.match(action, /displayName: \{ contains: query, mode: "insensitive" \}/);
   assert.match(action, /phone: \{ contains: query \}/);
+  assert.match(action, /phone2: \{ contains: query \}/);
   assert.match(action, /email: \{ contains: query, mode: "insensitive" \}/);
   assert.doesNotMatch(action, /legacyCustno/);
 });
@@ -83,7 +84,7 @@ test("the full customer collection is no longer loaded or sent to the form", () 
 });
 
 test("new-customer fields, vehicle selector, mileage, and layout remain present", () => {
-  for (const marker of ["Existing Customer", "New Customer", "displayName", "CustomerPhoneInput", "Select Active Vehicle", 'select id="vehicleId"', "Mileage at service", 'data-repair-order-layout="split"']) {
-    assert.match(form, new RegExp(marker));
+  for (const marker of ["Existing Customer", "New Customer", "displayName", "Primary phone", "Additional phone (optional)", 'name="phone2"', "Select Active Vehicle", 'select id="vehicleId"', "Mileage at service", 'data-repair-order-layout="split"']) {
+    assert.ok(form.includes(marker), `missing ${marker}`);
   }
 });

@@ -38,6 +38,7 @@ export async function searchCurrentShop(search: string) {
           OR: [
             { displayName: { contains: token, mode: "insensitive" as const } },
             { phone: { contains: token } },
+            { phone2: { contains: token } },
           ],
         })),
       },

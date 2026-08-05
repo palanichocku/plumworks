@@ -54,8 +54,9 @@ export default async function CustomerDetailPage({
             Contact details
           </h2>
           <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm">
-            <dt className="text-slate-500">Phone</dt>
-            <dd className="text-slate-900">{customer.phone ?? "Not recorded"}</dd>
+            <dt className="text-slate-500">Primary phone</dt>
+            <dd className="text-slate-900">{customer.phone ? <a href={`tel:${customer.phone.replaceAll(/\D/g, "")}`} className="hover:text-brand-primary">{customer.phone}</a> : "Not recorded"}</dd>
+            {customer.phone2 ? <><dt className="text-slate-500">Additional phone</dt><dd className="text-slate-900"><a href={`tel:${customer.phone2.replaceAll(/\D/g, "")}`} className="hover:text-brand-primary">{customer.phone2}</a></dd></> : null}
             <dt className="text-slate-500">Email</dt>
             <dd className="min-w-0 truncate text-slate-900">
               {customer.email ?? "Not recorded"}

@@ -20,6 +20,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1) {
             OR: [
               { displayName: { contains: query, mode: "insensitive" } },
               { phone: { contains: query } },
+              { phone2: { contains: query } },
             ],
           }
         : {}),
@@ -55,6 +56,7 @@ export async function getCustomerForCurrentShop(id: string) {
       displayName: true,
       email: true,
       phone: true,
+      phone2: true,
       addressLine1: true,
       city: true,
       state: true,
@@ -111,6 +113,7 @@ export async function getCustomerForEdit(id: string) {
       id: true,
       displayName: true,
       phone: true,
+      phone2: true,
       email: true,
       addressLine1: true,
       city: true,

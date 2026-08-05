@@ -26,6 +26,7 @@ function options(root, mode = "zip") {
 function recoveryManifest(overrides = {}) {
   return {
     manifestVersion: "2.0.0",
+    snapshotBinding: { snapshotDate: "2026-07-11" },
     sourceBinding: { sourceFingerprint: fingerprint, shopId, sourceTables: [...CUTOVER_RECOVERY_SOURCE_TABLES] },
     expectedCounts: { aliases: 0, recoveredCustomers: 0, unresolved: 0, recoverableOrders: 0 },
     existingCustomerAliases: [], customersToCreate: [], unresolvedOrders: [], ...overrides,
@@ -112,8 +113,31 @@ test("ZIP rehearsal retains the customer ZIP, checks counts twice, and removes t
     assert.equal(await readFile(item.options.zip, "utf8"), "customer-supplied-zip");
     assert.equal(await exists(join(item.options.workspace, "snapshots", "2026-07-31-aaaaaaaaaaaa")), false);
     assert.equal(result.report.databaseCounts.equal, true);
+    assert.equal(result.report.sourceSnapshotDate, "2026-07-11");
+    assert.equal(result.report.temporaryIntakeDate, "2026-07-31");
     assert.ok(item.state().cutoverArgs.includes("--dry-run"));
   } finally { await rm(item.root, { recursive: true, force: true }); }
+});
+
+test("reports distinguish authoritative source date from rehearsal execution and temporary intake dates", async () => {
+  const item = await harness("zip", { now: (() => { const values = [new Date("2026-08-05T13:00:00.000Z"), new Date("2026-08-05T13:05:00.000Z")]; return () => values.shift() ?? values[1]; })() });
+  try {
+    const result = await runLegacyRefreshRehearsal(item.options, item.dependencies);
+    assert.equal(result.report.sourceSnapshotDate, "2026-07-11");
+    assert.equal(result.report.rehearsalExecutionDate, "2026-08-05");
+    assert.equal(result.report.rehearsalStartedAt, "2026-08-05T13:00:00.000Z");
+    assert.equal(result.report.temporaryIntakeDate, "2026-07-31");
+    const markdown = await readFile(result.markdownPath, "utf8");
+    assert.match(markdown, /Source snapshot date: 2026-07-11/);
+    assert.match(markdown, /Rehearsal execution date: 2026-08-05/);
+    assert.match(markdown, /Temporary intake date: 2026-07-31/);
+  } finally { await rm(item.root, { recursive: true, force: true }); }
+});
+
+test("invalid authoritative source snapshot dates fail clearly", async () => {
+  const item = await harness("zip", { manifestLoader: async ({ path }) => ({ path, manifest: recoveryManifest({ snapshotBinding: { snapshotDate: "2026-02-30" } }) }) });
+  try { await assert.rejects(runLegacyRefreshRehearsal(item.options, item.dependencies), /snapshotBinding\.snapshotDate must be a valid/); }
+  finally { await rm(item.root, { recursive: true, force: true }); }
 });
 
 test("--keep-snapshot retains the immutable accepted snapshot", async () => {
@@ -202,6 +226,13 @@ test("sanitized reports reject private source field names", () => {
   assert.throws(() => sanitizeRehearsalReport({ rawData: { name: "private" } }), /prohibited/);
   assert.throws(() => sanitizeRehearsalReport({ VIN: "private" }), /prohibited/);
   assert.deepEqual(sanitizeRehearsalReport({ counts: { customers: 1 } }), { counts: { customers: 1 } });
+});
+
+test("rehearsal reports summarize dirty Git state without exposing file paths", async () => {
+  const source = await readFile(new URL("./lib/legacy-refresh-rehearsal.mjs", import.meta.url), "utf8");
+  assert.match(source, /git: \{ head: git\.head, dirtyFileCount: git\.status\.length \}/);
+  assert.match(source, /finalGitStatus: \{ dirtyFileCount:/);
+  assert.doesNotMatch(source.slice(source.indexOf("const report = sanitizeRehearsalReport"), source.indexOf("const jsonPath", source.indexOf("const report = sanitizeRehearsalReport"))), /finalGitStatus: finalStatus/);
 });
 
 test("valid report requires the exact ordered stage ledger and zero-write proof", () => {
