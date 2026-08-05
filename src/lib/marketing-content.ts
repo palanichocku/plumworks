@@ -49,6 +49,22 @@ export const getMarketingPage = cache(async (slug: keyof typeof fallbackPages) =
   catch { return fallbackPages[slug]; }
 });
 
+export const getMarketingAboutOwner = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.aboutOwner;
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return null;
+  try {
+    const page = await prisma.marketingPage.findFirst({ where: { shopId: shop.id, slug: "about-owner", active: true }, select: { eyebrow: true, title: true, description: true, body: true } });
+    if (!page?.eyebrow || !page.body) return null;
+    const details = JSON.parse(page.body) as unknown;
+    if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+    const { biography, imageUrl, imageAlt } = details as Record<string, unknown>;
+    if (typeof biography !== "string" || typeof imageUrl !== "string" || typeof imageAlt !== "string" || !imageUrl.startsWith("/client-assets/")) return null;
+    return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl, imageAlt };
+  } catch { return null; }
+});
+
 export const getMarketingServices = cache(async () => {
   const preview = await getMarketingContentPreview();
   if (preview) return preview.services.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name) || left.previewIndex - right.previewIndex).map(({ slug, name, summary, detail }) => ({ slug, name, summary, detail }));

@@ -38,6 +38,7 @@ test("valid deployment content is normalized without inventing optional records"
   assert.deepEqual(preview.coupons, []);
   assert.deepEqual(preview.testimonials, []);
   assert.deepEqual(preview.gallery, []);
+  assert.equal(preview.aboutOwner, null);
 });
 
 test("active optional preview records receive non-fallback identities for existing navigation and sitemap conditions", () => {
@@ -52,6 +53,13 @@ test("active optional preview records receive non-fallback identities for existi
   assert.equal(preview.testimonials[0].id, "preview-testimonial-0");
   assert.equal(preview.gallery[0].id, "preview-gallery-0");
   assert.ok([preview.coupons[0].id, preview.testimonials[0].id, preview.gallery[0].id].every((id) => !id.startsWith("fallback-")));
+});
+
+test("Car Doc owner content passes the shared content-file validator", async () => {
+  const file = new URL("../../plumworks-deployments/clients/cardoc/content/marketing-content.json", import.meta.url);
+  const preview = parseMarketingContentPreview(JSON.parse(await readFile(file, "utf8")));
+  assert.equal(preview.aboutOwner?.name, "Subbu Veerappan");
+  assert.equal(preview.aboutOwner?.imageUrl, "/client-assets/cardoc/subbu-veerappan-owner.jpg");
 });
 
 test("preview file reads successfully and failures are clear without exposing its path", async () => {
@@ -75,7 +83,7 @@ test("preview feeds every public content loader and the banner exposes no file p
     readFile(new URL("../src/components/marketing/marketing-shell.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/app/sitemap.ts", import.meta.url), "utf8"),
   ]);
-  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 6);
+  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 7);
   assert.ok((loaders.match(/filter\(\(item\) => item\.active\)/g) ?? []).length >= 4);
   assert.match(layout, /previewMode=\{marketingContentPreviewEnabled\(\)\}/);
   assert.match(shell, /Local marketing-content preview — database content is not being used/);

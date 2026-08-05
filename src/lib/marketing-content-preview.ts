@@ -50,6 +50,16 @@ export function marketingContentPreviewEnabled(environment: PreviewEnvironment =
 export function parseMarketingContentPreview(value: unknown) {
   const document = record(value, "marketing content preview");
   const rawSettings = record(document.settings, "settings");
+  const rawOwner = document.aboutOwner == null ? null : record(document.aboutOwner, "aboutOwner");
+  const aboutOwner = rawOwner ? {
+    heading: text(rawOwner.heading, "aboutOwner.heading", true)!,
+    name: text(rawOwner.name, "aboutOwner.name", true)!,
+    role: text(rawOwner.role, "aboutOwner.role", true)!,
+    biography: text(rawOwner.biography, "aboutOwner.biography", true)!,
+    imageUrl: text(rawOwner.imageUrl, "aboutOwner.imageUrl", true)!,
+    imageAlt: text(rawOwner.imageAlt, "aboutOwner.imageAlt", true)!,
+  } : null;
+  if (aboutOwner && !aboutOwner.imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
   const settings = {
     headline: text(rawSettings.headline, "settings.headline"),
     subheadline: text(rawSettings.subheadline, "settings.subheadline"),
@@ -84,7 +94,7 @@ export function parseMarketingContentPreview(value: unknown) {
     if (imageUrl && !imageUrl.startsWith("https://")) throw new Error(`gallery[${index}].imageUrl must use HTTPS.`);
     return { id: `preview-gallery-${index}`, title: text(item.title, `gallery[${index}].title`, true)!, caption: text(item.caption, `gallery[${index}].caption`), imageUrl, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
   });
-  return { settings, pages, services, coupons, testimonials, gallery };
+  return { settings, aboutOwner, pages, services, coupons, testimonials, gallery };
 }
 
 export async function getMarketingContentPreview(environment: PreviewEnvironment = process.env): Promise<MarketingContentPreview | null> {

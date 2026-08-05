@@ -19,6 +19,16 @@ if (confirmation && confirmation !== CONFIRMATION) throw new Error(`Write refuse
 const dryRun = forceDryRun || confirmation !== CONFIRMATION;
 const document = JSON.parse(await readFile(resolve(fileArgument), "utf8"));
 
+const owner = document.aboutOwner == null ? null : (() => {
+  const imageUrl = text(document.aboutOwner.imageUrl, "aboutOwner.imageUrl", true);
+  if (!imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
+  return {
+    slug: "about-owner", eyebrow: text(document.aboutOwner.heading, "aboutOwner.heading", true),
+    title: text(document.aboutOwner.name, "aboutOwner.name", true), description: text(document.aboutOwner.role, "aboutOwner.role", true),
+    body: JSON.stringify({ biography: text(document.aboutOwner.biography, "aboutOwner.biography", true), imageUrl, imageAlt: text(document.aboutOwner.imageAlt, "aboutOwner.imageAlt", true) }), active: true,
+  };
+})();
+
 const settings = {
   headline: text(document.settings?.headline, "settings.headline"), subheadline: text(document.settings?.subheadline, "settings.subheadline"),
   serviceIntro: text(document.settings?.serviceIntro, "settings.serviceIntro"), aboutTitle: text(document.settings?.aboutTitle, "settings.aboutTitle"),
@@ -26,6 +36,7 @@ const settings = {
   hoursText: text(document.settings?.hoursText, "settings.hoursText"), reviewUrl: text(document.settings?.reviewUrl, "settings.reviewUrl"),
 };
 const pages = list(document.pages, "pages").map((item, index) => { const slug = text(item.slug, `pages[${index}].slug`, true); if (!SLUG.test(slug)) throw new Error(`pages[${index}].slug is invalid.`); return { slug, eyebrow: text(item.eyebrow, `pages[${index}].eyebrow`), title: text(item.title, `pages[${index}].title`, true), description: text(item.description, `pages[${index}].description`, true), body: text(item.body, `pages[${index}].body`), active: item.active !== false }; });
+if (owner) pages.push(owner);
 const services = list(document.services, "services").map((item, index) => { const slug = text(item.slug, `services[${index}].slug`, true); if (!SLUG.test(slug)) throw new Error(`services[${index}].slug is invalid.`); return { slug, name: text(item.name, `services[${index}].name`, true), summary: text(item.summary, `services[${index}].summary`, true), detail: text(item.detail, `services[${index}].detail`, true), active: item.active !== false, sortOrder: order(item.sortOrder) }; });
 const coupons = list(document.coupons, "coupons").map((item, index) => ({ title: text(item.title, `coupons[${index}].title`, true), body: text(item.body, `coupons[${index}].body`, true), terms: text(item.terms, `coupons[${index}].terms`), active: item.active !== false, sortOrder: order(item.sortOrder) }));
 const testimonials = list(document.testimonials, "testimonials").map((item, index) => { const rating = item.rating == null ? null : Number(item.rating); if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new Error(`testimonials[${index}].rating must be 1-5.`); return { quote: text(item.quote, `testimonials[${index}].quote`, true), attribution: text(item.attribution, `testimonials[${index}].attribution`), rating, active: item.active !== false, sortOrder: order(item.sortOrder) }; });
