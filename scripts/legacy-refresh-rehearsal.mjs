@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { parseLegacyRefreshRehearsalArguments, runLegacyRefreshRehearsal } from "./lib/legacy-refresh-rehearsal.mjs";
 
@@ -26,7 +26,11 @@ async function main() {
       const counts = Object.fromEntries(await Promise.all(COUNT_MODELS.map(async ([label, model]) => [label, await prisma[model].count({
         where: model === "auditLog" ? { shopId, entityType: { in: OPERATIONAL_AUDIT_TYPES } } : { shopId },
       })])));
-      return { shopId, counts };
+      const appliedMigrations = await prisma.$queryRaw(Prisma.sql`
+        SELECT migration_name FROM "_prisma_migrations"
+        WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+      `);
+      return { shopId, counts, appliedMigrations: appliedMigrations.map((row) => row.migration_name) };
     };
     const result = await runLegacyRefreshRehearsal(options, { databaseState });
     console.log(options.mode === "seed" ? "End-to-end seed refresh rehearsal passed with zero database writes." : "End-to-end legacy refresh rehearsal passed with zero database writes.");

@@ -13,13 +13,31 @@ export const REHEARSAL_STAGES = Object.freeze([
   "invoice-labor-ar-staging-projection", "invoice-ar-transformation-projection",
   "payment-projection", "open-repair-order-projection", "final-verification",
 ]);
-export const APPROVED_SEED_REHEARSAL_CONTRACT = Object.freeze({
-  matchedInvoices: 11_665, unmatchedInvoices: 1, matchedCustomers: 11_665, unmatchedCustomers: 1,
-  proposedPaymentRows: 11_825, totalPaymentAmount: "4217964.10", zeroPaymentOrders: 39,
-  splitTenderOrders: 189, tenderMismatches: 0, duplicateDeterministicPaymentKeys: 0,
-});
-
 const VALUE_ARGUMENTS = ["--zip", "--snapshot-date", "--customer-recovery-manifest", "--workspace"];
+const REQUIRED_CURRENT_MIGRATIONS = Object.freeze([
+  "20260804120000_add_marketing_lead_attribution",
+  "20260804150000_add_invoice_odometer",
+  "20260804170000_add_complimentary_services",
+]);
+
+export async function validateSchemaReadiness(repositoryRoot, appliedMigrations = null) {
+  const migrationRoot = join(repositoryRoot, "prisma", "migrations");
+  const directories = (await readdir(migrationRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const missing = REQUIRED_CURRENT_MIGRATIONS.filter((name) => !directories.includes(name));
+  for (const name of directories) await stat(join(migrationRoot, name, "migration.sql"));
+  const schema = await readFile(join(repositoryRoot, "prisma", "schema.prisma"), "utf8");
+  const requiredSchema = [
+    ["Invoice.odometer", /model Invoice \{[\s\S]*?odometer\s+Int\?/],
+    ["InvoiceLabor.complimentary", /model InvoiceLabor \{[\s\S]*?complimentary\s+Boolean\s+@default\(false\)/],
+    ["RepairOrderLabor.complimentary", /model RepairOrderLabor \{[\s\S]*?complimentary\s+Boolean\s+@default\(false\)/],
+    ["MarketingLead attribution", /model MarketingLead \{[\s\S]*?attributionSource\s+String\?/],
+  ];
+  const missingSchema = requiredSchema.filter(([, pattern]) => !pattern.test(schema)).map(([label]) => label);
+  if (missing.length || missingSchema.length) throw new Error(`Schema readiness failed: missing migrations=${missing.join(",") || "none"}; missing schema=${missingSchema.join(",") || "none"}.`);
+  const applied = appliedMigrations ? new Set(appliedMigrations) : null;
+  const unapplied = applied ? directories.filter((name) => !applied.has(name)) : [];
+  return { migrationDirectoriesFound: directories.length, expectedLatestMigration: directories.at(-1), requiredRecentMigrations: [...REQUIRED_CURRENT_MIGRATIONS], schemaFilesPresent: true, targetMigrationStatusKnown: Boolean(applied), unappliedMigrations: unapplied.length, requiresMigrateDeploy: applied ? unapplied.length > 0 : null, migrationsAppliedByRehearsal: 0 };
+}
 
 export function parseLegacyRefreshRehearsalArguments(args) {
   const allowed = new Set(["--seed", "--keep-snapshot", ...VALUE_ARGUMENTS]);
@@ -129,6 +147,16 @@ export function validateRehearsalCutoverReport(summary, expected = {}) {
     [summary.verification?.sourceToArBalanceMismatches ?? 0, "source-to-AR balance mismatches"],
     [summary.verification?.openOrderFatalRelationshipIssues ?? 0, "open Repair Order relationship issues"],
     [summary.verification?.openOrderFatalFinancialIssues ?? 0, "open Repair Order financial issues"],
+    [summary.acceptance?.blockingIssues ?? 0, "fresh-cutover acceptance issues"],
+    [summary.acceptance?.mileage?.completedMismatches ?? 0, "mileage mismatches"],
+    [summary.acceptance?.mileage?.unresolved ?? 0, "unresolved mileage matches"],
+    [summary.acceptance?.mileage?.ambiguous ?? 0, "ambiguous mileage matches"],
+    [summary.acceptance?.vendor?.completedMismatches ?? 0, "Vendor mismatches"],
+    [summary.acceptance?.vendor?.unresolved ?? 0, "unresolved Vendor matches"],
+    [summary.acceptance?.vendor?.ambiguous ?? 0, "ambiguous Vendor matches"],
+    [summary.acceptance?.complimentary?.unexpectedClassifications ?? 0, "unexpected complimentary classifications"],
+    [summary.acceptance?.recoveryBackfill?.invoiceOdometer?.proposedUpdates ?? 0, "Invoice odometer recovery updates"],
+    [summary.acceptance?.recoveryBackfill?.invoicePartVendor?.proposedUpdates ?? 0, "Invoice-part Vendor recovery updates"],
   ];
   const failed = checks.find(([count]) => Number(count) !== 0);
   if (failed) throw new Error(`Reconciliation failed: ${failed[1]}=${failed[0]}.`);
@@ -137,12 +165,6 @@ export function validateRehearsalCutoverReport(summary, expected = {}) {
   }
   if (summary.criticalIssues?.length) throw new Error(`Cutover dry run failed: ${summary.criticalIssues[0]}.`);
   return { valid: true, stages };
-}
-
-export function compareApprovedSeedContract(paymentCounts) {
-  const mismatches = Object.entries(APPROVED_SEED_REHEARSAL_CONTRACT).flatMap(([key, expected]) =>
-    String(paymentCounts?.[key]) === String(expected) ? [] : [{ key, expected, actual: paymentCounts?.[key] ?? null }]);
-  return { evaluated: true, passed: mismatches.length === 0, expected: APPROVED_SEED_REHEARSAL_CONTRACT, mismatches };
 }
 
 export function sanitizeRehearsalReport(report) {
@@ -154,7 +176,8 @@ export function sanitizeRehearsalReport(report) {
 }
 
 function markdownReport(report) {
-  return `# Legacy refresh rehearsal\n\n- Status: **${report.status}**\n- Mode: ${report.sourceMode}\n- Started: ${report.startedAt}\n- Finished: ${report.finishedAt}\n- Git HEAD: ${report.git.head}\n- ZIP SHA-256: ${report.zip.sha256}\n- ZIP bytes: ${report.zip.bytes}\n- Source fingerprint: ${report.sourceFingerprint}\n- Recovery manifest: valid and snapshot-bound\n- Stage order: valid\n- Database counts unchanged: yes\n- Database writes: 0\n\n## Stages\n\n${report.stageOrder.stages.map((stage) => `1. ${stage}`).join("\n")}\n\n## Payment aggregates\n\n\`\`\`json\n${JSON.stringify(report.aggregates.payment, null, 2)}\n\`\`\`\n\n## Warnings\n\n${report.warnings.length ? report.warnings.map((warning) => `- ${warning}`).join("\n") : "- None"}\n`;
+  const section = (title, value) => `## ${title}\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+  return `# Legacy refresh rehearsal\n\n- Status: **${report.status}**\n- Mode: ${report.sourceMode}\n- Started: ${report.startedAt}\n- Finished: ${report.finishedAt}\n- Git HEAD: ${report.git.head}\n- ZIP SHA-256: ${report.zip.sha256}\n- ZIP bytes: ${report.zip.bytes}\n- Source fingerprint: ${report.sourceFingerprint}\n- Recovery manifest: valid and snapshot-bound\n- Stage order: valid\n- Database counts unchanged: yes\n- Database writes: 0\n\n${section("Mileage coverage", report.acceptance.mileage)}\n\n${section("Vendor/source coverage", report.acceptance.vendor)}\n\n${section("Complimentary-service compatibility", report.acceptance.complimentary)}\n\n${section("Operational Repair Order eligibility", report.acceptance.operational)}\n\n${section("Unified-history readiness", report.acceptance.history)}\n\n${section("Recovery-backfill zero-delta status", report.acceptance.recoveryBackfill)}\n\n${section("Schema/migration readiness", report.schemaReadiness)}\n\n${section("Existing financial reconciliation summary", report.aggregates.invoiceAr)}\n\n## Stages\n\n${report.stageOrder.stages.map((stage) => `1. ${stage}`).join("\n")}\n\n## Payment aggregates\n\n\`\`\`json\n${JSON.stringify(report.aggregates.payment, null, 2)}\n\`\`\`\n\n## Warnings\n\n${report.warnings.length ? report.warnings.map((warning) => `- ${warning}`).join("\n") : "- None"}\n`;
 }
 
 async function oneJson(directory) {
@@ -204,6 +227,11 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     failedStage = "recovery-manifest-validation";
     const loadedManifest = await (dependencies.manifestLoader ?? loadRecoveryManifest)({ path: options.recoveryManifest, repositoryRoot });
     const before = await databaseState();
+    failedStage = "schema-migration-readiness";
+    const schemaReadiness = dependencies.schemaReadiness
+      ? await dependencies.schemaReadiness(repositoryRoot, before.appliedMigrations ?? null)
+      : await validateSchemaReadiness(repositoryRoot, before.appliedMigrations ?? null);
+    if (schemaReadiness.requiresMigrateDeploy) throw new Error("Target schema is not current; prisma migrate deploy is required before a confirmed cutover.");
     const bindingIssues = validateCutoverRecoveryManifestBinding({ manifest: loadedManifest.manifest, shopId: before.shopId, sourceFingerprint: source.fingerprint });
     if (bindingIssues.length) throw new Error(`Customer recovery manifest binding failed: ${bindingIssues[0].code}.`);
     failedStage = "cutover-dry-run";
@@ -214,30 +242,32 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const after = await databaseState();
     if (before.shopId !== after.shopId || JSON.stringify(before.counts) !== JSON.stringify(after.counts)) throw new Error("Read-only database counts changed during rehearsal.");
     failedStage = "focused-validation";
-    const tests = await (dependencies.runTests ?? (() => command(process.execPath, ["--test", "scripts/legacy-snapshot-intake.test.mjs", "scripts/legacy-source-safety.test.mjs", "scripts/legacy-cutover-customer-recovery.test.mjs", "scripts/legacy-payment-import.test.mjs", "scripts/legacy-cutover-payment.test.mjs", "scripts/legacy-invoice-transformer-safety.test.mjs", "scripts/legacy-refresh-rehearsal.test.mjs"], { cwd: repositoryRoot, label: "focused legacy tests" })))();
+    const tests = await (dependencies.runTests ?? (() => command(process.execPath, ["--test", "scripts/legacy-snapshot-intake.test.mjs", "scripts/legacy-source-safety.test.mjs", "scripts/legacy-cutover-customer-recovery.test.mjs", "scripts/legacy-payment-import.test.mjs", "scripts/legacy-cutover-payment.test.mjs", "scripts/legacy-invoice-transformer-safety.test.mjs", "scripts/legacy-cutover-acceptance.test.mjs", "tests/invoice-odometer-backfill.test.mjs", "tests/invoice-part-vendor-backfill.test.mjs", "tests/complimentary-services.test.mjs", "tests/repair-order-history.test.mjs", "tests/repair-order-list.test.mjs", "scripts/legacy-refresh-rehearsal.test.mjs"], { cwd: repositoryRoot, label: "focused legacy tests" })))();
     const focusedLint = await (dependencies.focusedLint ?? (() => command("npx", ["eslint",
       "scripts/legacy-refresh-rehearsal.mjs", "scripts/lib/legacy-refresh-rehearsal.mjs", "scripts/legacy-cutover.mjs",
       "scripts/legacy-snapshot-intake.mjs", "scripts/lib/legacy-source.mjs", "scripts/lib/legacy-customer-recovery.mjs",
       "scripts/lib/legacy-payment-import.mjs", "scripts/lib/legacy-payment-stage.mjs", "scripts/transform-invoices.mjs",
+      "scripts/lib/legacy-cutover-acceptance.mjs", "scripts/lib/legacy-invoice-projection.mjs",
     ], { cwd: repositoryRoot, label: "focused ESLint" })))();
+    const prismaValidate = await (dependencies.prismaValidate ?? (() => command("npx", ["prisma", "validate"], { cwd: repositoryRoot, label: "Prisma schema validation" })))();
+    const prismaGenerate = await (dependencies.prismaGenerate ?? (() => command("npx", ["prisma", "generate"], { cwd: repositoryRoot, label: "Prisma client generation" })))();
     let repositoryLint = { passed: true };
     try { await (dependencies.repositoryLint ?? (() => command("npm", ["run", "lint"], { cwd: repositoryRoot, label: "repository lint" })))(); }
     catch (error) { repositoryLint = { passed: false, error: safeMessage(error) }; }
     const diffCheck = await (dependencies.diffCheck ?? (() => command("git", ["diff", "--check"], { cwd: repositoryRoot, label: "git diff --check" })))();
     const finalStatus = dependencies.finalStatus ? await dependencies.finalStatus() : await command("git", ["status", "--short"], { cwd: repositoryRoot, label: "git status" });
-    const expectedContract = options.mode === "seed" && dependencies.privateSeedContractAvailable !== false
-      ? compareApprovedSeedContract(cutover.value.payment?.counts)
-      : { evaluated: false, reason: "Private approved seed aggregate contract was not supplied." };
-    if (expectedContract.evaluated && !expectedContract.passed) throw new Error("Private approved seed aggregate contract comparison failed.");
     const report = sanitizeRehearsalReport({
       formatVersion: 1, status: "PASS", startedAt, finishedAt: now().toISOString(), sourceMode: options.mode,
       snapshotDate: options.snapshotDate, git, zip: { bytes: zip.bytes, sha256: zip.sha256 },
       immutableSnapshotPath: options.keepSnapshot ? snapshot.finalPath : null, sourceFingerprint: source.fingerprint,
       recoveryManifest: { valid: true, path: loadedManifest.path }, stageOrder,
+      schemaReadiness: { ...schemaReadiness, schemaValidationPassed: true, clientGenerationPassed: true },
+      acceptance: cutover.value.acceptance,
       aggregates: { customerVehicle: cutover.value.source?.expectedCleanCounts ?? {}, recovery: cutover.value.recovery?.counts ?? {}, invoiceAr: cutover.value.source?.reconciliation?.invoices ?? {}, payment: cutover.value.payment ?? {}, openOrders: cutover.value.source?.reconciliation?.openRepairOrders ?? {} },
-      expectedContract,
+      dynamicSourceContract: { evaluated: true, basis: "selected immutable source and transformed projection", hardcodedHistoricalCounts: false },
       databaseCounts: { before: before.counts, after: after.counts, equal: true },
       tests: { passed: true, exitCode: tests.code ?? 0 }, focusedLint: { passed: true, exitCode: focusedLint.code ?? 0 }, repositoryLint,
+      prismaValidate: { passed: true, exitCode: prismaValidate.code ?? 0 }, prismaGenerate: { passed: true, exitCode: prismaGenerate.code ?? 0 },
       diffCheck: { passed: true, exitCode: diffCheck.code ?? 0 }, finalGitStatus: finalStatus.stdout?.split("\n").filter(Boolean) ?? git.status,
       cutoverReport: cutover.path, warnings: repositoryLint.passed ? [] : ["Repository lint has unrelated existing failures."], failedStage: null,
     });

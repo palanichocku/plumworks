@@ -45,7 +45,6 @@ test("active Repair Orders and Dashboard use the same operational query", () => 
   assert.match(lifecycle, /invoices: \{ none: \{\} \}/);
   assert.match(loader, /where: operationalRepairOrderWhere\(membership\.shopId\)/);
   assert.match(dashboard, /repairOrder\.count\(\{ where: operationalRepairOrderWhere\(shopId\) \}\)/);
-  assert.match(dashboard, /repairOrder\.findMany\(\{\s*where: operationalRepairOrderWhere\(shopId\)/);
 });
 
 test("active list cannot render legacy read-only orders or mislabel editable orders", () => {

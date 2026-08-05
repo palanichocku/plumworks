@@ -24,6 +24,12 @@ A manifest created for the original seed is not valid for a later snapshot. Even
 
 During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are then recreated transactionally, before `FINAL`, `laborfinal`, and `ar` are staged and transformed. A recovery conflict or transaction failure stops the workflow before Invoice staging.
 
+The current schema must be deployed before the confirmed command; cutover deletes scoped rows and preserves the existing schema rather than recreating tables. The zero-write rehearsal checks migration files, Prisma schema readiness, and applied migration history without applying anything. In particular, mileage-at-service, complimentary-service, and marketing-attribution migrations must already be present.
+
+Historical mileage and Vendor lineage are immutable source projections: `ar.DBF.ODOMETER` → `Invoice.odometer`, `orders.DBF.ODOMETER` → `RepairOrder.odometer`, `FINAL.DBF.SOURCE` → `InvoicePart.vendorNameSnapshot`, and `orders.DBF.SOURCE` → `RepairOrderPart.vendorNameSnapshot`. `Vehicle.odometer` is only the latest vehicle reading and must never fill missing historical mileage. SOURCE codes remain exact codes when no reliable source lookup proves an expanded name. Imported legacy labor defaults to `complimentary = false`, including zero-value labor.
+
+Clean fresh imports must leave both recovery planners at zero proposed updates, zero conflicts, zero unresolved matches, and zero ambiguity. `legacy:customers:recover`, the Invoice-odometer backfill, and `legacy:backfill:invoice-part-vendors` are post-cutover emergency/diagnostic tools only; they are not normal stages.
+
 Historical Payment tender allocation is part of the complete replacement. After Invoice and Accounts Receivable transformation, the cutover passes that exact staging-run ID and the completed recovery result into the shared hardened Payment projection. `ar.DBF.TOTAL`, `PAYMENT`, and `BALANCE` remain authoritative; Payment rows only preserve normalized tender-bucket detail and never recalculate Invoice paid totals or receivable balances. `--payment-date-policy invoice-date-proxy` is mandatory because the source does not prove receipt timestamps. Reports label these day/month groupings as **Legacy payment tender allocation using Invoice date proxy**, not actual payment chronology. Any reconciliation, identity, recovery, or deterministic-row conflict blocks Payment insertion and prevents open Repair Order staging.
 
 ## Snapshot

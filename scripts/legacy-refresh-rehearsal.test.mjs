@@ -7,13 +7,12 @@ import { CUTOVER_RECOVERY_SOURCE_TABLES } from "./lib/legacy-customer-recovery.m
 import { inspectZipBuffer } from "./legacy-snapshot-intake.mjs";
 import {
   REHEARSAL_STAGES,
-  APPROVED_SEED_REHEARSAL_CONTRACT,
-  compareApprovedSeedContract,
   createSeedZip,
   cutoverDryRunArguments,
   parseLegacyRefreshRehearsalArguments,
   runLegacyRefreshRehearsal,
   sanitizeRehearsalReport,
+  validateSchemaReadiness,
   validateRehearsalCutoverReport,
 } from "./lib/legacy-refresh-rehearsal.mjs";
 
@@ -47,6 +46,7 @@ function cutoverSummary(overrides = {}) {
     recovery: { counts: { unexpectedUnresolved: 0, aliasCollisions: 0 } },
     payment: { counts: { tenderMismatches: 0, invoiceMismatches: 0, deterministicConflicts: 0, invalidProxyDates: 0, fatalUnsupportedFieldAmbiguities: 0 } },
     source: { path: "/snapshot/data", expectedCleanCounts: {}, reconciliation: {} }, verification: { databaseWrites: 0, confirmedImports: 0, migrationsApplied: 0 },
+    acceptance: { blockingIssues: 0, mileage: {}, vendor: {}, complimentary: {}, operational: {}, history: {}, recoveryBackfill: { invoiceOdometer: { proposedUpdates: 0 }, invoicePartVendor: { proposedUpdates: 0 }, databaseWrites: 0 } },
     reset: { completed: false }, backup: { completed: false }, criticalIssues: [], ...overrides,
   };
 }
@@ -64,7 +64,6 @@ async function harness(mode = "zip", overrides = {}) {
   let seedZipPath = null;
   const dependencies = {
     repositoryRoot: root,
-    privateSeedContractAvailable: false,
     gitState: async () => ({ head: "0123456789abcdef", status: [" M preserved-work"] }),
     seedZip: async ({ targetZip }) => { seedZipPath = targetZip; await writeFile(targetZip, "seed-zip"); return { path: targetZip, bytes: 8, sha256: "b".repeat(64), temporary: true }; },
     intake: async ({ destination }) => {
@@ -76,9 +75,10 @@ async function harness(mode = "zip", overrides = {}) {
     sourceResolver: async () => ({ path: "/snapshot/data", fingerprint, actualFiles: { "Cust.DBF": "Cust.DBF" } }),
     manifestLoader: async ({ path }) => ({ path, manifest: recoveryManifest() }),
     databaseState: async () => { countCalls += 1; return { shopId, counts: { customers: 10, payments: 20 } }; },
+    schemaReadiness: async () => ({ migrationDirectoriesFound: 3, expectedLatestMigration: "latest", requiresMigrateDeploy: false, migrationsAppliedByRehearsal: 0 }),
     command: async (_command, args) => { cutoverArgs = args; return { code: 0, stdout: "", stderr: "" }; },
     cutoverReport: async () => ({ path: "cutover.json", value: cutoverSummary() }),
-    runTests: async () => ({ code: 0 }), focusedLint: async () => ({ code: 0 }), repositoryLint: async () => ({ code: 0 }),
+    runTests: async () => ({ code: 0 }), focusedLint: async () => ({ code: 0 }), prismaValidate: async () => ({ code: 0 }), prismaGenerate: async () => ({ code: 0 }), repositoryLint: async () => ({ code: 0 }),
     diffCheck: async () => ({ code: 0 }), finalStatus: async () => ({ code: 0, stdout: " M preserved-work\n" }),
     ...overrides,
   };
@@ -209,9 +209,24 @@ test("valid report requires the exact ordered stage ledger and zero-write proof"
   assert.throws(() => validateRehearsalCutoverReport(cutoverSummary({ verification: { databaseWrites: 1, confirmedImports: 0, migrationsApplied: 0 } })), /zero-write/);
 });
 
-test("private seed aggregate expectations are fixed and mismatches fail comparison", () => {
-  assert.equal(compareApprovedSeedContract({ ...APPROVED_SEED_REHEARSAL_CONTRACT }).passed, true);
-  const mismatch = compareApprovedSeedContract({ ...APPROVED_SEED_REHEARSAL_CONTRACT, proposedPaymentRows: 1 });
-  assert.equal(mismatch.passed, false);
-  assert.deepEqual(mismatch.mismatches[0], { key: "proposedPaymentRows", expected: 11_825, actual: 1 });
+test("schema readiness requires every recent migration and current additive fields", async () => {
+  const root = await mkdtemp(join(tmpdir(), "schema-readiness-test-"));
+  try {
+    const migrations = ["20260804120000_add_marketing_lead_attribution", "20260804150000_add_invoice_odometer", "20260804170000_add_complimentary_services"];
+    for (const name of migrations) { await mkdir(join(root, "prisma", "migrations", name), { recursive: true }); await writeFile(join(root, "prisma", "migrations", name, "migration.sql"), "-- additive"); }
+    await writeFile(join(root, "prisma", "schema.prisma"), "model Invoice { odometer Int? }\nmodel InvoiceLabor { complimentary Boolean @default(false) }\nmodel RepairOrderLabor { complimentary Boolean @default(false) }\nmodel MarketingLead { attributionSource String? }");
+    const ready = await validateSchemaReadiness(root, migrations);
+    assert.equal(ready.requiresMigrateDeploy, false);
+    await rm(join(root, "prisma", "migrations", migrations[2]), { recursive: true });
+    await assert.rejects(validateSchemaReadiness(root, migrations), /Schema readiness failed/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("rehearsal report contains every current acceptance section", async () => {
+  const item = await harness("zip");
+  try {
+    const result = await runLegacyRefreshRehearsal(item.options, item.dependencies);
+    const markdown = await readFile(result.markdownPath, "utf8");
+    for (const title of ["Mileage coverage", "Vendor/source coverage", "Complimentary-service compatibility", "Operational Repair Order eligibility", "Unified-history readiness", "Recovery-backfill zero-delta status", "Schema/migration readiness", "Existing financial reconciliation summary"]) assert.match(markdown, new RegExp(title));
+  } finally { await rm(item.root, { recursive: true, force: true }); }
 });

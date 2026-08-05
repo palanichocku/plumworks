@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { mapLegacyInvoiceFinancials } from "./legacy-invoice-financials.mjs";
 import { groupRowsByRo, selectLegacyInvoiceDate, textValue } from "./legacy-invoice-reconciliation.mjs";
+import { normalizeLegacyOdometer } from "./legacy-odometer.mjs";
+import { projectLegacyFinalPartLines } from "./invoice-part-vendor-backfill.mjs";
 
 export const LEGACY_INVOICE_UUID_NAMESPACE = "bc5d750a-6f87-4a77-b5ac-ae4b886410fa";
 
@@ -50,6 +52,11 @@ export function projectLegacyInvoicePaymentInputs({
       fatalIssues.push({ code: "conflicting-ar-records", legacyRoNo });
       continue;
     }
+    const odometerValues = new Set(arRows.map((row) => normalizeLegacyOdometer(row.rawData?.ODOMETER)).filter((value) => value !== null));
+    if (odometerValues.size > 1) {
+      fatalIssues.push({ code: "conflicting-ar-odometer-values", legacyRoNo });
+      continue;
+    }
     const arRow = arRows[0];
     const financials = mapLegacyInvoiceFinancials(arRow.rawData);
     const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
@@ -69,11 +76,21 @@ export function projectLegacyInvoicePaymentInputs({
       legacyRoNo,
       customerId,
       invoiceDate: selectedDate.date,
+      odometer: odometerValues.size === 1 ? [...odometerValues][0] : null,
       total: (financials.totalCents / 100).toFixed(2),
       paidTotal: (financials.paidCents / 100).toFixed(2),
     });
   }
-  return { importRunId, invoices, stagedArRows: rawAr, unmatched, fatalIssues };
+  const invoiceIdsByRo = new Map(invoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
+  const parts = projectLegacyFinalPartLines(rawFinal)
+    .filter((line) => invoiceIdsByRo.has(line.legacyRoNo))
+    .map((line) => ({ ...line, id: line.legacyLineKey, invoiceId: invoiceIdsByRo.get(line.legacyRoNo) }));
+  const labor = rawLabor.filter((row) => invoiceIdsByRo.has(row.legacyRoNo?.trim())).map((row) => ({
+    legacyRoNo: row.legacyRoNo.trim(), complimentary: false,
+    description: textValue(row.rawData, "LABOR_DONE") ?? textValue(row.rawData, "NOTE") ?? textValue(row.rawData, "JOBDESC") ?? textValue(row.rawData, "CODE") ?? "Legacy labor",
+    hours: textValue(row.rawData, "HOURS"), hourlyRate: textValue(row.rawData, "LABORRATE"),
+  }));
+  return { importRunId, invoices, parts, labor, stagedArRows: rawAr, unmatched, fatalIssues };
 }
 
 export function emptyProjectedInvoiceTotals() {

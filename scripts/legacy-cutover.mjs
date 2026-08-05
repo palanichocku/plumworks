@@ -28,6 +28,7 @@ import {
 import { loadRecoveryManifest, recoveryManifestArgument } from "./lib/legacy-recovery-manifest.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
+import { verifyFreshLegacyCutover } from "./lib/legacy-cutover-acceptance.mjs";
 import {
   authoritativeReloadCounts,
   LEGACY_CUTOVER_CONFIRMATION,
@@ -122,6 +123,7 @@ const runSummary = {
     backupDestination: backupDir, rowsToDelete: {}, expectedRowsToReload: {}, preservedRows: {}, countInconsistencies: [],
   },
   payment: { importRunId: null, datePolicy: null, reportBasis: LEGACY_PAYMENT_DATE_LABEL, counts: {}, sourceBuckets: {}, normalizedMethods: {}, unsupportedFields: [] },
+  acceptance: { mileage: {}, vendor: {}, complimentary: {}, operational: {}, history: {}, recoveryBackfill: {} },
   stages: [],
   verification: {},
   accounting: {},
@@ -551,6 +553,30 @@ ${countTable(summary.payment.sourceBuckets)}
 Normalized methods:
 
 ${countTable(summary.payment.normalizedMethods)}
+
+### Mileage coverage
+
+${countTable(summary.acceptance.mileage)}
+
+### Vendor/source coverage
+
+${countTable(summary.acceptance.vendor)}
+
+### Complimentary-service compatibility
+
+${countTable(summary.acceptance.complimentary)}
+
+### Operational Repair Order eligibility
+
+${countTable(summary.acceptance.operational)}
+
+### Unified-history readiness
+
+${countTable(summary.acceptance.history)}
+
+### Recovery-backfill zero-delta status
+
+${summary.acceptance.recoveryBackfill ? JSON.stringify(summary.acceptance.recoveryBackfill, null, 2).split("\n").map((line) => `    ${line}`).join("\n") : "_Not available._"}
 
 ## 6. Verification summary
 
@@ -1098,6 +1124,20 @@ async function main() {
       customerIds: projectedCustomerIds,
       vehicleIds: projectedVehicleIds,
     });
+    const acceptance = verifyFreshLegacyCutover({
+      shopId: shop.id,
+      rawAr: invoiceSources.arSource.rows,
+      rawFinal: invoiceSources.finalSource.rows,
+      openPartRows: invoiceSources.orderPartSource.rows,
+      openLaborRows: invoiceSources.orderLaborSource.rows,
+      invoiceProjection: projectedInvoiceInputs,
+      customerIds: projectedCustomerIds,
+      vehicleIds: projectedVehicleIds,
+    });
+    runSummary.acceptance = acceptance;
+    if (acceptance.blockingIssues) {
+      throw new Error(`Fresh-cutover acceptance verification failed with ${acceptance.blockingIssues} blocking issue(s).`);
+    }
     const authoritativeExpected = authoritativeReloadCounts({
       normalCustomers: projectedState.customers.length,
       recoveredCustomers: projectedRecoveryPlan?.customersToCreate.length ?? 0,
