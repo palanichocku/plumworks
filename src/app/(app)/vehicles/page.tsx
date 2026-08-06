@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getVehiclesForCurrentShop } from "@/lib/data/vehicles";
+import { parseLifecycleFilter } from "@/lib/customer-vehicle-lifecycle";
 
 type VehiclesResult = Awaited<ReturnType<typeof getVehiclesForCurrentShop>>;
 type VehicleListItem = VehiclesResult["vehicles"][number];
@@ -11,12 +12,13 @@ export const dynamic = "force-dynamic";
 export default async function VehiclesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string }>;
 }) {
-  const { page: pageParam, q } = await searchParams;
+  const { page: pageParam, q, status } = await searchParams;
   const page = parsePage(pageParam);
   const search = q?.trim() ?? "";
-  const { vehicles, hasNext } = await getVehiclesForCurrentShop(search, page);
+  const lifecycle = parseLifecycleFilter(status);
+  const { vehicles, hasNext } = await getVehiclesForCurrentShop(search, page, lifecycle);
 
   // Upgraded header styling for better contrast and visual weight
   const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
@@ -28,11 +30,18 @@ export default async function VehiclesPage({
         title="Vehicles"
         description="Active customer vehicles registered under your shop workspace."
       />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Vehicle status" className="flex rounded-lg border border-slate-200 bg-white p-1">
+          {(["active", "archived", "all"] as const).map((value) => <Link key={value} href={`/vehicles?status=${value}${search ? `&q=${encodeURIComponent(search)}` : ""}`} className={`rounded-md px-3 py-1.5 text-sm font-semibold capitalize ${lifecycle === value ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{value}</Link>)}
+        </nav>
+        <Link href="/vehicles/new" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ New Vehicle</Link>
+      </div>
 
       <form
         action="/vehicles"
         className="flex gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
+        <input type="hidden" name="status" value={lifecycle} />
         <label htmlFor="vehicle-search" className="sr-only">
           Search vehicles by make, model, or license plate
         </label>
@@ -97,7 +106,7 @@ export default async function VehiclesPage({
                   <tr key={vehicle.id} className="group transition-colors hover:bg-slate-50/60">
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
                       <Link href={`/vehicles/${vehicle.id}`} className="block hover:text-brand-primary transition-colors">
-                        {vehicle.make ?? "Unknown Make"}
+                        {vehicle.make ?? "Unknown Make"} {vehicle.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Vehicle archived</span> : vehicle.customer.archivedAt ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Customer archived</span> : null}
                       </Link>
                     </td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
@@ -125,6 +134,7 @@ export default async function VehiclesPage({
         page={page}
         hasNext={hasNext}
         search={search}
+        lifecycle={lifecycle}
       />
     </div>
   );

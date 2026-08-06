@@ -2,8 +2,9 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
+import { customerLifecycleWhere, type LifecycleFilter } from "@/lib/customer-vehicle-lifecycle";
 
-export async function getCustomersForCurrentShop(search?: string, page = 1) {
+export async function getCustomersForCurrentShop(search?: string, page = 1, lifecycle: LifecycleFilter = "active") {
   const { membership } = await getCurrentMembership();
 
   if (!membership) {
@@ -15,6 +16,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1) {
   const customers = await prisma.customer.findMany({
     where: {
       shopId: membership.shopId,
+      ...customerLifecycleWhere(lifecycle),
       ...(query
         ? {
             OR: [
@@ -33,6 +35,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1) {
       displayName: true,
       email: true,
       phone: true,
+      archivedAt: true,
     },
   });
 
@@ -62,7 +65,10 @@ export async function getCustomerForCurrentShop(id: string) {
       state: true,
       postalCode: true,
       legacyCustno: true,
+      archivedAt: true,
       notes: true,
+      legacySourceTable: true,
+      _count: { select: { vehicles: true, repairOrders: true, invoices: true, payments: true, accountsReceivable: true, legacyAliases: true } },
       vehicles: {
         orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
         select: {
@@ -71,6 +77,7 @@ export async function getCustomerForCurrentShop(id: string) {
           make: true,
           model: true,
           licensePlate: true,
+          archivedAt: true,
         },
       },
       invoices: {
@@ -108,7 +115,7 @@ export async function getCustomerForEdit(id: string) {
   if (!membership) return null;
 
   return prisma.customer.findFirst({
-    where: { id, shopId: membership.shopId },
+    where: { id, shopId: membership.shopId, archivedAt: null },
     select: {
       id: true,
       displayName: true,

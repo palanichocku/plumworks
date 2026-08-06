@@ -7,6 +7,8 @@ import { hasPermission } from "@/lib/permissions";
 import { InternalNotesBlock } from "@/components/internal-notes-block";
 import { updateVehicleNotes } from "../../internal-notes-actions";
 import { canEditInternalNotes } from "@/lib/internal-notes";
+import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
+import { archiveVehicle, deleteVehiclePermanently, restoreVehicle } from "../../customer-vehicle-lifecycle-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,9 @@ export default async function VehicleDetailPage({
     [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
     "Unnamed vehicle";
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
+  const canManageLifecycle = membership?.role === "OWNER" || membership?.role === "ADMIN";
+  const canDelete = membership?.role === "OWNER";
+  const deleteBlockers = vehicle._count.repairOrders + vehicle._count.invoices + (vehicle.legacyCarno || vehicle.legacySourceTable ? 1 : 0);
 
   return (
     <>
@@ -44,8 +49,10 @@ export default async function VehicleDetailPage({
           {description}
         </h1>
         </div>
-        <Link href={`/vehicles/${vehicle.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit vehicle</Link>
+        <RecordLifecycleActions id={vehicle.id} archived={Boolean(vehicle.archivedAt)} canManage={canManageLifecycle} canDelete={Boolean(canDelete && deleteBlockers === 0)} archiveAction={archiveVehicle} restoreAction={restoreVehicle} deleteAction={deleteVehiclePermanently}>{!vehicle.archivedAt && !vehicle.customer.archivedAt ? <Link href={`/vehicles/${vehicle.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit vehicle</Link> : null}</RecordLifecycleActions>
       </header>
+      {vehicle.archivedAt || vehicle.customer.archivedAt ? <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Archived — {vehicle.archivedAt ? "this vehicle is archived" : "its customer is archived"} and it is unavailable for new Repair Orders.</div> : null}
+      {canDelete && deleteBlockers > 0 ? <p className="mt-3 text-sm text-slate-600">Permanent deletion is unavailable: {vehicle._count.repairOrders} Repair Orders, {vehicle._count.invoices} Invoices{vehicle.legacyCarno || vehicle.legacySourceTable ? ", plus legacy lineage" : ""}.</p> : null}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

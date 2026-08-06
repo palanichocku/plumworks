@@ -77,7 +77,7 @@ export async function createRepairOrder(formData: FormData) {
 
   if (customerMode === "existing") {
     const selection = await prisma.customer.findFirst({
-      where: { id: existingCustomerId, shopId: membership.shopId },
+      where: { id: existingCustomerId, shopId: membership.shopId, archivedAt: null },
       select: { id: true },
     });
     if (!selection) redirect("/repair-orders/new?error=invalid-selection");
@@ -105,6 +105,13 @@ export async function createRepairOrder(formData: FormData) {
 
     let vehicleId = existingVehicleId;
     if (vehicleMode === "new") {
+      if (vin) {
+        const conflict = await transaction.vehicle.findFirst({
+          where: { shopId: membership.shopId, vin: { equals: vin, mode: "insensitive" } },
+          select: { archivedAt: true, customer: { select: { archivedAt: true } } },
+        });
+        if (conflict) throw new Error(conflict.archivedAt || conflict.customer.archivedAt ? "An archived vehicle already uses this VIN. Restore that vehicle instead." : "A vehicle already uses this VIN.");
+      }
       const vehicle = await transaction.vehicle.create({
         data: {
           shopId: membership.shopId,
@@ -121,7 +128,7 @@ export async function createRepairOrder(formData: FormData) {
       vehicleId = vehicle.id;
     } else {
       const vehicle = await transaction.vehicle.findFirst({
-        where: { id: existingVehicleId, customerId, shopId: membership.shopId },
+        where: { id: existingVehicleId, customerId, shopId: membership.shopId, archivedAt: null, customer: { archivedAt: null } },
         select: { id: true },
       });
       if (!vehicle) throw new Error("Invalid vehicle selection.");

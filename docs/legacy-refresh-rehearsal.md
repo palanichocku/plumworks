@@ -48,3 +48,9 @@ The operational command order is:
 3. Run the cutover dry-run command documented in `docs/cutover-runbook.md`.
 4. After backup confirmation, downtime, and explicit approval, run the single confirmed backup/reset/reload cutover command from that runbook.
 5. Run the post-cutover verify command. Do not run either recovery backfill unless verification exposes a concrete historical defect.
+
+## Customer and Vehicle lifecycle compatibility
+
+Fresh legacy transforms do not infer archive state. Imported Customers and Vehicles are created active (`archivedAt = null`) because no authoritative legacy archive field has been established; age, missing contact data, notes, or lack of recent work are not archive evidence. The nullable archive columns therefore do not change identity matching, recovery-manifest decisions, service history, or financial reconciliation.
+
+During the parallel run, Windows remains authoritative. An archive or permanent deletion made only in PlumWorks can be reversed by the final full reload. A real removal must also be reflected in the Windows source or be deliberately re-applied after final cutover. Archive/delete decisions are not part of recovery manifest v2.

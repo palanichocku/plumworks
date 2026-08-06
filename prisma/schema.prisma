@@ -318,6 +318,7 @@ model Customer {
   message            String?
   legacyCustno       String?               @map("legacy_custno")
   legacySourceTable  String?               @map("legacy_source_table")
+  archivedAt         DateTime?             @map("archived_at")
   createdAt          DateTime              @default(now()) @map("created_at")
   updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at")
   shop               Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -331,6 +332,7 @@ model Customer {
   @@unique([shopId, legacyCustno])
   @@index([legacyCustno])
   @@index([shopId, displayName])
+  @@index([shopId, archivedAt])
   @@map("customers")
 }
 
@@ -344,7 +346,7 @@ model CustomerLegacyAlias {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@unique([shopId, aliasLegacyCustno])
   @@index([customerId])
@@ -367,16 +369,18 @@ model Vehicle {
   message           String?
   legacyCarno       String?       @map("legacy_carno")
   legacySourceTable String?       @map("legacy_source_table")
+  archivedAt        DateTime?     @map("archived_at")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
   shop              Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
   repairOrders      RepairOrder[]
   invoices          Invoice[]
 
   @@unique([shopId, legacyCarno])
   @@index([legacyCarno])
   @@index([shopId, customerId])
+  @@index([shopId, archivedAt])
   @@index([shopId, vin])
   @@index([shopId, licensePlate])
   @@map("vehicles")

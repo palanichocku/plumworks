@@ -56,8 +56,8 @@ test("selection submits the authoritative ID and preserves vehicle reset behavio
   assert.match(form, /setVehicleMode\(nextCustomer\?\.vehicles\.length \? "existing" : "new"\)/);
   assert.match(combobox, /onSelect\(null\)/);
   assert.match(form, /const vehicles = selectedCustomer\?\.vehicles \?\? \[\]/);
-  assert.match(creation, /where: \{ id: existingCustomerId, shopId: membership\.shopId \}/);
-  assert.match(creation, /where: \{ id: existingVehicleId, customerId, shopId: membership\.shopId \}/);
+  assert.match(creation, /where: \{ id: existingCustomerId, shopId: membership\.shopId, archivedAt: null \}/);
+  assert.match(creation, /where: \{ id: existingVehicleId, customerId, shopId: membership\.shopId, archivedAt: null, customer: \{ archivedAt: null \} \}/);
 });
 
 test("combobox supports keyboard and accessible listbox interaction", () => {

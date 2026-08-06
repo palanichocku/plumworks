@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getCustomersForCurrentShop } from "@/lib/data/customers";
+import { parseLifecycleFilter } from "@/lib/customer-vehicle-lifecycle";
 
 type CustomersResult = Awaited<ReturnType<typeof getCustomersForCurrentShop>>;
 type CustomerListItem = CustomersResult["customers"][number];
@@ -11,12 +12,13 @@ export const dynamic = "force-dynamic";
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string }>;
 }) {
-  const { page: pageParam, q } = await searchParams;
+  const { page: pageParam, q, status } = await searchParams;
   const page = parsePage(pageParam);
   const search = q?.trim() ?? "";
-  const { customers, hasNext } = await getCustomersForCurrentShop(search, page);
+  const lifecycle = parseLifecycleFilter(status);
+  const { customers, hasNext } = await getCustomersForCurrentShop(search, page, lifecycle);
 
   // Upgraded header styling for better contrast and visual weight
   const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
@@ -28,11 +30,18 @@ export default async function CustomersPage({
         title="Customers"
         description="Customer profiles assigned to your current shop workspace."
       />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Customer status" className="flex rounded-lg border border-slate-200 bg-white p-1">
+          {(["active", "archived", "all"] as const).map((value) => <Link key={value} href={`/customers?status=${value}${search ? `&q=${encodeURIComponent(search)}` : ""}`} className={`rounded-md px-3 py-1.5 text-sm font-semibold capitalize ${lifecycle === value ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{value}</Link>)}
+        </nav>
+        <Link href="/customers/new" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ New Customer</Link>
+      </div>
 
       <form
         action="/customers"
         className="flex gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
+        <input type="hidden" name="status" value={lifecycle} />
         <label htmlFor="customer-search" className="sr-only">
           Search customers by name or phone
         </label>
@@ -94,7 +103,7 @@ export default async function CustomersPage({
                   <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
                       <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
-                        {customer.displayName}
+                        {customer.displayName} {customer.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
                       </Link>
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-600 font-medium">
@@ -116,6 +125,7 @@ export default async function CustomersPage({
         page={page}
         hasNext={hasNext}
         search={search}
+        lifecycle={lifecycle}
       />
     </div>
   );

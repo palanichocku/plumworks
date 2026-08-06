@@ -7,6 +7,7 @@ import { callClickMessage } from "@/lib/marketing-lead-context";
 import { currentUtcMonthRange } from "@/lib/dashboard-summary";
 import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
 import { CLOSED_INVOICE_STATUS, OPEN_INVOICE_STATUS } from "@/lib/invoice-lifecycle";
+import { activeCustomerAvailability, activeVehicleAvailability } from "@/lib/customer-vehicle-lifecycle";
 
 export async function getDashboardSummary() {
   const { membership } = await getCurrentMembership();
@@ -17,8 +18,8 @@ export async function getDashboardSummary() {
   const canViewAdmin = hasPermission(membership.role, "edit_shop_settings");
   const [openRepairOrders, customers, vehicles, monthlyInvoices, inProgressInvoices, closedInvoices, newLeadCount] = await Promise.all([
     prisma.repairOrder.count({ where: operationalRepairOrderWhere(shopId) }),
-    prisma.customer.count({ where: { shopId } }),
-    prisma.vehicle.count({ where: { shopId } }),
+    prisma.customer.count({ where: { shopId, ...activeCustomerAvailability } }),
+    prisma.vehicle.count({ where: { shopId, ...activeVehicleAvailability } }),
     prisma.invoice.aggregate({
       where: { shopId, invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
       _count: { _all: true },

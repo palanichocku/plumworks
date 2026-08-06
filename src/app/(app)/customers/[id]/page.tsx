@@ -7,6 +7,8 @@ import { hasPermission } from "@/lib/permissions";
 import { InternalNotesBlock } from "@/components/internal-notes-block";
 import { updateCustomerNotes } from "../../internal-notes-actions";
 import { canEditInternalNotes } from "@/lib/internal-notes";
+import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
+import { archiveCustomer, deleteCustomerPermanently, restoreCustomer } from "../../customer-vehicle-lifecycle-actions";
 
 type CustomerDetail = NonNullable<
   Awaited<ReturnType<typeof getCustomerForCurrentShop>>
@@ -27,6 +29,9 @@ export default async function CustomerDetailPage({
     notFound();
   }
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
+  const canManageLifecycle = membership?.role === "OWNER" || membership?.role === "ADMIN";
+  const canDelete = membership?.role === "OWNER";
+  const deleteBlockers = Object.values(customer._count).reduce((sum, count) => sum + count, 0) + (customer.legacyCustno || customer.legacySourceTable ? 1 : 0);
 
   return (
     <>
@@ -45,8 +50,10 @@ export default async function CustomerDetailPage({
           {customer.displayName}
         </h1>
         </div>
-        <Link href={`/customers/${customer.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit customer</Link>
+        <RecordLifecycleActions id={customer.id} archived={Boolean(customer.archivedAt)} canManage={canManageLifecycle} canDelete={Boolean(canDelete && deleteBlockers === 0)} archiveAction={archiveCustomer} restoreAction={restoreCustomer} deleteAction={deleteCustomerPermanently}>{!customer.archivedAt ? <Link href={`/customers/${customer.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit customer</Link> : null}</RecordLifecycleActions>
       </header>
+      {customer.archivedAt ? <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Archived — retained for historical lookup and unavailable for new Repair Orders.</div> : null}
+      {canDelete && deleteBlockers > 0 ? <p className="mt-3 text-sm text-slate-600">Permanent deletion is unavailable: {customer._count.vehicles} Vehicles, {customer._count.repairOrders} Repair Orders, {customer._count.invoices} Invoices, {customer._count.payments} Payments, {customer._count.accountsReceivable} Accounts Receivable records{customer.legacyCustno || customer.legacySourceTable || customer._count.legacyAliases ? ", plus legacy lineage" : ""}.</p> : null}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -83,7 +90,7 @@ export default async function CustomerDetailPage({
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-lg font-semibold text-slate-950">Vehicles</h2>
+          <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold text-slate-950">Vehicles</h2>{!customer.archivedAt ? <Link href={`/vehicles/new?customerId=${customer.id}`} className="text-sm font-semibold text-brand-primary">+ Add Vehicle</Link> : null}</div>
         </div>
         {customer.vehicles.length === 0 ? (
           <p className="px-6 py-8 text-sm text-slate-600">
@@ -100,7 +107,7 @@ export default async function CustomerDetailPage({
                   <span className="font-medium text-slate-950">
                     {[vehicle.year, vehicle.make, vehicle.model]
                       .filter(Boolean)
-                      .join(" ") || "Unnamed vehicle"}
+                      .join(" ") || "Unnamed vehicle"} {vehicle.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
                   </span>
                   <span className="text-sm text-slate-500">
                     {vehicle.licensePlate ?? "No plate"}

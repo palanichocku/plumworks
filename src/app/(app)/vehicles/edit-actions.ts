@@ -26,7 +26,7 @@ export async function updateVehicle(formData: FormData) {
   const { user, membership } = await requirePermission("edit_customer_vehicle");
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.vehicle.updateMany({
-      where: { id: vehicleId, shopId: membership.shopId },
+      where: { id: vehicleId, shopId: membership.shopId, archivedAt: null, customer: { archivedAt: null } },
       data: { year, make, model, licensePlate: licensePlate || null, vin: vin || null, odometer },
     });
     if (result.count !== 1) throw new Error("Vehicle was not found.");

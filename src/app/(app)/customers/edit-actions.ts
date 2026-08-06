@@ -26,7 +26,7 @@ export async function updateCustomer(formData: FormData) {
   }
   const { user, membership } = await requirePermission("edit_customer_vehicle");
   const existing = await prisma.customer.findFirst({
-    where: { id: customerId, shopId: membership.shopId },
+    where: { id: customerId, shopId: membership.shopId, archivedAt: null },
     select: { phone: true, phone2: true },
   });
   if (!existing) throw new Error("Customer was not found.");
@@ -35,7 +35,7 @@ export async function updateCustomer(formData: FormData) {
   if (storedPhone === undefined || storedPhone2 === undefined) throw new Error("Enter a complete 10-digit phone number.");
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({
-      where: { id: customerId, shopId: membership.shopId },
+      where: { id: customerId, shopId: membership.shopId, archivedAt: null },
       data: { displayName, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
     });
     if (result.count !== 1) throw new Error("Customer was not found.");

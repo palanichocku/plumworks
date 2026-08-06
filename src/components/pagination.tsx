@@ -5,9 +5,10 @@ export function parsePage(value?: string) {
   return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
-function pageHref(pathname: string, page: number, search?: string) {
+function pageHref(pathname: string, page: number, search?: string, lifecycle?: string) {
   const params = new URLSearchParams({ page: String(page) });
   if (search) params.set("q", search);
+  if (lifecycle && lifecycle !== "active") params.set("status", lifecycle);
   return `${pathname}?${params.toString()}`;
 }
 
@@ -16,11 +17,13 @@ export function Pagination({
   page,
   hasNext,
   search,
+  lifecycle,
 }: {
   pathname: string;
   page: number;
   hasNext: boolean;
   search?: string;
+  lifecycle?: string;
 }) {
   const controlClass =
     "rounded-lg border px-4 py-2 text-sm font-semibold transition";
@@ -32,13 +35,13 @@ export function Pagination({
       {page === 1 ? (
         <span aria-disabled="true" className={disabledClass}>Previous</span>
       ) : (
-        <Link href={pageHref(pathname, page - 1, search)} className={enabledClass}>
+        <Link href={pageHref(pathname, page - 1, search, lifecycle)} className={enabledClass}>
           Previous
         </Link>
       )}
       <span className="text-sm font-medium text-slate-600">Page {page}</span>
       {hasNext ? (
-        <Link href={pageHref(pathname, page + 1, search)} className={enabledClass}>
+        <Link href={pageHref(pathname, page + 1, search, lifecycle)} className={enabledClass}>
           Next
         </Link>
       ) : (

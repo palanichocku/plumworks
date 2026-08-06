@@ -32,6 +32,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
   return prisma.customer.findMany({
     where: {
       shopId: membership.shopId,
+      archivedAt: null,
       OR: [
         { displayName: { contains: query, mode: "insensitive" } },
         { phone: { contains: query } },
@@ -48,6 +49,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       email: true,
       notes: true,
       vehicles: {
+        where: { archivedAt: null },
         orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
         select: { id: true, year: true, make: true, model: true, licensePlate: true, notes: true },
       },

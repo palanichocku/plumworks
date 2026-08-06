@@ -34,6 +34,7 @@ export async function searchCurrentShop(search: string) {
     prisma.customer.findMany({
       where: {
         shopId,
+        archivedAt: null,
         AND: tokens.map((token) => ({
           OR: [
             { displayName: { contains: token, mode: "insensitive" as const } },
@@ -49,6 +50,8 @@ export async function searchCurrentShop(search: string) {
     prisma.vehicle.findMany({
       where: {
         shopId,
+        archivedAt: null,
+        customer: { archivedAt: null },
         AND: tokens.map((token) => {
           const numericToken = /^\d+$/.test(token) ? Number(token) : null;
           return {
