@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [lineItems, layout, page, workspace, styles, loader, partActions, laborActions, vendor, totals] = await Promise.all([
+const [lineItems, historyCombobox, layout, page, workspace, styles, loader, partActions, laborActions, vendor, totals] = await Promise.all([
   read("src/components/repair-order-line-items.tsx"),
+  read("src/components/historical-description-combobox.tsx"),
   read("src/components/line-item-layout.tsx"),
   read("src/app/(app)/repair-orders/[id]/page.tsx"),
   read("src/components/repair-order-workspace.tsx"),
@@ -22,7 +23,7 @@ test("Parts has exactly one reusable draft row and one Add Part action", () => {
   assert.match(lineItems, /action=\{addPartLineWithState\}/);
   assert.match(lineItems, /action=\{updatePartLineWithState\}/);
   assert.match(lineItems, /action=\{deletePartLine\}/);
-  assert.match(lineItems, /required maxLength=\{500\}/);
+  assert.match(historyCombobox, /required maxLength=\{500\}/);
   assert.match(lineItems, /Number\(quantity\) \* Number\(unitPrice\)/);
   assert.equal((lineItems.match(/ariaLabel="Add part"/g) ?? []).length, 1);
   assert.doesNotMatch(lineItems, />Add Part<|>Add Labor</);
@@ -39,17 +40,16 @@ test("Vendor behavior remains integrated in new and saved Part rows", () => {
   assert.match(partActions, /updatePartLineWithState/);
 });
 
-test("Labor integrates searchable Common Services without immediate persistence", () => {
+test("Labor retains Common Services alongside historical free-text search without immediate persistence", () => {
   assert.doesNotMatch(lineItems, /Add common service/);
   assert.doesNotMatch(lineItems, /\+ Add another labor line/);
-  assert.match(lineItems, /role="combobox"/);
+  assert.match(historyCombobox, /role="combobox"/);
   assert.match(lineItems, /aria-label="Common Services"/);
-  assert.match(lineItems, /Common Service: \{selectedName\}/);
   assert.match(lineItems, /setDescription\(service\.description\)/);
   assert.match(lineItems, /setHours\(service\.defaultHours\)/);
   assert.match(lineItems, /setRate\(service\.defaultLaborRate\)/);
   assert.doesNotMatch(lineItems, /addCannedServiceLaborLine/);
-  assert.match(lineItems, /No matching Common Services[\s\S]*custom labor/);
+  assert.match(historyCombobox, /Continue typing to use a new description/);
   assert.match(loader, /description: true, defaultHours: true, defaultLaborRate: true/);
 });
 
@@ -76,8 +76,8 @@ test("rows are responsive, accessible, independent forms with no horizontal scro
   assert.match(lineItems, /ariaLabel=\{label\}/);
   assert.match(lineItems, /title=\{label\}/);
   assert.match(lineItems, /aria-live="polite"/);
-  assert.match(lineItems, /event\.key === "ArrowDown"/);
-  assert.match(lineItems, /event\.key === "Escape"/);
+  assert.match(historyCombobox, /event\.key === "ArrowDown"/);
+  assert.match(historyCombobox, /event\.key === "Escape"/);
   assert.doesNotMatch(lineItems, /<form[\s\S]{0,500}<form/);
 });
 
