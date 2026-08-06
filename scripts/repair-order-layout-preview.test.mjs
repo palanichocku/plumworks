@@ -115,12 +115,14 @@ test("repair-order save provides pending, success, dirty, and failure feedback w
 });
 
 test("detail and print views preserve lines and hide empty read-only sections", async () => {
-  const [detail, printable] = await Promise.all([
+  const [detail, printable, document] = await Promise.all([
     read("src/app/(app)/repair-orders/[id]/page.tsx"),
     read("src/app/(app)/repair-orders/[id]/print/page.tsx"),
+    read("src/components/repair-order-document-html.tsx"),
   ]);
   assert.match(detail, /if \(!order\.customerComplaint && !order\.recommendation\) return null/);
   assert.match(detail, /whitespace-pre-wrap/g);
-  assert.match(printable, /order\.customerComplaint \|\| order\.recommendation/);
-  assert.match(printable, /whitespace-pre-wrap/g);
+  assert.match(printable, /<RepairOrderDocumentHTML model=\{model\}/);
+  assert.match(document, /model\.complaint \|\| model\.recommendation/);
+  assert.match(document, /invoice-document-notes/);
 });

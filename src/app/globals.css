@@ -456,6 +456,43 @@ body {
   font-size: 7.5pt;
 }
 
+.repair-order-estimate-notice {
+  border: 0.5pt solid #777;
+  margin-top: 7pt !important;
+  padding: 4pt;
+  text-align: center;
+  font-size: 8pt;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.repair-order-document-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.repair-order-complimentary ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.repair-order-complimentary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12pt;
+  border-bottom: 0.35pt solid #aaa;
+  padding: 3pt 2pt;
+  break-inside: avoid;
+}
+
+.repair-order-document-bottom {
+  break-inside: avoid;
+}
+
+.repair-order-document footer p + p {
+  margin-top: 2pt;
+}
+
 @media screen and (max-width: 720px) {
   .invoice-print-route { padding: 0; }
   .invoice-document { padding: 1rem; }
