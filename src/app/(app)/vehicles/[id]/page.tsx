@@ -61,7 +61,7 @@ export default async function VehicleDetailPage({
           </h2>
           <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm">
             <dt className="text-slate-500">Engine</dt>
-            <dd className="text-slate-900">Not imported yet</dd>
+            <dd className="text-slate-900">{vehicle.engine ?? "Not recorded"}</dd>
             <dt className="text-slate-500">VIN</dt>
             <dd className="min-w-0 break-all text-slate-900">
               {vehicle.vin ?? "Not recorded"}

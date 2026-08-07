@@ -77,7 +77,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           <Text style={styles.sectionTitle}>VEHICLE</Text>
           {model.vehicle ? <>
             <Text>{[model.vehicle.year, model.vehicle.make, model.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable"}</Text>
-            <Value label="Engine" value={model.vehicle.engine} /><Value label="VIN" value={model.vehicle.vin} />
+            <Value label="VIN" value={model.vehicle.vin} />
             <Value label="License" value={model.vehicle.licensePlate} /><Value label="Miles out" value={model.vehicle.odometer?.toLocaleString()} />
           </> : <Text>Vehicle not linked</Text>}
         </View>

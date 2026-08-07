@@ -18,6 +18,9 @@ export type RepairOrderCustomerSearchResult = {
     year: number | null;
     make: string | null;
     model: string | null;
+    engine: string | null;
+    vin: string | null;
+    odometer: number | null;
     licensePlate: string | null;
     notes: string | null;
   }>;
@@ -51,7 +54,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       vehicles: {
         where: { archivedAt: null },
         orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
-        select: { id: true, year: true, make: true, model: true, licensePlate: true, notes: true },
+        select: { id: true, year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true, notes: true },
       },
     },
   });

@@ -287,6 +287,13 @@ function printReconciliation(source, currentCounts) {
   console.log(`  invalid legacy/customer id: ${result.reasons.invalidVehicleId}`);
   console.log(`  missing customer link: ${result.reasons.missingCustomerLink}`);
   console.log(`  duplicate legacy id: ${result.reasons.duplicateVehicleId}`);
+  console.log(`  source vehicles evaluated for Engine: ${result.engine.sourceVehiclesEvaluated}`);
+  console.log(`  source MOTOR values found: ${result.engine.sourceValues}`);
+  console.log(`  destination Engine values produced: ${result.engine.destinationValues}`);
+  console.log(`  missing Engine values: ${result.engine.missingValues}`);
+  console.log(`  Engine mismatches: ${result.engine.mismatches}`);
+  console.log(`  unresolved Engine rows: ${result.engine.unresolved}`);
+  console.log(`  ambiguous Engine rows: ${result.engine.ambiguous}`);
   console.log(`  vehicle persistent-context source values: ${result.persistentContext.vehicleSourceValues}`);
   console.log(`  vehicle persistent-context destination values: ${result.persistentContext.vehicleDestinationValues}`);
   console.log(`  vehicle persistent-context mismatches: ${result.persistentContext.vehicleMismatches}`);
@@ -351,6 +358,13 @@ function reportReconciliation(source) {
       invalidLegacyOrCustomerId: reconciliation.reasons.invalidVehicleId,
       missingCustomerLink: reconciliation.reasons.missingCustomerLink,
       duplicateLegacyId: reconciliation.reasons.duplicateVehicleId,
+      engineSourceVehiclesEvaluated: reconciliation.engine.sourceVehiclesEvaluated,
+      engineSourceValues: reconciliation.engine.sourceValues,
+      engineDestinationValues: reconciliation.engine.destinationValues,
+      engineMissingValues: reconciliation.engine.missingValues,
+      engineMismatches: reconciliation.engine.mismatches,
+      engineUnresolved: reconciliation.engine.unresolved,
+      engineAmbiguous: reconciliation.engine.ambiguous,
       persistentContextSourceValues: reconciliation.persistentContext.vehicleSourceValues,
       persistentContextDestinationValues: reconciliation.persistentContext.vehicleDestinationValues,
       persistentContextMismatches: reconciliation.persistentContext.vehicleMismatches,

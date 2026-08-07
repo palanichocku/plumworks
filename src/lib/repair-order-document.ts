@@ -30,7 +30,7 @@ const repairOrderDocumentSelect = {
     state: true, postalCode: true, phone: true, email: true,
   } },
   vehicle: { select: {
-    id: true, year: true, make: true, model: true, engine: true, vin: true,
+    id: true, year: true, make: true, model: true, vin: true,
     licensePlate: true, odometer: true,
   } },
   parts: { orderBy: { createdAt: "asc" as const }, select: {

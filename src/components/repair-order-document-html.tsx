@@ -25,7 +25,7 @@ export function RepairOrderDocumentHTML({ model }: { model: RepairOrderDocumentM
 
     <section className="invoice-document-meta repair-order-document-meta">
       <div><h2>Customer</h2><p>{model.customer.name}</p>{model.customer.addressLine1 && <p>{model.customer.addressLine1}</p>}{model.customer.addressLine2 && <p>{model.customer.addressLine2}</p>}{customerLocality && <p>{customerLocality}</p>}<dl><Detail label="Phone" value={model.customer.phone} /><Detail label="Email" value={model.customer.email} /></dl></div>
-      <div><h2>Vehicle</h2><p>{vehicleName}</p><dl><Detail label="Engine" value={model.vehicle.engine} /><Detail label="VIN" value={model.vehicle.vin} /><Detail label="License" value={model.vehicle.licensePlate} /><Detail label="Mileage" value={model.vehicle.odometer?.toLocaleString()} /></dl></div>
+      <div><h2>Vehicle</h2><p>{vehicleName}</p><dl><Detail label="VIN" value={model.vehicle.vin} /><Detail label="License" value={model.vehicle.licensePlate} /><Detail label="Mileage" value={model.vehicle.odometer?.toLocaleString()} /></dl></div>
     </section>
 
     {(model.complaint || model.recommendation) && <section className="invoice-document-section invoice-document-notes"><h2>Customer Concerns &amp; Recommendations</h2>{model.complaint && <div><h3>Customer complaint</h3><p>{model.complaint}</p></div>}{model.recommendation && <div><h3>Service recommendation</h3><p>{model.recommendation}</p></div>}</section>}

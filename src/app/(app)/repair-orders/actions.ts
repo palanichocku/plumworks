@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { optionalRepairOrderText } from "@/lib/repair-order-fields";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
+import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -48,6 +49,7 @@ export async function createRepairOrder(formData: FormData) {
   const year = Number(formData.get("year"));
   const make = String(formData.get("make") ?? "").trim();
   const model = String(formData.get("model") ?? "").trim();
+  const engine = vehicleEngineForStorage(formData.get("engine"));
   const licensePlate = String(formData.get("licensePlate") ?? "").trim();
   const vin = String(formData.get("vin") ?? "").trim();
   const mileageValue = String(formData.get("mileage") ?? "").trim();
@@ -64,7 +66,7 @@ export async function createRepairOrder(formData: FormData) {
   if (
     vehicleMode === "new" &&
     (!Number.isInteger(year) || year < 1886 || year > maximumYear ||
-      !make || make.length > 100 || !model || model.length > 100 ||
+      !make || make.length > 100 || !model || model.length > 100 || engine === undefined ||
       licensePlate.length > 30 || vin.length > 50)
   ) {
     redirect("/repair-orders/new?error=invalid-vehicle");
@@ -119,6 +121,7 @@ export async function createRepairOrder(formData: FormData) {
           year,
           make,
           model,
+          engine,
           licensePlate: licensePlate || null,
           vin: vin || null,
           odometer: mileage,

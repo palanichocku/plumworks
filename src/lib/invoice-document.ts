@@ -26,7 +26,7 @@ const invoiceDocumentSelect = {
     postalCode: true, phone: true, email: true,
   } },
   vehicle: { select: {
-    year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true,
+    year: true, make: true, model: true, vin: true, licensePlate: true, odometer: true,
   } },
   repairOrder: { select: {
     openedAt: true, odometer: true,
@@ -109,7 +109,6 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
       year: snapshotNumber(invoice.vehicleSnapshot, "year", vehicle?.year ?? null),
       make: snapshotString(invoice.vehicleSnapshot, "make", vehicle?.make ?? null),
       model: snapshotString(invoice.vehicleSnapshot, "model", vehicle?.model ?? null),
-      engine: snapshotString(invoice.vehicleSnapshot, "engine", vehicle?.engine ?? null),
       vin: snapshotString(invoice.vehicleSnapshot, "vin", vehicle?.vin ?? null),
       licensePlate: snapshotString(invoice.vehicleSnapshot, "licensePlate", vehicle?.licensePlate ?? null),
       odometer: invoice.odometer ?? invoice.repairOrder?.odometer ?? null,

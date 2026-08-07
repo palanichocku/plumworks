@@ -98,6 +98,8 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const transformedVehicles = [...vehiclesById.values()];
   const vehicleContextSourceValues = linkedVehicles.filter((row) => row.notes !== null).length;
   const vehicleContextDestinationValues = transformedVehicles.filter((row) => row.notes !== null).length;
+  const engineSourceValues = validVehicles.filter((row) => row.engine !== null).length;
+  const engineDestinationValues = transformedVehicles.filter((row) => row.engine !== null).length;
 
   return {
     customers: transformedCustomers,
@@ -115,6 +117,15 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
       destinationValues: additionalPhoneDestinationValues,
       missingValues: additionalPhoneMissingValues,
       mismatches: 0,
+    },
+    engine: {
+      sourceVehiclesEvaluated: rawVehicles.length,
+      sourceValues: engineSourceValues,
+      destinationValues: engineDestinationValues,
+      missingValues: rawVehicles.length - engineSourceValues,
+      mismatches: 0,
+      unresolved: invalidVehicleId + missingCustomerLink,
+      ambiguous: duplicateVehicleId,
     },
     persistentContext: {
       customerSourceValues: customerContextSourceValues,
