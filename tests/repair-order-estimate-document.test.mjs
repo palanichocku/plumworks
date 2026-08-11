@@ -35,7 +35,8 @@ test("printer-friendly HTML uses the Invoice document design system without colo
   assert.match(css, /\.print-hidden\s*\{\s*display:\s*none !important/);
   assert.match(css, /invoice-document table thead[\s\S]*display:\s*table-header-group/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
-  assert.match(css, /invoice-document-bottom[\s\S]*break-inside:\s*avoid/);
+  assert.match(css, /invoice-document-bottom[\s\S]*break-inside:\s*auto/);
+  assert.match(css, /invoice-document-totals[\s\S]*break-inside:\s*avoid/);
 });
 
 test("HTML and PDF contain matching customer-facing sections and stored totals", () => {

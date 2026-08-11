@@ -80,7 +80,7 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
         </View>
       </View>
 
-      {(model.complaint || model.recommendation) ? <View style={styles.section} wrap={false}>
+      {(model.complaint || model.recommendation) ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>CUSTOMER CONCERNS &amp; RECOMMENDATIONS</Text>
         {model.complaint ? <View style={styles.noteBlock}><Text style={styles.muted}>Customer complaint</Text><Text>{model.complaint}</Text></View> : null}
         {model.recommendation ? <View><Text style={styles.muted}>Service recommendation</Text><Text>{model.recommendation}</Text></View> : null}
@@ -100,9 +100,9 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
 
       {model.complimentaryServices.length ? <View style={styles.section}><Text style={styles.sectionTitle}>COMPLIMENTARY SERVICES</Text>{model.complimentaryServices.map((service, index) => <Text key={`${service.description}-${index}`}>• {service.description} — No charge</Text>)}</View> : null}
 
-      <View style={styles.bottom} wrap={false}>
+      <View style={styles.bottom}>
         <View style={styles.legal}>{model.shop.warrantyText ? <><Text style={styles.sectionTitle}>WARRANTY</Text><Text>{model.shop.warrantyText}</Text></> : null}</View>
-        <View style={styles.totals}>
+        <View style={styles.totals} wrap={false}>
           <Text style={styles.sectionTitle}>ESTIMATE SUMMARY</Text>
           <View style={styles.totalRow}><Text>Parts</Text><Text>{model.totals.parts}</Text></View>
           <View style={styles.totalRow}><Text>Labor</Text><Text>{model.totals.labor}</Text></View>

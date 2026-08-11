@@ -90,7 +90,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
         </View>
       </View>
 
-      {(model.complaint || model.recommendation) ? <View style={styles.section} wrap={false}>
+      {(model.complaint || model.recommendation) ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>CUSTOMER CONCERNS &amp; RECOMMENDATIONS</Text>
         {model.complaint ? <View style={styles.legalBlock}><Text style={styles.muted}>Customer concerns</Text><Text style={styles.note}>{model.complaint}</Text></View> : null}
         {model.recommendation ? <View><Text style={styles.muted}>Recommendations</Text><Text style={styles.note}>{model.recommendation}</Text></View> : null}
@@ -110,7 +110,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
 
       {model.complimentaryServices.length ? <View style={styles.section}><Text style={styles.sectionTitle}>COMPLIMENTARY SERVICES</Text>{model.complimentaryServices.map((service, index) => <Text key={`${service.description}-${index}`}>• {service.description} — No charge</Text>)}</View> : null}
 
-      <View style={styles.bottom} wrap={false}>
+      <View style={styles.bottom}>
         <View style={styles.legal}>
           {model.shop.laborWarrantyText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>LABOR WARRANTY</Text><Text>{model.shop.laborWarrantyText}</Text></View> : null}
           {model.shop.partsWarrantyText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>PARTS WARRANTY</Text><Text>{model.shop.partsWarrantyText}</Text></View> : null}
@@ -119,7 +119,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           <Text style={styles.signature}>Customer signature / date</Text>
           <Text style={styles.signature}>Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</Text>
         </View>
-        <View style={styles.totals}>
+        <View style={styles.totals} wrap={false}>
           <Text style={styles.sectionTitle}>TOTALS</Text>
           <View style={styles.totalRow}><Text>Parts</Text><Text>{model.totals.parts}</Text></View>
           <View style={styles.totalRow}><Text>Labor</Text><Text>{model.totals.labor}</Text></View>

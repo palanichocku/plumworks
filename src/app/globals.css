@@ -153,9 +153,13 @@ body {
   .invoice-document {
     page: invoice-letter;
     width: 100%;
+    height: auto;
     min-height: 0;
+    max-height: none;
     margin: 0;
     padding: 0;
+    overflow: visible;
+    transform: none;
     box-shadow: none;
   }
 
@@ -167,17 +171,25 @@ body {
     display: table-header-group;
   }
 
-  .invoice-document tr,
-  .invoice-document td,
-  .invoice-document th {
-    break-inside: avoid;
+  .invoice-document-section,
+  .invoice-document table,
+  .invoice-document tbody,
+  .invoice-document-bottom {
+    break-inside: auto;
+    page-break-inside: auto;
   }
 
-  .invoice-document-bottom,
+  .invoice-document tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .invoice-document-totals,
   .invoice-document-legal section,
   .invoice-document-signature,
   .invoice-document footer {
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .daily-sales-print {
@@ -486,7 +498,8 @@ body {
 }
 
 .repair-order-document-bottom {
-  break-inside: avoid;
+  break-inside: auto;
+  page-break-inside: auto;
 }
 
 .repair-order-document footer p + p {
@@ -508,9 +521,13 @@ body {
   .invoice-document {
     page: invoice-letter;
     width: 100%;
+    height: auto;
     min-height: 0;
+    max-height: none;
     margin: 0;
     padding: 0;
+    overflow: visible;
+    transform: none;
     box-shadow: none;
   }
 

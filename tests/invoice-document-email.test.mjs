@@ -86,7 +86,8 @@ test("browser print and PDF share one model and contain matching business sectio
   }
   assert.match(css, /@page invoice-letter\s*\{[^}]*size:\s*Letter portrait;[^}]*margin:\s*0\.45in;/s);
   assert.match(css, /invoice-document table thead[\s\S]*display:\s*table-header-group/);
-  assert.match(css, /invoice-document-bottom[\s\S]*break-inside:\s*avoid/);
+  assert.match(css, /invoice-document-bottom[\s\S]*break-inside:\s*auto/);
+  assert.match(css, /invoice-document-totals[\s\S]*break-inside:\s*avoid/);
   assert.match(pdf, /<Page size="LETTER"/);
   assert.match(pdf, /wrap=\{false\}/);
 });
