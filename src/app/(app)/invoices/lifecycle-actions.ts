@@ -15,6 +15,67 @@ const money = (value: FormDataEntryValue | null) => {
   return new Prisma.Decimal(text).toDecimalPlaces(2);
 };
 
+export type InvoiceEditPreview = {
+  parts: string;
+  labor: string;
+  shopSupplies: string;
+  subtotalBeforeTax: string;
+  tax: string;
+  total: string;
+  paid: string;
+  balance: string;
+};
+
+export async function previewInvoiceEditTotals(invoiceId: string, lines: {
+  parts: Array<{ quantity: string; unitPrice: string }>;
+  labor: Array<{ hours: string; hourlyRate: string }>;
+}): Promise<InvoiceEditPreview | null> {
+  if (!UUID.test(invoiceId) || lines.parts.length > 100 || lines.labor.length > 100) return null;
+  const { membership } = await requirePermission("edit_draft_repair_order");
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, shopId: membership.shopId, status: "open", legacySourceTable: null },
+    select: {
+      shopSuppliesEnabledSnapshot: true,
+      shopSuppliesRateSnapshot: true,
+      shopSuppliesCapSnapshot: true,
+      shopSuppliesTaxableSnapshot: true,
+      shopSnapshot: true,
+    },
+  });
+  if (!invoice) return null;
+  try {
+    const parts = lines.parts.map((line) => ({ quantity: money(line.quantity), unitPrice: money(line.unitPrice) }));
+    const labor = lines.labor.map((line) => ({ hours: money(line.hours), hourlyRate: money(line.hourlyRate) }));
+    if (parts.some((line) => !line.quantity.greaterThan(0)) || labor.some((line) => !line.hours.greaterThan(0))) return null;
+    const shop = (invoice.shopSnapshot ?? {}) as { defaultTaxRate?: string | number; partsTaxable?: boolean; laborTaxable?: boolean };
+    const totals = calculateEditableInvoiceTotals({
+      parts,
+      labor,
+      shopSuppliesEnabled: invoice.shopSuppliesEnabledSnapshot ?? false,
+      shopSuppliesRate: invoice.shopSuppliesRateSnapshot ?? 0,
+      shopSuppliesCap: invoice.shopSuppliesCapSnapshot ?? 0,
+      taxRate: shop.defaultTaxRate ?? 0,
+      partsTaxable: shop.partsTaxable ?? true,
+      laborTaxable: shop.laborTaxable ?? false,
+      shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true,
+    });
+    const payments = await prisma.payment.aggregate({ where: { invoiceId, shopId: membership.shopId }, _sum: { amount: true } });
+    const paid = payments._sum.amount ?? new Prisma.Decimal(0);
+    return {
+      parts: totals.partsTotal.toFixed(2),
+      labor: totals.laborTotal.toFixed(2),
+      shopSupplies: totals.shopSuppliesAmount.toFixed(2),
+      subtotalBeforeTax: totals.partsTotal.plus(totals.laborTotal).plus(totals.shopSuppliesAmount).toDecimalPlaces(2).toFixed(2),
+      tax: totals.taxTotal.toFixed(2),
+      total: totals.total.toFixed(2),
+      paid: paid.toDecimalPlaces(2).toFixed(2),
+      balance: invoiceBalance(totals.total, paid).toFixed(2),
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function refreshInvoice(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string) {
   const invoice = await transaction.invoice.findFirstOrThrow({ where: { id: invoiceId, shopId, status: "open", legacySourceTable: null }, select: {
     id: true, total: true, paidTotal: true, shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,

@@ -143,3 +143,51 @@ test("lifecycle, payments, AR, calculations, and customer documents remain uncha
   assert.match(invoiceDocument, /getInvoiceDocumentForCurrentShop/);
   assert.match(invoiceEmail, /renderToBuffer\(<InvoiceDocumentPDF/);
 });
+
+test("Edit Invoice shows the complete saved financial position at the bottom", () => {
+  for (const field of ["partsTotal", "laborTotal", "shopSuppliesAmount", "taxTotal", "total", "paidTotal"]) assert.match(page, new RegExp(`invoice\\.${field}`));
+  assert.match(page, /accountsReceivable\[0\]\?\.balance \?\? invoiceBalance\(invoice\.total, invoice\.paidTotal\)/);
+  assert.match(page, /partsTotal\.plus\(invoice\.laborTotal\)\.plus\(invoice\.shopSuppliesAmount\)/);
+  const summary = ui.slice(ui.indexOf("function FinancialSummary"), ui.indexOf("export function InvoiceEditWorkspace"));
+  assert.match(summary, /Totals and balance/);
+  for (const label of ["Parts", "Labor", "Shop supplies", "Subtotal before tax", "Tax", "Total", "Paid", "Balance"]) assert.match(summary, new RegExp(`"${label}"`));
+  assert.match(ui, /<FinancialSummary totals=\{totals\} updating=\{totalsUpdating\} \/>/);
+});
+
+test("unsaved line values use the authoritative server calculator for a live preview", () => {
+  assert.match(actions, /export async function previewInvoiceEditTotals/);
+  assert.match(actions, /calculateEditableInvoiceTotals\(\{/);
+  assert.match(actions, /payment\.aggregate\(\{ where: \{ invoiceId, shopId: membership\.shopId \}/);
+  assert.match(actions, /balance: invoiceBalance\(totals\.total, paid\)\.toFixed\(2\)/);
+  assert.match(actions, /where: \{ id: invoiceId, shopId: membership\.shopId, status: "open", legacySourceTable: null \}/);
+  assert.match(ui, /previewInvoiceEditTotals\(invoice\.id, \{ parts: Object\.values\(partLines\), labor: Object\.values\(laborLines\) \}\)/);
+  assert.match(ui, /window\.setTimeout\(async \(\) =>/);
+  assert.match(ui, /sequence === previewSequence\.current/);
+  assert.doesNotMatch(ui, /paid\s*[+\-*\/]|balance\s*=/i);
+});
+
+test("Part, Labor, and draft edits independently feed preview state without persisting", () => {
+  assert.equal((ui.match(/reportLine\(line\.id/g) ?? []).length, 2);
+  assert.equal((ui.match(/reportLine\("draft"/g) ?? []).length, 4);
+  assert.match(ui, /reportPartLine/);
+  assert.match(ui, /reportLaborLine/);
+  const preview = actions.slice(actions.indexOf("export async function previewInvoiceEditTotals"), actions.indexOf("async function refreshInvoice"));
+  assert.doesNotMatch(preview, /\.(?:create|update|delete|upsert)\(/);
+  assert.doesNotMatch(preview, /revalidatePath|redirect/);
+});
+
+test("Shop Supplies, tax, complimentary labor, and payment behavior match save recalculation", () => {
+  const preview = actions.slice(actions.indexOf("export async function previewInvoiceEditTotals"), actions.indexOf("async function refreshInvoice"));
+  for (const setting of ["shopSuppliesEnabledSnapshot", "shopSuppliesRateSnapshot", "shopSuppliesCapSnapshot", "shopSuppliesTaxableSnapshot", "defaultTaxRate", "partsTaxable", "laborTaxable"]) assert.match(preview, new RegExp(setting));
+  assert.match(actions, /labor: \{ where: \{ complimentary: false \}/);
+  assert.match(actions, /if \(balance\.lessThan\(0\)\)/);
+  assert.match(actions, /accountReceivable\.update/);
+});
+
+test("an open Invoice created before Repair Order completion uses the same full edit summary", () => {
+  assert.match(page, /isEditableOpenInvoice\(invoice\)/);
+  assert.doesNotMatch(page + ui + actions, /repairOrder\.(?:status|closedAt)|Repair Order must be (?:complete|closed)/i);
+  assert.match(page, /totals: \{[\s\S]*paid: invoice\.paidTotal\.toFixed\(2\), balance: balance\.toFixed\(2\)/);
+  assert.match(ui, /data-discard-unsaved-lines="true"/);
+  assert.doesNotMatch(ui, /(?:create|update|delete)Payment|paymentAction/);
+});
