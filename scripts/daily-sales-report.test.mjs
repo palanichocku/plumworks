@@ -18,6 +18,11 @@ import {
   isValidReportRange,
 } from "../src/lib/daily-sales-report-model.ts";
 import { formatMoney } from "../src/lib/formatters.ts";
+import {
+  isReportableSaleInRange,
+  reportableSaleWhere,
+  reportingDateForSale,
+} from "../src/lib/reportable-sales.ts";
 
 const decimal = (value) => new Prisma.Decimal(value);
 const money = (value) => value.toFixed(2);
@@ -153,10 +158,49 @@ test("Decimal listing totals equal their row values without formatted-string ari
   });
 });
 
-test("status is absent from the Daily Sales listing query and UI", async () => {
+test("shared report predicate selects closed native sales by closedAt and legacy sales by invoiceDate", () => {
+  const range = inclusiveUtcDateRange("2026-08-01", "2026-08-31");
+  const native = (overrides = {}) => ({ legacySourceTable: null, status: "closed", invoiceDate: new Date("2026-08-10T00:00:00Z"), closedAt: new Date("2026-08-12T00:00:00Z"), ...overrides });
+  assert.equal(isReportableSaleInRange(native({ status: "open", closedAt: null }), range), false);
+  assert.equal(isReportableSaleInRange(native(), range), true);
+  assert.equal(isReportableSaleInRange(native({ invoiceDate: new Date("2026-07-30T00:00:00Z"), closedAt: new Date("2026-08-02T00:00:00Z") }), range), true);
+  assert.equal(isReportableSaleInRange(native({ invoiceDate: new Date("2026-08-30T00:00:00Z"), closedAt: new Date("2026-09-02T00:00:00Z") }), range), false);
+  assert.equal(isReportableSaleInRange(native({ closedAt: new Date("2026-09-01T00:00:00Z") }), range), false);
+
+  const legacy = { legacySourceTable: "ar.DBF", status: "open", invoiceDate: new Date("2026-08-02T00:00:00Z"), closedAt: null };
+  assert.equal(isReportableSaleInRange(legacy, range), true);
+  assert.equal(reportingDateForSale(legacy), legacy.invoiceDate);
+  assert.equal(reportingDateForSale(native()).toISOString(), "2026-08-12T00:00:00.000Z");
+
+  assert.deepEqual(reportableSaleWhere("shop-1", range), {
+    shopId: "shop-1",
+    OR: [
+      { legacySourceTable: null, status: "closed", closedAt: { gte: range.start, lt: range.endExclusive } },
+      { legacySourceTable: { not: null }, invoiceDate: { gte: range.start, lt: range.endExclusive } },
+    ],
+  });
+});
+
+test("native and legacy sales aggregate together once and payment timing does not define sale inclusion", () => {
+  const range = inclusiveUtcDateRange("2026-08-01", "2026-08-31");
+  const candidates = [
+    { id: "native-open", legacySourceTable: null, status: "open", invoiceDate: new Date("2026-08-01T00:00:00Z"), closedAt: null },
+    { id: "native-closed", legacySourceTable: null, status: "closed", invoiceDate: new Date("2026-07-30T00:00:00Z"), closedAt: new Date("2026-08-02T00:00:00Z") },
+    { id: "legacy", legacySourceTable: "ar.DBF", status: "paid", invoiceDate: new Date("2026-08-03T00:00:00Z"), closedAt: null },
+  ];
+  assert.deepEqual(candidates.filter((invoice) => isReportableSaleInRange(invoice, range)).map((invoice) => invoice.id), ["native-closed", "legacy"]);
+  const rows = buildDailySalesInvoiceRows([
+    listingInvoice({ id: "native-closed" }), listingInvoice({ id: "legacy" }),
+  ], [{ amount: decimal("35"), method: "cash", invoiceId: "native-closed", paidAt: new Date("2026-09-01T00:00:00Z") }]);
+  assert.equal(rows.length, 2);
+});
+
+test("Daily Sales query and UI use the shared reporting date without exposing status", async () => {
   const querySource = await readFile(new URL("../src/lib/data/daily-sales-query.ts", import.meta.url), "utf8");
   const pageSource = await readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(querySource, /status:\s*true/);
+  assert.match(querySource, /reportableSaleWhere\(shopId, range\)/);
+  assert.match(querySource, /reportingDateForSale\(invoice\)/);
+  assert.match(pageSource, /formatDate\(invoice\.reportingDate\)/);
   assert.doesNotMatch(pageSource, /["']Status["']/);
 });
 
@@ -274,6 +318,34 @@ test("January 2026 sales and payments match the operational contract", () => {
   const differences = reconciliationDifferences(sales, payments);
   assert.equal(money(differences.salesPaymentDifference), "0.00");
   assert.equal(money(differences.invoicePaidPaymentDifference), "0.00");
+});
+
+test("legacy Q1, H1, and 2025 finalized-sale aggregates remain unchanged", () => {
+  for (const expected of [
+    { count: 83, parts: "22776.62", labor: "23616.00", subtotal: "46392.62", supplies: "824.86", tax: "1691.01", gross: "48908.49" },
+    { count: 195, parts: "61947.11", labor: "61781.00", subtotal: "123728.11", supplies: "2078.43", tax: "4792.61", gross: "130599.15" },
+    { count: 460, parts: "133400.21", labor: "125134.13", subtotal: "258534.34", supplies: "4885.24", tax: "9873.03", gross: "273292.61" },
+  ]) {
+    const sales = buildSalesSummary(invoiceAggregate({
+      invoiceCount: expected.count,
+      partsTotal: expected.parts,
+      laborTotal: expected.labor,
+      subtotal: expected.subtotal,
+      shopSuppliesTotal: expected.supplies,
+      taxTotal: expected.tax,
+      total: expected.gross,
+      paidTotal: expected.gross,
+    }), decimal(0));
+    assert.deepEqual({
+      count: sales.invoiceCount,
+      parts: money(sales.partsTotal),
+      labor: money(sales.laborTotal),
+      subtotal: money(sales.subtotal),
+      supplies: money(sales.shopSuppliesTotal),
+      tax: money(sales.ordinarySalesTaxTotal),
+      gross: money(sales.grossSalesTotal),
+    }, expected);
+  }
 });
 
 test("2025 and January-June 2026 payment contracts remain locked", () => {

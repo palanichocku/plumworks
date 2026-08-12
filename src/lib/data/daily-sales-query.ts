@@ -6,12 +6,10 @@ import {
   reconciliationDifferences,
 } from "../daily-sales-aggregation";
 import type { ReportDateRange } from "./reports";
+import { reportableSaleWhere, reportingDateForSale } from "../reportable-sales";
 
 export async function loadDailySalesReport(prisma: PrismaClient, shopId: string, range: ReportDateRange) {
-  const invoiceWhere = {
-    shopId,
-    invoiceDate: { gte: range.start, lt: range.endExclusive },
-  };
+  const invoiceWhere = reportableSaleWhere(shopId, range);
   const paymentWhere = {
     shopId,
     paidAt: { gte: range.start, lt: range.endExclusive },
@@ -40,12 +38,15 @@ export async function loadDailySalesReport(prisma: PrismaClient, shopId: string,
     }),
     prisma.invoice.findMany({
       where: invoiceWhere,
-      orderBy: [{ invoiceDate: "desc" }, { updatedAt: "desc" }],
+      orderBy: [{ updatedAt: "desc" }],
       select: {
         id: true,
         repairOrderNumber: true,
         legacyRoNo: true,
         invoiceDate: true,
+        closedAt: true,
+        status: true,
+        legacySourceTable: true,
         customer: { select: { displayName: true } },
         vehicle: { select: { year: true, make: true, model: true } },
         partsTotal: true,
@@ -63,6 +64,8 @@ export async function loadDailySalesReport(prisma: PrismaClient, shopId: string,
   const sales = buildSalesSummary(invoiceAggregate, legacyChargeAggregate._sum.amount);
   const payments = aggregatePaymentRows(paymentRows);
   const reconciliation = reconciliationDifferences(sales, payments);
-  const invoiceRows = buildDailySalesInvoiceRows(invoices, paymentRows);
+  const invoiceRows = buildDailySalesInvoiceRows(invoices, paymentRows)
+    .map((invoice) => ({ ...invoice, reportingDate: reportingDateForSale(invoice)! }))
+    .sort((left, right) => right.reportingDate.getTime() - left.reportingDate.getTime());
   return { sales, payments, reconciliation, invoices: invoiceRows };
 }

@@ -81,7 +81,7 @@ export default async function PrintableDailySalesPage({
 
         <div className={`daily-sales-print-reconciliation mt-3 border px-3 py-2 text-xs ${hasDifference ? "border-amber-400 text-amber-950" : "border-slate-300 text-slate-700"}`}>
           Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)} · Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}
-          <span className="ml-2 text-slate-500">Sales use invoice date; payments use payment date.</span>
+          <span className="ml-2 text-slate-500">Sales use finalized-sale date; payments use payment date.</span>
         </div>
 
         {report.invoices.length === 0 ? (
@@ -92,7 +92,7 @@ export default async function PrintableDailySalesPage({
             <table className="daily-sales-print-table w-full border-collapse">
               <thead><tr>{DAILY_SALES_COLUMNS.map((heading, index) => <th key={heading} className={index >= 4 ? "text-right" : "text-left"}>{heading}</th>)}</tr></thead>
               <tbody>{report.invoices.map((invoice) => <tr key={invoice.id}>
-                <td>{formatDate(invoice.invoiceDate)}</td>
+                <td>{formatDate(invoice.reportingDate)}</td>
                 <td className="whitespace-nowrap">RO #{invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Draft"}{invoice.isSplitTender ? <span className="block text-[6.5pt]">Split tender</span> : null}</td>
                 <td className="daily-sales-print-description">{invoice.customer.displayName}</td>
                 <td className="daily-sales-print-description">{vehicleLabel(invoice.vehicle)}</td>

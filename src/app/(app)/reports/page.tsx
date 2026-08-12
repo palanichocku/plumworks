@@ -137,7 +137,7 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
                 <p className="font-bold text-base">Sales − payments: {formatMoney(report.reconciliation.salesPaymentDifference)}</p>
                 <p className="mt-1 font-bold text-base">Invoice paid − payments: {formatMoney(report.reconciliation.invoicePaidPaymentDifference)}</p>
                 <p className="mt-2 font-medium leading-relaxed opacity-90 print:hidden">
-                  Sales use invoice date; payments use payment date. A difference can be valid when payment timing differs from the invoice date.
+                  Sales use finalized-sale date; payments use payment date. A difference can be valid when payment timing differs from the sale date.
                 </p>
                 {hasDifference ? <p className="mt-3 font-black text-amber-800">Review the nonzero reconciliation difference.</p> : null}
               </div>
@@ -168,7 +168,7 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
             {report.invoices.map((invoice) => (
               <tr key={invoice.id} className="group transition-colors hover:bg-slate-50 border-b border-slate-100 last:border-0 print:break-inside-avoid">
                 <td className="whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px] font-bold text-slate-600">
-                  {formatDate(invoice.invoiceDate)}
+                  {formatDate(invoice.reportingDate)}
                 </td>
                 <td className="whitespace-nowrap px-5 py-4 print:px-2 print:py-2 text-sm print:text-[10px]">
                   <Link 
