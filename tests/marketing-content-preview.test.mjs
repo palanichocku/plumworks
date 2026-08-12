@@ -11,6 +11,7 @@ await writeFile(moduleFile, moduleSource.replace('import "server-only";\n\n', ""
 const { getMarketingContentPreview, marketingContentPreviewEnabled, parseMarketingContentPreview } = await import(moduleFile);
 
 const validDocument = {
+  brandName: "Preview Repair",
   settings: { headline: "Preview headline", subheadline: "Preview support", serviceIntro: "Preview services", aboutTitle: "Preview about", aboutBody: "Preview body", contactIntro: "Preview contact", hoursText: "Preview hours", reviewUrl: null },
   pages: [{ slug: "about", title: "About", description: "About preview", body: "Body", active: true }],
   services: [
@@ -33,6 +34,7 @@ test("preview activation is opt-in, local-development-only, and blocked on Verce
 
 test("valid deployment content is normalized without inventing optional records", () => {
   const preview = parseMarketingContentPreview(validDocument);
+  assert.equal(preview.brandName, "Preview Repair");
   assert.equal(preview.settings.headline, "Preview headline");
   assert.deepEqual(preview.services.map(({ slug, sortOrder }) => ({ slug, sortOrder })), [{ slug: "second", sortOrder: 20 }, { slug: "first", sortOrder: 10 }]);
   assert.deepEqual(preview.coupons, []);
@@ -59,6 +61,7 @@ test("Car Doc owner content passes the shared content-file validator", async () 
   const file = new URL("../../plumworks-deployments/clients/cardoc/content/marketing-content.json", import.meta.url);
   const preview = parseMarketingContentPreview(JSON.parse(await readFile(file, "utf8")));
   assert.equal(preview.aboutOwner?.name, "Subbu Veerappan");
+  assert.equal(preview.brandName, "Car Doc");
   assert.equal(preview.aboutOwner?.imageUrl, "/client-assets/cardoc/subbu-veerappan-owner.jpg");
 });
 
@@ -83,7 +86,7 @@ test("preview feeds every public content loader and the banner exposes no file p
     readFile(new URL("../src/components/marketing/marketing-shell.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/app/sitemap.ts", import.meta.url), "utf8"),
   ]);
-  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 7);
+  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 8);
   assert.ok((loaders.match(/filter\(\(item\) => item\.active\)/g) ?? []).length >= 4);
   assert.match(layout, /previewMode=\{marketingContentPreviewEnabled\(\)\}/);
   assert.match(shell, /Local marketing-content preview — database content is not being used/);

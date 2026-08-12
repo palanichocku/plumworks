@@ -18,6 +18,7 @@ if (!fileArgument) throw new Error("--file is required.");
 if (confirmation && confirmation !== CONFIRMATION) throw new Error(`Write refused. Use --confirm ${CONFIRMATION} exactly.`);
 const dryRun = forceDryRun || confirmation !== CONFIRMATION;
 const document = JSON.parse(await readFile(resolve(fileArgument), "utf8"));
+const brandName = text(document.brandName, "brandName");
 
 const owner = document.aboutOwner == null ? null : (() => {
   const imageUrl = text(document.aboutOwner.imageUrl, "aboutOwner.imageUrl", true);
@@ -36,6 +37,7 @@ const settings = {
   hoursText: text(document.settings?.hoursText, "settings.hoursText"), reviewUrl: text(document.settings?.reviewUrl, "settings.reviewUrl"),
 };
 const pages = list(document.pages, "pages").map((item, index) => { const slug = text(item.slug, `pages[${index}].slug`, true); if (!SLUG.test(slug)) throw new Error(`pages[${index}].slug is invalid.`); return { slug, eyebrow: text(item.eyebrow, `pages[${index}].eyebrow`), title: text(item.title, `pages[${index}].title`, true), description: text(item.description, `pages[${index}].description`, true), body: text(item.body, `pages[${index}].body`), active: item.active !== false }; });
+if (brandName) pages.push({ slug: "marketing-brand", eyebrow: "Public brand", title: brandName, description: "Customer-facing marketing identity", body: null, active: true });
 if (owner) pages.push(owner);
 const services = list(document.services, "services").map((item, index) => { const slug = text(item.slug, `services[${index}].slug`, true); if (!SLUG.test(slug)) throw new Error(`services[${index}].slug is invalid.`); return { slug, name: text(item.name, `services[${index}].name`, true), summary: text(item.summary, `services[${index}].summary`, true), detail: text(item.detail, `services[${index}].detail`, true), active: item.active !== false, sortOrder: order(item.sortOrder) }; });
 const coupons = list(document.coupons, "coupons").map((item, index) => ({ title: text(item.title, `coupons[${index}].title`, true), body: text(item.body, `coupons[${index}].body`, true), terms: text(item.terms, `coupons[${index}].terms`), active: item.active !== false, sortOrder: order(item.sortOrder) }));

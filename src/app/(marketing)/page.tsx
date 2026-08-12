@@ -3,14 +3,18 @@ import { AttributionLink } from "@/components/marketing/attribution-link";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
 import { getMarketingCoupons, getMarketingGallery, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
+import { autoRepairJsonLd, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd } from "@/lib/marketing-seo";
 
-export const metadata: Metadata = { title: "Local Auto Repair", description: "Request service, explore available auto repair services, and contact the shop." };
+export async function generateMetadata(): Promise<Metadata> {
+  const shop = await getPublicSeoShop();
+  return marketingMetadata({ title: localTitle("Auto Repair", shop), description: `Auto repair, maintenance, diagnostics, brake service and more in ${shop.city ?? "the local area"}${shop.state ? `, ${shop.state}` : ""}. Contact ${shop.name} to request service or speak with the shop.`, path: "/", siteName: shop.name });
+}
 
 const focusRing = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 focus-visible:ring-offset-2";
 
 export default async function MarketingHome() {
-  const [shop, settings, services, coupons, testimonials, gallery] = await Promise.all([
-    getPublicShop(), getMarketingSettings(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(),
+  const [shop, seoShop, settings, services, coupons, testimonials, gallery] = await Promise.all([
+    getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(),
   ]);
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
@@ -18,10 +22,10 @@ export default async function MarketingHome() {
   const activeTestimonials = testimonials.filter((item) => !item.id.startsWith("fallback-") && item.quote.trim()).slice(0, 3);
   const activeCoupon = coupons.find((item) => !item.id.startsWith("fallback-") && item.title.trim() && item.body.trim());
   const heroImage = gallery.find((item) => !item.id.startsWith("fallback-") && (item.imageUrl?.startsWith("https://") || item.imageUrl?.startsWith("/")));
-  const jsonLd = { "@context": "https://schema.org", "@type": "AutoRepair", name: shop.name, ...(shop.phone ? { telephone: shop.phone } : {}), ...(address ? { address } : {}) };
+  const jsonLd = autoRepairJsonLd(seoShop);
 
   return <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replaceAll("<", "\\u003c") }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
     <section className="overflow-hidden bg-slate-950 text-white">
       <div className="mx-auto grid max-w-7xl lg:min-h-[620px] lg:grid-cols-[1.05fr_.95fr]">
         <div className="flex items-center px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">

@@ -65,6 +65,16 @@ export const getMarketingAboutOwner = cache(async () => {
   } catch { return null; }
 });
 
+export const getMarketingBrandName = cache(async (): Promise<string | null> => {
+  const preview = await getMarketingContentPreview();
+  if (preview?.brandName) return preview.brandName;
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return null;
+  try {
+    return (await prisma.marketingPage.findFirst({ where: { shopId: shop.id, slug: "marketing-brand", active: true }, select: { title: true } }))?.title?.trim() || null;
+  } catch { return null; }
+});
+
 export const getMarketingServices = cache(async () => {
   const preview = await getMarketingContentPreview();
   if (preview) return preview.services.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name) || left.previewIndex - right.previewIndex).map(({ slug, name, summary, detail }) => ({ slug, name, summary, detail }));

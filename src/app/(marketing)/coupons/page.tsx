@@ -4,12 +4,13 @@ import { EmptyMarketingCollection } from "@/components/marketing/empty-marketing
 import { MarketingPageHero } from "@/components/marketing/page-hero";
 import { getPublicShop } from "@/lib/marketing";
 import { getMarketingCoupons, getMarketingPage } from "@/lib/marketing-content";
+import { getPublicSeoShop, localTitle, marketingMetadata } from "@/lib/marketing-seo";
 
 function approvedOffers<T extends { id: string }>(items: T[]) { return items.filter((item) => !item.id.startsWith("fallback-")); }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const hasOffers = approvedOffers(await getMarketingCoupons()).length > 0;
-  return { title: "Auto Repair Coupons", description: "View current shop service offers.", robots: hasOffers ? undefined : { index: false, follow: true } };
+  const [offers, shop] = await Promise.all([getMarketingCoupons(), getPublicSeoShop()]); const hasOffers = approvedOffers(offers).length > 0;
+  return marketingMetadata({ title: localTitle("Auto Repair Coupons", shop), description: `View current approved service offers from ${shop.name}.`, path: "/coupons", siteName: shop.name, index: hasOffers });
 }
 
 export default async function CouponsPage() {

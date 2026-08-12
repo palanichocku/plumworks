@@ -3,12 +3,13 @@ import { EmptyMarketingCollection } from "@/components/marketing/empty-marketing
 import { MarketingPageHero } from "@/components/marketing/page-hero";
 import { getPublicShop } from "@/lib/marketing";
 import { getMarketingPage, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
+import { getPublicSeoShop, localTitle, marketingMetadata } from "@/lib/marketing-seo";
 
 function approvedTestimonials<T extends { id: string }>(items: T[]) { return items.filter((item) => !item.id.startsWith("fallback-")); }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const hasTestimonials = approvedTestimonials(await getMarketingTestimonials()).length > 0;
-  return { title: "Customer Reviews", description: "Learn how the shop approaches feedback and customer care.", robots: hasTestimonials ? undefined : { index: false, follow: true } };
+  const [testimonials, shop] = await Promise.all([getMarketingTestimonials(), getPublicSeoShop()]); const hasTestimonials = approvedTestimonials(testimonials).length > 0;
+  return marketingMetadata({ title: localTitle("Customer Reviews", shop), description: `Read approved customer feedback about ${shop.name}.`, path: "/reviews", siteName: shop.name, index: hasTestimonials });
 }
 
 export default async function ReviewsPage() {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LeadForm } from "@/components/marketing/lead-form";
 import { MarketingPageHero } from "@/components/marketing/page-hero";
-export const metadata: Metadata = { title: "Request Vehicle Drop-Off", description: "Share vehicle and service details before requesting an after-hours drop-off." };
+import { getPublicSeoShop, localTitle, marketingMetadata } from "@/lib/marketing-seo";
+export async function generateMetadata(): Promise<Metadata> { const shop = await getPublicSeoShop(); return marketingMetadata({ title: localTitle("Request Vehicle Drop-Off", shop), description: `Share vehicle and service details with ${shop.name} before requesting a drop-off. Wait for the shop to confirm timing and instructions.`, path: "/drop-off", siteName: shop.name }); }
 export default async function DropOffPage({ searchParams }: { searchParams: Promise<{ sent?: string; error?: string }> }) { const query = await searchParams; return <><MarketingPageHero eyebrow="Drop-off" title="Plan an after-hours handoff" description="Send the vehicle concern and preferred date first. The shop must confirm instructions before keys or a vehicle are left." /><section className="mx-auto max-w-3xl px-4 py-16 sm:px-6"><div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900"><strong>Wait for confirmation.</strong> Do not leave keys or a vehicle until the shop provides approved drop-off instructions.</div><LeadForm source="DROP_OFF" sent={query.sent === "1"} error={query.error === "1"} /></section></>; }

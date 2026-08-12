@@ -3,8 +3,10 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { acceptStaffInvite } from "./actions";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Staff Invitation", robots: { index: false, follow: false } };
 
 export default async function InvitePage() {
   const supabase = await createClient();

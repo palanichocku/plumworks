@@ -49,6 +49,7 @@ export function marketingContentPreviewEnabled(environment: PreviewEnvironment =
 
 export function parseMarketingContentPreview(value: unknown) {
   const document = record(value, "marketing content preview");
+  const brandName = text(document.brandName, "brandName");
   const rawSettings = record(document.settings, "settings");
   const rawOwner = document.aboutOwner == null ? null : record(document.aboutOwner, "aboutOwner");
   const aboutOwner = rawOwner ? {
@@ -94,7 +95,7 @@ export function parseMarketingContentPreview(value: unknown) {
     if (imageUrl && !imageUrl.startsWith("https://")) throw new Error(`gallery[${index}].imageUrl must use HTTPS.`);
     return { id: `preview-gallery-${index}`, title: text(item.title, `gallery[${index}].title`, true)!, caption: text(item.caption, `gallery[${index}].caption`), imageUrl, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
   });
-  return { settings, aboutOwner, pages, services, coupons, testimonials, gallery };
+  return { brandName, settings, aboutOwner, pages, services, coupons, testimonials, gallery };
 }
 
 export async function getMarketingContentPreview(environment: PreviewEnvironment = process.env): Promise<MarketingContentPreview | null> {

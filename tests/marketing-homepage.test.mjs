@@ -101,7 +101,7 @@ test("optional navigation and sitemap routes require real configured content", (
 test("empty optional pages suppress placeholders, use noindex, and keep useful actions", () => {
   for (const page of [coupons, reviews, photos]) {
     assert.match(page, /startsWith\("fallback-"\)/);
-    assert.match(page, /robots: [^\n]*\{ index: false, follow: true \}/);
+    assert.match(page, /marketingMetadata\([\s\S]*index: has/);
     assert.match(page, /EmptyMarketingCollection/);
   }
   for (const destination of ["/appointment", "/services", "/"]) assert.match(emptyCollection, new RegExp(`href="${destination.replace("/", "\\/")}"`));

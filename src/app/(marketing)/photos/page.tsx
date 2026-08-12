@@ -3,12 +3,13 @@ import { EmptyMarketingCollection } from "@/components/marketing/empty-marketing
 import { MarketingPageHero } from "@/components/marketing/page-hero";
 import { getPublicShop } from "@/lib/marketing";
 import { getMarketingGallery, getMarketingPage } from "@/lib/marketing-content";
+import { getPublicSeoShop, localTitle, marketingMetadata } from "@/lib/marketing-seo";
 
 function approvedPhotos<T extends { id: string; imageUrl: string | null }>(items: T[]) { return items.filter((item) => !item.id.startsWith("fallback-") && item.imageUrl?.startsWith("https://")); }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const hasPhotos = approvedPhotos(await getMarketingGallery()).length > 0;
-  return { title: "Shop Photos", description: "Approved repair shop, team, and facility photos.", robots: hasPhotos ? undefined : { index: false, follow: true } };
+  const [gallery, shop] = await Promise.all([getMarketingGallery(), getPublicSeoShop()]); const hasPhotos = approvedPhotos(gallery).length > 0;
+  return marketingMetadata({ title: localTitle("Shop Photos", shop), description: `View approved current shop, team, and facility photos from ${shop.name}.`, path: "/photos", siteName: shop.name, index: hasPhotos });
 }
 
 export default async function PhotosPage() {

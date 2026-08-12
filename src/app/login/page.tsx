@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { poweredByText, softwareBrandName } from "@/lib/branding";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Staff Login", robots: { index: false, follow: false } };
 
 export default function LoginPage() {
   return (
