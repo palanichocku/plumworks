@@ -49,3 +49,5 @@ config_report_files.txt
 
 # Client-specific marketing import files stay outside shared source
 /content/clients/
+# Volatile, timestamped public-site benchmark evidence
+/artifacts/website-benchmark/
