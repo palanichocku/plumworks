@@ -27,7 +27,7 @@ export const fallbackPages = {
 } as const;
 
 export const fallbackCoupons = [{ id: "fallback-maintenance", title: "Ask About Current Offers", body: "Contact the shop to learn whether a current maintenance or service offer applies to your visit.", terms: "Availability and terms are confirmed by the shop." }];
-export const fallbackTestimonials = [{ id: "fallback-review", quote: "Verified customer feedback will appear here after shop approval.", attribution: "Review placeholder", rating: 5 }];
+export const fallbackTestimonials = [{ id: "fallback-review", quote: "Verified customer feedback will appear here after shop approval.", attribution: "Review placeholder", rating: null }];
 export const fallbackGallery = ["Front of shop", "Customer area", "Service bays", "Team at work", "Diagnostic equipment", "Community moment"].map((title, index) => ({ id: `fallback-${index}`, title, caption: null, imageUrl: null }));
 
 export const getMarketingSettings = cache(async () => {
@@ -60,9 +60,9 @@ export const getMarketingAboutOwner = cache(async () => {
     if (!page?.eyebrow || !page.body) return null;
     const details = JSON.parse(page.body) as unknown;
     if (!details || typeof details !== "object" || Array.isArray(details)) return null;
-    const { biography, imageUrl, imageAlt } = details as Record<string, unknown>;
+    const { biography, imageUrl, imageAlt, homepageSummary, historyLabel, principles } = details as Record<string, unknown>;
     if (typeof biography !== "string" || typeof imageUrl !== "string" || typeof imageAlt !== "string" || !imageUrl.startsWith("/client-assets/")) return null;
-    return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl, imageAlt };
+    return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl, imageAlt, homepageSummary: typeof homepageSummary === "string" ? homepageSummary : null, historyLabel: typeof historyLabel === "string" ? historyLabel : null, principles: Array.isArray(principles) ? principles.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [] };
   } catch { return null; }
 });
 

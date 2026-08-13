@@ -23,6 +23,13 @@ test("Car Doc config contains the complete optional owner content without changi
     biography: "Subbu Veerappan is the owner of Car Doc, serving drivers in Sterling Heights and nearby communities. Car Doc has provided automotive maintenance and repair services in the area since 2009.\n\nSubbu believes customers should receive clear explanations and practical recommendations before repair work begins. Whether the vehicle needs routine maintenance, diagnostics, or a more involved repair, his focus is on helping customers understand their options and keeping their vehicles safe and reliable.",
     imageUrl: "/client-assets/cardoc/subbu-veerappan-owner.jpg",
     imageAlt: "Subbu Veerappan, owner of Car Doc",
+    homepageSummary: "Subbu leads Car Doc with a practical approach: understand the concern, evaluate the vehicle, explain the findings, and let the customer review the recommendation before work proceeds.",
+    historyLabel: "Serving the Sterling Heights area since 2009",
+    principles: [
+      "Listen to the customer's concern before evaluating the vehicle.",
+      "Explain findings and practical recommendations in understandable terms.",
+      "Discuss the options and receive approval before repair work proceeds.",
+    ],
   });
   const about = content.pages.find((page) => page.slug === "about");
   assert.deepEqual(about, {
@@ -41,7 +48,7 @@ test("portrait is an unchanged local Car Doc asset rather than a hotlink", () =>
 
 test("About renders the optional owner after the unchanged existing content with responsive accessible image markup", () => {
   assert.match(aboutPage, /getMarketingAboutOwner\(\)/);
-  assert.ok(aboutPage.indexOf("What stays consistent") < aboutPage.indexOf("owner \? <section"));
+  assert.ok(aboutPage.indexOf("How repair decisions are approached") < aboutPage.indexOf("owner \? <section"));
   assert.match(aboutPage, /owner \? <section[\s\S]*<h2[\s\S]*owner\.heading[\s\S]*<h3[\s\S]*owner\.name[\s\S]*owner\.role[\s\S]*owner\.biography/);
   assert.match(aboutPage, /<Image src=\{owner\.imageUrl\} alt=\{owner\.imageAlt\} width=\{240\} height=\{300\}/);
   assert.match(aboutPage, /md:grid-cols-\[240px_minmax\(0,1fr\)\]/);

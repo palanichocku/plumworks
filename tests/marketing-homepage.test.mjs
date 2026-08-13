@@ -81,9 +81,7 @@ test("shared header, mobile navigation, location, and footer expose valid essent
 
 test("homepage includes the requested semantic sections and professional image fallback", () => {
   for (const heading of ["Core services", "Why choose this shop", "How requesting service works", "Customer reviews", "Current promotion", "Location and contact"]) assert.match(home, new RegExp(heading));
-  assert.match(home, /Tell the shop what is happening/);
-  assert.match(home, /The shop follows up/);
-  assert.match(home, /Review the recommendation/);
+  for (const step of ["Explain the concern", "Evaluate the vehicle", "Review the findings", "Discuss the options", "Approve the work"]) assert.match(home, new RegExp(step));
   assert.match(home, /background-image:linear-gradient/);
   assert.doesNotMatch(home, /images\.unsplash|pexels|subbuscardoc/i);
 });

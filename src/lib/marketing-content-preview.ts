@@ -60,6 +60,9 @@ export function parseMarketingContentPreview(value: unknown) {
     biography: text(rawOwner.biography, "aboutOwner.biography", true)!,
     imageUrl: text(rawOwner.imageUrl, "aboutOwner.imageUrl", true)!,
     imageAlt: text(rawOwner.imageAlt, "aboutOwner.imageAlt", true)!,
+    homepageSummary: text(rawOwner.homepageSummary, "aboutOwner.homepageSummary"),
+    historyLabel: text(rawOwner.historyLabel, "aboutOwner.historyLabel"),
+    principles: list(rawOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)!),
   } : null;
   if (aboutOwner && !aboutOwner.imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
   const settings = {

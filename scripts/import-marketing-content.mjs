@@ -27,7 +27,7 @@ const owner = document.aboutOwner == null ? null : (() => {
   return {
     slug: "about-owner", eyebrow: text(document.aboutOwner.heading, "aboutOwner.heading", true),
     title: text(document.aboutOwner.name, "aboutOwner.name", true), description: text(document.aboutOwner.role, "aboutOwner.role", true),
-    body: JSON.stringify({ biography: text(document.aboutOwner.biography, "aboutOwner.biography", true), imageUrl, imageAlt: text(document.aboutOwner.imageAlt, "aboutOwner.imageAlt", true) }), active: true,
+    body: JSON.stringify({ biography: text(document.aboutOwner.biography, "aboutOwner.biography", true), imageUrl, imageAlt: text(document.aboutOwner.imageAlt, "aboutOwner.imageAlt", true), homepageSummary: text(document.aboutOwner.homepageSummary, "aboutOwner.homepageSummary"), historyLabel: text(document.aboutOwner.historyLabel, "aboutOwner.historyLabel"), principles: list(document.aboutOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)) }), active: true,
   };
 })();
 

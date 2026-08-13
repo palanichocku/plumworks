@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { AttributionLink } from "@/components/marketing/attribution-link";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
-import { getMarketingCoupons, getMarketingGallery, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
+import { getMarketingAboutOwner, getMarketingCoupons, getMarketingGallery, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
 import { autoRepairJsonLd, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd } from "@/lib/marketing-seo";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
 const focusRing = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 focus-visible:ring-offset-2";
 
 export default async function MarketingHome() {
-  const [shop, seoShop, settings, services, coupons, testimonials, gallery] = await Promise.all([
-    getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(),
+  const [shop, seoShop, settings, owner, services, coupons, testimonials, gallery] = await Promise.all([
+    getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(),
   ]);
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
@@ -55,15 +56,16 @@ export default async function MarketingHome() {
     </section> : null}
 
     <section className="bg-white"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[.9fr_1.1fr] lg:px-8">
-      <div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Why choose this shop</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{settings.aboutTitle}</h2><p className="mt-5 whitespace-pre-wrap text-base leading-7 text-slate-600">{settings.aboutBody}</p></div>
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-        {[["Clear next steps", "Discuss the concern and review the shop’s recommendation before deciding how to proceed."], ["A practical request process", "Share the vehicle and service need online, then confirm availability directly with the shop."], ["Useful service context", "Good records and clear descriptions can make future vehicle decisions easier."]].map(([title, body]) => <article key={title} className="rounded-2xl border border-slate-200 bg-stone-50 p-5"><h3 className="font-black text-slate-950">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{body}</p></article>)}
+      <div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Why choose this shop</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{settings.aboutTitle}</h2><p className="mt-5 whitespace-pre-wrap text-base leading-7 text-slate-600">{settings.aboutBody}</p>{owner ? <article className="mt-8 flex max-w-xl items-center gap-5 rounded-2xl border border-slate-200 bg-stone-50 p-4 sm:p-5"><Image src={owner.imageUrl} alt={owner.imageAlt} width={96} height={120} sizes="96px" className="h-[120px] w-24 shrink-0 rounded-xl object-cover" /><div className="min-w-0"><p className="text-lg font-black text-slate-950">{owner.name}</p><p className="mt-1 text-sm font-bold text-orange-700">{owner.role}</p>{owner.historyLabel ? <p className="mt-2 text-sm leading-6 text-slate-600">{owner.historyLabel}</p> : null}<AttributionLink href="/about" className={`mt-3 inline-flex text-sm font-black text-orange-700 hover:underline ${focusRing}`}>Meet the owner →</AttributionLink></div></article> : null}</div>
+      <div className="grid gap-4">
+        {owner?.homepageSummary ? <p className="rounded-2xl border border-slate-200 bg-stone-50 p-5 leading-7 text-slate-700">{owner.homepageSummary}</p> : null}
+        {(owner?.principles.length ? owner.principles : ["Discuss the concern and review the shop’s recommendation before deciding how to proceed."]).map((body, index) => <article key={body} className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="font-black text-slate-950">{["Start with the concern", "Explain the findings", "Customer approval before work"][index] ?? "Clear next steps"}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{body}</p></article>)}
       </div>
     </div></section>
 
     <section className="border-y border-slate-200 bg-stone-100"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <div className="max-w-3xl"><p className="text-sm font-black uppercase tracking-widest text-orange-700">How requesting service works</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A request starts the conversation</h2><p className="mt-4 text-slate-600">Your request is not an automatically confirmed appointment. The shop will contact you before timing is finalized.</p></div>
-      <ol className="mt-10 grid gap-5 md:grid-cols-3">{[["1", "Tell the shop what is happening", "Share the vehicle, symptoms, maintenance need, or service you are considering."], ["2", "The shop follows up", "The shop reviews the request and contacts you to discuss availability and timing."], ["3", "Review the recommendation", "After the vehicle is evaluated, review the recommendation or estimate before authorizing work."]].map(([number, title, body]) => <li key={number} className="rounded-2xl bg-white p-6 shadow-sm"><span className="flex size-9 items-center justify-center rounded-full bg-orange-100 font-black text-orange-800">{number}</span><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-3 text-sm leading-6 text-slate-600">{body}</p></li>)}</ol>
+      <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{[["1", "Explain the concern", "Share the symptoms, maintenance need, or change you have noticed."], ["2", "Evaluate the vehicle", `${shop.name} inspects or tests the vehicle as appropriate to the concern.`], ["3", "Review the findings", "The shop explains what it found in understandable terms."], ["4", "Discuss the options", "Review the practical recommendation, priorities, and estimate."], ["5", "Approve the work", "Repair work proceeds after you decide what to authorize."]].map(([number, title, body]) => <li key={number} className="rounded-2xl bg-white p-5 shadow-sm"><span className="flex size-9 items-center justify-center rounded-full bg-orange-100 font-black text-orange-800">{number}</span><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-3 text-sm leading-6 text-slate-600">{body}</p></li>)}</ol>
       <AttributionLink href="/appointment" className={`mt-8 inline-flex rounded-xl bg-orange-600 px-5 py-3 font-black text-white hover:bg-orange-700 ${focusRing}`}>Request Service</AttributionLink>
     </div></section>
 
