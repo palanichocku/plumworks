@@ -6,6 +6,7 @@ import { getPublicShop } from "@/lib/marketing";
 import { marketingServices } from "@/lib/marketing-services";
 import { marketingContentTablesAvailable } from "@/lib/marketing-schema";
 import { getMarketingContentPreview } from "@/lib/marketing-content-preview";
+import { decodeServiceDetail } from "@/lib/marketing-service-content";
 
 export const fallbackMarketingSettings = {
   headline: "Auto repair built around trust.",
@@ -77,11 +78,11 @@ export const getMarketingBrandName = cache(async (): Promise<string | null> => {
 
 export const getMarketingServices = cache(async () => {
   const preview = await getMarketingContentPreview();
-  if (preview) return preview.services.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name) || left.previewIndex - right.previewIndex).map(({ slug, name, summary, detail }) => ({ slug, name, summary, detail }));
+  if (preview) return preview.services.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name) || left.previewIndex - right.previewIndex).map(({ slug, name, summary, detail }) => ({ slug, name, summary, ...decodeServiceDetail(detail) }));
   const shop = await getPublicShop();
-  if (!shop.id || !await marketingContentTablesAvailable()) return [...marketingServices];
-  try { const rows = await prisma.marketingService.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { slug: true, name: true, summary: true, detail: true } }); return rows.length ? rows : [...marketingServices]; }
-  catch { return [...marketingServices]; }
+  if (!shop.id || !await marketingContentTablesAvailable()) return marketingServices.map((service) => ({ ...service, content: null }));
+  try { const rows = await prisma.marketingService.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { slug: true, name: true, summary: true, detail: true } }); return rows.length ? rows.map(({ detail, ...service }) => ({ ...service, ...decodeServiceDetail(detail) })) : marketingServices.map((service) => ({ ...service, content: null })); }
+  catch { return marketingServices.map((service) => ({ ...service, content: null })); }
 });
 
 export const getMarketingCoupons = cache(async () => {

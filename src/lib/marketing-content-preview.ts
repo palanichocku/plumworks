@@ -2,6 +2,7 @@ import "server-only";
 
 import { readFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
+import { encodeServiceContent } from "@/lib/marketing-service-content";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -77,7 +78,8 @@ export function parseMarketingContentPreview(value: unknown) {
   });
   const services = list(document.services, "services").map((value, index) => {
     const item = record(value, `services[${index}]`);
-    return { slug: slug(item.slug, `services[${index}].slug`), name: text(item.name, `services[${index}].name`, true)!, summary: text(item.summary, `services[${index}].summary`, true)!, detail: text(item.detail, `services[${index}].detail`, true)!, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
+    const detail = item.content == null ? text(item.detail, `services[${index}].detail`, true)! : encodeServiceContent(item.content, `services[${index}].content`);
+    return { slug: slug(item.slug, `services[${index}].slug`), name: text(item.name, `services[${index}].name`, true)!, summary: text(item.summary, `services[${index}].summary`, true)!, detail, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
   });
   const coupons = list(document.coupons, "coupons").map((value, index) => {
     const item = record(value, `coupons[${index}]`);

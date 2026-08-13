@@ -7,7 +7,8 @@ import test from "node:test";
 const moduleDirectory = await mkdtemp(join(tmpdir(), "marketing-preview-module-"));
 const moduleFile = join(moduleDirectory, "marketing-content-preview.ts");
 const moduleSource = await readFile(new URL("../src/lib/marketing-content-preview.ts", import.meta.url), "utf8");
-await writeFile(moduleFile, moduleSource.replace('import "server-only";\n\n', ""));
+await writeFile(join(moduleDirectory, "marketing-service-content.ts"), await readFile(new URL("../src/lib/marketing-service-content.ts", import.meta.url), "utf8"));
+await writeFile(moduleFile, moduleSource.replace('import "server-only";\n\n', "").replace('from "@/lib/marketing-service-content"', 'from "./marketing-service-content.ts"'));
 const { getMarketingContentPreview, marketingContentPreviewEnabled, parseMarketingContentPreview } = await import(moduleFile);
 
 const validDocument = {
@@ -63,6 +64,8 @@ test("Car Doc owner content passes the shared content-file validator", async () 
   assert.equal(preview.aboutOwner?.name, "Subbu Veerappan");
   assert.equal(preview.brandName, "Car Doc");
   assert.equal(preview.aboutOwner?.imageUrl, "/client-assets/cardoc/subbu-veerappan-owner.jpg");
+  assert.equal(preview.services.length, 10);
+  assert.ok(preview.services.every((service) => service.detail.startsWith('{"version":1')));
 });
 
 test("preview file reads successfully and failures are clear without exposing its path", async () => {
