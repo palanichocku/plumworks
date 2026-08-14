@@ -64,7 +64,7 @@ try {
     }),
     prisma.repairOrder.count({ where: { shopId } }),
     prisma.repairOrder.count({
-      where: { shopId, repairOrderNumber: { not: null }, legacySourceTable: null },
+      where: { shopId, repairOrderNumber: { not: null }, legacySourceTable: null, legacyRoNo: null },
     }),
     prisma.repairOrder.count({ where: { shopId, legacySourceTable: { not: null } } }),
     prisma.$queryRaw`

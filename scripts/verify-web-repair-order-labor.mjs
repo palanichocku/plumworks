@@ -16,7 +16,7 @@ try {
   if (!membership) throw new Error("No shop membership is available for verification.");
   const shopId = membership.shopId;
   const order = await prisma.repairOrder.findFirst({
-    where: { shopId, status: "draft", legacySourceTable: null },
+    where: { shopId, status: "draft", legacySourceTable: null, legacyRoNo: null },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
@@ -25,7 +25,7 @@ try {
   const [importedBefore, laborBefore, existingLine] = await Promise.all([
     prisma.repairOrder.count({ where: { shopId, legacySourceTable: { not: null } } }),
     prisma.repairOrderLabor.count({
-      where: { shopId, repairOrder: { legacySourceTable: null } },
+      where: { shopId, repairOrder: { legacySourceTable: null, legacyRoNo: null } },
     }),
     prisma.repairOrderLabor.findFirst({
       where: { shopId, legacyLineKey: "web:verification-labor-line" },
@@ -73,10 +73,10 @@ try {
 
   const [webRepairOrders, laborAfter, importedAfter, verifiedOrder] = await Promise.all([
     prisma.repairOrder.count({
-      where: { shopId, repairOrderNumber: { not: null }, legacySourceTable: null },
+      where: { shopId, repairOrderNumber: { not: null }, legacySourceTable: null, legacyRoNo: null },
     }),
     prisma.repairOrderLabor.count({
-      where: { shopId, repairOrder: { legacySourceTable: null } },
+      where: { shopId, repairOrder: { legacySourceTable: null, legacyRoNo: null } },
     }),
     prisma.repairOrder.count({ where: { shopId, legacySourceTable: { not: null } } }),
     prisma.repairOrder.findUniqueOrThrow({

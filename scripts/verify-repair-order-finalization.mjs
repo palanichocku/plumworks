@@ -20,6 +20,7 @@ try {
     where: {
       shopId,
       legacySourceTable: null,
+      legacyRoNo: null,
       repairOrderNumber: { not: null },
       status: { in: ["draft", "open"] },
       invoices: { none: {} },
@@ -32,7 +33,7 @@ try {
     await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`SELECT id FROM repair_orders WHERE id = ${candidate.id}::uuid AND shop_id = ${shopId}::uuid FOR UPDATE`;
       const order = await transaction.repairOrder.findFirstOrThrow({
-        where: { id: candidate.id, shopId, legacySourceTable: null, repairOrderNumber: { not: null }, status: { in: ["draft", "open"] }, invoices: { none: {} } },
+        where: { id: candidate.id, shopId, legacySourceTable: null, legacyRoNo: null, repairOrderNumber: { not: null }, status: { in: ["draft", "open"] }, invoices: { none: {} } },
         select: {
           id: true, shopId: true, customerId: true, vehicleId: true,
           repairOrderNumber: true, taxTotal: true,
@@ -72,8 +73,8 @@ try {
   }
 
   const [webOrders, finalizedOrders, linkedInvoices, arRows, importedInvoicesAfter, importedOpenAfter, duplicateRepairOrders, duplicateNumbers] = await Promise.all([
-    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null, repairOrderNumber: { not: null } } }),
-    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null, status: "finalized" } }),
+    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null, legacyRoNo: null, repairOrderNumber: { not: null } } }),
+    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null, legacyRoNo: null, status: "finalized" } }),
     prisma.invoice.count({ where: { shopId, repairOrderId: { not: null }, legacySourceTable: null } }),
     prisma.accountReceivable.count({ where: { shopId, invoice: { repairOrderId: { not: null }, legacySourceTable: null } } }),
     prisma.invoice.count({ where: { shopId, legacySourceTable: { not: null } } }),

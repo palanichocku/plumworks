@@ -30,6 +30,12 @@ import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import { verifyFreshLegacyCutover } from "./lib/legacy-cutover-acceptance.mjs";
 import {
+  FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
+  FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG,
+  FINAL_CUTOVER_OPEN_ORDER_FLAG,
+  projectFinalCutoverOpenOrders,
+} from "./lib/legacy-open-order-projection.mjs";
+import {
   authoritativeReloadCounts,
   LEGACY_CUTOVER_CONFIRMATION,
   parseLegacyCutoverExecution,
@@ -887,7 +893,11 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, prisma, pa
       runPayment: async () => ({ stage: postStage, paymentWrite, verification, report, recoveryWriteResult }),
       runOpenOrders: async () => {
         await runScript("import-open-orders.mjs", common);
-        await runScript("transform-open-orders.mjs", ["--shop-id", shopId]);
+        await runScript("transform-open-orders.mjs", [
+          "--shop-id", shopId,
+          FINAL_CUTOVER_OPEN_ORDER_FLAG,
+          FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG, FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
+        ]);
       },
     });
     laterResult = { invoiceImportRunId, paymentWrite, paymentVerification: verification, paymentReport: report };
@@ -932,9 +942,13 @@ async function verify(prisma, shopId, preservedBefore, paymentContext = null) {
     prisma.customer.count({ where: { shopId, legacySourceTable: null } }),
     prisma.vehicle.count({ where: { shopId, legacySourceTable: null } }),
     prisma.invoice.count({ where: { shopId, legacySourceTable: null } }),
-    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null } }),
+    prisma.repairOrder.count({ where: { shopId, legacySourceTable: null, legacyRoNo: null } }),
   ]);
+  const operationalizedCutoffOrders = await prisma.repairOrder.count({
+    where: { shopId, legacySourceTable: null, legacyRoNo: { not: null } },
+  });
   console.log(`imported legacy records: ${imported.reduce((sum, count) => sum + count, 0)}`);
+  console.log(`operationalized cutoff Repair Orders: ${operationalizedCutoffOrders}`);
   console.log(`web-created test records: ${webCreated.reduce((sum, count) => sum + count, 0)}`);
 
   const security = await prisma.$queryRawUnsafe(`
@@ -1002,6 +1016,7 @@ async function verify(prisma, shopId, preservedBefore, paymentContext = null) {
     counts,
     importedLegacyRecords: imported.reduce((sum, count) => sum + count, 0),
     webCreatedRecords: webCreated.reduce((sum, count) => sum + count, 0),
+    operationalizedCutoffOrders,
     rlsProtectedTables: Number(security[0]?.protected ?? 0),
     serverPrismaWorks: true,
     preservedMatches,
@@ -1071,7 +1086,30 @@ async function main() {
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   try {
-    const shop = { id: await resolveSingleShopId(prisma, argument("--shop-id")) };
+    const shopId = await resolveSingleShopId(prisma, argument("--shop-id"));
+    const shop = await prisma.shop.findUniqueOrThrow({
+      where: { id: shopId },
+      select: {
+        id: true,
+        nextRepairOrderNumber: true,
+        defaultTaxRate: true,
+        partsTaxable: true,
+        laborTaxable: true,
+        shopSuppliesEnabled: true,
+        shopSuppliesRate: true,
+        shopSuppliesCap: true,
+        shopSuppliesTaxable: true,
+      },
+    });
+    if (execution.confirmedFullReplacement) {
+      const priorCompletedCutover = await prisma.auditLog.findFirst({
+        where: { shopId: shop.id, action: "legacy_cutover_completed", entityType: "shop" },
+        select: { id: true },
+      });
+      if (priorCompletedCutover) {
+        throw new Error("A completed final cutover is already recorded for this shop. Full Windows replacement is one-way and cannot be run again after PlumWorks operations begin.");
+      }
+    }
     console.log("database connection works: 1");
     runSummary.verification.databaseConnection = 1;
     const requiresRecovery = recoveryIsRequired(source);
@@ -1150,14 +1188,30 @@ async function main() {
     const projectedPaymentReport = paymentReport(projectedPayments, projectedUnresolvedPayments);
     printPaymentReport(projectedPaymentReport, dryRun ? "dry run" : "pre-reset validation");
     runSummary.payment = projectedPaymentReport;
-    const projectedCustomerIds = new Set(projectedResolvedCustomers(projectedState, projectedRecoveryPlan).map((row) => row.legacyCustno));
+    const resolvedProjectedCustomers = projectedResolvedCustomers(projectedState, projectedRecoveryPlan);
+    const projectedCustomerIds = new Set(resolvedProjectedCustomers.map((row) => row.legacyCustno));
     const projectedVehicleIds = new Set(projectedState.vehicles.map((row) => row.legacyCarno));
-    const projectedOpenOrders = reconcileOpenOrderRows({
+    const projectedCustomerByLegacy = new Map(resolvedProjectedCustomers.map((row) => [row.legacyCustno, row.customerId]));
+    const projectedOpenOrders = projectFinalCutoverOpenOrders({
       partRows: invoiceSources.orderPartSource.rows,
       laborRows: invoiceSources.orderLaborSource.rows,
-      customerIds: projectedCustomerIds,
-      vehicleIds: projectedVehicleIds,
+      customers: resolvedProjectedCustomers.map((row) => ({ legacyCustno: row.legacyCustno, id: row.customerId })),
+      vehicles: projectedState.vehicles.map((row) => ({
+        legacyCarno: row.legacyCarno,
+        id: `projected-vehicle:${row.legacyCarno}`,
+        customerId: projectedCustomerByLegacy.get(row.legacyCustno),
+      })),
+      finalizedInvoices: invoiceSources.arSource.rows.map((row) => ({
+        legacyRoNo: row.legacyRoNo,
+        legacyCustno: row.legacyCustno,
+        legacyCarno: row.legacyCarno,
+      })),
+      survivingRepairOrders: [],
+      shopSettings: shop,
+      currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
     });
+    runSummary.verification.openOrderFatalRelationshipIssues = projectedOpenOrders.fatalIssues.filter((issue) => issue.code.includes("customer") || issue.code.includes("vehicle")).length;
+    runSummary.verification.openOrderFatalFinancialIssues = 0;
     const acceptance = verifyFreshLegacyCutover({
       shopId: shop.id,
       rawAr: invoiceSources.arSource.rows,
@@ -1167,6 +1221,7 @@ async function main() {
       invoiceProjection: projectedInvoiceInputs,
       customerIds: projectedCustomerIds,
       vehicleIds: projectedVehicleIds,
+      finalCutoverProjection: projectedOpenOrders,
     });
     runSummary.acceptance = acceptance;
     if (acceptance.blockingIssues) {
@@ -1181,7 +1236,11 @@ async function main() {
       rawFinal: invoiceSources.finalSource.rows,
       rawLabor: invoiceSources.laborSource.rows,
       paymentProjection: projectedPayments,
-      openOrders: projectedOpenOrders,
+      openOrders: {
+        orders: projectedOpenOrders.orders.length,
+        parts: projectedOpenOrders.orders.reduce((sum, order) => sum + order.parts.length, 0),
+        labor: projectedOpenOrders.orders.reduce((sum, order) => sum + order.labor.length, 0),
+      },
     });
     const reconciliationReport = reportReconciliation(source);
     const setProjectedCount = (section, expected, raw = section?.raw) => {
@@ -1341,6 +1400,9 @@ async function main() {
         }
       }
       if (result.webCreatedRecords !== 0) runSummary.criticalIssues.push("Web-created test records remain after confirmed reload.");
+      if (result.operationalizedCutoffOrders !== runSummary.acceptance.operational.operationalizedCutoffOrders) {
+        runSummary.criticalIssues.push(`Operationalized cutoff Repair Order verification failed: expected ${runSummary.acceptance.operational.operationalizedCutoffOrders}, found ${result.operationalizedCutoffOrders}.`);
+      }
       if (!result.preservedMatches) runSummary.criticalIssues.push("Preserved shop/admin/settings counts changed during cutover.");
       if (result.rlsProtectedTables !== PROTECTED_TABLES.length) runSummary.criticalIssues.push("RLS/API protection verification failed.");
       if (!result.accounting.grossSalesCheck) runSummary.criticalIssues.push("Gross Sales report verification failed.");
@@ -1379,6 +1441,7 @@ function applyVerificationSummary(result, afterReload) {
     rlsProtectedTables: `${result.rlsProtectedTables}/${PROTECTED_TABLES.length}`,
     serverSidePrismaQuery: result.serverPrismaWorks ? 1 : 0,
     webCreatedTestRecords: result.webCreatedRecords,
+    operationalizedCutoffRepairOrders: result.operationalizedCutoffOrders,
     verifiedAfterReload: afterReload ? 1 : 0,
     normallyImportedCustomers: result.recovery.normalCustomerCount,
     recoveredCustomers: result.recovery.recoveredCustomerCount,

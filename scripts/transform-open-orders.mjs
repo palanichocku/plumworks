@@ -1,6 +1,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { normalizeLegacyOdometer } from "./lib/legacy-odometer.mjs";
+import {
+  FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
+  FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG,
+  FINAL_CUTOVER_OPEN_ORDER_FLAG,
+  projectFinalCutoverOpenOrders,
+} from "./lib/legacy-open-order-projection.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -9,6 +15,10 @@ function argument(name) {
 
 const SHOP_ID = argument("--shop-id");
 if (!SHOP_ID) throw new Error("--shop-id is required.");
+const finalCutoverOperational = process.argv.includes(FINAL_CUTOVER_OPEN_ORDER_FLAG);
+if (finalCutoverOperational && argument(FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG) !== FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION) {
+  throw new Error("Final-cutover operationalization requires its explicit confirmation token.");
+}
 
 function textValue(rawData, field) {
   if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) return null;
@@ -69,9 +79,63 @@ async function main() {
       }),
       prisma.vehicle.findMany({
         where: { shopId: SHOP_ID, legacyCarno: { not: null } },
-        select: { id: true, legacyCarno: true },
+        select: { id: true, customerId: true, legacyCarno: true },
       }),
     ]);
+
+    if (finalCutoverOperational) {
+      const [shop, finalizedInvoices, survivingRepairOrders] = await Promise.all([
+        prisma.shop.findUniqueOrThrow({ where: { id: SHOP_ID }, select: {
+          nextRepairOrderNumber: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true,
+          shopSuppliesEnabled: true, shopSuppliesRate: true, shopSuppliesCap: true, shopSuppliesTaxable: true,
+        } }),
+        prisma.invoice.findMany({ where: { shopId: SHOP_ID }, select: { legacyRoNo: true, repairOrderNumber: true, customerId: true, vehicleId: true } }),
+        prisma.repairOrder.findMany({ where: { shopId: SHOP_ID }, select: { id: true, repairOrderNumber: true } }),
+      ]);
+      const projection = projectFinalCutoverOpenOrders({
+        partRows: rawParts, laborRows: rawLabor, customers, vehicles, finalizedInvoices,
+        survivingRepairOrders, shopSettings: shop, currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
+      });
+      if (projection.fatalIssues.length) {
+        const first = projection.fatalIssues[0];
+        throw new Error(`Final-cutover active Repair Order acceptance failed: ${first.code} for RO ${first.legacyRoNo}.`);
+      }
+      let persistedNextRepairOrderNumber = projection.nextRepairOrderNumber;
+      await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id FROM shops
+          WHERE id = ${SHOP_ID}::uuid
+          FOR UPDATE
+        `;
+        for (const projected of projection.orders) {
+          const { parts, labor, ...orderData } = projected;
+          const repairOrder = await transaction.repairOrder.upsert({
+            where: { shopId_legacyRoNo: { shopId: SHOP_ID, legacyRoNo: projected.legacyRoNo } },
+            create: { shopId: SHOP_ID, ...orderData }, update: orderData, select: { id: true },
+          });
+          for (const line of parts) await transaction.repairOrderPart.upsert({
+            where: { shopId_legacyLineKey: { shopId: SHOP_ID, legacyLineKey: line.legacyLineKey } },
+            create: { shopId: SHOP_ID, repairOrderId: repairOrder.id, ...line },
+            update: { repairOrderId: repairOrder.id, ...line },
+          });
+          for (const line of labor) await transaction.repairOrderLabor.upsert({
+            where: { shopId_legacyLineKey: { shopId: SHOP_ID, legacyLineKey: line.legacyLineKey } },
+            create: { shopId: SHOP_ID, repairOrderId: repairOrder.id, ...line },
+            update: { repairOrderId: repairOrder.id, ...line },
+          });
+        }
+        const currentShop = await transaction.shop.findUniqueOrThrow({ where: { id: SHOP_ID }, select: { nextRepairOrderNumber: true } });
+        const nextRepairOrderNumber = Math.max(currentShop.nextRepairOrderNumber, projection.nextRepairOrderNumber);
+        persistedNextRepairOrderNumber = nextRepairOrderNumber;
+        if (nextRepairOrderNumber > currentShop.nextRepairOrderNumber) await transaction.shop.update({
+          where: { id: SHOP_ID }, data: { nextRepairOrderNumber },
+        });
+      }, { maxWait: 10_000, timeout: 120_000 });
+      console.log(`operational final-cutover open orders: ${projection.orders.length}`);
+      console.log(`next Repair Order number: ${persistedNextRepairOrderNumber}`);
+      console.log("validation issues: 0");
+      return;
+    }
 
     const customerIds = new Map(customers.map((row) => [row.legacyCustno, row.id]));
     const vehicleIds = new Map(vehicles.map((row) => [row.legacyCarno, row.id]));

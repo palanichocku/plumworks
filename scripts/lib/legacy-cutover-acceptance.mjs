@@ -32,7 +32,7 @@ function groupOpenOrders(partRows, laborRows, customerIds, vehicleIds) {
   return orders;
 }
 
-export function verifyFreshLegacyCutover({ shopId, rawAr, rawFinal, openPartRows, openLaborRows, invoiceProjection, customerIds, vehicleIds }) {
+export function verifyFreshLegacyCutover({ shopId, rawAr, rawFinal, openPartRows, openLaborRows, invoiceProjection, customerIds, vehicleIds, finalCutoverProjection = null }) {
   const scopedAr = rawAr.map((row) => ({ ...row, shopId }));
   const invoiceOdometer = projectInvoiceOdometerBackfill({ shopId, rawRows: scopedAr, invoices: invoiceProjection.invoices });
   const completedSourceRows = rawAr.filter((row) => row.shopId === shopId || row.shopId === undefined);
@@ -55,7 +55,8 @@ export function verifyFreshLegacyCutover({ shopId, rawAr, rawFinal, openPartRows
 
   const sourceParts = projectLegacyFinalPartLines(rawFinal).filter((line) => invoiceByRo.has(line.legacyRoNo));
   const vendorPlan = buildInvoicePartVendorBackfillPlan(sourceParts, invoiceProjection.parts);
-  const openOrders = groupOpenOrders(openPartRows, openLaborRows, customerIds, vehicleIds);
+  const historicalOpenOrders = groupOpenOrders(openPartRows, openLaborRows, customerIds, vehicleIds);
+  const openOrders = finalCutoverProjection?.orders ?? historicalOpenOrders;
   const openSourceMileage = openOrders.filter((order) => order.odometer !== null).length;
   const openInvalidMileage = openOrders.filter((order) => order.odometer === null).length;
   const openPartLines = openOrders.flatMap((order) => order.parts);
@@ -88,13 +89,22 @@ export function verifyFreshLegacyCutover({ shopId, rawAr, rawFinal, openPartRows
     ambiguous: vendorPlan.ambiguous,
   };
   const complimentary = { importedLegacyLaborRows: importedLabor, expectedComplimentary: 0, producedComplimentary, unexpectedClassifications: producedComplimentary };
-  const operational = { importedHistoricalOrders: openOrders.length, historicalDirectDetailEligible: openOrders.length, operationallyEligibleImportedOrders: 0, predicate: "shop + draft/open + legacySourceTable null + no Invoice" };
+  const operational = finalCutoverProjection
+    ? {
+        importedHistoricalOrders: 0,
+        historicalDirectDetailEligible: 0,
+        operationalizedCutoffOrders: openOrders.length,
+        operationallyEligibleImportedOrders: openOrders.length,
+        blockingSourceConflicts: finalCutoverProjection.fatalIssues,
+        predicate: "shop + draft/open + legacySourceTable null + no Invoice",
+      }
+    : { importedHistoricalOrders: openOrders.length, historicalDirectDetailEligible: openOrders.length, operationalizedCutoffOrders: 0, operationallyEligibleImportedOrders: 0, blockingSourceConflicts: [], predicate: "shop + draft/open + legacySourceTable null + no Invoice" };
   const history = { invoiceMileageRecords: invoiceProjection.invoices.filter((row) => row.odometer !== null).length, invoiceVendorRecords: invoiceProjection.parts.filter((row) => row.vendorNameSnapshot !== null).length, openOrderMileageRecords: openSourceMileage, openOrderVendorRecords: openVendorValues, invoiceRepairOrderDeduplication: "unchanged", exactScope: "shop/customer/vehicle", orderingAndPagination: "unchanged" };
   const recoveryBackfill = {
     invoiceOdometer: { proposedUpdates: invoiceOdometer.proposedUpdates, conflicts: 0, unresolved: invoiceOdometer.unresolved, ambiguous: invoiceOdometer.ambiguous },
     invoicePartVendor: { proposedUpdates: vendorPlan.proposedUpdates, conflicts: vendorPlan.conflicts, unresolved: vendorPlan.unresolved, ambiguous: vendorPlan.ambiguous },
     databaseWrites: 0,
   };
-  const blocking = mileage.completedMismatches + mileage.unresolved + mileage.ambiguous + vendor.completedMismatches + vendor.unresolved + vendor.ambiguous + complimentary.unexpectedClassifications + recoveryBackfill.invoiceOdometer.proposedUpdates + recoveryBackfill.invoicePartVendor.proposedUpdates;
+  const blocking = mileage.completedMismatches + mileage.unresolved + mileage.ambiguous + vendor.completedMismatches + vendor.unresolved + vendor.ambiguous + complimentary.unexpectedClassifications + recoveryBackfill.invoiceOdometer.proposedUpdates + recoveryBackfill.invoicePartVendor.proposedUpdates + (finalCutoverProjection?.fatalIssues.length ?? 0);
   return { mileage, vendor, complimentary, operational, history, recoveryBackfill, blockingIssues: blocking };
 }
