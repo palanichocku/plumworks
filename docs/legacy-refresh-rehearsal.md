@@ -23,10 +23,13 @@ npm run legacy:rehearse -- \
   --zip /path/to/shopman32.zip \
   --snapshot-date 2026-07-31 \
   --customer-recovery-manifest /protected/path/2026-07-31-recovery-v2.json \
+  --final-cutover-adjudication /protected/path/2026-07-31-active-ro-adjudication.json \
   --workspace /protected/rehearsal-directory
 ```
 
 The command creates a private `rehearsal-*` directory containing `incoming`, `snapshots`, `manifests`, `reports`, and `logs`. The temporary seed ZIP is always removed. A customer ZIP is never removed or modified. By default, the rehearsal snapshot is removed after the reports are written; pass `--keep-snapshot` to retain it.
+
+`--final-cutover-adjudication` is optional and is only appropriate after explicit human review of an exceptional active-RO source artifact. The rehearsal supplies its newly created immutable snapshot manifest to the cutover validator automatically. The adjudication must match that exact ZIP, snapshot manifest, source fingerprint, DBF hashes, source rows, and finalized collision; otherwise rehearsal stops. A new ZIP always requires revalidation, and an artifact that disappears receives no carried-forward exclusion.
 
 The JSON and Markdown reports are sanitized aggregate reports. They record Git state, ZIP identity, source fingerprint, recovery-manifest v2 binding, ordered stage validation, Customer/Vehicle, Invoice/AR, Payment and open-order aggregates, before/after database counts, tests, lint, warnings, and any failed stage. Invoice-date payment groupings remain explicitly labeled as proxy allocations rather than receipt chronology.
 

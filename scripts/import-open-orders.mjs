@@ -1,11 +1,9 @@
-import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
+import { loadOpenOrderSourceRows } from "./lib/legacy-open-order-source.mjs";
 
 const BATCH_SIZE = 100;
-const decoder = new TextDecoder("windows-1252");
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
@@ -28,71 +26,6 @@ const SOURCES = [
   },
 ];
 
-function parseFields(file, headerLength) {
-  const fields = [];
-  let recordOffset = 1;
-  for (let offset = 32; offset + 32 <= headerLength; offset += 32) {
-    if (file[offset] === 0x0d) break;
-    const descriptor = file.subarray(offset, offset + 32);
-    const nameEnd = descriptor.indexOf(0);
-    const name = decoder
-      .decode(descriptor.subarray(0, nameEnd === -1 ? 11 : nameEnd))
-      .trim();
-    const type = String.fromCharCode(descriptor[11]);
-    const length = descriptor[16];
-    fields.push({ name, type, length, recordOffset });
-    recordOffset += length;
-  }
-  return fields;
-}
-
-function decodeField(value, type) {
-  if (type === "0") return undefined;
-  if (["C", "N", "F", "D"].includes(type)) {
-    return decoder.decode(value).trim() || null;
-  }
-  if (type === "L") {
-    const logical = decoder.decode(value).trim().toUpperCase();
-    if (logical === "T" || logical === "Y") return true;
-    if (logical === "F" || logical === "N") return false;
-    return null;
-  }
-  if (type === "I" && value.length === 4) return value.readInt32LE();
-  if (type === "B" && value.length === 8) {
-    const number = value.readDoubleLE();
-    return Number.isFinite(number) ? number : null;
-  }
-  if (["M", "G", "P"].includes(type)) {
-    const pointer = value.length >= 4 ? value.readUInt32LE() : 0;
-    return pointer ? { memoPointer: String(pointer) } : null;
-  }
-  return { hex: value.toString("hex") };
-}
-
-function readRows(file) {
-  const recordCount = file.readUInt32LE(4);
-  const headerLength = file.readUInt16LE(8);
-  const recordLength = file.readUInt16LE(10);
-  const fields = parseFields(file, headerLength);
-  const rows = [];
-  for (let index = 0; index < recordCount; index += 1) {
-    const start = headerLength + index * recordLength;
-    const record = file.subarray(start, start + recordLength);
-    if (record.length !== recordLength || record[0] === 0x2a) continue;
-    const rawData = {};
-    for (const field of fields) {
-      const bytes = record.subarray(
-        field.recordOffset,
-        field.recordOffset + field.length,
-      );
-      const value = decodeField(bytes, field.type);
-      if (value !== undefined) rawData[field.name] = value;
-    }
-    rows.push(rawData);
-  }
-  return rows;
-}
-
 function legacyValue(record, candidates) {
   const entry = Object.entries(record).find(([field]) =>
     candidates.includes(field.toUpperCase().replaceAll("_", "")),
@@ -108,39 +41,12 @@ function identifiers(rawData) {
   };
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, canonicalize(value[key])]),
-  );
-}
-
-function keyedRows(rows, sourceLabel) {
-  const occurrences = new Map();
-  return rows.map((rawData) => {
-    const hash = createHash("sha256")
-      .update(JSON.stringify(canonicalize(rawData)))
-      .digest("hex")
-      .slice(0, 24);
-    const occurrence = (occurrences.get(hash) ?? 0) + 1;
-    occurrences.set(hash, occurrence);
-    return {
-      rawData,
-      legacyRowKey: `${sourceLabel}:${hash}:${occurrence}`,
-    };
-  });
-}
-
 async function loadSources() {
-  return Promise.all(
-    SOURCES.map(async (source) => ({
-      ...source,
-      rows: readRows(await readFile(source.path)),
-    })),
-  );
+  const rows = await loadOpenOrderSourceRows(source);
+  return SOURCES.map((entry) => ({
+    ...entry,
+    rows: entry.model === "rawLegacyOrderPart" ? rows.partRows : rows.laborRows,
+  }));
 }
 
 async function runDryRun() {
@@ -214,7 +120,7 @@ async function runImport() {
       },
     });
     for (const source of sources) {
-      const rows = keyedRows(source.rows, source.model);
+      const rows = source.rows;
       for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
         const batch = rows.slice(offset, offset + BATCH_SIZE);
         await prisma.$transaction(

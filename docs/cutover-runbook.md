@@ -10,6 +10,8 @@ The licensed shop deployment uses one safe-by-default driver for legacy cutover.
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
+  --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --dry-run
 ```
@@ -21,6 +23,16 @@ This is the default mode. It checks the shop database connection and required so
 Some historical Invoice/AR rows reference Customers that cannot be imported normally from `Cust.DBF`. Their reviewed recovery decisions are supplied explicitly with `--customer-recovery-manifest`; the cutover never searches for or chooses a manifest. The version 2 manifest must bind the review to the exact combined source fingerprint, shop UUID, expected source tables, and reviewed recovered/alias/unresolved counts.
 
 A manifest created for the original seed is not valid for a later snapshot. Even when filenames are unchanged, a changed source fingerprint requires regenerating and reviewing the recovery evidence and approving a new manifest. The manifest may keep an unresolved order skipped only when its non-sensitive order/customer identity and authoritative total still exactly match the approved entry. New or materially changed unresolved evidence blocks the cutover.
+
+## Exceptional active Repair Order source adjudication
+
+Strict active-RO acceptance remains the default. An exceptional stale source artifact may be excluded only through a separate versioned `--final-cutover-adjudication` manifest supplied together with the immutable intake `--snapshot-manifest`. This is not Customer recovery and does not create a reusable import rule.
+
+Each approved decision binds the shop, snapshot date, ZIP SHA-256, snapshot-manifest SHA-256, combined source fingerprint, relevant DBF hashes, exact RO number, exact active source table counts, every stable importer row key, and exact finalized-history collision evidence. It records the decision type, classification, reason, reviewer, review timestamp, and explicit approval. Any changed, added, removed, deleted, or undeleted row; changed finalized collision; changed source file; different shop; or unapproved decision fails closed before reset. The confirmed transform validates the same evidence again before writing operational Repair Orders.
+
+These decisions never mean “ignore old ROs,” “ignore invoiced ROs,” or any other heuristic. Every new customer ZIP requires fresh validation. If an artifact disappears from the new ZIP, its prior decision becomes inapplicable and no exclusion is carried forward. Reports list reviewed exclusions separately by RO, decision, classification, reason, row count, and manifest fingerprint.
+
+Omit both adjudication arguments when the accepted snapshot has no reviewed exceptional artifact. Reasons must be non-sensitive and must not contain Customer names, contact details, VINs, or source memo text.
 
 During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are then recreated transactionally, before `FINAL`, `laborfinal`, and `ar` are staged and transformed. A recovery conflict or transaction failure stops the workflow before Invoice staging.
 
@@ -60,6 +72,8 @@ Review the dry-run immediately before cutover. Then run:
 node --env-file=.env.local scripts/legacy-cutover.mjs \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
+  --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --backup \
   --reset-operational-data \

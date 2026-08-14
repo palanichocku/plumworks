@@ -62,8 +62,12 @@ export function projectFinalCutoverOpenOrders({
   survivingRepairOrders = [],
   shopSettings,
   currentNextRepairOrderNumber,
+  adjudicationPlan = null,
 }) {
-  const groups = groupRows(partRows, laborRows);
+  const excludedRowKeys = adjudicationPlan?.excludedRowKeys ?? new Set();
+  const acceptedPartRows = partRows.filter((row) => !excludedRowKeys.has(row.legacyRowKey));
+  const acceptedLaborRows = laborRows.filter((row) => !excludedRowKeys.has(row.legacyRowKey));
+  const groups = groupRows(acceptedPartRows, acceptedLaborRows);
   const customerByLegacy = new Map(customers.map((row) => [row.legacyCustno, row.id]));
   const vehicleByLegacy = new Map(vehicles.map((row) => [row.legacyCarno, { id: row.id, customerId: row.customerId }]));
   const invoicesByRo = new Map();
@@ -168,6 +172,8 @@ export function projectFinalCutoverOpenOrders({
   return {
     orders,
     fatalIssues,
+    reviewedExclusions: adjudicationPlan?.reviewedExclusions ?? [],
+    adjudicationManifestFingerprint: adjudicationPlan?.manifestFingerprint ?? null,
     counts: { sourceGroups: groups.size, operationalOrders: orders.length, blockingIssues: fatalIssues.length },
     nextRepairOrderNumber: Math.max(currentNextRepairOrderNumber, highest + 1),
   };

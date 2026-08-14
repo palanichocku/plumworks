@@ -14,6 +14,7 @@ export const REHEARSAL_STAGES = Object.freeze([
   "payment-projection", "open-repair-order-projection", "final-verification",
 ]);
 const VALUE_ARGUMENTS = ["--zip", "--snapshot-date", "--customer-recovery-manifest", "--workspace"];
+const OPTIONAL_VALUE_ARGUMENTS = ["--final-cutover-adjudication"];
 const REQUIRED_CURRENT_MIGRATIONS = Object.freeze([
   "20260804120000_add_marketing_lead_attribution",
   "20260804150000_add_invoice_odometer",
@@ -40,7 +41,7 @@ export async function validateSchemaReadiness(repositoryRoot, appliedMigrations 
 }
 
 export function parseLegacyRefreshRehearsalArguments(args) {
-  const allowed = new Set(["--seed", "--keep-snapshot", ...VALUE_ARGUMENTS]);
+  const allowed = new Set(["--seed", "--keep-snapshot", ...VALUE_ARGUMENTS, ...OPTIONAL_VALUE_ARGUMENTS]);
   const confirmations = new Set(["--confirm", "RESET_SHOP_OPERATIONAL_DATA", "IMPORT_LEGACY_PAYMENTS", "TRANSFORM_LEGACY_INVOICES"]);
   for (const value of args) {
     if (confirmations.has(value) || value.startsWith("--confirm=")) throw new Error("Confirmation arguments are prohibited in rehearsal mode.");
@@ -50,9 +51,9 @@ export function parseLegacyRefreshRehearsalArguments(args) {
     if (args.filter((value) => value === flag).length > 1) throw new Error(`${flag} may be supplied only once.`);
   }
   const values = {};
-  for (const name of VALUE_ARGUMENTS) {
+  for (const name of [...VALUE_ARGUMENTS, ...OPTIONAL_VALUE_ARGUMENTS]) {
     const positions = args.flatMap((value, index) => value === name ? [index] : []);
-    if ((name !== "--zip" && positions.length !== 1) || positions.length > 1) throw new Error(`${name} must be provided exactly once.`);
+    if ((VALUE_ARGUMENTS.includes(name) && name !== "--zip" && positions.length !== 1) || positions.length > 1) throw new Error(`${name} must be provided exactly once.`);
     if (positions.length) {
       const value = args[positions[0] + 1];
       if (!value || value.startsWith("--")) throw new Error(`${name} requires a value.`);
@@ -68,6 +69,7 @@ export function parseLegacyRefreshRehearsalArguments(args) {
   return {
     mode: seed ? "seed" : "zip", zip: values["--zip"], snapshotDate,
     recoveryManifest: values["--customer-recovery-manifest"], workspace: values["--workspace"],
+    adjudicationManifest: values["--final-cutover-adjudication"],
     keepSnapshot: args.includes("--keep-snapshot"),
   };
 }
@@ -104,15 +106,19 @@ export async function createSeedZip({ repositoryRoot, targetZip, command = runCo
   return { path: targetZip, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex"), temporary: true };
 }
 
-export function cutoverDryRunArguments({ repositoryRoot, sourcePath, manifestPath, reportDirectory }) {
+export function cutoverDryRunArguments({ repositoryRoot, sourcePath, manifestPath, adjudicationManifestPath, snapshotManifestPath, reportDirectory }) {
   return [resolve(repositoryRoot, "scripts/legacy-cutover.mjs"), "--source", sourcePath,
     "--customer-recovery-manifest", manifestPath, "--payment-date-policy", "invoice-date-proxy",
+    ...(adjudicationManifestPath ? ["--final-cutover-adjudication", adjudicationManifestPath, "--snapshot-manifest", snapshotManifestPath] : []),
     "--dry-run", "--report", "--report-dir", reportDirectory, "--summary-only"];
 }
 
 export function validateRehearsalCutoverReport(summary, expected = {}) {
+  const expectedStages = expected.adjudicationProvided
+    ? [REHEARSAL_STAGES[0], "active-ro-adjudication-validation", ...REHEARSAL_STAGES.slice(1)]
+    : REHEARSAL_STAGES;
   const stages = (summary.stages ?? []).filter((stage) => stage.status === "passed").map((stage) => stage.name);
-  if (JSON.stringify(stages) !== JSON.stringify(REHEARSAL_STAGES)) throw new Error("Cutover stage order is missing, reordered, skipped, or failed.");
+  if (JSON.stringify(stages) !== JSON.stringify(expectedStages)) throw new Error("Cutover stage order is missing, reordered, skipped, or failed.");
   if (expected.sourcePath && summary.source?.path !== expected.sourcePath) throw new Error("Cutover canonical source-path continuity validation failed.");
   const stageByName = new Map((summary.stages ?? []).map((stage) => [stage.name, stage]));
   if (expected.sourceFingerprint) {
@@ -245,19 +251,28 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const bindingIssues = validateCutoverRecoveryManifestBinding({ manifest: loadedManifest.manifest, shopId: before.shopId, sourceFingerprint: source.fingerprint });
     if (bindingIssues.length) throw new Error(`Customer recovery manifest binding failed: ${bindingIssues[0].code}.`);
     failedStage = "cutover-dry-run";
-    await command(process.execPath, cutoverDryRunArguments({ repositoryRoot, sourcePath: source.path, manifestPath: loadedManifest.path, reportDirectory: directories.reports }), { cwd: repositoryRoot, label: "legacy cutover dry run" });
+    await command(process.execPath, cutoverDryRunArguments({
+      repositoryRoot, sourcePath: source.path, manifestPath: loadedManifest.path,
+      adjudicationManifestPath: options.adjudicationManifest,
+      snapshotManifestPath: join(snapshot.finalPath, "manifest.json"),
+      reportDirectory: directories.reports,
+    }), { cwd: repositoryRoot, label: "legacy cutover dry run" });
     const cutover = dependencies.cutoverReport ? await dependencies.cutoverReport(directories.reports) : await oneJson(directories.reports);
     failedStage = "stage-and-reconciliation-validation";
-    const stageOrder = validateRehearsalCutoverReport(cutover.value, { sourceFingerprint: source.fingerprint, sourcePath: source.path });
+    const stageOrder = validateRehearsalCutoverReport(cutover.value, {
+      sourceFingerprint: source.fingerprint, sourcePath: source.path,
+      adjudicationProvided: Boolean(options.adjudicationManifest),
+    });
     const after = await databaseState();
     if (before.shopId !== after.shopId || JSON.stringify(before.counts) !== JSON.stringify(after.counts)) throw new Error("Read-only database counts changed during rehearsal.");
     failedStage = "focused-validation";
-    const tests = await (dependencies.runTests ?? (() => command(process.execPath, ["--test", "scripts/legacy-snapshot-intake.test.mjs", "scripts/legacy-source-safety.test.mjs", "scripts/legacy-cutover-customer-recovery.test.mjs", "scripts/legacy-payment-import.test.mjs", "scripts/legacy-cutover-payment.test.mjs", "scripts/legacy-invoice-transformer-safety.test.mjs", "scripts/legacy-cutover-acceptance.test.mjs", "tests/invoice-odometer-backfill.test.mjs", "tests/invoice-part-vendor-backfill.test.mjs", "tests/complimentary-services.test.mjs", "tests/repair-order-history.test.mjs", "tests/repair-order-list.test.mjs", "scripts/legacy-refresh-rehearsal.test.mjs"], { cwd: repositoryRoot, label: "focused legacy tests" })))();
+    const tests = await (dependencies.runTests ?? (() => command(process.execPath, ["--test", "scripts/legacy-snapshot-intake.test.mjs", "scripts/legacy-source-safety.test.mjs", "scripts/legacy-cutover-customer-recovery.test.mjs", "scripts/legacy-payment-import.test.mjs", "scripts/legacy-cutover-payment.test.mjs", "scripts/legacy-invoice-transformer-safety.test.mjs", "scripts/legacy-cutover-acceptance.test.mjs", "scripts/legacy-final-cutover-adjudication.test.mjs", "scripts/legacy-final-cutover-open-orders.test.mjs", "tests/invoice-odometer-backfill.test.mjs", "tests/invoice-part-vendor-backfill.test.mjs", "tests/complimentary-services.test.mjs", "tests/repair-order-history.test.mjs", "tests/repair-order-list.test.mjs", "scripts/legacy-refresh-rehearsal.test.mjs"], { cwd: repositoryRoot, label: "focused legacy tests" })))();
     const focusedLint = await (dependencies.focusedLint ?? (() => command("npx", ["eslint",
       "scripts/legacy-refresh-rehearsal.mjs", "scripts/lib/legacy-refresh-rehearsal.mjs", "scripts/legacy-cutover.mjs",
       "scripts/legacy-snapshot-intake.mjs", "scripts/lib/legacy-source.mjs", "scripts/lib/legacy-customer-recovery.mjs",
       "scripts/lib/legacy-payment-import.mjs", "scripts/lib/legacy-payment-stage.mjs", "scripts/transform-invoices.mjs",
       "scripts/lib/legacy-cutover-acceptance.mjs", "scripts/lib/legacy-invoice-projection.mjs",
+      "scripts/lib/legacy-final-cutover-adjudication.mjs", "scripts/lib/legacy-open-order-source.mjs",
     ], { cwd: repositoryRoot, label: "focused ESLint" })))();
     const prismaValidate = await (dependencies.prismaValidate ?? (() => command("npx", ["prisma", "validate"], { cwd: repositoryRoot, label: "Prisma schema validation" })))();
     const prismaGenerate = await (dependencies.prismaGenerate ?? (() => command("npx", ["prisma", "generate"], { cwd: repositoryRoot, label: "Prisma client generation" })))();

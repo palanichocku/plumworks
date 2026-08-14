@@ -95,6 +95,10 @@ export function verifyFreshLegacyCutover({ shopId, rawAr, rawFinal, openPartRows
         historicalDirectDetailEligible: 0,
         operationalizedCutoffOrders: openOrders.length,
         operationallyEligibleImportedOrders: openOrders.length,
+        reviewedExclusions: finalCutoverProjection.reviewedExclusions,
+        reviewedExclusionCount: finalCutoverProjection.reviewedExclusions.length,
+        reviewedExcludedSourceRows: finalCutoverProjection.reviewedExclusions.reduce((sum, decision) => sum + decision.sourceRows, 0),
+        adjudicationManifestFingerprint: finalCutoverProjection.adjudicationManifestFingerprint,
         blockingSourceConflicts: finalCutoverProjection.fatalIssues,
         predicate: "shop + draft/open + legacySourceTable null + no Invoice",
       }
