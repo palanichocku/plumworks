@@ -56,12 +56,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-"$SCRIPT_DIR/verify-public-db-backup.sh" "$BACKUP_DIR"
-
-DUMP_FILE="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -print | head -1)"
-ROW_COUNTS_FILE="$BACKUP_DIR/public-row-counts.tsv"
-
 DB_URL="$(load_direct_url "$ENV_FILE")"
+export DIRECT_URL="$DB_URL"
+MANIFEST_FILE="$BACKUP_DIR/manifest.json"
+[[ -f "$MANIFEST_FILE" ]] || die "Missing manifest.json."
+SHOP_ID="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.shop?.id || "")' "$MANIFEST_FILE")"
+[[ -n "$SHOP_ID" ]] || die "Backup manifest has no Shop identity."
+"$SCRIPT_DIR/verify-public-db-backup.sh" "$BACKUP_DIR" --env-file "$ENV_FILE" --shop-id "$SHOP_ID"
+DUMP_FILES=("$BACKUP_DIR"/*.dump)
+[[ ${#DUMP_FILES[@]} -eq 1 && -f "${DUMP_FILES[0]}" ]] || die "Expected exactly one .dump archive."
+DUMP_FILE="${DUMP_FILES[0]}"
 TARGET="$(redacted_db_target "$DB_URL")"
 
 printf '\nRestore plan:\n'
@@ -92,7 +96,8 @@ printf '\nCreating an automatic pre-restore safety backup...\n'
 "$SCRIPT_DIR/backup-public-db.sh" \
   --backup-root "$SAFETY_ROOT" \
   --label before-restore \
-  --env-file "$ENV_FILE"
+  --env-file "$ENV_FILE" \
+  --shop-id "$SHOP_ID"
 
 printf '\nRestoring public schema to %s...\n' "$TARGET"
 
@@ -105,20 +110,10 @@ pg_restore \
   --single-transaction \
   "$DUMP_FILE"
 
-CURRENT_COUNTS="$(mktemp)"
-trap 'rm -f "$CURRENT_COUNTS"; unset DB_URL' EXIT
-write_exact_public_row_counts "$DB_URL" "$CURRENT_COUNTS"
+node "$SCRIPT_DIR/public-db-backup.mjs" post-restore --directory "$BACKUP_DIR" --shop-id "$SHOP_ID"
 
-if [[ -f "$ROW_COUNTS_FILE" ]]; then
-  if ! diff -u "$ROW_COUNTS_FILE" "$CURRENT_COUNTS"; then
-    die "Restore completed, but public table row counts do not match the baseline."
-  fi
-else
-  printf 'Warning: baseline row-count file is missing; exact row-count comparison was skipped.\n' >&2
-fi
-
-unset DB_URL
+unset DIRECT_URL DB_URL
 
 printf '\nRestore completed successfully.\n'
-printf 'Public table row counts match the baseline.\n'
+printf 'Manifest controls, relationships, financial controls, Auth membership links, and database security match the baseline.\n'
 printf 'Restart the local app and run the normal application smoke tests.\n'

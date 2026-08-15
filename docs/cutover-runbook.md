@@ -52,17 +52,19 @@ node --env-file=.env.local scripts/legacy-cutover.mjs --snapshot
 
 ## Confirm the managed Supabase backup
 
-Before cutover, open the Supabase dashboard and confirm the project has a recent successful managed backup. If Point-in-Time Recovery is enabled, confirm its recovery window covers the cutover. The local SQL dump created below is an additional recovery artifact, not a replacement for checking the managed backup.
+Before cutover, open the Supabase dashboard and record whether managed backup or Point-in-Time Recovery is available, the most recent restore point, the recovery window, who verified it, and when. Local tooling must not claim this protection is enabled. Managed recovery is secondary protection; the authoritative immediate rollback is the verified custom-format public-schema archive below.
 
 ## Local backup only
 
-Install the [Supabase CLI](https://supabase.com/docs/guides/cli), ensure `DIRECT_URL` is configured in `.env.local`, and run:
+Ensure `DIRECT_URL`, `pg_dump`, and `pg_restore` are available, then run:
 
 ```sh
 npm run legacy:cutover:backup
 ```
 
-This creates `roles.sql`, `schema.sql`, `data.sql`, and a count-only `manifest.json` in a timestamped `backups/cutover-YYYYMMDD-HHMMSS/` folder. Backup failure aborts the command. Backup and report folders are ignored by Git.
+This creates exactly one PostgreSQL custom-format `plumworks-public-cutover.dump`, plus `manifest.json`, `sha256.txt`, and `archive-contents.txt`, in a protected timestamped directory outside Git. Split `roles.sql`, `schema.sql`, and `data.sql` files are no longer generated or accepted as rollback authority.
+
+The archive contains every current Prisma-managed `public` table, Shop counters, marketing leads and attribution, staging/import records, and `_prisma_migrations`. It excludes Supabase Auth, Storage, PostgreSQL roles, ownership, and privileges. It is written under an incomplete name and atomically finalized only after archive structure, exact inventory, RLS, migration, database/Shop identity, checksum, size, and permissions pass. Reset receives an in-memory gate from that exact verification; a flag or files from another invocation cannot unlock it.
 
 ## Confirmed reset and reload
 
@@ -83,7 +85,7 @@ node --env-file=.env.local scripts/legacy-cutover.mjs \
   --confirm RESET_SHOP_OPERATIONAL_DATA
 ```
 
-The confirmation phrase and `--backup` are mandatory. The backup must complete with all four non-empty files before reset begins. The reset preserves shops, memberships, staff invites, canned services, shop settings, Auth users, migrations, and database security configuration. It clears operational/staging data, including web-created Payments, before importing normal Customers/Vehicles, applying approved Customer recovery, importing Invoices/AR, importing historical Payment tender detail, and importing active open Repair Orders in dependency order.
+The confirmation phrase and `--backup` are mandatory. The authoritative archive and every manifest control must verify before reset begins. The reset preserves shops, memberships, staff invites, canned services, shop settings, Auth users, migrations, and database security configuration. It clears operational/staging data, including web-created Payments, before importing normal Customers/Vehicles, applying approved Customer recovery, importing Invoices/AR, importing historical Payment tender detail, and importing active open Repair Orders in dependency order.
 
 Only the consolidated confirmed final-cutover driver operationalizes active `orders.DBF` / `LABORorder.DBF` work. Each accepted active order keeps the authoritative Windows number in both `legacyRoNo` and `repairOrderNumber`, but has a null parent `legacySourceTable` so it enters the normal editable workflow. Generic open-order transformation remains historical and read-only. Before reset, final-cutover acceptance rejects invalid or epoch dates, unresolved or ambiguous Customer/Vehicle identity, duplicate destination numbers, and any collision with finalized Invoice history. The shop's next Repair Order number is advanced above accepted imported numbers and is never lowered.
 
@@ -132,6 +134,21 @@ Critical issues appear at both the top and bottom of the Markdown report. `--sum
 
 ## Rollback
 
-Prefer the Supabase dashboard restore or Point-in-Time Recovery when available. The timestamped local SQL dumps provide a secondary manual recovery path using the Supabase CLI/Postgres tooling. Test and document the selected restore procedure before the production cutover.
+The rollback decision point is before accepting or using the reloaded application. If reset/reload or exact reconciliation fails, stop writes and first validate the authoritative archive without writing:
+
+```sh
+./scripts/db/restore-public-db.sh /protected/plumworks-backups/cardoc/final-cutover/cutover-YYYYMMDD-HHMMSS
+```
+
+After reviewed approval, restore the same project with:
+
+```sh
+./scripts/db/restore-public-db.sh /protected/plumworks-backups/cardoc/final-cutover/cutover-YYYYMMDD-HHMMSS \
+  --confirm RESTORE_PUBLIC_BASELINE
+```
+
+Confirmed restore validates archive/manifest/checksum and target identity again, creates a new safety archive, and runs `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction`. Success additionally requires exact table counts, migration and financial controls, Shop counter, RLS/policy/privilege checks, direct database access, and ShopMembership-to-Auth linkage.
+
+Because owners and privileges are excluded, effective security is verified rather than assumed. The archive is for same-project public-schema rollback; `auth.users`, stored file bytes, PostgreSQL roles, and external configuration remain outside it. Before production cutover, exercise this exact workflow with synthetic representative data in a dedicated isolated Supabase project. Managed Supabase backup/PITR remains secondary protection.
 
 Never place credentials in command arguments. `.env.local` is loaded by Node and its values are not printed.

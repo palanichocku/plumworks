@@ -1,5 +1,6 @@
 import { mkdir, open, readFile, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -47,6 +48,8 @@ import {
   parseLegacyCutoverExecution,
   validateProjectedCountConsistency,
 } from "./lib/legacy-cutover-preflight.mjs";
+import { databaseIdentityFromUrl, loadExpectedPublicTables, requireVerifiedBackupGate } from "./lib/public-db-backup.mjs";
+import { verifyDirectory as verifyPublicBackupDirectory } from "./db/public-db-backup.mjs";
 
 const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
@@ -54,17 +57,7 @@ const REQUIRED_SOURCES = [
   "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF",
 ];
 const DBF_SOURCES = REQUIRED_SOURCES.filter((name) => name.endsWith(".DBF"));
-const PROTECTED_TABLES = [
-  "shops", "canned_services", "audit_logs", "staff_invites", "shop_memberships",
-  "customers", "vehicles", "repair_orders", "repair_order_parts", "repair_order_labor",
-  "invoices", "invoice_parts", "invoice_labor", "payments", "accounts_receivable",
-  "employees", "legacy_import_runs", "raw_legacy_customers", "raw_legacy_vehicles",
-  "raw_legacy_final", "raw_legacy_labor_final", "raw_legacy_ar",
-  "raw_legacy_order_parts", "raw_legacy_order_labor", "legacy_import_errors",
-  "marketing_leads",
-  "marketing_settings", "marketing_pages", "marketing_services", "marketing_coupons",
-  "marketing_testimonials", "marketing_gallery_items",
-];
+const PROTECTED_TABLES = await loadExpectedPublicTables(resolve("prisma/schema.prisma"));
 const OPERATIONAL_MODELS = [
   ["payments", "payment"],
   ["accounts_receivable", "accountReceivable"],
@@ -116,7 +109,7 @@ if (summaryOnly) {
   console.log = () => {};
   console.error = () => {};
 }
-const backupDir = resolve(argument("--backup-dir") ?? "backups");
+const backupDir = resolve(argument("--backup-dir") ?? resolve(homedir(), "Projects/Web/plumworks-backups/cardoc/final-cutover"));
 const reportDir = resolve(argument("--report-dir") ?? "reports");
 const destructive = wantsReset || wantsReload;
 const dryRun = execution?.dryRun ?? true;
@@ -472,53 +465,17 @@ async function capturedCommand(command, args) {
   });
 }
 
-async function gitCommit() {
-  try {
-    const result = await capturedCommand("git", ["rev-parse", "HEAD"]);
-    return /^[0-9a-f]{40}$/i.test(result.stdout) ? result.stdout : null;
-  } catch {
-    return null;
-  }
-}
-
-async function createBackup({ sourceFolder, source, databaseCounts: counts }) {
+async function createBackup({ shopId }) {
   if (!process.env.DIRECT_URL) throw new Error("DIRECT_URL is required for backup.");
-  try {
-    await capturedCommand("supabase", ["--version"]);
-  } catch {
-    throw new Error("Supabase CLI is unavailable. Install it from https://supabase.com/docs/guides/cli before cutover.");
-  }
-
   const folder = resolve(backupDir, `cutover-${timestampSlug}`);
   await mkdir(backupDir, { recursive: true });
-  await mkdir(folder, { recursive: false });
-  const dumps = [
-    ["roles.sql", ["db", "dump", "--db-url", process.env.DIRECT_URL, "-f", resolve(folder, "roles.sql"), "--role-only"]],
-    ["schema.sql", ["db", "dump", "--db-url", process.env.DIRECT_URL, "-f", resolve(folder, "schema.sql")]],
-    ["data.sql", ["db", "dump", "--db-url", process.env.DIRECT_URL, "-f", resolve(folder, "data.sql"), "--use-copy", "--data-only"]],
-  ];
-  const files = {};
-  for (const [filename, args] of dumps) {
-    try {
-      await capturedCommand("supabase", args);
-    } catch (error) {
-      throw new Error(`Backup failed while creating ${filename}: ${safeError(error)}`);
-    }
-    const info = await stat(resolve(folder, filename));
-    if (!info.isFile() || info.size === 0) throw new Error(`Backup file ${filename} is missing or empty.`);
-    files[filename] = { bytes: info.size, nonEmpty: true };
+  try {
+    await capturedCommand(process.execPath, [resolve("scripts/db/public-db-backup.mjs"), "create", "--directory", folder, "--shop-id", shopId]);
+  } catch (error) {
+    throw new Error(`Authoritative public-schema backup failed: ${safeError(error)}`);
   }
-  const manifest = {
-    timestamp: timestamp.toISOString(),
-    sourcePath: sourceFolder,
-    gitCommit: await gitCommit(),
-    databaseCounts: counts,
-    sourceDbfRowCounts: Object.fromEntries(source?.counts ?? []),
-  };
-  await writeFile(resolve(folder, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx" });
-  const manifestInfo = await stat(resolve(folder, "manifest.json"));
-  files["manifest.json"] = { bytes: manifestInfo.size, nonEmpty: manifestInfo.size > 0 };
-  return { folder, files };
+  const verified = await verifyPublicBackupDirectory({ directory: folder, databaseUrl: process.env.DIRECT_URL, shopId });
+  return { folder, files: { dump: { bytes: verified.manifest.byteSize, nonEmpty: true }, manifest: { nonEmpty: true }, checksum: { nonEmpty: true }, archiveList: { nonEmpty: true } }, verified };
 }
 
 function countTable(values) {
@@ -561,7 +518,8 @@ ${summary.source.reconciliation ? JSON.stringify(summary.source.reconciliation, 
 - Requested: ${summary.backup.requested ? "Yes" : "No"}
 - Completed: ${summary.backup.completed ? "Yes" : "No"}
 - Backup folder: ${summary.backup.directory ?? "Not created"}
-- Non-empty files: ${Object.values(summary.backup.files).filter((file) => file.nonEmpty).length}/4
+- Authoritative archive verified: ${summary.verification.authoritativeBackupVerified === 1 ? "Yes" : "No"}
+- Evidence files present: ${Object.values(summary.backup.files).filter((file) => file.nonEmpty).length}/4
 
 ## 4. Reset summary
 
@@ -676,7 +634,7 @@ function conciseSummary(summary, reportPaths) {
     ? "Not run"
     : summary.source.validationIssues === 0 ? "PASS (all required files present)" : `FAIL (${summary.source.validationIssues} issues)`;
   const backupStatus = summary.backup.requested
-    ? `${summary.backup.completed ? "Completed" : "Failed/not completed"} (${Object.values(summary.backup.files).filter((file) => file.nonEmpty).length}/4 non-empty files)`
+    ? `${summary.backup.completed ? "Completed and verified" : "Failed/not completed"} (${Object.values(summary.backup.files).filter((file) => file.nonEmpty).length}/4 evidence files)`
     : "Not requested";
   const verificationEntries = Object.entries(summary.verification);
   return [
@@ -856,7 +814,9 @@ async function loadOperationalRecoveryState(prisma, shopId) {
   return { customers, aliases };
 }
 
-async function resetOperationalData(prisma, shopId) {
+async function resetOperationalData(prisma, shopId, verifiedBackupGate) {
+  const identity = databaseIdentityFromUrl(process.env.DIRECT_URL ?? "");
+  requireVerifiedBackupGate(verifiedBackupGate, { databaseFingerprint: identity.fingerprint, shopId });
   await prisma.$transaction(async (transaction) => {
     await transaction.auditLog.deleteMany({
       where: { shopId, entityType: { in: OPERATIONAL_AUDIT_TYPES } },
@@ -1374,13 +1334,15 @@ async function main() {
       console.log(`projected count inconsistencies: ${countInconsistencies.length}`);
     }
 
+    let verifiedBackupGate = null;
     if (wantsBackup) {
       console.log("backup: starting");
-      const backup = await createBackup({ sourceFolder: resolvedLegacySource.path, source, databaseCounts: before });
+      const backup = await createBackup({ shopId: shop.id });
+      verifiedBackupGate = backup.verified.gate;
       runSummary.backup.completed = true;
       runSummary.backup.directory = backup.folder;
       runSummary.backup.files = backup.files;
-      runSummary.verification.backupFilesNonEmpty = Object.values(backup.files).every((file) => file.nonEmpty) ? 4 : 0;
+      runSummary.verification.authoritativeBackupVerified = 1;
       console.log("backup: completed");
     }
 
@@ -1406,7 +1368,7 @@ async function main() {
 
     let completedPaymentContext = null;
     if (wantsReset) {
-      await resetOperationalData(prisma, shop.id);
+      await resetOperationalData(prisma, shop.id, verifiedBackupGate);
       runSummary.reset.completed = true;
       runSummary.reset.rowsDeleted = before;
       runSummary.verification.resetCompleted = 1;

@@ -9,6 +9,7 @@
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
     "test:benchmark": "node --test tests/website-benchmark.test.mjs",
+    "test:backup": "node --test scripts/public-db-backup.test.mjs",
     "start": "next start",
     "lint": "eslint",
     "prisma:generate": "node --env-file=.env.local ./node_modules/prisma/build/index.js generate",
