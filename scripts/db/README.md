@@ -17,6 +17,8 @@ If `--shop-id` is omitted during backup, the database must contain exactly one S
 
 The archive includes all current public tables, `_prisma_migrations`, and public-schema object ACLs. It excludes Supabase Auth, Storage objects, PostgreSQL roles, and ownership. This is a same-project rollback: the Supabase roles referenced by the ACLs must already exist, and final cutover must not change Auth or Storage.
 
+Verification records the actual table ACL inventory from `pg_restore --list` and renders schema-only SQL without executing it to confirm that archived grants reproduce the captured privilege matrix. Tables such as `_prisma_migrations` with no positive non-owner grants do not require a fabricated ACL entry; their denial remains enforced by source and post-restore privilege checks.
+
 ## Read-only restore plan
 
 ```sh

@@ -6,7 +6,8 @@ import test from "node:test";
 import {
   PUBLIC_BACKUP_FORMAT_VERSION, PUBLIC_BACKUP_TYPE, databaseIdentityFromUrl,
   expectedPublicTablesFromPrisma, issueVerifiedBackupGate, requireVerifiedBackupGate,
-  validateArchiveEvidence, validateBackupManifest, validatePostRestoreControls, validatePrivilegeMatrix,
+  parseArchiveList, requiredAclTablesFromPrivilegeMatrix, validateArchiveEvidence,
+  validateBackupManifest, validatePostRestoreControls, validatePrivilegeMatrix, validateRenderedAclSql,
 } from "./lib/public-db-backup.mjs";
 import { verifyDirectory } from "./db/public-db-backup.mjs";
 
@@ -19,7 +20,7 @@ function manifest(overrides = {}) {
     shop: { id: "shop-1", name: "Test Shop" }, publicTables: tables,
     prismaMigrationStatus: "up-to-date",
     rowCounts: { _prisma_migrations: "3", shops: "1" },
-    prismaMigrations: { count: 3, controlSha256: "control" }, verification: { status: "passed" },
+    prismaMigrations: { count: 3, controlSha256: "control" }, verification: { status: "passed", aclSqlValidated: true },
     privilegeMatrix: privilegeMatrix(), aclTables: ["shops"],
     boundaries: { ownersIncluded: false, privilegesIncluded: true }, ...overrides,
   };
@@ -42,20 +43,46 @@ const archive = `1; 0 0 SCHEMA - public owner
 8; 0 0 SEQUENCE public shops_seq owner
 9; 0 0 INDEX public shops_pkey owner
 10; 0 0 CONSTRAINT public shops shops_pkey owner
-11; 0 0 ACL - TABLE public shops owner`;
+11; 0 0 ACL public TABLE shops owner
+12; 0 0 ACL - SCHEMA public owner
+13; 0 0 TABLE DATA public shops owner`;
 
 test("Prisma schema is the central complete public-table inventory", () => {
   const parsed = expectedPublicTablesFromPrisma('model Shop {\n id String @id\n @@map("shops")\n}');
   assert.deepEqual(parsed, ["_prisma_migrations", "shops"]);
 });
 test("archive validation requires exact tables, data, migrations, sequences, indexes, constraints, and RLS", () => {
-  assert.equal(validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], expectedAclTables: ["shops"] }).tables.size, 2);
+  assert.equal(validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], requiredAclTables: ["shops"], expectedAclTables: ["shops"] }).tables.size, 2);
   assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace("TABLE public shops", "TABLE public other"), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"] }), /inventory mismatch/);
   assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace("TABLE public _prisma_migrations", "TABLE public migrations"), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"] }), /_prisma_migrations|inventory mismatch/);
   assert.throws(() => validateArchiveEvidence({ archiveText: "not an archive", expectedTables: tables, expectedRlsTables: tables, expectedSequences: [] }), /public schema/);
 });
 test("archive validation requires captured ACL entries", () => {
-  assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace(/\n11;.*$/, ""), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], expectedAclTables: ["shops"] }), /Public table ACL inventory mismatch/);
+  const withoutTableAcl = archive.split("\n").filter((line) => !line.includes("ACL public TABLE")).join("\n");
+  assert.throws(() => validateArchiveEvidence({ archiveText: withoutTableAcl, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], requiredAclTables: ["shops"] }), /missing required ACL coverage/);
+});
+test("real pg_restore ACL grammar is parsed without confusing table data or non-table ACLs", () => {
+  const realToc = `4322; 0 0 ACL public TABLE accounts_receivable postgres
+4323; 0 0 ACL public TABLE audit_logs postgres
+4324; 0 0 ACL public TABLE canned_services postgres
+4210; 0 0 TABLE DATA public accounts_receivable postgres
+4321; 0 0 ACL - SCHEMA public postgres`;
+  assert.deepEqual([...parseArchiveList(realToc).acls], ["accounts_receivable", "audit_logs", "canned_services"]);
+});
+test("ACL requirements derive from positive non-owner privileges, not relacl state", () => {
+  assert.deepEqual(requiredAclTablesFromPrivilegeMatrix(privilegeMatrix(), tables), ["shops"]);
+  assert.doesNotThrow(() => validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], requiredAclTables: ["shops"] }));
+  assert.equal(privilegeMatrix()._prisma_migrations.service_role.SELECT, false);
+});
+test("restore archive ACL inventory must match the manifest", () => {
+  assert.throws(() => validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], requiredAclTables: ["shops"], expectedAclTables: [] }), /Public table ACL inventory mismatch/);
+});
+test("rendered ACL SQL must reproduce positive grants and preserve every denial", () => {
+  const sql = "GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.shops TO service_role;\n";
+  assert.equal(validateRenderedAclSql({ sql, privilegeMatrix: privilegeMatrix(), expectedTables: tables }), true);
+  assert.throws(() => validateRenderedAclSql({ sql: "", privilegeMatrix: privilegeMatrix(), expectedTables: tables }), /does not reproduce shops service_role SELECT/);
+  assert.throws(() => validateRenderedAclSql({ sql: `${sql}GRANT SELECT ON TABLE public.shops TO anon;\n`, privilegeMatrix: privilegeMatrix(), expectedTables: tables }), /does not reproduce shops anon SELECT/);
+  assert.throws(() => validateRenderedAclSql({ sql: `${sql}GRANT SELECT ON TABLE public._prisma_migrations TO service_role;\n`, privilegeMatrix: privilegeMatrix(), expectedTables: tables }), /does not reproduce _prisma_migrations service_role SELECT/);
 });
 test("manifest rejects checksum, database, Shop, migration, and inventory drift", () => {
   assert.equal(validateBackupManifest({ manifest: manifest(), dumpFilename: "cutover.dump", dumpBytes: 10, dumpSha256: "abc", expectedIdentity: identity, expectedShopId: "shop-1", expectedTables: tables }), true);

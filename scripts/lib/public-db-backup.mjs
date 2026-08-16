@@ -43,12 +43,38 @@ export function parseArchiveList(text) {
     if (fields[3] === "TABLE" && fields[4] === "DATA" && fields[5] === "public") tableData.add(fields[6]);
     if (fields[3] === "ROW" && fields[4] === "SECURITY" && fields[5] === "public") rowSecurity.add(fields[6]);
     if (fields[3] === "SEQUENCE" && fields[4] === "public") sequences.add(fields[5]);
-    const aclTable = line.match(/\bACL\b.*\bTABLE\b\s+public\s+(\S+)/)?.[1];
-    if (aclTable) acls.add(aclTable);
+    // pg_restore --list fields after the TOC prefix are: ACL <schema> <object-type> <name> <owner>.
+    if (fields[3] === "ACL" && fields[4] === "public" && fields[5] === "TABLE" && fields[6]) acls.add(fields[6]);
     if (fields[3] === "INDEX" && fields[4] === "public") indexCount += 1;
     if (fields[3] === "CONSTRAINT" && fields[4] === "public") constraintCount += 1;
   }
   return { publicSchema, tables, tableData, rowSecurity, sequences, acls, indexCount, constraintCount };
+}
+
+export function requiredAclTablesFromPrivilegeMatrix(matrix, expectedTables) {
+  const operations = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+  return expectedTables.filter((table) => ["anon", "authenticated", "service_role", "PUBLIC"]
+    .some((role) => operations.some((operation) => matrix?.[table]?.[role]?.[operation] === true)));
+}
+
+export function validateRenderedAclSql({ sql, privilegeMatrix, expectedTables }) {
+  const restored = {};
+  const grantPattern = /^GRANT (.+) ON TABLE public\.("?[a-zA-Z0-9_]+"?) TO (anon|authenticated|service_role|PUBLIC);$/gm;
+  for (const match of sql.matchAll(grantPattern)) {
+    const table = match[2].replaceAll('"', "");
+    if (!expectedTables.includes(table)) continue;
+    restored[table] ??= {};
+    restored[table][match[3]] ??= new Set();
+    for (const privilege of match[1].split(",").map((value) => value.trim())) restored[table][match[3]].add(privilege);
+  }
+  for (const table of expectedTables) for (const role of ["anon", "authenticated", "service_role", "PUBLIC"]) {
+    for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      const expected = privilegeMatrix?.[table]?.[role]?.[operation] === true;
+      const actual = restored[table]?.[role]?.has(operation) === true;
+      if (actual !== expected) throw new Error(`Rendered archive ACL SQL does not reproduce ${table} ${role} ${operation}.`);
+    }
+  }
+  return true;
 }
 
 export function validatePrivilegeMatrix(matrix, expectedTables) {
@@ -77,7 +103,7 @@ function exactSet(label, actual, expected) {
   }
 }
 
-export function validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables, expectedSequences, expectedAclTables = [] }) {
+export function validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables, expectedSequences, requiredAclTables = [], expectedAclTables = null }) {
   const archive = parseArchiveList(archiveText);
   if (!archive.publicSchema) throw new Error("Archive does not contain the public schema.");
   exactSet("Public table", archive.tables, expectedTables);
@@ -87,7 +113,10 @@ export function validateArchiveEvidence({ archiveText, expectedTables, expectedR
     if (!archive.rowSecurity.has(table)) throw new Error(`Archive is missing RLS enablement for ${table}.`);
   }
   exactSet("Public sequence", archive.sequences, expectedSequences);
-  exactSet("Public table ACL", archive.acls, expectedAclTables);
+  for (const table of requiredAclTables) {
+    if (!archive.acls.has(table)) throw new Error(`Archive is missing required ACL coverage for ${table}.`);
+  }
+  if (expectedAclTables) exactSet("Public table ACL", archive.acls, expectedAclTables);
   if (archive.indexCount < 1) throw new Error("Archive contains no public indexes.");
   if (archive.constraintCount < 1) throw new Error("Archive contains no public constraints.");
   return archive;
@@ -109,7 +138,10 @@ export function validateBackupManifest({ manifest, dumpFilename, dumpBytes, dump
   if (!manifest.privilegeMatrix || Object.keys(manifest.privilegeMatrix).length !== expectedTables.length) throw new Error("Backup privilege baseline is incomplete.");
   validatePrivilegeMatrix(manifest.privilegeMatrix, expectedTables);
   if (!Array.isArray(manifest.aclTables)) throw new Error("Backup ACL inventory is missing.");
+  if (manifest.verification?.aclSqlValidated !== true) throw new Error("Backup rendered ACL SQL was not verified.");
   for (const table of manifest.aclTables) if (!expectedTables.includes(table)) throw new Error(`Backup ACL inventory contains unexpected table ${table}.`);
+  const requiredAclTables = requiredAclTablesFromPrivilegeMatrix(manifest.privilegeMatrix, expectedTables);
+  for (const table of requiredAclTables) if (!manifest.aclTables.includes(table)) throw new Error(`Backup manifest is missing required ACL coverage for ${table}.`);
   exactSet("Manifest public table", new Set(manifest.publicTables ?? []), expectedTables);
   for (const table of expectedTables) if (!/^\d+$/.test(String(manifest.rowCounts[table]))) throw new Error(`Backup row count is invalid for ${table}.`);
   return true;

@@ -8,7 +8,7 @@ import {
   PUBLIC_BACKUP_FORMAT_VERSION, PUBLIC_BACKUP_TYPE, databaseIdentityFromUrl,
   issueVerifiedBackupGate, loadExpectedPublicTables, sha256, validateArchiveEvidence,
   validateBackupManifest, validatePostRestoreControls,
-  validatePrivilegeMatrix,
+  requiredAclTablesFromPrivilegeMatrix, validatePrivilegeMatrix, validateRenderedAclSql,
 } from "../lib/public-db-backup.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
-    const [server, shop, tables, sequences, rls, migrations, financial, extensions, privileges, aclTables] = await Promise.all([
+    const [server, shop, tables, sequences, rls, migrations, financial, extensions, privileges] = await Promise.all([
       client.query("SELECT current_database() AS database_name, current_setting('server_version') AS server_version"),
       shopId
         ? client.query("SELECT id::text, name, next_repair_order_number::text FROM public.shops WHERE id = $1::uuid", [shopId])
@@ -54,7 +54,6 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
         CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privileges(privilege)
         WHERE n.nspname='public' AND c.relkind='r' AND c.relname=ANY($1::text[])
         ORDER BY c.relname, role_name, privilege`, [expectedTables]),
-      client.query("SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname=ANY($1::text[]) AND c.relacl IS NOT NULL ORDER BY relname", [expectedTables]),
     ]);
     if (shop.rowCount !== 1) throw new Error("The requested Shop was not found exactly once in the backup database.");
     const actualTables = tables.rows.map((row) => row.tablename);
@@ -78,7 +77,7 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
       prismaMigrations: { count: migrations.rowCount, controlSha256: migrationControl },
       financialControls: financialResult,
       extensions: extensions.rows,
-      privilegeMatrix, aclTables: aclTables.rows.map((row) => row.relname),
+      privilegeMatrix,
     };
   } finally { await client.end(); }
 }
@@ -128,7 +127,9 @@ export async function verifyDirectory({ directory, databaseUrl, shopId }) {
   const checksum = (await readFile(checksumPath, "utf8")).trim().split(/\s+/);
   if (checksum[0] !== actualSha || checksum[1] !== basename(dumpPath)) throw new Error("Checksum file is not associated with the authoritative archive.");
   const archiveText = await command("pg_restore", ["--list", dumpPath], { capture: true });
-  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: manifest.rlsTables, expectedSequences: manifest.publicSequences, expectedAclTables: manifest.aclTables });
+  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: manifest.rlsTables, expectedSequences: manifest.publicSequences, requiredAclTables: requiredAclTablesFromPrivilegeMatrix(manifest.privilegeMatrix, expectedTables), expectedAclTables: manifest.aclTables });
+  const aclSql = await command("pg_restore", ["--schema-only", "--no-owner", "--file=-", dumpPath], { capture: true });
+  validateRenderedAclSql({ sql: aclSql, privilegeMatrix: manifest.privilegeMatrix, expectedTables });
   return { directory, dumpPath, manifestPath, manifest, gate: issueVerifiedBackupGate({ databaseFingerprint: identity.fingerprint, shopId: resolvedShopId, manifestSha256: sha256(await readFile(manifestPath)), dumpSha256: manifest.sha256 }) };
 }
 
@@ -148,7 +149,9 @@ async function create() {
   await command("pg_dump", ["--dbname", databaseUrl, "--format=custom", "--no-owner", "--schema=public", "--file", incomplete]);
   await chmod(incomplete, 0o600); const info = await stat(incomplete); if (info.size <= 0) throw new Error("pg_dump produced an empty archive.");
   const archiveText = await command("pg_restore", ["--list", incomplete], { capture: true });
-  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: expectedTables, expectedSequences: controls.publicSequences, expectedAclTables: controls.aclTables });
+  const archive = validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: expectedTables, expectedSequences: controls.publicSequences, requiredAclTables: requiredAclTablesFromPrivilegeMatrix(controls.privilegeMatrix, expectedTables) });
+  const aclSql = await command("pg_restore", ["--schema-only", "--no-owner", "--file=-", incomplete], { capture: true });
+  validateRenderedAclSql({ sql: aclSql, privilegeMatrix: controls.privilegeMatrix, expectedTables });
   await rename(incomplete, finalPath); await chmod(finalPath, 0o600);
   const git = await gitDetails(); const clientVersion = (await command("pg_dump", ["--version"], { capture: true })).trim();
   const manifest = {
@@ -157,8 +160,8 @@ async function create() {
     database: identity, shop: controls.shop, repository: git, prismaMigrationStatus: "up-to-date",
     publicTables: controls.publicTables, publicSequences: controls.publicSequences, rlsTables: controls.rlsTables, rowCounts: controls.rowCounts,
     prismaMigrations: controls.prismaMigrations, financialControls: controls.financialControls, extensions: controls.extensions,
-    privilegeMatrix: controls.privilegeMatrix, aclTables: controls.aclTables,
-    tool: { name: "scripts/db/public-db-backup.mjs", version: 2 }, verification: { status: "passed", archiveListValidated: true },
+    privilegeMatrix: controls.privilegeMatrix, aclTables: [...archive.acls].sort(),
+    tool: { name: "scripts/db/public-db-backup.mjs", version: 2 }, verification: { status: "passed", archiveListValidated: true, aclSqlValidated: true },
     boundaries: { schemas: ["public"], authIncluded: false, storageIncluded: false, ownersIncluded: false, privilegesIncluded: true, sameProjectRestoreRequired: true },
   };
   const manifestPath = resolve(directory, "manifest.json"); await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 }); await chmod(manifestPath, 0o600);
