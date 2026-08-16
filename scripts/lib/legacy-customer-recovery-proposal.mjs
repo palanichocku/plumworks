@@ -14,11 +14,12 @@ import {
 
 export const RECOVERY_PROPOSAL_VERSION = 1;
 export const RECOVERY_PROPOSAL_TYPE = "legacy-customer-recovery-proposal";
-export const RECOVERY_APPROVAL_VERSION = 3;
+export const RECOVERY_APPROVAL_V3_VERSION = 3;
+export const RECOVERY_APPROVAL_VERSION = 4;
 export const RECOVERY_APPROVAL_TYPE = "legacy-customer-recovery-approval";
 export const REVIEW_DECISIONS_VERSION = 1;
 export const REVIEW_DECISIONS_TYPE = "legacy-customer-recovery-reviewed-decisions";
-export const RECOVERY_APPROVAL_CONFIRMATION = "APPROVE_CUSTOMER_RECOVERY_V3";
+export const RECOVERY_APPROVAL_CONFIRMATION = "APPROVE_CUSTOMER_RECOVERY_V4";
 export const RECOVERY_RELEVANT_FILES = Object.freeze([
   "Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "ar.DBF",
 ]);
@@ -26,14 +27,24 @@ export const ALIAS_DECISION = "alias-existing-customer";
 export const CREATE_DECISION = "create-recovered-historical-customer";
 export const UNKNOWN_DECISION = "create-historical-unknown-customer";
 export const UNRESOLVED_DECISION = "keep-exact-zero-dollar-reference-unresolved";
+export const VEHICLE_SAFE_CREATE = "safe-create-candidate";
+export const VEHICLE_EXACT_VIN = "exact-vin-canonical-candidate";
+export const VEHICLE_AMBIGUOUS = "ambiguous-vehicle-candidate";
+export const VEHICLE_CREATE = "create-recovered-historical-vehicle";
+export const VEHICLE_LINK = "link-existing-canonical-vehicle";
+export const VEHICLE_EVIDENCE_ONLY = "remain-evidence-only";
 
 export function isRecoveryApprovalV3(value) {
+  return value?.formatVersion === RECOVERY_APPROVAL_V3_VERSION && value?.artifactType === RECOVERY_APPROVAL_TYPE;
+}
+
+export function isRecoveryApprovalV4(value) {
   return value?.formatVersion === RECOVERY_APPROVAL_VERSION && value?.artifactType === RECOVERY_APPROVAL_TYPE;
 }
 
 export function requireFinalCutoverRecoveryApproval({ finalCutover, recoveryRequired, artifact }) {
-  if (finalCutover && recoveryRequired && !isRecoveryApprovalV3(artifact)) {
-    throw new Error("Final-cutover Customer recovery requires an approved snapshot-bound Recovery Approval v3; v1/v2 compatibility manifests cannot authorize backup or reset.");
+  if (finalCutover && recoveryRequired && !isRecoveryApprovalV4(artifact)) {
+    throw new Error("Strengthened final cutover requires an approved snapshot-bound Recovery Approval v4 with complete Customer and Vehicle decisions; v1/v2/v3 compatibility artifacts cannot authorize backup or reset.");
   }
 }
 
@@ -175,6 +186,141 @@ function candidateSort(left, right) {
     .join("\0").localeCompare([right.candidateType, right.legacyCustomerId, right.referencedOrderNumbers[0] ?? "", right.candidateId].join("\0"), "en-US");
 }
 
+function normalizedVehicleEvidence(row) {
+  const yearText = field(row.rawData, ["YEAR"]);
+  const year = /^\d{4}$/.test(yearText) ? Number(yearText) : null;
+  const make = normalizedWords(field(row.rawData, ["MAKE"]));
+  const model = normalizedWords(field(row.rawData, ["MODEL"]));
+  const vin = normalizedId(field(row.rawData, ["VIN"])).replaceAll(/[^A-Z0-9]/g, "");
+  const validVin = vin.length === 17 && !/[IOQ]/.test(vin) && !/^(.)\1+$/.test(vin);
+  const plate = normalizedId(field(row.rawData, ["LICENSE"])).replaceAll(/[^A-Z0-9]/g, "");
+  const odometer = Number.parseInt(field(row.rawData, ["ODOMETER"]).replaceAll(/[^0-9]/g, ""), 10);
+  return {
+    year,
+    makeSha256: make ? sha256(make) : null,
+    modelSha256: model ? sha256(model) : null,
+    normalizedYmmSha256: evidenceHash({ year, make, model }),
+    vin: { state: !vin ? "absent" : validVin ? "valid-format" : "invalid-or-placeholder", sha256: vin ? sha256(vin) : null },
+    plate: { state: !plate ? "absent" : plate === "TEMP" ? "placeholder" : "present", sha256: plate ? sha256(plate) : null },
+    mileage: { present: Number.isInteger(odometer) && odometer > 0, valueHash: Number.isInteger(odometer) && odometer > 0 ? sha256(String(odometer)) : null },
+    normalized: { year, make, model, vin, plate },
+  };
+}
+
+function selectedVehicleIdForOrder(order, rows) {
+  const matching = (source) => source.filter((row) => !row.deleted && normalizedId(identifier(row, ["RONO", "RO", "RONUMBER", "INVOICE", "INVNO", "INVNUM"])) === order);
+  const arRows = matching(rows.ar);
+  const finalRows = matching(rows.final);
+  const laborRows = matching(rows.laborFinal);
+  return normalizedId(identifier(arRows.find((row) => normalizedId(identifier(row, ["CARNO", "VEHICLENO"]))) ?? {}, ["CARNO", "VEHICLENO"]))
+    || normalizedId(identifier(finalRows.find((row) => normalizedId(identifier(row, ["CARNO", "VEHICLENO"]))) ?? {}, ["CARNO", "VEHICLENO"]))
+    || normalizedId(identifier(laborRows.find((row) => normalizedId(identifier(row, ["CARNO", "VEHICLENO"]))) ?? {}, ["CARNO", "VEHICLENO"]));
+}
+
+function sourceOrderEvidence(order, rows) {
+  const matching = (source, table) => source
+    .filter((row) => !row.deleted && normalizedId(identifier(row, ["RONO", "RO", "RONUMBER", "INVOICE", "INVNO", "INVNUM"])) === order)
+    .map((row) => rowReference(row, table))
+    .sort((left, right) => left.stableRowKey.localeCompare(right.stableRowKey, "en-US"));
+  return { arRows: matching(rows.ar, "ar.DBF"), finalRows: matching(rows.final, "FINAL.DBF"), laborFinalRows: matching(rows.laborFinal, "laborfinal.DBF") };
+}
+
+function vehicleCandidateEvidenceHash(candidate) {
+  const payload = { ...candidate };
+  delete payload.candidateId;
+  delete payload.evidenceSha256;
+  return evidenceHash(payload);
+}
+
+function extractVehicleCandidates(rows, customerCandidates, normalCustomers) {
+  const recoveredCandidates = customerCandidates.filter((candidate) => [CREATE_DECISION, UNKNOWN_DECISION].includes(candidate.candidateType));
+  const normalCustomerIds = new Set(normalCustomers.map((customer) => customer.legacyCustomerId));
+  const normalVehicles = rows.vehicles.filter((row) => {
+    const customerId = normalizedId(identifier(row, ["CUSTNO", "CUSTOMERNO"]));
+    return !row.deleted && customerId && normalCustomerIds.has(customerId) && normalizedId(identifier(row, ["CARNO", "VEHICLENO"]));
+  }).map((row) => ({ row, evidence: normalizedVehicleEvidence(row) }));
+  const candidates = [];
+  for (const customer of recoveredCandidates) {
+    const ordersByVehicle = new Map();
+    for (const order of customer.referencedOrderNumbers) {
+      const legacyVehicleId = selectedVehicleIdForOrder(order, rows);
+      if (!legacyVehicleId) continue;
+      const values = ordersByVehicle.get(legacyVehicleId) ?? [];
+      values.push(order);
+      ordersByVehicle.set(legacyVehicleId, values);
+    }
+    for (const [legacyVehicleId, affectedOrderNumbers] of ordersByVehicle) {
+      const sourceRows = rows.vehicles.filter((row) =>
+        normalizedId(identifier(row, ["CARNO", "VEHICLENO"])) === legacyVehicleId
+        && normalizedId(identifier(row, ["CUSTNO", "CUSTOMERNO"])) === customer.legacyCustomerId
+      );
+      if (sourceRows.length !== 1) throw new Error(`Vehicle recovery candidate ${legacyVehicleId} does not have exactly one source Vehicle row for recovered Customer ${customer.legacyCustomerId}.`);
+      const sourceRow = sourceRows[0];
+      const normalized = normalizedVehicleEvidence(sourceRow);
+      const canonicalTargets = normalVehicles.filter(({ evidence }) =>
+        normalized.vin.state === "valid-format" && evidence.vin.state === "valid-format" && normalized.vin.sha256 === evidence.vin.sha256
+      );
+      const ambiguousTargets = canonicalTargets.length ? [] : normalVehicles.filter(({ row, evidence }) =>
+        normalizedId(identifier(row, ["CARNO", "VEHICLENO"])) === legacyVehicleId
+        || (normalized.plate.state === "present" && normalized.plate.sha256 === evidence.plate.sha256
+          && normalized.normalizedYmmSha256 === evidence.normalizedYmmSha256)
+      );
+      const collisionTargets = [...canonicalTargets, ...ambiguousTargets].map(({ row, evidence }) => ({
+        legacyVehicleId: normalizedId(identifier(row, ["CARNO", "VEHICLENO"])),
+        legacyCustomerId: normalizedId(identifier(row, ["CUSTNO", "CUSTOMERNO"])),
+        sourceRow: rowReference(row, "vehicles.DBF"),
+        normalizedYmmSha256: evidence.normalizedYmmSha256,
+        vinSha256: evidence.vin.sha256,
+        plateSha256: evidence.plate.sha256,
+        matchBasis: canonicalTargets.some((target) => target.row.stableRowKey === row.stableRowKey)
+          ? "exact-valid-vin"
+          : normalizedId(identifier(row, ["CARNO", "VEHICLENO"])) === legacyVehicleId ? "same-legacy-vehicle-id" : "exact-plate-and-ymm",
+      })).sort((left, right) => left.legacyVehicleId.localeCompare(right.legacyVehicleId, "en-US"));
+      const classification = canonicalTargets.length ? VEHICLE_EXACT_VIN : ambiguousTargets.length ? VEHICLE_AMBIGUOUS : VEHICLE_SAFE_CREATE;
+      const sortedOrders = unique(affectedOrderNumbers);
+      const sourceEvidence = sortedOrders.map((order) => ({ legacyOrderNumber: order, ...sourceOrderEvidence(order, rows) }));
+      const mileageValues = sourceEvidence.flatMap((item) => item.arRows.map((reference) => {
+        const row = rows.ar.find((candidate) => candidate.stableRowKey === reference.stableRowKey);
+        const value = Number.parseInt(field(row?.rawData, ["ODOMETER"]).replaceAll(/[^0-9]/g, ""), 10);
+        return Number.isInteger(value) && value > 0 ? value : null;
+      })).filter((value) => value !== null).sort((left, right) => left - right);
+      const candidate = {
+        classification,
+        legacyVehicleId,
+        recoveredCustomerCandidateId: customer.candidateId,
+        recoveredCustomerLegacyId: customer.legacyCustomerId,
+        affectedOrderNumbers: sortedOrders,
+        sourceVehicle: { ...rowReference(sourceRow, "vehicles.DBF"), legacyVehicleId, legacyCustomerId: customer.legacyCustomerId },
+        normalizedVehicleEvidence: {
+          year: normalized.year,
+          makeSha256: normalized.makeSha256,
+          modelSha256: normalized.modelSha256,
+          normalizedYmmSha256: normalized.normalizedYmmSha256,
+          vin: normalized.vin,
+          plate: normalized.plate,
+          sourceMileage: normalized.mileage,
+        },
+        historicalMileageEvidence: {
+          values: mileageValues.map((value) => ({ sha256: sha256(String(value)) })),
+          presentCount: mileageValues.length,
+          missingCount: sortedOrders.length - mileageValues.length,
+        },
+        invoiceSourceEvidence: sourceEvidence,
+        collisionEvidence: { targets: collisionTargets, sha256: evidenceHash(collisionTargets) },
+        suggestedDecision: classification === VEHICLE_SAFE_CREATE
+          ? { action: VEHICLE_CREATE, operationalState: "archived" }
+          : classification === VEHICLE_EXACT_VIN
+            ? { action: VEHICLE_LINK, targetLegacyVehicleId: collisionTargets.length === 1 ? collisionTargets[0].legacyVehicleId : null }
+            : { action: null },
+      };
+      candidate.candidateId = `vehicle:${classification}:${legacyVehicleId}:${vehicleCandidateEvidenceHash(candidate).slice(0, 24)}`;
+      candidate.evidenceSha256 = vehicleCandidateEvidenceHash(candidate);
+      candidates.push(candidate);
+    }
+  }
+  return candidates.sort((left, right) => [left.classification, left.legacyVehicleId, left.candidateId].join("\0").localeCompare([right.classification, right.legacyVehicleId, right.candidateId].join("\0"), "en-US"));
+}
+
 export function extractRecoveryCandidates(rows) {
   const normalCustomers = rows.customers.map(customerProjection).filter(Boolean);
   const normalByLegacy = new Map(normalCustomers.map((customer) => [customer.legacyCustomerId, customer]));
@@ -268,10 +414,11 @@ export function extractRecoveryCandidates(rows) {
   }
   candidates.sort(candidateSort);
   unresolvedCandidates.sort(candidateSort);
-  return { normalCustomers, candidates, unresolvedCandidates };
+  const vehicleCandidates = extractVehicleCandidates(rows, candidates, normalCustomers);
+  return { normalCustomers, candidates, unresolvedCandidates, vehicleCandidates };
 }
 
-async function loadRows(source) {
+export async function loadRecoveryEvidenceRows(source) {
   const definitions = [
     ["customers", "Cust.DBF", "rawLegacyCustomer"],
     ["vehicles", "vehicles.DBF", "rawLegacyVehicle"],
@@ -305,7 +452,7 @@ export async function loadRecoverySnapshotContext({ snapshotManifestPath, shopId
 
 export async function buildRecoveryProposal({ snapshotManifestPath, shopId, generatedAt = new Date().toISOString(), repositoryRoot = process.cwd() }) {
   const snapshot = await loadRecoverySnapshotContext({ snapshotManifestPath, shopId, repositoryRoot });
-  const rows = await loadRows(snapshot.source);
+  const rows = await loadRecoveryEvidenceRows(snapshot.source);
   const extracted = extractRecoveryCandidates(rows);
   return assembleRecoveryProposal({ binding: snapshot.binding, extracted, generatedAt });
 }
@@ -315,8 +462,10 @@ export function assembleRecoveryProposal({ binding, extracted, generatedAt = new
     snapshot: binding,
     candidates: extracted.candidates,
     unresolvedCandidates: extracted.unresolvedCandidates,
+    vehicleCandidates: extracted.vehicleCandidates,
   };
   const candidateSetSha256 = evidenceHash({ candidates: extracted.candidates, unresolvedCandidates: extracted.unresolvedCandidates });
+  const vehicleCandidateSetSha256 = evidenceHash({ vehicleCandidates: extracted.vehicleCandidates });
   const recoveredCandidates = extracted.candidates.filter((candidate) => [CREATE_DECISION, UNKNOWN_DECISION].includes(candidate.candidateType));
   return {
     formatVersion: RECOVERY_PROPOSAL_VERSION,
@@ -325,8 +474,10 @@ export function assembleRecoveryProposal({ binding, extracted, generatedAt = new
     snapshot: binding,
     deterministicPayloadSha256: evidenceHash(deterministicPayload),
     candidateSetSha256,
+    vehicleCandidateSetSha256,
     candidates: extracted.candidates,
     unresolvedCandidates: extracted.unresolvedCandidates,
+    vehicleCandidates: extracted.vehicleCandidates,
     summary: {
       normalCustomers: extracted.normalCustomers.length,
       aliasCandidates: extracted.candidates.filter((candidate) => candidate.candidateType === ALIAS_DECISION).length,
@@ -336,6 +487,11 @@ export function assembleRecoveryProposal({ binding, extracted, generatedAt = new
       affectedOrders: unique([...extracted.candidates, ...extracted.unresolvedCandidates].flatMap((candidate) => candidate.referencedOrderNumbers)).length,
       vehicleEvidenceRows: [...extracted.candidates, ...extracted.unresolvedCandidates].reduce((sum, candidate) => sum + candidate.vehicleEvidence.rowCount, 0),
       recoveredCustomerVehicleIdentifiers: unique(recoveredCandidates.flatMap((candidate) => candidate.vehicleEvidence.sourceRows.map((row) => row.legacyVehicleId).filter(Boolean))).length,
+      vehicleCandidates: extracted.vehicleCandidates.length,
+      safeCreateVehicleCandidates: extracted.vehicleCandidates.filter((candidate) => candidate.classification === VEHICLE_SAFE_CREATE).length,
+      exactVinCanonicalVehicleCandidates: extracted.vehicleCandidates.filter((candidate) => candidate.classification === VEHICLE_EXACT_VIN).length,
+      ambiguousVehicleCandidates: extracted.vehicleCandidates.filter((candidate) => candidate.classification === VEHICLE_AMBIGUOUS).length,
+      vehicleAffectedOrders: unique(extracted.vehicleCandidates.flatMap((candidate) => candidate.affectedOrderNumbers)).length,
     },
     approval: { status: "proposed" },
   };
@@ -353,16 +509,23 @@ export function validateProposalStructure(proposal) {
   const issues = [];
   if (!object(proposal) || proposal.formatVersion !== RECOVERY_PROPOSAL_VERSION || proposal.artifactType !== RECOVERY_PROPOSAL_TYPE) issues.push({ code: "invalid-recovery-proposal-format" });
   if (proposal?.approval?.status !== "proposed") issues.push({ code: "proposal-must-remain-unapproved" });
-  if (!Array.isArray(proposal?.candidates) || !Array.isArray(proposal?.unresolvedCandidates)) issues.push({ code: "missing-recovery-candidates" });
+  if (!Array.isArray(proposal?.candidates) || !Array.isArray(proposal?.unresolvedCandidates) || !Array.isArray(proposal?.vehicleCandidates)) issues.push({ code: "missing-recovery-candidates" });
   const all = [...(proposal?.candidates ?? []), ...(proposal?.unresolvedCandidates ?? [])];
   if (new Set(all.map((candidate) => candidate.candidateId)).size !== all.length) issues.push({ code: "duplicate-recovery-candidate" });
   const expectedCandidateHash = evidenceHash({ candidates: proposal?.candidates ?? [], unresolvedCandidates: proposal?.unresolvedCandidates ?? [] });
   if (proposal?.candidateSetSha256 !== expectedCandidateHash) issues.push({ code: "proposal-candidate-hash-mismatch" });
-  const expectedPayloadHash = evidenceHash({ snapshot: proposal?.snapshot, candidates: proposal?.candidates ?? [], unresolvedCandidates: proposal?.unresolvedCandidates ?? [] });
+  const expectedVehicleHash = evidenceHash({ vehicleCandidates: proposal?.vehicleCandidates ?? [] });
+  if (proposal?.vehicleCandidateSetSha256 !== expectedVehicleHash) issues.push({ code: "proposal-vehicle-candidate-hash-mismatch" });
+  if (new Set((proposal?.vehicleCandidates ?? []).map((candidate) => candidate.candidateId)).size !== (proposal?.vehicleCandidates ?? []).length) issues.push({ code: "duplicate-vehicle-recovery-candidate" });
+  const expectedPayloadHash = evidenceHash({ snapshot: proposal?.snapshot, candidates: proposal?.candidates ?? [], unresolvedCandidates: proposal?.unresolvedCandidates ?? [], vehicleCandidates: proposal?.vehicleCandidates ?? [] });
   if (proposal?.deterministicPayloadSha256 !== expectedPayloadHash) issues.push({ code: "proposal-payload-hash-mismatch" });
   for (const candidate of all) {
     if (!nonblank(candidate?.candidateId) || !nonblank(candidate?.legacyCustomerId) || !SHA.test(candidate?.evidenceSha256 ?? "") || !Array.isArray(candidate?.referencedOrderNumbers)) issues.push({ code: "malformed-recovery-candidate" });
     else if (candidate.evidenceSha256 !== candidateEvidenceHash(candidate) || candidate.candidateId !== candidateId(candidate)) issues.push({ code: "recovery-candidate-evidence-mismatch" });
+  }
+  for (const candidate of proposal?.vehicleCandidates ?? []) {
+    if (!nonblank(candidate?.candidateId) || !nonblank(candidate?.legacyVehicleId) || !SHA.test(candidate?.evidenceSha256 ?? "") || !Array.isArray(candidate?.affectedOrderNumbers) || ![VEHICLE_SAFE_CREATE, VEHICLE_EXACT_VIN, VEHICLE_AMBIGUOUS].includes(candidate?.classification)) issues.push({ code: "malformed-vehicle-recovery-candidate" });
+    else if (candidate.evidenceSha256 !== vehicleCandidateEvidenceHash(candidate) || candidate.candidateId !== `vehicle:${candidate.classification}:${candidate.legacyVehicleId}:${vehicleCandidateEvidenceHash(candidate).slice(0, 24)}`) issues.push({ code: "vehicle-recovery-candidate-evidence-mismatch" });
   }
   return issues;
 }
@@ -418,6 +581,38 @@ function approvedDecision(candidate, reviewed) {
   throw new Error(`Unknown Customer recovery decision type: ${reviewed.decisionType}.`);
 }
 
+function approvedVehicleDecision(candidate, reviewed, approvedCustomerIds) {
+  if (!nonblank(reviewed?.reason)) throw new Error(`Vehicle decision ${candidate.candidateId} requires an explicit reviewer reason.`);
+  if (!approvedCustomerIds.has(candidate.recoveredCustomerCandidateId)) throw new Error(`Vehicle decision ${candidate.candidateId} does not reference an approved recovered Customer decision.`);
+  const common = {
+    candidateId: candidate.candidateId,
+    candidateEvidenceSha256: candidate.evidenceSha256,
+    action: reviewed.action,
+    classification: candidate.classification,
+    legacyVehicleId: candidate.legacyVehicleId,
+    recoveredCustomerCandidateId: candidate.recoveredCustomerCandidateId,
+    recoveredCustomerLegacyId: candidate.recoveredCustomerLegacyId,
+    sourceVehicle: candidate.sourceVehicle,
+    affectedOrderNumbers: candidate.affectedOrderNumbers,
+    invoiceSourceEvidenceSha256: evidenceHash(candidate.invoiceSourceEvidence),
+    vehicleEvidenceSha256: evidenceHash(candidate.normalizedVehicleEvidence),
+    collisionEvidenceSha256: candidate.collisionEvidence.sha256,
+    reason: reviewed.reason.trim(),
+  };
+  if (reviewed.action === VEHICLE_CREATE) {
+    const operationalState = reviewed.operationalState ?? "archived";
+    if (!["archived", "active"].includes(operationalState)) throw new Error(`Vehicle creation decision ${candidate.candidateId} has an invalid operational state.`);
+    return { ...common, operationalState };
+  }
+  if (reviewed.action === VEHICLE_LINK) {
+    const target = candidate.collisionEvidence.targets.find((item) => item.legacyVehicleId === reviewed.targetLegacyVehicleId);
+    if (!target || !["exact-valid-vin", "exact-plate-and-ymm", "same-legacy-vehicle-id"].includes(target.matchBasis)) throw new Error(`Vehicle link decision ${candidate.candidateId} does not identify an exact reviewed canonical target.`);
+    return { ...common, targetLegacyVehicleId: target.legacyVehicleId, targetEvidence: target };
+  }
+  if (reviewed.action === VEHICLE_EVIDENCE_ONLY) return { ...common, disposition: "explicitly-reviewed-no-vehicle-link" };
+  throw new Error(`Unknown Vehicle recovery decision action: ${reviewed.action}.`);
+}
+
 export function buildRecoveryApprovalV3({ proposal, proposalSha256, reviewed, reviewedBy, reviewedAt, reason }) {
   const proposalIssues = validateProposalStructure(proposal);
   if (proposalIssues.length) throw new Error(`Recovery proposal validation failed: ${proposalIssues[0].code}.`);
@@ -436,7 +631,7 @@ export function buildRecoveryApprovalV3({ proposal, proposalSha256, reviewed, re
     affectedOrders: unique(decisions.flatMap((decision) => decision.referencedOrderNumbers)).length,
   };
   return {
-    formatVersion: RECOVERY_APPROVAL_VERSION,
+    formatVersion: RECOVERY_APPROVAL_V3_VERSION,
     artifactType: RECOVERY_APPROVAL_TYPE,
     snapshot: structuredClone(proposal.snapshot),
     proposalSha256,
@@ -447,10 +642,32 @@ export function buildRecoveryApprovalV3({ proposal, proposalSha256, reviewed, re
   };
 }
 
+export function buildRecoveryApprovalV4({ proposal, proposalSha256, reviewed, reviewedBy, reviewedAt, reason }) {
+  const v3 = buildRecoveryApprovalV3({ proposal, proposalSha256, reviewed, reviewedBy, reviewedAt, reason });
+  if (reviewed.vehicleCandidateSetSha256 !== proposal.vehicleCandidateSetSha256) throw new Error("Reviewed Vehicle decisions do not bind to the exact Vehicle candidate set.");
+  if (!Array.isArray(reviewed.vehicleDecisions)) throw new Error("Reviewed Vehicle decisions must be an array.");
+  const map = new Map();
+  for (const decision of reviewed.vehicleDecisions) {
+    if (!nonblank(decision?.candidateId) || map.has(decision.candidateId)) throw new Error("Reviewed Vehicle decisions contain a missing or duplicate candidate ID.");
+    map.set(decision.candidateId, decision);
+  }
+  if (map.size !== proposal.vehicleCandidates.length || proposal.vehicleCandidates.some((candidate) => !map.has(candidate.candidateId))) throw new Error("Every Vehicle recovery candidate must have exactly one explicit reviewed decision.");
+  const approvedCustomerIds = new Set(v3.decisions.filter((decision) => [CREATE_DECISION, UNKNOWN_DECISION].includes(decision.decisionType)).map((decision) => decision.candidateId));
+  const vehicleDecisions = proposal.vehicleCandidates.map((candidate) => approvedVehicleDecision(candidate, map.get(candidate.candidateId), approvedCustomerIds)).sort((left, right) => left.candidateId.localeCompare(right.candidateId, "en-US"));
+  const vehicleExpectedCounts = {
+    candidates: vehicleDecisions.length,
+    createRecovered: vehicleDecisions.filter((decision) => decision.action === VEHICLE_CREATE).length,
+    linkCanonical: vehicleDecisions.filter((decision) => decision.action === VEHICLE_LINK).length,
+    evidenceOnly: vehicleDecisions.filter((decision) => decision.action === VEHICLE_EVIDENCE_ONLY).length,
+    affectedOrders: unique(vehicleDecisions.flatMap((decision) => decision.affectedOrderNumbers)).length,
+  };
+  return { ...v3, formatVersion: RECOVERY_APPROVAL_VERSION, vehicleCandidateSetSha256: proposal.vehicleCandidateSetSha256, vehicleDecisions, vehicleExpectedCounts };
+}
+
 export function validateRecoveryApprovalV3({ approval, proposal, proposalSha256, shopId }) {
   const issues = [];
   const fail = (code) => issues.push({ code });
-  if (!object(approval) || approval.formatVersion !== RECOVERY_APPROVAL_VERSION || approval.artifactType !== RECOVERY_APPROVAL_TYPE) return [{ code: "invalid-recovery-approval-format" }];
+  if (!object(approval) || approval.formatVersion !== RECOVERY_APPROVAL_V3_VERSION || approval.artifactType !== RECOVERY_APPROVAL_TYPE) return [{ code: "invalid-recovery-approval-format" }];
   if (approval?.approval?.approved !== true || !nonblank(approval?.approval?.reviewedBy) || !nonblank(approval?.approval?.reason) || Number.isNaN(Date.parse(approval?.approval?.reviewedAt))) fail("unapproved-recovery-artifact");
   if (approval?.snapshot?.shopId !== shopId) fail("recovery-approval-shop-mismatch");
   if (!exact(approval?.snapshot, proposal?.snapshot)) fail("recovery-approval-snapshot-mismatch");
@@ -482,6 +699,39 @@ export function validateRecoveryApprovalV3({ approval, proposal, proposalSha256,
     affectedOrders: unique(decisions.flatMap((decision) => decision.referencedOrderNumbers ?? [])).length,
   };
   if (!exact(counts, expectedCounts)) fail("recovery-approval-count-mismatch");
+  return issues;
+}
+
+export function validateRecoveryApprovalV4({ approval, proposal, proposalSha256, shopId }) {
+  const customerView = { ...approval, formatVersion: RECOVERY_APPROVAL_V3_VERSION };
+  delete customerView.vehicleCandidateSetSha256;
+  delete customerView.vehicleDecisions;
+  delete customerView.vehicleExpectedCounts;
+  const issues = validateRecoveryApprovalV3({ approval: customerView, proposal, proposalSha256, shopId });
+  const fail = (code) => issues.push({ code });
+  if (!object(approval) || approval.formatVersion !== RECOVERY_APPROVAL_VERSION || approval.artifactType !== RECOVERY_APPROVAL_TYPE) return [{ code: "invalid-recovery-approval-v4-format" }];
+  if (approval.vehicleCandidateSetSha256 !== proposal.vehicleCandidateSetSha256) fail("recovery-approval-vehicle-candidate-set-mismatch");
+  const candidates = new Map((proposal.vehicleCandidates ?? []).map((candidate) => [candidate.candidateId, candidate]));
+  if (!Array.isArray(approval.vehicleDecisions) || approval.vehicleDecisions.length !== candidates.size) fail("recovery-approval-vehicle-decision-count-mismatch");
+  const approvedCustomerIds = new Set((approval.decisions ?? []).filter((decision) => [CREATE_DECISION, UNKNOWN_DECISION].includes(decision.decisionType)).map((decision) => decision.candidateId));
+  const seen = new Set();
+  for (const decision of approval.vehicleDecisions ?? []) {
+    const candidate = candidates.get(decision?.candidateId);
+    if (!candidate || seen.has(decision.candidateId)) { fail("unknown-or-duplicate-vehicle-recovery-decision"); continue; }
+    seen.add(decision.candidateId);
+    try {
+      if (!exact(decision, approvedVehicleDecision(candidate, decision, approvedCustomerIds))) fail("vehicle-recovery-decision-content-mismatch");
+    } catch { fail("invalid-vehicle-recovery-decision-content"); }
+  }
+  if (seen.size !== candidates.size) fail("missing-reviewed-vehicle-recovery-decision");
+  const vehicleExpectedCounts = {
+    candidates: (approval.vehicleDecisions ?? []).length,
+    createRecovered: (approval.vehicleDecisions ?? []).filter((decision) => decision.action === VEHICLE_CREATE).length,
+    linkCanonical: (approval.vehicleDecisions ?? []).filter((decision) => decision.action === VEHICLE_LINK).length,
+    evidenceOnly: (approval.vehicleDecisions ?? []).filter((decision) => decision.action === VEHICLE_EVIDENCE_ONLY).length,
+    affectedOrders: unique((approval.vehicleDecisions ?? []).flatMap((decision) => decision.affectedOrderNumbers ?? [])).length,
+  };
+  if (!exact(approval.vehicleExpectedCounts, vehicleExpectedCounts)) fail("recovery-approval-vehicle-count-mismatch");
   return issues;
 }
 
@@ -532,12 +782,14 @@ export function approvalToLegacyRecoveryManifest(approval) {
   };
 }
 
-export async function loadAndValidateRecoveryApprovalV3({ approvalPath, proposalPath, snapshotManifestPath, shopId, repositoryRoot = process.cwd() }) {
-  const [loadedApproval, loadedProposal, reconstructedProposal] = await Promise.all([
+export async function loadAndValidateRecoveryApprovalV4({ approvalPath, proposalPath, snapshotManifestPath, shopId, repositoryRoot = process.cwd() }) {
+  const [loadedApproval, loadedProposal, snapshot] = await Promise.all([
     readablePrivateJson(approvalPath, "Customer recovery approval", repositoryRoot),
     readablePrivateJson(proposalPath, "Customer recovery proposal", repositoryRoot),
-    buildRecoveryProposal({ snapshotManifestPath, shopId, generatedAt: "excluded-from-validation", repositoryRoot }),
+    loadRecoverySnapshotContext({ snapshotManifestPath, shopId, repositoryRoot }),
   ]);
+  const sourceRows = await loadRecoveryEvidenceRows(snapshot.source);
+  const reconstructedProposal = assembleRecoveryProposal({ binding: snapshot.binding, extracted: extractRecoveryCandidates(sourceRows), generatedAt: "excluded-from-validation" });
   const proposalIssues = validateProposalStructure(loadedProposal.value);
   if (proposalIssues.length) throw new Error(`Customer recovery proposal rejected: ${proposalIssues[0].code}.`);
   const comparableLoaded = structuredClone(loadedProposal.value);
@@ -545,9 +797,9 @@ export async function loadAndValidateRecoveryApprovalV3({ approvalPath, proposal
   delete comparableLoaded.generatedAt;
   delete comparableReconstructed.generatedAt;
   if (!exact(comparableLoaded, comparableReconstructed)) throw new Error("Customer recovery proposal no longer matches the selected immutable snapshot.");
-  const issues = validateRecoveryApprovalV3({ approval: loadedApproval.value, proposal: loadedProposal.value, proposalSha256: loadedProposal.sha256, shopId });
+  const issues = validateRecoveryApprovalV4({ approval: loadedApproval.value, proposal: loadedProposal.value, proposalSha256: loadedProposal.sha256, shopId });
   if (issues.length) throw new Error(`Customer recovery approval rejected: ${issues[0].code}.`);
-  return { ...loadedApproval, proposal: loadedProposal.value, proposalPath: loadedProposal.path, legacyManifest: approvalToLegacyRecoveryManifest(loadedApproval.value), deterministicProposalHash: evidenceHash(comparableLoaded) };
+  return { ...loadedApproval, proposal: loadedProposal.value, proposalPath: loadedProposal.path, legacyManifest: approvalToLegacyRecoveryManifest(loadedApproval.value), deterministicProposalHash: evidenceHash(comparableLoaded), sourceVehicleRows: sourceRows.vehicles };
 }
 
 export async function createRecoveryApproval(options) {
@@ -566,7 +818,7 @@ export async function createRecoveryApproval(options) {
   delete comparableProposal.generatedAt;
   delete comparableReconstructed.generatedAt;
   if (!exact(comparableProposal, comparableReconstructed)) throw new Error("Proposal does not match the selected immutable snapshot.");
-  const approval = buildRecoveryApprovalV3({
+  const approval = buildRecoveryApprovalV4({
     proposal: proposalFile.value,
     proposalSha256: proposalFile.sha256,
     reviewed: reviewedFile.value,

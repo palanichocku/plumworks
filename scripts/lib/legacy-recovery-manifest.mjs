@@ -23,7 +23,7 @@ export function recoveryProposalArgument(args = process.argv.slice(2), { require
   const positions = args.flatMap((value, index) => value === "--customer-recovery-proposal" ? [index] : []);
   if (positions.length > 1) throw new Error("--customer-recovery-proposal must not be supplied more than once.");
   if (!positions.length) {
-    if (required) throw new Error("--customer-recovery-proposal is required for snapshot-bound Recovery Approval v3.");
+    if (required) throw new Error("--customer-recovery-proposal is required for snapshot-bound Recovery Approval v4.");
     return null;
   }
   const value = args[positions[0] + 1];

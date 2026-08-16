@@ -29,6 +29,7 @@ export function projectLegacyInvoicePaymentInputs({
   rawLabor,
   rawAr,
   resolvedCustomers,
+  reviewedVehicleLinks = [],
 }) {
   const customerByLegacy = new Map(resolvedCustomers.map((entry) => [entry.legacyCustno, entry.customerId]));
   const finalGroups = groupRowsByRo(rawFinal);
@@ -38,6 +39,15 @@ export function projectLegacyInvoicePaymentInputs({
   const invoices = [];
   const fatalIssues = [];
   const unmatched = [];
+  const vehicleLinkByRo = new Map();
+  for (const link of reviewedVehicleLinks) {
+    if (!link?.legacyRoNo || vehicleLinkByRo.has(link.legacyRoNo)) {
+      fatalIssues.push({ code: "duplicate-reviewed-vehicle-link", legacyRoNo: link?.legacyRoNo ?? null });
+      continue;
+    }
+    vehicleLinkByRo.set(link.legacyRoNo, link);
+  }
+  const consumedVehicleLinks = new Set();
   for (const legacyRoNo of candidateOrders) {
     const arRows = arGroups.get(legacyRoNo) ?? [];
     const finalRows = finalGroups.get(legacyRoNo) ?? [];
@@ -61,6 +71,7 @@ export function projectLegacyInvoicePaymentInputs({
     const financials = mapLegacyInvoiceFinancials(arRow.rawData);
     const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
     const customerId = customerByLegacy.get(arRow.legacyCustno) ?? null;
+    const reviewedVehicle = vehicleLinkByRo.get(legacyRoNo) ?? null;
     if (!financials.valid || !financials.reconciliation.reconciles || !selectedDate.date) {
       fatalIssues.push({ code: "invalid-invoice-projection", legacyRoNo });
       continue;
@@ -75,11 +86,17 @@ export function projectLegacyInvoicePaymentInputs({
       importRunId,
       legacyRoNo,
       customerId,
+      vehicleId: reviewedVehicle?.vehicleId ?? null,
+      vehicleRecoveryAction: reviewedVehicle?.action ?? null,
       invoiceDate: selectedDate.date,
       odometer: odometerValues.size === 1 ? [...odometerValues][0] : null,
       total: (financials.totalCents / 100).toFixed(2),
       paidTotal: (financials.paidCents / 100).toFixed(2),
     });
+    if (reviewedVehicle) consumedVehicleLinks.add(legacyRoNo);
+  }
+  for (const legacyRoNo of vehicleLinkByRo.keys()) {
+    if (!consumedVehicleLinks.has(legacyRoNo)) fatalIssues.push({ code: "unmatched-reviewed-vehicle-link", legacyRoNo });
   }
   const invoiceIdsByRo = new Map(invoices.map((invoice) => [invoice.legacyRoNo, invoice.id]));
   const parts = projectLegacyFinalPartLines(rawFinal)

@@ -24,9 +24,10 @@ try {
     reason: value(args, "--reason"),
     output: value(args, "--output"),
   });
-  console.log(`Approved Customer recovery artifact created: ${result.output}`);
+  console.log(`Approved Customer and Vehicle recovery v4 artifact created: ${result.output}`);
   console.log(`proposal SHA-256: ${result.proposalSha256}`);
   console.log(`reviewed decisions: ${result.approval.decisions.length}`);
+  console.log(`reviewed Vehicle decisions: ${result.approval.vehicleDecisions.length}`);
   console.log("database writes performed: 0");
 } catch (error) {
   console.error(`Customer recovery approval failed: ${error instanceof Error ? error.message : "Unknown error."}`);

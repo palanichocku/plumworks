@@ -28,11 +28,12 @@ import {
 } from "./lib/legacy-payment-stage.mjs";
 import { loadRecoveryManifest, recoveryManifestArgument, recoveryProposalArgument } from "./lib/legacy-recovery-manifest.mjs";
 import {
-  loadAndValidateRecoveryApprovalV3,
-  isRecoveryApprovalV3,
+  loadAndValidateRecoveryApprovalV4,
+  isRecoveryApprovalV4,
   RECOVERY_APPROVAL_VERSION,
   requireFinalCutoverRecoveryApproval,
 } from "./lib/legacy-customer-recovery-proposal.mjs";
+import { applyReviewedInvoiceVehicleLinks, executeCutoverVehicleRecovery, planCutoverVehicleRecovery } from "./lib/legacy-vehicle-recovery.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import {
@@ -807,7 +808,7 @@ function printPaymentReport(report, mode) {
 }
 
 async function loadOperationalRecoveryState(prisma, shopId) {
-  const [customers, aliases] = await Promise.all([
+  const [customers, aliases, vehicles] = await Promise.all([
     prisma.customer.findMany({
       where: { shopId },
       select: { id: true, legacyCustno: true, displayName: true, phone: true, phone2: true, addressLine1: true },
@@ -816,8 +817,9 @@ async function loadOperationalRecoveryState(prisma, shopId) {
       where: { shopId },
       select: { customerId: true, aliasLegacyCustno: true },
     }),
+    prisma.vehicle.findMany({ where: { shopId }, select: { id: true, legacyCarno: true, customerId: true } }),
   ]);
-  return { customers, aliases };
+  return { customers, aliases, vehicles };
 }
 
 async function resetOperationalData(prisma, shopId, verifiedBackupGate) {
@@ -841,6 +843,7 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
   await runScript("transform-customers-vehicles.mjs", ["--shop-id", shopId, "--import-run-id", importRunId]);
   let laterResult = null;
   let activeRecoveryPlan = null;
+  let activeVehicleRecoveryPlan = null;
   const runLaterStages = async (recoveryWriteResult) => {
     const invoiceImportOutput = await runScriptWithOutput("import-invoices.mjs", common);
     const invoiceImportRunId = invoiceImportOutput.match(/import run id:\s*([0-9a-f-]{36})/i)?.[1];
@@ -852,6 +855,8 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
     ]);
     const transformedRunId = transformOutput.match(/import run id:\s*([0-9a-f-]{36})/i)?.[1];
     if (transformedRunId !== invoiceImportRunId) throw new Error("Invoice transformation import-run mismatch; Payment stage was blocked.");
+    const vehicleLinkWrite = activeVehicleRecoveryPlan ? await applyReviewedInvoiceVehicleLinks({ confirmedWrite: true, prisma, shopId, plan: activeVehicleRecoveryPlan }) : { databaseWrites: 0, linked: 0, evidenceOnly: 0 };
+    if (activeVehicleRecoveryPlan && vehicleLinkWrite.linked + vehicleLinkWrite.evidenceOnly !== activeVehicleRecoveryPlan.orderLinks.length) throw new Error("Historical Invoice Vehicle linkage reconciliation failed; Payment stage was blocked.");
     const stage = await loadLegacyPaymentStageProjection({ prisma, shopId, importRunId: invoiceImportRunId, paymentDatePolicy });
     const unresolved = validateApprovedPaymentUnresolved({ projection: stage.projection, recoveryPlan: activeRecoveryPlan });
     if (stage.projection.fatalIssues.length || unresolved.fatalIssues.length) {
@@ -889,7 +894,7 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
         ]);
       },
     });
-    laterResult = { invoiceImportRunId, paymentWrite, paymentVerification: verification, paymentReport: report };
+    laterResult = { invoiceImportRunId, paymentWrite, paymentVerification: verification, paymentReport: report, vehicleLinkWrite, vehiclePlan: activeVehicleRecoveryPlan };
   };
   let recoveryResult = null;
   if (recoveryContext) {
@@ -909,10 +914,27 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
     if (plan.fatalIssues.length) throw new Error("Customer recovery validation failed after Customer transformation; Invoice staging was blocked.");
     activeRecoveryPlan = plan;
     const writeResult = await runRecoveryBeforeLaterStages({
-      runRecovery: () => executeCutoverCustomerRecovery({ confirmedWrite: true, prisma, plan }),
+      runRecovery: async () => {
+        const customerWrite = await executeCutoverCustomerRecovery({ confirmedWrite: true, prisma, plan });
+        const recoveredState = await loadOperationalRecoveryState(prisma, shopId);
+        activeVehicleRecoveryPlan = recoveryContext.approval ? planCutoverVehicleRecovery({
+          approval: recoveryContext.approval,
+          proposal: recoveryContext.proposal,
+          sourceVehicleRows: recoveryContext.sourceVehicleRows,
+          customers: recoveredState.customers,
+          vehicles: recoveredState.vehicles,
+          shopId,
+          snapshotDate: recoveryContext.approval.snapshot.snapshotDate,
+        }) : null;
+        if (activeVehicleRecoveryPlan?.fatalIssues.length) throw new Error("Vehicle recovery validation failed after Customer recovery; Invoice staging was blocked.");
+        const vehicleWrite = activeVehicleRecoveryPlan
+          ? await executeCutoverVehicleRecovery({ confirmedWrite: true, prisma, plan: activeVehicleRecoveryPlan })
+          : { databaseWrites: 0, createdVehicles: 0 };
+        return { customerWrite, vehicleWrite, databaseWrites: customerWrite.databaseWrites + vehicleWrite.databaseWrites };
+      },
       runLaterStages,
     });
-    console.log(`Customer recovery database writes performed: ${writeResult.databaseWrites}`);
+    console.log(`Customer and Vehicle recovery database writes performed: ${writeResult.databaseWrites}`);
     recoveryResult = { plan, writeResult };
   } else await runLaterStages(null);
   return { ...recoveryResult, ...laterResult, customerImportRunId: importRunId };
@@ -1107,24 +1129,25 @@ async function main() {
     const manifestPath = recoveryManifestArgument(process.argv.slice(2), { required: requiresRecovery });
     const initiallyLoadedRecovery = manifestPath ? await loadRecoveryManifest({ path: manifestPath }) : null;
     const snapshotBoundFinalMode = execution.confirmedFullReplacement || Boolean(adjudicationArguments.snapshotManifestPath);
-    const v3ApprovalSupplied = isRecoveryApprovalV3(initiallyLoadedRecovery?.manifest);
+    const v4ApprovalSupplied = isRecoveryApprovalV4(initiallyLoadedRecovery?.manifest);
     requireFinalCutoverRecoveryApproval({ finalCutover: snapshotBoundFinalMode, recoveryRequired: requiresRecovery, artifact: initiallyLoadedRecovery?.manifest });
     let loadedRecovery = initiallyLoadedRecovery;
-    if (v3ApprovalSupplied) {
+    if (v4ApprovalSupplied) {
       const proposalPath = recoveryProposalArgument(process.argv.slice(2), { required: true });
-      if (!adjudicationArguments.snapshotManifestPath) throw new Error("Recovery Approval v3 requires --snapshot-manifest.");
-      const validated = await loadAndValidateRecoveryApprovalV3({
+      if (!adjudicationArguments.snapshotManifestPath) throw new Error("Recovery Approval v4 requires --snapshot-manifest.");
+      const validated = await loadAndValidateRecoveryApprovalV4({
         approvalPath: manifestPath,
         proposalPath,
         snapshotManifestPath: adjudicationArguments.snapshotManifestPath,
         shopId: shop.id,
       });
-      loadedRecovery = { path: validated.path, manifest: validated.legacyManifest, approval: validated.value, proposal: validated.proposal };
+      loadedRecovery = { path: validated.path, manifest: validated.legacyManifest, approval: validated.value, proposal: validated.proposal, sourceVehicleRows: validated.sourceVehicleRows };
       runSummary.recovery.approvalVersion = RECOVERY_APPROVAL_VERSION;
       runSummary.recovery.proposalFingerprint = validated.value.proposalSha256;
       runSummary.recovery.candidateSetFingerprint = validated.value.candidateSetSha256;
+      runSummary.recovery.vehicleCandidateSetFingerprint = validated.value.vehicleCandidateSetSha256;
     } else if (recoveryProposalArgument(process.argv.slice(2), { required: false })) {
-      throw new Error("--customer-recovery-proposal may only accompany Recovery Approval v3.");
+      throw new Error("--customer-recovery-proposal may only accompany Recovery Approval v4.");
     }
     runSummary.recovery.manifestProvided = Boolean(loadedRecovery);
     if (loadedRecovery) {
@@ -1141,6 +1164,7 @@ async function main() {
       references: recoveryReferences(source),
     } : null;
     let projectedRecoveryPlan = null;
+    let projectedVehicleRecoveryPlan = null;
     if (recoveryContext) {
       projectedRecoveryPlan = planCutoverCustomerRecovery({
         stagedCustomers: projectedState.customers,
@@ -1164,8 +1188,25 @@ async function main() {
       if (projectedRecoveryPlan.fatalIssues.length) {
         throw new Error("Customer recovery manifest or source evidence is stale or conflicting; operational reset was blocked.");
       }
+      const projectedCustomers = projectedResolvedCustomers(projectedState, projectedRecoveryPlan).map((row) => ({ id: row.customerId, legacyCustno: row.legacyCustno }));
+      const projectedCustomerByLegacy = new Map(projectedCustomers.map((row) => [row.legacyCustno, row.id]));
+      const projectedNormalVehicles = projectedState.vehicles.map((vehicle) => ({ id: `projected-vehicle:${vehicle.legacyCarno}`, legacyCarno: vehicle.legacyCarno, customerId: projectedCustomerByLegacy.get(vehicle.legacyCustno) }));
+      projectedVehicleRecoveryPlan = loadedRecovery.approval ? planCutoverVehicleRecovery({
+        approval: loadedRecovery.approval,
+        proposal: loadedRecovery.proposal,
+        sourceVehicleRows: loadedRecovery.sourceVehicleRows,
+        customers: projectedCustomers,
+        vehicles: projectedNormalVehicles,
+        shopId: shop.id,
+        snapshotDate: loadedRecovery.approval.snapshot.snapshotDate,
+      }) : null;
+      if (projectedVehicleRecoveryPlan) {
+        runSummary.recovery.vehicleCounts = projectedVehicleRecoveryPlan.counts;
+        if (projectedVehicleRecoveryPlan.fatalIssues.length) throw new Error("Vehicle recovery planning failed; operational reset was blocked.");
+      }
     }
     recordStage("customer-recovery-projection", { importRunId: projectedCustomerImportRunId, recoveryFingerprint: resolvedLegacySource.fingerprint });
+    recordStage("vehicle-recovery-projection", { candidates: projectedVehicleRecoveryPlan?.counts.candidates ?? 0, affectedInvoices: projectedVehicleRecoveryPlan?.counts.affectedInvoices ?? 0 });
     const projectedInvoiceImportRunId = deterministicLegacyInvoiceId(shop.id, `invoice-import:${resolvedLegacySource.fingerprint}`);
     const invoiceSources = source.reconciliation.sources;
     const projectedInvoiceInputs = projectLegacyInvoicePaymentInputs({
@@ -1175,6 +1216,7 @@ async function main() {
       rawLabor: invoiceSources.laborSource.rows,
       rawAr: invoiceSources.arSource.rows,
       resolvedCustomers: projectedResolvedCustomers(projectedState, projectedRecoveryPlan),
+      reviewedVehicleLinks: projectedVehicleRecoveryPlan?.orderLinks ?? [],
     });
     recordStage("invoice-labor-ar-staging-projection", { importRunId: projectedInvoiceImportRunId, recoveryFingerprint: resolvedLegacySource.fingerprint });
     recordStage("invoice-ar-transformation-projection", { importRunId: projectedInvoiceImportRunId, recoveryFingerprint: resolvedLegacySource.fingerprint });
@@ -1200,7 +1242,7 @@ async function main() {
     runSummary.payment = projectedPaymentReport;
     const resolvedProjectedCustomers = projectedResolvedCustomers(projectedState, projectedRecoveryPlan);
     const projectedCustomerIds = new Set(resolvedProjectedCustomers.map((row) => row.legacyCustno));
-    const projectedVehicleIds = new Set(projectedState.vehicles.map((row) => row.legacyCarno));
+    const projectedVehicleIds = new Set([...projectedState.vehicles.map((row) => row.legacyCarno), ...(projectedVehicleRecoveryPlan?.creates.map((row) => row.legacyCarno) ?? [])]);
     const projectedCustomerByLegacy = new Map(resolvedProjectedCustomers.map((row) => [row.legacyCustno, row.customerId]));
     adjudicationContext = adjudicationArguments.manifestPath ? await loadFinalCutoverAdjudicationContext({
       manifestPath: adjudicationArguments.manifestPath,
@@ -1261,7 +1303,7 @@ async function main() {
       normalCustomers: projectedState.customers.length,
       recoveredCustomers: projectedRecoveryPlan?.customersToCreate.length ?? 0,
       aliases: projectedRecoveryPlan?.aliasesToCreate.length ?? 0,
-      vehicles: projectedState.vehicles.length,
+      vehicles: projectedState.vehicles.length + (projectedVehicleRecoveryPlan?.creates.length ?? 0),
       invoiceProjection: projectedInvoiceInputs,
       rawFinal: invoiceSources.finalSource.rows,
       rawLabor: invoiceSources.laborSource.rows,

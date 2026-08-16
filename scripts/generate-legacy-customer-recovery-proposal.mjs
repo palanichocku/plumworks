@@ -24,6 +24,8 @@ try {
   console.log(`candidate set SHA-256: ${result.proposal.candidateSetSha256}`);
   console.log(`candidate decisions: ${result.proposal.candidates.length}`);
   console.log(`unresolved candidates requiring review: ${result.proposal.unresolvedCandidates.length}`);
+  console.log(`Vehicle candidates requiring review: ${result.proposal.vehicleCandidates.length}`);
+  console.log(`Vehicle candidate set SHA-256: ${result.proposal.vehicleCandidateSetSha256}`);
   console.log("database writes performed: 0");
 } catch (error) {
   console.error(`Customer recovery proposal generation failed: ${error instanceof Error ? error.message : "Unknown error."}`);

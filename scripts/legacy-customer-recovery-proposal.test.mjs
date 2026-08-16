@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   ALIAS_DECISION,
   assembleRecoveryProposal,
+  buildRecoveryApprovalV4,
   buildRecoveryApprovalV3,
   CREATE_DECISION,
   extractRecoveryCandidates,
@@ -13,8 +14,14 @@ import {
   requireFinalCutoverRecoveryApproval,
   UNRESOLVED_DECISION,
   UNKNOWN_DECISION,
+  validateRecoveryApprovalV4,
   validateProposalStructure,
   validateRecoveryApprovalV3,
+  VEHICLE_CREATE,
+  VEHICLE_EVIDENCE_ONLY,
+  VEHICLE_AMBIGUOUS,
+  VEHICLE_EXACT_VIN,
+  VEHICLE_SAFE_CREATE,
 } from "./lib/legacy-customer-recovery-proposal.mjs";
 import { atomicPrivateJsonWrite, evidenceHash, keyedEvidenceRows, sha256 } from "./lib/legacy-snapshot-evidence.mjs";
 
@@ -64,7 +71,13 @@ function reviewedFor(value, proposalSha256 = hash("9")) {
     if (candidate.candidateType === UNKNOWN_DECISION) return { ...base, classification: "historical-unknown", displayName: "Historical Unknown Customer Synthetic" };
     return { ...base, disposition: "keep-skipped" };
   });
-  return { formatVersion: 1, artifactType: "legacy-customer-recovery-reviewed-decisions", proposalSha256, candidateSetSha256: value.candidateSetSha256, decisions };
+  const vehicleDecisions = value.vehicleCandidates.map((candidate) => ({
+    candidateId: candidate.candidateId,
+    action: candidate.classification === "safe-create-candidate" ? VEHICLE_CREATE : VEHICLE_EVIDENCE_ONLY,
+    operationalState: candidate.classification === "safe-create-candidate" ? "archived" : undefined,
+    reason: "Reviewed synthetic Vehicle evidence.",
+  }));
+  return { formatVersion: 1, artifactType: "legacy-customer-recovery-reviewed-decisions", proposalSha256, candidateSetSha256: value.candidateSetSha256, decisions, vehicleCandidateSetSha256: value.vehicleCandidateSetSha256, vehicleDecisions };
 }
 
 test("candidate extraction deterministically finds every supported decision family and preserves AR authority", () => {
@@ -86,6 +99,34 @@ test("DBF traversal order and generation timestamp cannot change the candidate d
   const rows = fixtureRows();
   const reordered = Object.fromEntries(Object.entries(rows).map(([name, values]) => [name, [...values].reverse()]));
   assert.equal(proposal("2026-08-16T00:00:00Z", rows).candidateSetSha256, proposal("2026-08-18T00:00:00Z", reordered).candidateSetSha256);
+});
+
+test("Vehicle candidate classification derives safe-create, exact-VIN, and ambiguous plate/YMM evidence", () => {
+  const rows = {
+    customers: keyed([{ CUSTNO: "NORMAL", CUSTOMER: "Normal Synthetic" }], "rawLegacyCustomer"),
+    vehicles: keyed([
+      { CUSTNO: "RECOVER", CARNO: "SAFE", YEAR: "2011", MAKE: "A", MODEL: "One" },
+      { CUSTNO: "RECOVER", CARNO: "VIN", YEAR: "2012", MAKE: "B", MODEL: "Two", VIN: "1HGCM82633A004352" },
+      { CUSTNO: "RECOVER", CARNO: "PLATE", YEAR: "2013", MAKE: "C", MODEL: "Three", LICENSE: "SYN123" },
+      { CUSTNO: "NORMAL", CARNO: "CANON-VIN", YEAR: "2020", MAKE: "Different", MODEL: "Owner", VIN: "1HGCM82633A004352" },
+      { CUSTNO: "NORMAL", CARNO: "CANON-PLATE", YEAR: "2013", MAKE: "C", MODEL: "Three", LICENSE: "SYN123" },
+    ], "rawLegacyVehicle"),
+    final: keyed([
+      { RO_NO: "10", CUSTNO: "RECOVER", CARNO: "SAFE" },
+      { RO_NO: "11", CUSTNO: "RECOVER", CARNO: "VIN" },
+      { RO_NO: "12", CUSTNO: "RECOVER", CARNO: "PLATE" },
+    ], "rawLegacyFinal"),
+    laborFinal: [],
+    ar: keyed([
+      { RO_NO: "10", CUSTNO: "RECOVER", CARNO: "SAFE", CUSTOMER: "Historical", TOTAL: "1.00" },
+      { RO_NO: "11", CUSTNO: "RECOVER", CARNO: "VIN", CUSTOMER: "Historical", TOTAL: "1.00" },
+      { RO_NO: "12", CUSTNO: "RECOVER", CARNO: "PLATE", CUSTOMER: "Historical", TOTAL: "1.00" },
+    ], "rawLegacyAr"),
+  };
+  const extracted = extractRecoveryCandidates(rows);
+  assert.deepEqual(extracted.vehicleCandidates.map((candidate) => candidate.classification).sort(), [VEHICLE_AMBIGUOUS, VEHICLE_EXACT_VIN, VEHICLE_SAFE_CREATE].sort());
+  assert.equal(extracted.vehicleCandidates.find((candidate) => candidate.classification === VEHICLE_EXACT_VIN).collisionEvidence.targets[0].matchBasis, "exact-valid-vin");
+  assert.equal(extracted.vehicleCandidates.find((candidate) => candidate.classification === VEHICLE_AMBIGUOUS).collisionEvidence.targets[0].matchBasis, "exact-plate-and-ymm");
 });
 
 test("source row, deleted state, Vehicle evidence, candidate membership, and RO-set changes invalidate the candidate set", () => {
@@ -113,6 +154,35 @@ test("approval requires explicit complete review and produces v3 without inferri
   assert.throws(() => buildRecoveryApprovalV3({ proposal: value, proposalSha256, reviewed, reviewedBy: "", reviewedAt: "bad", reason: "" }), /metadata/);
 });
 
+test("Approval v4 requires explicit complete Customer and Vehicle review", () => {
+  const value = proposal();
+  const proposalSha256 = hash("9");
+  const reviewed = reviewedFor(value, proposalSha256);
+  const approval = buildRecoveryApprovalV4({ proposal: value, proposalSha256, reviewed, reviewedBy: "Synthetic Reviewer", reviewedAt: "2026-08-16T12:00:00Z", reason: "Synthetic fixture approval." });
+  assert.equal(approval.formatVersion, 4);
+  assert.equal(approval.vehicleDecisions.length, value.vehicleCandidates.length);
+  assert.equal(validateRecoveryApprovalV4({ approval, proposal: value, proposalSha256, shopId }).length, 0);
+  assert.throws(() => buildRecoveryApprovalV4({ proposal: value, proposalSha256, reviewed: { ...reviewed, vehicleDecisions: reviewed.vehicleDecisions.slice(1) }, reviewedBy: "R", reviewedAt: "2026-08-16", reason: "R" }), /Every Vehicle recovery candidate/);
+  assert.throws(() => buildRecoveryApprovalV4({ proposal: value, proposalSha256, reviewed: { ...reviewed, vehicleDecisions: reviewed.vehicleDecisions.map((decision, index) => index ? decision : { ...decision, action: undefined }) }, reviewedBy: "R", reviewedAt: "2026-08-16", reason: "R" }), /Unknown Vehicle recovery decision/);
+});
+
+test("Vehicle evidence mutations invalidate v4 approval", () => {
+  const value = proposal(); const proposalSha256 = hash("9");
+  const approval = buildRecoveryApprovalV4({ proposal: value, proposalSha256, reviewed: reviewedFor(value, proposalSha256), reviewedBy: "R", reviewedAt: "2026-08-16", reason: "R" });
+  for (const mutate of [
+    (item) => { item.vehicleCandidateSetSha256 = hash("0"); },
+    (item) => { item.vehicleDecisions[0].sourceVehicle.evidenceSha256 = hash("1"); },
+    (item) => { item.vehicleDecisions[0].sourceVehicle.deleted = !item.vehicleDecisions[0].sourceVehicle.deleted; },
+    (item) => { item.vehicleDecisions[0].affectedOrderNumbers.push("999"); },
+    (item) => { item.vehicleDecisions[0].recoveredCustomerLegacyId = "OTHER"; },
+    (item) => { item.vehicleDecisions[0].vehicleEvidenceSha256 = hash("2"); },
+    (item) => { item.vehicleDecisions[0].collisionEvidenceSha256 = hash("3"); },
+  ]) {
+    const changed = structuredClone(approval); mutate(changed);
+    assert.ok(validateRecoveryApprovalV4({ approval: changed, proposal: value, proposalSha256, shopId }).length > 0);
+  }
+});
+
 test("approval validation fails closed for every snapshot binding and reviewed-evidence mutation", () => {
   const value = proposal(); const proposalSha256 = hash("9");
   const approval = buildRecoveryApprovalV3({ proposal: value, proposalSha256, reviewed: reviewedFor(value, proposalSha256), reviewedBy: "R", reviewedAt: "2026-08-16", reason: "R" });
@@ -135,14 +205,16 @@ test("approval validation fails closed for every snapshot binding and reviewed-e
   }
 });
 
-test("proposal-only and historical formats are not Recovery Approval v3", () => {
+test("proposal-only and v1/v2/v3 formats cannot authorize strengthened final cutover", () => {
   const value = proposal();
   assert.notEqual(value.artifactType, RECOVERY_APPROVAL_TYPE);
   for (const historical of [{ manifestVersion: "1.0.0" }, { manifestVersion: "2.0.0" }]) {
     assert.ok(validateRecoveryApprovalV3({ approval: historical, proposal: value, proposalSha256: sha256("proposal"), shopId }).some((issue) => issue.code === "invalid-recovery-approval-format"));
     assert.throws(() => requireFinalCutoverRecoveryApproval({ finalCutover: true, recoveryRequired: true, artifact: historical }), /cannot authorize backup or reset/);
   }
-  assert.throws(() => requireFinalCutoverRecoveryApproval({ finalCutover: true, recoveryRequired: true, artifact: value }), /Recovery Approval v3/);
+  const v3 = buildRecoveryApprovalV3({ proposal: value, proposalSha256: hash("9"), reviewed: reviewedFor(value, hash("9")), reviewedBy: "R", reviewedAt: "2026-08-16", reason: "R" });
+  assert.throws(() => requireFinalCutoverRecoveryApproval({ finalCutover: true, recoveryRequired: true, artifact: value }), /Recovery Approval v4/);
+  assert.throws(() => requireFinalCutoverRecoveryApproval({ finalCutover: true, recoveryRequired: true, artifact: v3 }), /v1\/v2\/v3/);
   assert.doesNotThrow(() => requireFinalCutoverRecoveryApproval({ finalCutover: false, recoveryRequired: true, artifact: { manifestVersion: "2.0.0" } }));
 });
 

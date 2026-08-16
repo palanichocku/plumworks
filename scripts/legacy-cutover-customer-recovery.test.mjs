@@ -206,18 +206,20 @@ test("a confirmed recovery failure prevents every later Invoice stage", async ()
 test("cutover wires recovery between Customer transformation and exact-run Invoice and Payment stages", async () => {
   const source = await readFile("scripts/legacy-cutover.mjs", "utf8");
   const customerTransform = source.indexOf('runScript("transform-customers-vehicles.mjs"');
-  const recoveryWrite = source.indexOf("runRecovery: () => executeCutoverCustomerRecovery");
+  const recoveryWrite = source.indexOf("executeCutoverCustomerRecovery({ confirmedWrite: true");
+  const vehicleRecoveryWrite = source.indexOf("executeCutoverVehicleRecovery({ confirmedWrite: true");
   const invoiceStage = source.indexOf('runScriptWithOutput("import-invoices.mjs"');
   const paymentStage = source.indexOf("loadLegacyPaymentStageProjection({ prisma, shopId, importRunId: invoiceImportRunId");
   const openOrderStage = source.indexOf('runScript("import-open-orders.mjs"');
-  assert.ok(customerTransform > 0 && invoiceStage > customerTransform && recoveryWrite > 0);
+  assert.ok(customerTransform > 0 && recoveryWrite > 0 && vehicleRecoveryWrite > recoveryWrite && invoiceStage > 0);
   assert.ok(paymentStage > 0 && openOrderStage > paymentStage);
   assert.match(source, /runRecoveryBeforeLaterStages\(\{[\s\S]*runRecovery:[\s\S]*runLaterStages/);
+  assert.match(source, /runRecovery:[\s\S]*executeCutoverCustomerRecovery[\s\S]*planCutoverVehicleRecovery[\s\S]*executeCutoverVehicleRecovery/);
   assert.match(source, /sourceFingerprint:\s*sourceDirectory\.fingerprint/);
   assert.match(source, /importRunId,/);
   assert.match(source, /recoveryContext\.manifest/);
   assert.doesNotMatch(source, /runScript(?:WithOutput)?\("import-legacy-payments\.mjs"/);
-  const approvalGate = source.indexOf("loadAndValidateRecoveryApprovalV3");
+  const approvalGate = source.indexOf("loadAndValidateRecoveryApprovalV4");
   const backupGate = source.indexOf("const backup = await createBackup");
   const resetGate = source.indexOf("await resetOperationalData");
   assert.ok(approvalGate > 0 && backupGate > approvalGate && resetGate > backupGate);

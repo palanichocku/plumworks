@@ -139,12 +139,12 @@ npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --customer-recovery-proposal /protected/recovery/2026-07-31-customer-recovery-proposal.json \
-  --customer-recovery-manifest /protected/recovery/2026-07-31-customer-recovery-approval-v3.json \
+  --customer-recovery-manifest /protected/recovery/2026-07-31-customer-recovery-approval-v4.json \
   --payment-date-policy invoice-date-proxy \
   --dry-run --report --summary-only
 ```
 
-4. Generate the deterministic proposal, review every candidate, and create the explicitly approved private Recovery Approval v3. A proposal is not authorization. The proposal, approval, source fingerprint, file hashes, snapshot manifest, ZIP, and shop binding must all match this accepted snapshot; a new ZIP requires a new proposal and approval. Historical v1/v2 manifests cannot authorize final cutover.
+4. Generate the deterministic Customer-and-Vehicle proposal, review every Customer and Vehicle candidate, and create the explicitly approved private Recovery Approval v4. A proposal is not authorization, and an exact VIN match is not automatic authorization. The proposal, approval, both candidate-set hashes, source fingerprint, file hashes, snapshot manifest, ZIP, and shop binding must all match this accepted snapshot; a new ZIP requires a new proposal and approval. Historical v1/v2 and Customer-only v3 artifacts cannot authorize strengthened final cutover.
 5. Review source counts, recovery/alias/unresolved counts, the exact Invoice/AR staging run, projected Payment rows and tender totals, reconciliation gaps, expected clean counts, accounting totals, and validation issues. Dry-run must report zero database writes.
 6. Before production reload, confirm managed backup/PITR and follow `docs/cutover-runbook.md`. Use the explicit shop-scoping enhancement required by the readiness audit once available; until then, independently verify the database contains exactly one shop.
 7. Store cutover reports, private recovery manifests, and backups in encrypted, access-controlled client storage. Do not commit them.

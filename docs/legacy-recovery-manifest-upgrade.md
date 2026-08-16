@@ -1,6 +1,6 @@
 # Legacy Customer recovery manifest upgrade
 
-> Historical compatibility only. Version 1 and version 2 manifests cannot authorize a final cutover. Final cutover uses the proposal and Recovery Approval v3 workflow below.
+> Historical compatibility only. Version 1, version 2, and Customer-only Approval v3 artifacts cannot authorize a strengthened final cutover. Final cutover uses the Customer-and-Vehicle proposal and Recovery Approval v4 workflow below.
 
 Use the filesystem-only upgrader to bind an already approved version 1 Car Doc recovery manifest to one accepted immutable snapshot. The command does not connect to Prisma, rerun Customer matching, change decisions, or grant cutover authority.
 
@@ -30,7 +30,7 @@ The original manifest is never overwritten. The output preserves every alias, re
 
 The upgrader verifies the snapshot manifest and extracted file identities, reconstructs source references without database access, and passes the proposal through the same version 2 binding and recovery planner used by `legacy:rehearse`. Stale evidence, collisions, unexpected unresolved references, malformed source files, or an existing output path block generation. Each new snapshot must be validated independently and may require a newly reviewed recovery manifest; the upgrader never changes decisions to fit a new snapshot.
 
-## Final-cutover proposal and Recovery Approval v3
+## Final-cutover proposal and Recovery Approval v4
 
 After immutable snapshot intake, generate a non-authorizing proposal:
 
@@ -55,14 +55,16 @@ npm run legacy:recovery:approve -- \
   --reviewed-by '<reviewer>' \
   --reviewed-at '<ISO-8601 timestamp>' \
   --reason '<review record>' \
-  --output /protected/recovery/customer-recovery-approval-v3.json \
-  --confirm APPROVE_CUSTOMER_RECOVERY_V3
+  --output /protected/recovery/customer-recovery-approval-v4.json \
+  --confirm APPROVE_CUSTOMER_RECOVERY_V4
 ```
 
-Approval creation revalidates the immutable snapshot and exact proposal, requires complete explicit decisions and review metadata, writes atomically with mode `0600`, and refuses overwrite. It does not contact a database. Proposal, reviewed decisions, and approval must remain outside Git and `OriginalWinApp` in encrypted, access-controlled storage.
+The proposal contains separate Customer and Vehicle candidate sets. Vehicle classifications (`safe-create-candidate`, `exact-vin-canonical-candidate`, and `ambiguous-vehicle-candidate`) are evidence, not authorization. Reviewers must explicitly choose `create-recovered-historical-vehicle`, `link-existing-canonical-vehicle`, or `remain-evidence-only` for every Vehicle. Exact VIN agreement is never auto-approved. Evidence-only requires a reason and intentionally leaves the affected historical Invoices without a Vehicle relationship.
 
-A new ZIP always requires a new snapshot, proposal, human review, and v3 approval. Changed ZIP, snapshot manifest, DBF, candidate, row key, deleted state, evidence hash, Vehicle evidence, AR reference, order set, Shop, proposal hash, or approval metadata fails closed.
+Recovered historical Vehicles are archived by default, retaining history while keeping them unavailable for new Repair Orders. An existing canonical Vehicle link does not rewrite the historical Invoice Customer. Approval creation revalidates the immutable snapshot and exact proposal, requires complete explicit Customer and Vehicle decisions and review metadata, writes atomically with mode `0600`, and refuses overwrite. It does not contact a database. Proposal, reviewed decisions, and approval must remain outside Git and `OriginalWinApp` in encrypted, access-controlled storage.
+
+A new ZIP always requires a new snapshot, proposal, human Customer review, human Vehicle review, and v4 approval. Changed ZIP, snapshot manifest, DBF, candidate, row key, deleted state, evidence hash, VIN/plate/YMM/ownership/collision evidence, canonical target, AR reference, order set, Shop, proposal hash, or approval metadata fails closed.
 
 ### Vehicle evidence boundary
 
-Historical Vehicle rows attached to exceptional Customers are recorded as hashed supporting identity evidence only. The accepted legacy behavior intentionally does not create recovered Vehicles. Historical Invoices remain linked to the recovered Customer, keep their imported vehicle snapshot and mileage, and may have a null `vehicleId`. They remain available in Customer history and Invoice history, but cannot become Vehicle-detail history without a real Vehicle row. Expanding this into Vehicle recovery requires a separate reviewed design and is not implied by Customer approval.
+Historical Vehicle rows attached to exceptional Customers are proposed as PII-minimized, hashed evidence. Approval v4 must explicitly resolve each candidate. Created recovered Vehicles use deterministic IDs and default to archived; canonical links require exact reviewed target and ownership evidence; evidence-only decisions retain a null `vehicleId` by explicit review. The approved mapping is applied only to the exact listed historical Invoices. Customer identity, mileage, dates, and all financial values remain unchanged.

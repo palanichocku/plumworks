@@ -3,12 +3,13 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "n
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { assertSafeDestination, runSnapshotIntake } from "../legacy-snapshot-intake.mjs";
-import { loadAndValidateRecoveryApprovalV3 } from "./legacy-customer-recovery-proposal.mjs";
+import { loadAndValidateRecoveryApprovalV4 } from "./legacy-customer-recovery-proposal.mjs";
 import { resolveLegacySource } from "./legacy-source.mjs";
 
 export const REHEARSAL_STAGES = Object.freeze([
   "source-validation", "recovery-manifest-validation", "customer-vehicle-staging-projection",
   "customer-vehicle-transformation-projection", "customer-recovery-projection",
+  "vehicle-recovery-projection",
   "invoice-labor-ar-staging-projection", "invoice-ar-transformation-projection",
   "payment-projection", "open-repair-order-projection", "final-verification",
 ]);
@@ -139,10 +140,12 @@ export function validateRehearsalCutoverReport(summary, expected = {}) {
     throw new Error("Customer recovery-result continuity validation failed.");
   }
   const recovery = summary.recovery?.counts ?? {};
+  const vehicleRecovery = summary.recovery?.vehicleCounts ?? {};
   const payment = summary.payment?.counts ?? {};
   const checks = [
     [recovery.unexpectedUnresolved ?? 0, "unexpected Customer recovery entries"],
     [recovery.aliasCollisions ?? 0, "Customer alias collisions"],
+    [vehicleRecovery.unresolved ?? 0, "unresolved historical Vehicle recovery entries"],
     [payment.tenderMismatches ?? 0, "Payment tender mismatches"],
     [payment.invoiceMismatches ?? 0, "Invoice/Payment mismatches"],
     [payment.deterministicConflicts ?? 0, "deterministic Payment conflicts"],
@@ -243,7 +246,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const before = await databaseState();
     const loadedApproval = dependencies.manifestLoader
       ? await dependencies.manifestLoader({ path: options.recoveryManifest, proposalPath: options.recoveryProposal, snapshotManifestPath: join(snapshot.finalPath, "manifest.json"), shopId: before.shopId, repositoryRoot })
-      : await loadAndValidateRecoveryApprovalV3({
+      : await loadAndValidateRecoveryApprovalV4({
         approvalPath: options.recoveryManifest,
         proposalPath: options.recoveryProposal,
         snapshotManifestPath: join(snapshot.finalPath, "manifest.json"),
@@ -285,6 +288,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       "scripts/lib/legacy-final-cutover-adjudication.mjs", "scripts/lib/legacy-open-order-source.mjs",
       "scripts/generate-legacy-customer-recovery-proposal.mjs", "scripts/approve-legacy-customer-recovery.mjs",
       "scripts/lib/legacy-customer-recovery-proposal.mjs", "scripts/lib/legacy-snapshot-evidence.mjs",
+      "scripts/lib/legacy-vehicle-recovery.mjs",
     ], { cwd: repositoryRoot, label: "focused ESLint" })))();
     const prismaValidate = await (dependencies.prismaValidate ?? (() => command("npx", ["prisma", "validate"], { cwd: repositoryRoot, label: "Prisma schema validation" })))();
     const prismaGenerate = await (dependencies.prismaGenerate ?? (() => command("npx", ["prisma", "generate"], { cwd: repositoryRoot, label: "Prisma client generation" })))();

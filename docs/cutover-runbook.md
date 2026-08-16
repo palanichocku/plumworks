@@ -10,20 +10,22 @@ The licensed shop deployment uses one safe-by-default driver for legacy cutover.
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v4.json \
   --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --dry-run
 ```
 
-This is the default mode. It checks the shop database connection and required source files, reads DBF header row counts, validates the approved Customer recovery plan, builds the exact-run Invoice/AR and Payment projections, and reports the operational rows that would be reset. It performs no writes.
+This is the default mode. It checks the shop database connection and required source files, reads DBF header row counts, validates the approved Customer and Vehicle recovery plans, builds the exact-run Invoice/AR and Payment projections, and reports the operational rows that would be reset. It performs no writes.
 
 ## Snapshot-specific Customer recovery
 
-Some historical Invoice/AR rows reference Customers that cannot be imported normally from `Cust.DBF`. Generate a deterministic, non-authorizing proposal from the accepted snapshot, review every candidate, and explicitly create Recovery Approval v3. Final cutover requires both the exact proposal and its approved artifact. The cutover never searches for, chooses, or auto-approves either artifact.
+Some historical Invoice/AR rows reference Customers and Vehicles that cannot be imported normally. Generate a deterministic, non-authorizing proposal from the accepted snapshot, review every Customer and Vehicle candidate, and explicitly create Recovery Approval v4. Final cutover requires both the exact proposal and its approved artifact. The cutover never searches for, chooses, links, creates, or auto-approves either artifact or any recovery disposition.
 
-Version 1/version 2 manifests remain historical compatibility inputs only and cannot unlock final-cutover backup or reset. Approval v3 binds the Shop, ZIP, snapshot-manifest SHA-256, combined source fingerprint, each relevant DBF hash, exact proposal bytes, candidate-set hash, stable source rows/evidence, Vehicle evidence, AR authority, order sets, counts, and review metadata. A new ZIP requires a new proposal and approval. The approval may keep an unresolved order skipped only under the existing exact reviewed zero-dollar policy.
+Version 1/version 2 manifests and Customer-only Approval v3 remain compatibility inputs only and cannot unlock strengthened final-cutover backup or reset. Approval v4 binds the Shop, ZIP, snapshot-manifest SHA-256, combined source fingerprint, each relevant DBF hash, exact proposal bytes, Customer and Vehicle candidate-set hashes, stable source rows/evidence, VIN/plate/YMM/ownership/collision and canonical-target evidence, AR authority, order sets, counts, and review metadata. A new ZIP requires a new proposal and approval. The approval may keep an unresolved order skipped only under the existing exact reviewed zero-dollar policy.
+
+Vehicle review has three explicit outcomes: create an archived recovered historical Vehicle, link the exact reviewed canonical Vehicle, or remain evidence-only with a required reason. Exact VIN agreement is a review candidate, never automatic authorization. Canonical linking preserves the historical Invoice Customer even if the canonical Vehicle currently belongs to a different Customer. Evidence-only leaves the listed Invoices intentionally unlinked and reports that result explicitly.
 
 ## Exceptional active Repair Order source adjudication
 
@@ -35,7 +37,7 @@ These decisions never mean “ignore old ROs,” “ignore invoiced ROs,” or a
 
 Omit both adjudication arguments when the accepted snapshot has no reviewed exceptional artifact. Reasons must be non-sensitive and must not contain Customer names, contact details, VINs, or source memo text.
 
-During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are then recreated transactionally, before `FINAL`, `laborfinal`, and `ar` are staged and transformed. A recovery conflict or transaction failure stops the workflow before Invoice staging.
+During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are recreated, then the exact reviewed Vehicle plan creates archived historical Vehicles or binds canonical targets before `FINAL`, `laborfinal`, and `ar` are staged and transformed. The reviewed Invoice-to-Vehicle mapping is rechecked and applied before Payment staging. A recovery conflict or transaction failure stops the workflow before the dependent stage.
 
 The current schema must be deployed before the confirmed command; cutover deletes scoped rows and preserves the existing schema rather than recreating tables. The zero-write rehearsal checks migration files, Prisma schema readiness, and applied migration history without applying anything. In particular, mileage-at-service, complimentary-service, and marketing-attribution migrations must already be present.
 
@@ -75,7 +77,7 @@ Review the dry-run immediately before cutover. Then run:
 node --env-file=.env.local scripts/legacy-cutover.mjs \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v4.json \
   --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
@@ -101,7 +103,7 @@ Run a read-only readiness report before the confirmed command:
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v4.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --preflight --report
@@ -115,7 +117,7 @@ Preflight prints the backup destination, rows that would be deleted, authoritati
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
   --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v4.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --verify --report
