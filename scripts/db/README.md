@@ -15,7 +15,7 @@ The authoritative final-cutover rollback artifact is one PostgreSQL custom-forma
 
 If `--shop-id` is omitted during backup, the database must contain exactly one Shop. The archive is first written with an incomplete suffix, structurally verified, atomically finalized, checksummed, and bound to the redacted database identity and Shop in `manifest.json`.
 
-The archive includes all current public tables and `_prisma_migrations`. It excludes Supabase Auth, Storage objects, roles, ownership, and ACLs. Same-project rollback assumes final cutover did not change Auth or Storage.
+The archive includes all current public tables, `_prisma_migrations`, and public-schema object ACLs. It excludes Supabase Auth, Storage objects, PostgreSQL roles, and ownership. This is a same-project rollback: the Supabase roles referenced by the ACLs must already exist, and final cutover must not change Auth or Storage.
 
 ## Read-only restore plan
 
@@ -32,7 +32,7 @@ This validates the archive, manifest, checksum, target identity, PostgreSQL majo
   --confirm RESTORE_PUBLIC_BASELINE
 ```
 
-Confirmed restore first backs up the target, restores in a single transaction, and verifies exact tables/counts, migrations, financial controls, Shop counter, RLS/policies/privileges, direct access, and membership links to unchanged `auth.users`.
+Confirmed restore first backs up the target, restores in a single transaction, and verifies exact tables/counts, migrations, financial controls, Shop counter, RLS/policies, the complete captured object-privilege matrix, direct access, and membership links to unchanged `auth.users`. Ownership is not restored; ACLs are.
 
 ## Required isolated rehearsal
 

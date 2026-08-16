@@ -64,7 +64,7 @@ npm run legacy:cutover:backup
 
 This creates exactly one PostgreSQL custom-format `plumworks-public-cutover.dump`, plus `manifest.json`, `sha256.txt`, and `archive-contents.txt`, in a protected timestamped directory outside Git. Split `roles.sql`, `schema.sql`, and `data.sql` files are no longer generated or accepted as rollback authority.
 
-The archive contains every current Prisma-managed `public` table, Shop counters, marketing leads and attribution, staging/import records, and `_prisma_migrations`. It excludes Supabase Auth, Storage, PostgreSQL roles, ownership, and privileges. It is written under an incomplete name and atomically finalized only after archive structure, exact inventory, RLS, migration, database/Shop identity, checksum, size, and permissions pass. Reset receives an in-memory gate from that exact verification; a flag or files from another invocation cannot unlock it.
+The archive contains every current Prisma-managed `public` table, Shop counters, marketing leads and attribution, staging/import records, `_prisma_migrations`, and public-schema object ACLs. It excludes Supabase Auth, Storage, PostgreSQL roles, and ownership. It is a same-project rollback artifact: the existing Supabase roles must already exist in the target project. It is written under an incomplete name and atomically finalized only after archive structure, exact inventory, RLS, ACL baseline, migration, database/Shop identity, checksum, size, and permissions pass. Reset receives an in-memory gate from that exact verification; a flag or files from another invocation cannot unlock it.
 
 ## Confirmed reset and reload
 
@@ -147,8 +147,8 @@ After reviewed approval, restore the same project with:
   --confirm RESTORE_PUBLIC_BASELINE
 ```
 
-Confirmed restore validates archive/manifest/checksum and target identity again, creates a new safety archive, and runs `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction`. Success additionally requires exact table counts, migration and financial controls, Shop counter, RLS/policy/privilege checks, direct database access, and ShopMembership-to-Auth linkage.
+Confirmed restore validates archive/manifest/checksum and target identity again, creates a new safety archive, and runs `pg_restore --clean --if-exists --no-owner --single-transaction`. Success additionally requires exact table counts, migration and financial controls, Shop counter, RLS/policy/exact privilege checks, direct database access, and ShopMembership-to-Auth linkage.
 
-Because owners and privileges are excluded, effective security is verified rather than assumed. The archive is for same-project public-schema rollback; `auth.users`, stored file bytes, PostgreSQL roles, and external configuration remain outside it. Before production cutover, exercise this exact workflow with synthetic representative data in a dedicated isolated Supabase project. Managed Supabase backup/PITR remains secondary protection.
+Ownership remains excluded, but public object ACLs are preserved and the exact anon, authenticated, service_role, and PUBLIC privilege matrix is verified. The archive is for same-project public-schema rollback; `auth.users`, stored file bytes, PostgreSQL roles, and external configuration remain outside it. Before production cutover, exercise this exact workflow with synthetic representative data in a dedicated isolated Supabase project. Managed Supabase backup/PITR remains secondary protection.
 
 Never place credentials in command arguments. `.env.local` is loaded by Node and its values are not printed.

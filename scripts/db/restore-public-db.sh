@@ -106,7 +106,6 @@ pg_restore \
   --clean \
   --if-exists \
   --no-owner \
-  --no-privileges \
   --single-transaction \
   "$DUMP_FILE"
 

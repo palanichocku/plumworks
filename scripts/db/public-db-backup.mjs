@@ -8,6 +8,7 @@ import {
   PUBLIC_BACKUP_FORMAT_VERSION, PUBLIC_BACKUP_TYPE, databaseIdentityFromUrl,
   issueVerifiedBackupGate, loadExpectedPublicTables, sha256, validateArchiveEvidence,
   validateBackupManifest, validatePostRestoreControls,
+  validatePrivilegeMatrix,
 } from "../lib/public-db-backup.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,7 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
-    const [server, shop, tables, sequences, rls, migrations, financial, extensions] = await Promise.all([
+    const [server, shop, tables, sequences, rls, migrations, financial, extensions, privileges, aclTables] = await Promise.all([
       client.query("SELECT current_database() AS database_name, current_setting('server_version') AS server_version"),
       shopId
         ? client.query("SELECT id::text, name, next_repair_order_number::text FROM public.shops WHERE id = $1::uuid", [shopId])
@@ -43,6 +44,17 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
       client.query('SELECT migration_name, checksum, finished_at, applied_steps_count FROM public."_prisma_migrations" ORDER BY migration_name'),
       client.query("SELECT (SELECT COALESCE(SUM(total),0)::text FROM public.invoices WHERE shop_id=$1::uuid) AS invoice_total, (SELECT COALESCE(SUM(paid_total),0)::text FROM public.invoices WHERE shop_id=$1::uuid) AS paid_total, (SELECT COALESCE(SUM(balance),0)::text FROM public.accounts_receivable WHERE shop_id=$1::uuid) AS ar_balance", [shopId ?? "00000000-0000-0000-0000-000000000000"]),
       client.query("SELECT extname, extversion FROM pg_extension ORDER BY extname"),
+      client.query(`SELECT c.relname AS table_name, role_name, privilege,
+        CASE WHEN roles.role_name = 'PUBLIC' THEN EXISTS (
+          SELECT 1 FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) a
+          WHERE a.grantee = 0 AND a.privilege_type = privileges.privilege
+        ) ELSE has_table_privilege(roles.role_name, c.oid, privileges.privilege) END AS allowed
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        CROSS JOIN unnest(ARRAY['anon','authenticated','service_role','PUBLIC']) AS roles(role_name)
+        CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) AS privileges(privilege)
+        WHERE n.nspname='public' AND c.relkind='r' AND c.relname=ANY($1::text[])
+        ORDER BY c.relname, role_name, privilege`, [expectedTables]),
+      client.query("SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname=ANY($1::text[]) AND c.relacl IS NOT NULL ORDER BY relname", [expectedTables]),
     ]);
     if (shop.rowCount !== 1) throw new Error("The requested Shop was not found exactly once in the backup database.");
     const actualTables = tables.rows.map((row) => row.tablename);
@@ -52,6 +64,12 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
     const rowCounts = {};
     for (const table of expectedTables) rowCounts[table] = String((await client.query(`SELECT COUNT(*)::text AS count FROM public."${table}"`)).rows[0].count);
     const migrationControl = sha256(JSON.stringify(migrations.rows));
+    const privilegeMatrix = {};
+    for (const row of privileges.rows) {
+      privilegeMatrix[row.table_name] ??= {};
+      privilegeMatrix[row.table_name][row.role_name] ??= {};
+      privilegeMatrix[row.table_name][row.role_name][row.privilege] = row.allowed;
+    }
     return {
       serverVersion: server.rows[0].server_version, databaseName: server.rows[0].database_name,
       shop: { id: shop.rows[0].id, name: shop.rows[0].name, nextRepairOrderNumber: shop.rows[0].next_repair_order_number },
@@ -60,6 +78,7 @@ async function databaseControls(databaseUrl, shopId, expectedTables) {
       prismaMigrations: { count: migrations.rowCount, controlSha256: migrationControl },
       financialControls: financialResult,
       extensions: extensions.rows,
+      privilegeMatrix, aclTables: aclTables.rows.map((row) => row.relname),
     };
   } finally { await client.end(); }
 }
@@ -73,13 +92,12 @@ async function postRestore() {
   const manifest = verified.manifest;
   const client = new Client({ connectionString: databaseUrl }); await client.connect();
   try {
-    const [policies, grants, membershipOrphans, direct] = await Promise.all([
+    const [policies, membershipOrphans, direct] = await Promise.all([
       client.query("SELECT COUNT(*)::int AS count FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=ANY($1::text[])", [expectedTables]),
-      client.query("SELECT table_name, grantee FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name=ANY($1::text[]) AND (grantee IN ('anon','authenticated') OR (grantee='service_role' AND table_name='_prisma_migrations'))", [expectedTables]),
       client.query("SELECT COUNT(*)::int AS count FROM public.shop_memberships m LEFT JOIN auth.users u ON u.id=m.user_id WHERE u.id IS NULL"),
       client.query("SELECT 1 AS works"),
     ]);
-    validatePostRestoreControls({ manifest, controls, expectedTables, policyCount: policies.rows[0].count, forbiddenGrantCount: grants.rowCount, membershipOrphanCount: membershipOrphans.rows[0].count });
+    validatePostRestoreControls({ manifest, controls, expectedTables, policyCount: policies.rows[0].count, membershipOrphanCount: membershipOrphans.rows[0].count });
     if (direct.rows[0].works !== 1) throw new Error("Direct database verification failed.");
   } finally { await client.end(); }
   process.stdout.write(`${JSON.stringify({ status: "passed", publicTables: expectedTables.length, shopId })}\n`);
@@ -110,7 +128,7 @@ export async function verifyDirectory({ directory, databaseUrl, shopId }) {
   const checksum = (await readFile(checksumPath, "utf8")).trim().split(/\s+/);
   if (checksum[0] !== actualSha || checksum[1] !== basename(dumpPath)) throw new Error("Checksum file is not associated with the authoritative archive.");
   const archiveText = await command("pg_restore", ["--list", dumpPath], { capture: true });
-  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: manifest.rlsTables, expectedSequences: manifest.publicSequences });
+  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: manifest.rlsTables, expectedSequences: manifest.publicSequences, expectedAclTables: manifest.aclTables });
   return { directory, dumpPath, manifestPath, manifest, gate: issueVerifiedBackupGate({ databaseFingerprint: identity.fingerprint, shopId: resolvedShopId, manifestSha256: sha256(await readFile(manifestPath)), dumpSha256: manifest.sha256 }) };
 }
 
@@ -122,14 +140,15 @@ async function create() {
   const identity = databaseIdentityFromUrl(databaseUrl); if (controls.databaseName !== identity.databaseName) throw new Error("DIRECT_URL database name differs from server identity.");
   const missingRls = expectedTables.filter((table) => !controls.rlsTables.includes(table));
   if (missingRls.length) throw new Error(`Live public application tables are missing RLS: ${missingRls.join(", ")}.`);
+  validatePrivilegeMatrix(controls.privilegeMatrix, expectedTables);
   await command(process.execPath, [resolve(root, "node_modules/prisma/build/index.js"), "migrate", "status", "--schema", schemaPath], {
     capture: true, env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl },
   });
   const finalName = "plumworks-public-cutover.dump"; const incomplete = resolve(directory, `${finalName}.incomplete`); const finalPath = resolve(directory, finalName);
-  await command("pg_dump", ["--dbname", databaseUrl, "--format=custom", "--no-owner", "--no-privileges", "--schema=public", "--file", incomplete]);
+  await command("pg_dump", ["--dbname", databaseUrl, "--format=custom", "--no-owner", "--schema=public", "--file", incomplete]);
   await chmod(incomplete, 0o600); const info = await stat(incomplete); if (info.size <= 0) throw new Error("pg_dump produced an empty archive.");
   const archiveText = await command("pg_restore", ["--list", incomplete], { capture: true });
-  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: expectedTables, expectedSequences: controls.publicSequences });
+  validateArchiveEvidence({ archiveText, expectedTables, expectedRlsTables: expectedTables, expectedSequences: controls.publicSequences, expectedAclTables: controls.aclTables });
   await rename(incomplete, finalPath); await chmod(finalPath, 0o600);
   const git = await gitDetails(); const clientVersion = (await command("pg_dump", ["--version"], { capture: true })).trim();
   const manifest = {
@@ -138,8 +157,9 @@ async function create() {
     database: identity, shop: controls.shop, repository: git, prismaMigrationStatus: "up-to-date",
     publicTables: controls.publicTables, publicSequences: controls.publicSequences, rlsTables: controls.rlsTables, rowCounts: controls.rowCounts,
     prismaMigrations: controls.prismaMigrations, financialControls: controls.financialControls, extensions: controls.extensions,
-    tool: { name: "scripts/db/public-db-backup.mjs", version: 1 }, verification: { status: "passed", archiveListValidated: true },
-    boundaries: { schemas: ["public"], authIncluded: false, storageIncluded: false, ownersIncluded: false, privilegesIncluded: false },
+    privilegeMatrix: controls.privilegeMatrix, aclTables: controls.aclTables,
+    tool: { name: "scripts/db/public-db-backup.mjs", version: 2 }, verification: { status: "passed", archiveListValidated: true },
+    boundaries: { schemas: ["public"], authIncluded: false, storageIncluded: false, ownersIncluded: false, privilegesIncluded: true, sameProjectRestoreRequired: true },
   };
   const manifestPath = resolve(directory, "manifest.json"); await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 }); await chmod(manifestPath, 0o600);
   await writeFile(resolve(directory, "sha256.txt"), `${manifest.sha256}  ${finalName}\n`, { flag: "wx", mode: 0o600 });

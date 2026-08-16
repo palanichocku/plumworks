@@ -6,7 +6,7 @@ import test from "node:test";
 import {
   PUBLIC_BACKUP_FORMAT_VERSION, PUBLIC_BACKUP_TYPE, databaseIdentityFromUrl,
   expectedPublicTablesFromPrisma, issueVerifiedBackupGate, requireVerifiedBackupGate,
-  validateArchiveEvidence, validateBackupManifest, validatePostRestoreControls,
+  validateArchiveEvidence, validateBackupManifest, validatePostRestoreControls, validatePrivilegeMatrix,
 } from "./lib/public-db-backup.mjs";
 import { verifyDirectory } from "./db/public-db-backup.mjs";
 
@@ -19,7 +19,17 @@ function manifest(overrides = {}) {
     shop: { id: "shop-1", name: "Test Shop" }, publicTables: tables,
     prismaMigrationStatus: "up-to-date",
     rowCounts: { _prisma_migrations: "3", shops: "1" },
-    prismaMigrations: { count: 3, controlSha256: "control" }, verification: { status: "passed" }, ...overrides,
+    prismaMigrations: { count: 3, controlSha256: "control" }, verification: { status: "passed" },
+    privilegeMatrix: privilegeMatrix(), aclTables: ["shops"],
+    boundaries: { ownersIncluded: false, privilegesIncluded: true }, ...overrides,
+  };
+}
+function privilegeMatrix() {
+  const denied = { SELECT: false, INSERT: false, UPDATE: false, DELETE: false };
+  const allowed = { SELECT: true, INSERT: true, UPDATE: true, DELETE: true };
+  return {
+    _prisma_migrations: { anon: { ...denied }, authenticated: { ...denied }, service_role: { ...denied }, PUBLIC: { ...denied } },
+    shops: { anon: { ...denied }, authenticated: { ...denied }, service_role: { ...allowed }, PUBLIC: { ...denied } },
   };
 }
 const archive = `1; 0 0 SCHEMA - public owner
@@ -31,17 +41,21 @@ const archive = `1; 0 0 SCHEMA - public owner
 7; 0 0 ROW SECURITY public shops owner
 8; 0 0 SEQUENCE public shops_seq owner
 9; 0 0 INDEX public shops_pkey owner
-10; 0 0 CONSTRAINT public shops shops_pkey owner`;
+10; 0 0 CONSTRAINT public shops shops_pkey owner
+11; 0 0 ACL - TABLE public shops owner`;
 
 test("Prisma schema is the central complete public-table inventory", () => {
   const parsed = expectedPublicTablesFromPrisma('model Shop {\n id String @id\n @@map("shops")\n}');
   assert.deepEqual(parsed, ["_prisma_migrations", "shops"]);
 });
 test("archive validation requires exact tables, data, migrations, sequences, indexes, constraints, and RLS", () => {
-  assert.equal(validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"] }).tables.size, 2);
+  assert.equal(validateArchiveEvidence({ archiveText: archive, expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], expectedAclTables: ["shops"] }).tables.size, 2);
   assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace("TABLE public shops", "TABLE public other"), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"] }), /inventory mismatch/);
   assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace("TABLE public _prisma_migrations", "TABLE public migrations"), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"] }), /_prisma_migrations|inventory mismatch/);
   assert.throws(() => validateArchiveEvidence({ archiveText: "not an archive", expectedTables: tables, expectedRlsTables: tables, expectedSequences: [] }), /public schema/);
+});
+test("archive validation requires captured ACL entries", () => {
+  assert.throws(() => validateArchiveEvidence({ archiveText: archive.replace(/\n11;.*$/, ""), expectedTables: tables, expectedRlsTables: tables, expectedSequences: ["shops_seq"], expectedAclTables: ["shops"] }), /Public table ACL inventory mismatch/);
 });
 test("manifest rejects checksum, database, Shop, migration, and inventory drift", () => {
   assert.equal(validateBackupManifest({ manifest: manifest(), dumpFilename: "cutover.dump", dumpBytes: 10, dumpSha256: "abc", expectedIdentity: identity, expectedShopId: "shop-1", expectedTables: tables }), true);
@@ -55,11 +69,26 @@ test("failed or absent backup work cannot issue a reset gate", () => {
 });
 test("post-restore controls reject count and RLS/security drift", () => {
   const source = manifest({ shop: { id: "shop-1", name: "Test Shop", nextRepairOrderNumber: "20" }, financialControls: { invoice_total: "10.00", paid_total: "5.00", ar_balance: "5.00" }, extensions: [] });
-  const controls = { rowCounts: source.rowCounts, rlsTables: tables, prismaMigrations: source.prismaMigrations, shop: source.shop, financialControls: source.financialControls, extensions: [] };
-  assert.equal(validatePostRestoreControls({ manifest: source, controls, expectedTables: tables, policyCount: 0, forbiddenGrantCount: 0, membershipOrphanCount: 0 }), true);
-  assert.throws(() => validatePostRestoreControls({ manifest: source, controls: { ...controls, rowCounts: { ...controls.rowCounts, shops: "2" } }, expectedTables: tables, policyCount: 0, forbiddenGrantCount: 0, membershipOrphanCount: 0 }), /row-count mismatch/);
-  assert.throws(() => validatePostRestoreControls({ manifest: source, controls: { ...controls, rlsTables: ["shops"] }, expectedTables: tables, policyCount: 0, forbiddenGrantCount: 0, membershipOrphanCount: 0 }), /RLS table inventory/);
-  assert.throws(() => validatePostRestoreControls({ manifest: source, controls, expectedTables: tables, policyCount: 0, forbiddenGrantCount: 1, membershipOrphanCount: 0 }), /Forbidden/);
+  const controls = { rowCounts: source.rowCounts, rlsTables: tables, prismaMigrations: source.prismaMigrations, shop: source.shop, financialControls: source.financialControls, extensions: [], privilegeMatrix: source.privilegeMatrix };
+  assert.equal(validatePostRestoreControls({ manifest: source, controls, expectedTables: tables, policyCount: 0, membershipOrphanCount: 0 }), true);
+  assert.throws(() => validatePostRestoreControls({ manifest: source, controls: { ...controls, rowCounts: { ...controls.rowCounts, shops: "2" } }, expectedTables: tables, policyCount: 0, membershipOrphanCount: 0 }), /row-count mismatch/);
+  assert.throws(() => validatePostRestoreControls({ manifest: source, controls: { ...controls, rlsTables: ["shops"] }, expectedTables: tables, policyCount: 0, membershipOrphanCount: 0 }), /RLS table inventory/);
+  const privilegeDrift = structuredClone(controls); privilegeDrift.privilegeMatrix.shops.service_role.SELECT = false;
+  assert.throws(() => validatePostRestoreControls({ manifest: source, controls: privilegeDrift, expectedTables: tables, policyCount: 0, membershipOrphanCount: 0 }), /privilege matrix mismatch/);
+});
+test("privilege baseline enforces API denial, ordinary service_role DML, and protected migrations", () => {
+  const valid = privilegeMatrix();
+  assert.equal(validatePrivilegeMatrix(valid, tables), true);
+  const missingService = structuredClone(valid); missingService.shops.service_role.SELECT = false;
+  assert.throws(() => validatePrivilegeMatrix(missingService, tables), /service_role SELECT/);
+  const anonGrant = structuredClone(valid); anonGrant.shops.anon.SELECT = true;
+  assert.throws(() => validatePrivilegeMatrix(anonGrant, tables), /Forbidden anon SELECT/);
+  const authenticatedGrant = structuredClone(valid); authenticatedGrant.shops.authenticated.UPDATE = true;
+  assert.throws(() => validatePrivilegeMatrix(authenticatedGrant, tables), /Forbidden authenticated UPDATE/);
+  const publicGrant = structuredClone(valid); publicGrant.shops.PUBLIC.DELETE = true;
+  assert.throws(() => validatePrivilegeMatrix(publicGrant, tables), /Forbidden PUBLIC DELETE/);
+  const migrationGrant = structuredClone(valid); migrationGrant._prisma_migrations.service_role.SELECT = true;
+  assert.throws(() => validatePrivilegeMatrix(migrationGrant, tables), /service_role SELECT.*_prisma_migrations/);
 });
 test("only an invocation-issued database/shop-bound gate unlocks reset", () => {
   const gate = issueVerifiedBackupGate({ databaseFingerprint: identity.fingerprint, shopId: "shop-1" });
@@ -80,10 +109,15 @@ test("cutover and restore source contracts use only the authoritative archive", 
   const [{ readFile }, path] = await Promise.all([import("node:fs/promises"), import("node:path")]);
   const cutover = await readFile(path.resolve("scripts/legacy-cutover.mjs"), "utf8");
   const restore = await readFile(path.resolve("scripts/db/restore-public-db.sh"), "utf8");
+  const backup = await readFile(path.resolve("scripts/db/public-db-backup.mjs"), "utf8");
   assert.doesNotMatch(cutover, /roles\.sql|schema\.sql|data\.sql|supabase.*db.*dump/s);
   assert.match(cutover, /requireVerifiedBackupGate/);
   assert.match(cutover, /resetOperationalData\(prisma, shop\.id, verifiedBackupGate\)/);
   assert.match(restore, /--single-transaction/);
+  assert.match(restore, /--no-owner/);
+  assert.doesNotMatch(restore, /--no-privileges/);
+  assert.match(backup, /"--no-owner"/);
+  assert.doesNotMatch(backup, /"--no-privileges"/);
   assert.match(restore, /post-restore/);
   assert.match(restore, /RESTORE_PUBLIC_BASELINE/);
 });
