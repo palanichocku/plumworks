@@ -42,6 +42,11 @@ import {
   loadFinalCutoverAdjudicationContext,
   SNAPSHOT_MANIFEST_FLAG,
 } from "./lib/legacy-final-cutover-adjudication.mjs";
+import {
+  finalCutoverResolutionArguments,
+  FINAL_CUTOVER_RESOLUTION_FLAG,
+  loadFinalCutoverResolutionContext,
+} from "./lib/legacy-final-cutover-resolution.mjs";
 import { verifyFreshLegacyCutover } from "./lib/legacy-cutover-acceptance.mjs";
 import {
   FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
@@ -58,6 +63,7 @@ import {
 import { databaseIdentityFromUrl, loadExpectedPublicTables, requireVerifiedBackupGate } from "./lib/public-db-backup.mjs";
 import { verifyDirectory as verifyPublicBackupDirectory } from "./db/public-db-backup.mjs";
 import { deleteOperationalData, OPERATIONAL_MODELS } from "./lib/legacy-cutover-reset.mjs";
+import { loadOpenOrderSourceRows } from "./lib/legacy-open-order-source.mjs";
 
 const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
@@ -76,6 +82,7 @@ function argument(name) {
 const flags = new Set(process.argv.slice(2).filter((value) => value.startsWith("--")));
 const execution = flags.has("--help") ? null : parseLegacyCutoverExecution(process.argv.slice(2));
 const adjudicationArguments = flags.has("--help") ? { manifestPath: null, snapshotManifestPath: null } : finalCutoverAdjudicationArguments(process.argv.slice(2));
+const resolutionArguments = flags.has("--help") ? { manifestPath: null, snapshotManifestPath: null } : finalCutoverResolutionArguments(process.argv.slice(2));
 const resolvedLegacySource = flags.has("--help") ? null : await resolveLegacySource({ requiredFiles: REQUIRED_SOURCES });
 const sourceArgument = resolvedLegacySource?.path;
 const wantsReset = flags.has("--reset-operational-data");
@@ -108,6 +115,7 @@ const runSummary = {
   reload: { requested: wantsReload, completed: false, counts: {} },
   recovery: { required: false, manifestProvided: false, sourceFingerprint: resolvedLegacySource?.fingerprint ?? null, manifestFingerprint: null, counts: {} },
   activeRoAdjudication: { provided: false, manifestFingerprint: null, reviewedExclusions: [], reviewedExclusionCount: 0, reviewedExcludedSourceRows: 0 },
+  activeRoResolution: { provided: false, manifestFingerprint: null, reviewedResolutions: [], reviewedResolutionCount: 0, reviewedStructuralRowsExcluded: 0 },
   preflight: {
     requested: wantsPreflight, confirmedCommandRequirements: execution?.requiredFullReplacementFlags ?? [],
     backupDestination: backupDir, rowsToDelete: {}, expectedRowsToReload: {}, preservedRows: {}, countInconsistencies: [],
@@ -133,7 +141,7 @@ function usage() {
   console.log("Usage: node --env-file=.env.local scripts/legacy-cutover.mjs [flags]");
   console.log("  --source <immutable snapshot data directory> (required)");
   console.log("  --customer-recovery-manifest <approved Recovery v3 JSON> --customer-recovery-proposal <exact reviewed proposal JSON>");
-  console.log("  --snapshot-manifest <immutable snapshot manifest JSON> [--final-cutover-adjudication <approved snapshot-bound JSON>]");
+  console.log("  --snapshot-manifest <immutable snapshot manifest JSON> [--final-cutover-adjudication <approved stale-row JSON>] [--final-cutover-active-ro-resolution <approved exact repair JSON>]");
   console.log("  --payment-date-policy invoice-date-proxy (required)");
   console.log("  --shop-id <shop UUID> (optional when the database contains exactly one shop)");
   console.log("  --dry-run (default) | --snapshot | --verify");
@@ -178,6 +186,15 @@ async function sourceCounts(sourceDirectory) {
       readDbfForReconciliation(sourceDirectory.files["orders.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["LABORorder.DBF"]),
     ]);
+    const keyedOpenRows = await loadOpenOrderSourceRows(sourceDirectory);
+    const enrichOpenRow = (row) => ({
+      ...row,
+      legacyCustno: legacyIdentifier(row.rawData, ["CUSTNO", "CUSTOMERNO"]),
+      legacyCarno: legacyIdentifier(row.rawData, ["CARNO", "VEHICLENO"]),
+      legacyRoNo: legacyIdentifier(row.rawData, ["RONO", "RO", "RONUMBER", "INVOICE", "INVNO", "INVNUM"]),
+    });
+    orderPartSource.rows = keyedOpenRows.partRows.map(enrichOpenRow);
+    orderLaborSource.rows = keyedOpenRows.laborRows.map(enrichOpenRow);
     reconciliation = {
       ...reconcileCustomerVehicleRows(customerSource.rows, vehicleSource.rows),
       deletedCustomerRows: customerSource.deletedRows,
@@ -537,6 +554,15 @@ ${countTable(summary.recovery.counts)}
 
 ${summary.activeRoAdjudication.reviewedExclusions.length ? JSON.stringify(summary.activeRoAdjudication.reviewedExclusions, null, 2).split("\n").map((line) => `    ${line}`).join("\n") : "_No reviewed exclusions._"}
 
+### Reviewed active Repair Order resolutions
+
+- Manifest supplied: ${summary.activeRoResolution.provided ? "Yes" : "No"}
+- Manifest SHA-256: ${summary.activeRoResolution.manifestFingerprint ?? "Not supplied"}
+- Reviewed ROs resolved: ${summary.activeRoResolution.reviewedResolutionCount}
+- Reviewed structural source rows excluded: ${summary.activeRoResolution.reviewedStructuralRowsExcluded}
+
+${summary.activeRoResolution.reviewedResolutions.length ? JSON.stringify(summary.activeRoResolution.reviewedResolutions, null, 2).split("\n").map((line) => `    ${line}`).join("\n") : "_No reviewed source repairs._"}
+
 ### Legacy Payment tender allocation
 
 - Invoice/AR import run: ${summary.payment.importRunId ?? "Not run"}
@@ -806,7 +832,7 @@ async function resetOperationalData(prisma, shopId, verifiedBackupGate) {
   }, { maxWait: 10_000, timeout: 120_000 });
 }
 
-async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicationContext, prisma, paymentDatePolicy) {
+async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicationContext, resolutionContext, prisma, paymentDatePolicy) {
   const common = ["--source", sourceDirectory.path, "--shop-id", shopId];
   const customerImportOutput = await runScriptWithOutput("import-customers-vehicles.mjs", common);
   const importRunId = customerImportOutput.match(/import run id:\s*([0-9a-f-]{36})/i)?.[1];
@@ -859,6 +885,10 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
           ...(adjudicationContext ? [
             FINAL_CUTOVER_ADJUDICATION_FLAG, adjudicationContext.path,
             SNAPSHOT_MANIFEST_FLAG, adjudicationContext.snapshot.path,
+          ] : []),
+          ...(resolutionContext ? [
+            FINAL_CUTOVER_RESOLUTION_FLAG, resolutionContext.path,
+            ...(adjudicationContext ? [] : [SNAPSHOT_MANIFEST_FLAG, resolutionContext.snapshot.path]),
           ] : []),
           FINAL_CUTOVER_OPEN_ORDER_FLAG,
           FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG, FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
@@ -1084,6 +1114,7 @@ async function main() {
       },
     });
     let adjudicationContext = null;
+    let resolutionContext = null;
     if (execution.confirmedFullReplacement) {
       const priorCompletedCutover = await prisma.auditLog.findFirst({
         where: { shopId: shop.id, action: "legacy_cutover_completed", entityType: "shop" },
@@ -1221,6 +1252,12 @@ async function main() {
       shopId: shop.id,
       source: resolvedLegacySource,
     }) : null;
+    resolutionContext = resolutionArguments.manifestPath ? await loadFinalCutoverResolutionContext({
+      manifestPath: resolutionArguments.manifestPath,
+      snapshotManifestPath: resolutionArguments.snapshotManifestPath,
+      shopId: shop.id,
+      source: resolvedLegacySource,
+    }) : null;
     if (adjudicationContext) {
       runSummary.activeRoAdjudication = {
         provided: true,
@@ -1232,6 +1269,19 @@ async function main() {
       recordStage("active-ro-adjudication-validation", {
         manifestFingerprint: adjudicationContext.plan.manifestFingerprint,
         reviewedExclusionCount: adjudicationContext.plan.reviewedExclusions.length,
+      });
+    }
+    if (resolutionContext) {
+      runSummary.activeRoResolution = {
+        provided: true,
+        manifestFingerprint: resolutionContext.plan.manifestFingerprint,
+        reviewedResolutions: resolutionContext.plan.reviewedResolutions,
+        reviewedResolutionCount: resolutionContext.plan.reviewedResolutions.length,
+        reviewedStructuralRowsExcluded: resolutionContext.plan.reviewedResolutions.reduce((sum, decision) => sum + decision.excludedStructuralSourceRows, 0),
+      };
+      recordStage("active-ro-resolution-validation", {
+        manifestFingerprint: resolutionContext.plan.manifestFingerprint,
+        reviewedResolutionCount: resolutionContext.plan.reviewedResolutions.length,
       });
     }
     const projectedOpenOrders = projectFinalCutoverOpenOrders({
@@ -1252,6 +1302,7 @@ async function main() {
       shopSettings: shop,
       currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
       adjudicationPlan: adjudicationContext?.plan ?? null,
+      resolutionPlan: resolutionContext?.plan ?? null,
     });
     runSummary.verification.openOrderFatalRelationshipIssues = projectedOpenOrders.fatalIssues.filter((issue) => issue.code.includes("customer") || issue.code.includes("vehicle")).length;
     runSummary.verification.openOrderFatalFinancialIssues = 0;
@@ -1415,7 +1466,7 @@ async function main() {
     }
     if (wantsReload) {
       if (requiresRecovery && !recoveryContext) throw new Error("Legacy reload requires the approved source-bound Customer recovery manifest for this source.");
-      const recoveryResult = await reloadLegacy(resolvedLegacySource, shop.id, recoveryContext, adjudicationContext, prisma, paymentDatePolicy);
+      const recoveryResult = await reloadLegacy(resolvedLegacySource, shop.id, recoveryContext, adjudicationContext, resolutionContext, prisma, paymentDatePolicy);
       if (recoveryResult.plan) {
         runSummary.recovery.counts = recoveryResult.plan.counts;
         runSummary.reload.counts.recoveredCustomers = recoveryResult.plan.counts.recoveredCustomers;

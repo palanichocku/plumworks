@@ -37,6 +37,10 @@ These decisions never mean “ignore old ROs,” “ignore invoiced ROs,” or a
 
 Omit both adjudication arguments when the accepted snapshot has no reviewed exceptional artifact. Reasons must be non-sensitive and must not contain Customer names, contact details, VINs, or source memo text.
 
+Reviewed source repair is a separate contract. `--final-cutover-active-ro-resolution` may be supplied only with the exact immutable snapshot manifest and explicit final-cutover operational mode. It binds the Shop, ZIP, snapshot-manifest hash, combined fingerprint, relevant DBF hashes, RO, every active row key and evidence hash, deleted state, old Customer value, resolved Customer/Vehicle/date/mileage, exact include or structural-exclude disposition, and human approval metadata.
+
+This is never a rule that Customer `0` means Vehicle owner, missing `RO_DATE` means use another date, or a blank-looking row should be discarded. Without an exact reviewed row-bound decision, those conditions remain blockers. Source repairs and structural exclusions are reported separately from stale-residue adjudications, and a new ZIP requires fresh review.
+
 During confirmed replacement, normal Customers and Vehicles are staged and transformed first. Recovered Customers and `CustomerLegacyAlias` rows are recreated, then the exact reviewed Vehicle plan creates archived historical Vehicles or binds canonical targets before `FINAL`, `laborfinal`, and `ar` are staged and transformed. The reviewed Invoice-to-Vehicle mapping is rechecked and applied before Payment staging. A recovery conflict or transaction failure stops the workflow before the dependent stage.
 
 The current schema must be deployed before the confirmed command; cutover deletes scoped rows and preserves the existing schema rather than recreating tables. The zero-write rehearsal checks migration files, Prisma schema readiness, and applied migration history without applying anything. In particular, mileage-at-service, complimentary-service, and marketing-attribution migrations must already be present.

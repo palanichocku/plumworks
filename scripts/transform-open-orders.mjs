@@ -5,6 +5,10 @@ import {
   finalCutoverAdjudicationArguments,
   loadFinalCutoverAdjudicationContext,
 } from "./lib/legacy-final-cutover-adjudication.mjs";
+import {
+  finalCutoverResolutionArguments,
+  loadFinalCutoverResolutionContext,
+} from "./lib/legacy-final-cutover-resolution.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import {
   FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
@@ -22,8 +26,12 @@ const SHOP_ID = argument("--shop-id");
 if (!SHOP_ID) throw new Error("--shop-id is required.");
 const finalCutoverOperational = process.argv.includes(FINAL_CUTOVER_OPEN_ORDER_FLAG);
 const adjudicationArguments = finalCutoverAdjudicationArguments(process.argv.slice(2));
+const resolutionArguments = finalCutoverResolutionArguments(process.argv.slice(2));
 if (adjudicationArguments.manifestPath && !finalCutoverOperational) {
   throw new Error("Active-RO adjudication is valid only in explicit final-cutover operational mode.");
+}
+if (resolutionArguments.manifestPath && !finalCutoverOperational) {
+  throw new Error("Active-RO resolution is valid only in explicit final-cutover operational mode.");
 }
 if (finalCutoverOperational && argument(FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG) !== FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION) {
   throw new Error("Final-cutover operationalization requires its explicit confirmation token.");
@@ -103,10 +111,25 @@ async function main() {
         shopId: SHOP_ID,
         source: adjudicationSource,
       }) : null;
+      const resolutionSource = resolutionArguments.manifestPath ? (adjudicationSource ?? await resolveLegacySource({
+        args: process.argv.slice(2),
+        requiredFiles: ["Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
+      })) : null;
+      const resolutionContext = resolutionSource ? await loadFinalCutoverResolutionContext({
+        manifestPath: resolutionArguments.manifestPath,
+        snapshotManifestPath: resolutionArguments.snapshotManifestPath,
+        shopId: SHOP_ID,
+        source: resolutionSource,
+      }) : null;
       if (adjudicationContext) {
         const stagedKeys = new Set([...rawParts, ...rawLabor].map((row) => row.legacyRowKey));
         const missing = [...adjudicationContext.plan.excludedRowKeys].filter((key) => !stagedKeys.has(key));
         if (missing.length) throw new Error("Final-cutover adjudication source rows do not match staged open-order rows.");
+      }
+      if (resolutionContext) {
+        const stagedKeys = new Set([...rawParts, ...rawLabor].map((row) => row.legacyRowKey));
+        const missing = [...resolutionContext.plan.rowActions.keys()].filter((key) => !stagedKeys.has(key));
+        if (missing.length) throw new Error("Final-cutover active-RO resolution rows do not match staged open-order rows.");
       }
       const [shop, finalizedInvoices, survivingRepairOrders] = await Promise.all([
         prisma.shop.findUniqueOrThrow({ where: { id: SHOP_ID }, select: {
@@ -120,6 +143,7 @@ async function main() {
         partRows: rawParts, laborRows: rawLabor, customers, vehicles, finalizedInvoices,
         survivingRepairOrders, shopSettings: shop, currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
         adjudicationPlan: adjudicationContext?.plan ?? null,
+        resolutionPlan: resolutionContext?.plan ?? null,
       });
       if (projection.fatalIssues.length) {
         const first = projection.fatalIssues[0];
@@ -160,6 +184,9 @@ async function main() {
       console.log(`reviewed stale active ROs excluded: ${projection.reviewedExclusions.length}`);
       console.log(`reviewed stale source rows excluded: ${projection.reviewedExclusions.reduce((sum, decision) => sum + decision.sourceRows, 0)}`);
       if (projection.adjudicationManifestFingerprint) console.log(`active-RO adjudication manifest SHA-256: ${projection.adjudicationManifestFingerprint}`);
+      console.log(`reviewed active ROs resolved: ${projection.reviewedResolutions.length}`);
+      console.log(`reviewed structural source rows excluded: ${projection.reviewedResolutions.reduce((sum, decision) => sum + decision.excludedStructuralSourceRows, 0)}`);
+      if (projection.resolutionManifestFingerprint) console.log(`active-RO resolution manifest SHA-256: ${projection.resolutionManifestFingerprint}`);
       console.log(`next Repair Order number: ${persistedNextRepairOrderNumber}`);
       console.log("validation issues: 0");
       return;

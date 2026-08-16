@@ -185,6 +185,7 @@ export async function loadFinalCutoverAdjudicationContext({
     readFile(source.files["laborfinal.DBF"]).then(readActiveDbfRows),
     readFile(source.files["ar.DBF"]).then(readActiveDbfRows),
   ]);
+  const evidenceRows = (rows) => rows.map((rawData) => ({ rawData }));
   const plan = validateFinalCutoverAdjudication({
     manifest: loaded.manifest,
     manifestFingerprint: loaded.fingerprint,
@@ -192,7 +193,7 @@ export async function loadFinalCutoverAdjudicationContext({
     source,
     snapshot,
     openRows,
-    finalizedRows: { "FINAL.DBF": final, "laborfinal.DBF": laborFinal, "ar.DBF": ar },
+    finalizedRows: { "FINAL.DBF": evidenceRows(final), "laborfinal.DBF": evidenceRows(laborFinal), "ar.DBF": evidenceRows(ar) },
   });
   if (plan.fatalIssues.length) throw new Error(`Final-cutover adjudication rejected: ${plan.fatalIssues[0].code}.`);
   return { ...loaded, snapshot, plan };

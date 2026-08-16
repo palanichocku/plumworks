@@ -14,7 +14,7 @@ export const REHEARSAL_STAGES = Object.freeze([
   "payment-projection", "open-repair-order-projection", "final-verification",
 ]);
 const VALUE_ARGUMENTS = ["--zip", "--snapshot-date", "--customer-recovery-manifest", "--customer-recovery-proposal", "--workspace"];
-const OPTIONAL_VALUE_ARGUMENTS = ["--final-cutover-adjudication"];
+const OPTIONAL_VALUE_ARGUMENTS = ["--final-cutover-adjudication", "--final-cutover-active-ro-resolution"];
 const REQUIRED_CURRENT_MIGRATIONS = Object.freeze([
   "20260804120000_add_marketing_lead_attribution",
   "20260804150000_add_invoice_odometer",
@@ -70,6 +70,7 @@ export function parseLegacyRefreshRehearsalArguments(args) {
     mode: seed ? "seed" : "zip", zip: values["--zip"], snapshotDate,
     recoveryManifest: values["--customer-recovery-manifest"], recoveryProposal: values["--customer-recovery-proposal"], workspace: values["--workspace"],
     adjudicationManifest: values["--final-cutover-adjudication"],
+    activeRoResolution: values["--final-cutover-active-ro-resolution"],
     keepSnapshot: args.includes("--keep-snapshot"),
   };
 }
@@ -106,18 +107,21 @@ export async function createSeedZip({ repositoryRoot, targetZip, command = runCo
   return { path: targetZip, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex"), temporary: true };
 }
 
-export function cutoverDryRunArguments({ repositoryRoot, sourcePath, manifestPath, proposalPath, adjudicationManifestPath, snapshotManifestPath, reportDirectory }) {
+export function cutoverDryRunArguments({ repositoryRoot, sourcePath, manifestPath, proposalPath, adjudicationManifestPath, activeRoResolutionPath, snapshotManifestPath, reportDirectory }) {
   return [resolve(repositoryRoot, "scripts/legacy-cutover.mjs"), "--source", sourcePath,
     "--customer-recovery-manifest", manifestPath, "--customer-recovery-proposal", proposalPath,
     "--snapshot-manifest", snapshotManifestPath, "--payment-date-policy", "invoice-date-proxy",
     ...(adjudicationManifestPath ? ["--final-cutover-adjudication", adjudicationManifestPath] : []),
+    ...(activeRoResolutionPath ? ["--final-cutover-active-ro-resolution", activeRoResolutionPath] : []),
     "--dry-run", "--report", "--report-dir", reportDirectory, "--summary-only"];
 }
 
 export function validateRehearsalCutoverReport(summary, expected = {}) {
-  const expectedStages = expected.adjudicationProvided
-    ? [...REHEARSAL_STAGES.slice(0, 8), "active-ro-adjudication-validation", ...REHEARSAL_STAGES.slice(8)]
-    : REHEARSAL_STAGES;
+  const reviewedStages = [
+    ...(expected.adjudicationProvided ? ["active-ro-adjudication-validation"] : []),
+    ...(expected.activeRoResolutionProvided ? ["active-ro-resolution-validation"] : []),
+  ];
+  const expectedStages = [...REHEARSAL_STAGES.slice(0, 8), ...reviewedStages, ...REHEARSAL_STAGES.slice(8)];
   const stages = (summary.stages ?? []).filter((stage) => stage.status === "passed").map((stage) => stage.name);
   if (JSON.stringify(stages) !== JSON.stringify(expectedStages)) throw new Error("Cutover stage order is missing, reordered, skipped, or failed.");
   if (expected.sourcePath && summary.source?.path !== expected.sourcePath) throw new Error("Cutover canonical source-path continuity validation failed.");
@@ -267,6 +271,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       repositoryRoot, sourcePath: source.path, manifestPath: loadedManifest.path,
       proposalPath: options.recoveryProposal,
       adjudicationManifestPath: options.adjudicationManifest,
+      activeRoResolutionPath: options.activeRoResolution,
       snapshotManifestPath: join(snapshot.finalPath, "manifest.json"),
       reportDirectory: directories.reports,
     }), { cwd: repositoryRoot, label: "legacy cutover dry run" });
@@ -275,6 +280,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const stageOrder = validateRehearsalCutoverReport(cutover.value, {
       sourceFingerprint: source.fingerprint, sourcePath: source.path,
       adjudicationProvided: Boolean(options.adjudicationManifest),
+      activeRoResolutionProvided: Boolean(options.activeRoResolution),
     });
     const after = await databaseState();
     if (before.shopId !== after.shopId || JSON.stringify(before.counts) !== JSON.stringify(after.counts)) throw new Error("Read-only database counts changed during rehearsal.");
@@ -285,7 +291,7 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       "scripts/legacy-snapshot-intake.mjs", "scripts/lib/legacy-source.mjs", "scripts/lib/legacy-customer-recovery.mjs",
       "scripts/lib/legacy-payment-import.mjs", "scripts/lib/legacy-payment-stage.mjs", "scripts/transform-invoices.mjs",
       "scripts/lib/legacy-cutover-acceptance.mjs", "scripts/lib/legacy-invoice-projection.mjs",
-      "scripts/lib/legacy-final-cutover-adjudication.mjs", "scripts/lib/legacy-open-order-source.mjs",
+      "scripts/lib/legacy-final-cutover-adjudication.mjs", "scripts/lib/legacy-final-cutover-resolution.mjs", "scripts/lib/legacy-open-order-source.mjs",
       "scripts/generate-legacy-customer-recovery-proposal.mjs", "scripts/approve-legacy-customer-recovery.mjs",
       "scripts/lib/legacy-customer-recovery-proposal.mjs", "scripts/lib/legacy-snapshot-evidence.mjs",
       "scripts/lib/legacy-vehicle-recovery.mjs",

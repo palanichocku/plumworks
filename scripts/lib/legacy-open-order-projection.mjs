@@ -1,5 +1,6 @@
 import { normalizeLegacyOdometer } from "./legacy-odometer.mjs";
 import { calculateWebTransactionTotals } from "../../src/lib/invoice-lifecycle.ts";
+import { applyFinalCutoverResolution } from "./legacy-final-cutover-resolution.mjs";
 
 export const FINAL_CUTOVER_OPEN_ORDER_FLAG = "--final-cutover-operational";
 export const FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG = "--confirm-final-cutover-open-orders";
@@ -63,7 +64,9 @@ export function projectFinalCutoverOpenOrders({
   shopSettings,
   currentNextRepairOrderNumber,
   adjudicationPlan = null,
+  resolutionPlan = null,
 }) {
+  ({ partRows, laborRows } = applyFinalCutoverResolution({ partRows, laborRows, resolutionPlan }));
   const excludedRowKeys = adjudicationPlan?.excludedRowKeys ?? new Set();
   const acceptedPartRows = partRows.filter((row) => !excludedRowKeys.has(row.legacyRowKey));
   const acceptedLaborRows = laborRows.filter((row) => !excludedRowKeys.has(row.legacyRowKey));
@@ -173,6 +176,8 @@ export function projectFinalCutoverOpenOrders({
     orders,
     fatalIssues,
     reviewedExclusions: adjudicationPlan?.reviewedExclusions ?? [],
+    reviewedResolutions: resolutionPlan?.reviewedResolutions ?? [],
+    resolutionManifestFingerprint: resolutionPlan?.manifestFingerprint ?? null,
     adjudicationManifestFingerprint: adjudicationPlan?.manifestFingerprint ?? null,
     counts: { sourceGroups: groups.size, operationalOrders: orders.length, blockingIssues: fatalIssues.length },
     nextRepairOrderNumber: Math.max(currentNextRepairOrderNumber, highest + 1),
