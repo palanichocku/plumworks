@@ -59,16 +59,26 @@ export function requiredAclTablesFromPrivilegeMatrix(matrix, expectedTables) {
 
 export function validateRenderedAclSql({ sql, privilegeMatrix, expectedTables }) {
   const restored = {};
-  const grantPattern = /^GRANT (.+) ON TABLE public\.("?[a-zA-Z0-9_]+"?) TO (anon|authenticated|service_role|PUBLIC);$/gm;
+  const trackedOperations = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+  const identifier = String.raw`(?:"((?:[^"]|"")+)"|([a-zA-Z_][a-zA-Z0-9_$]*))`;
+  const grantPattern = new RegExp(
+    String.raw`^GRANT\s+(.+?)\s+ON\s+TABLE\s+(?:"public"|public)\.${identifier}\s+TO\s+${identifier}(?:\s+WITH\s+GRANT\s+OPTION)?;$`,
+    "gmi",
+  );
   for (const match of sql.matchAll(grantPattern)) {
-    const table = match[2].replaceAll('"', "");
+    const table = (match[2] ?? match[3]).replaceAll('""', '"');
+    const role = (match[4] ?? match[5]).replaceAll('""', '"');
     if (!expectedTables.includes(table)) continue;
+    if (!["anon", "authenticated", "service_role", "PUBLIC"].includes(role)) continue;
     restored[table] ??= {};
-    restored[table][match[3]] ??= new Set();
-    for (const privilege of match[1].split(",").map((value) => value.trim())) restored[table][match[3]].add(privilege);
+    restored[table][role] ??= new Set();
+    const privileges = /^ALL(?:\s+PRIVILEGES)?$/i.test(match[1].trim())
+      ? trackedOperations
+      : match[1].split(",").map((value) => value.trim().toUpperCase());
+    for (const privilege of privileges) restored[table][role].add(privilege);
   }
   for (const table of expectedTables) for (const role of ["anon", "authenticated", "service_role", "PUBLIC"]) {
-    for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+    for (const operation of trackedOperations) {
       const expected = privilegeMatrix?.[table]?.[role]?.[operation] === true;
       const actual = restored[table]?.[role]?.has(operation) === true;
       if (actual !== expected) throw new Error(`Rendered archive ACL SQL does not reproduce ${table} ${role} ${operation}.`);

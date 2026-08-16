@@ -84,6 +84,44 @@ test("rendered ACL SQL must reproduce positive grants and preserve every denial"
   assert.throws(() => validateRenderedAclSql({ sql: `${sql}GRANT SELECT ON TABLE public.shops TO anon;\n`, privilegeMatrix: privilegeMatrix(), expectedTables: tables }), /does not reproduce shops anon SELECT/);
   assert.throws(() => validateRenderedAclSql({ sql: `${sql}GRANT SELECT ON TABLE public._prisma_migrations TO service_role;\n`, privilegeMatrix: privilegeMatrix(), expectedTables: tables }), /does not reproduce _prisma_migrations service_role SELECT/);
 });
+
+test("rendered ACL SQL expands the production pg_dump ALL grant without weakening exact privilege checks", () => {
+  const matrix = privilegeMatrix();
+  const productionAcl = "GRANT ALL ON TABLE public.accounts_receivable TO service_role;\n";
+  const productionTables = ["_prisma_migrations", "accounts_receivable"];
+  matrix.accounts_receivable = structuredClone(matrix.shops);
+  delete matrix.shops;
+  assert.equal(validateRenderedAclSql({ sql: productionAcl, privilegeMatrix: matrix, expectedTables: productionTables }), true);
+
+  for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+    const incomplete = ["SELECT", "INSERT", "UPDATE", "DELETE"].filter((item) => item !== operation).join(",");
+    assert.throws(
+      () => validateRenderedAclSql({ sql: `GRANT ${incomplete} ON TABLE public.accounts_receivable TO service_role;\n`, privilegeMatrix: matrix, expectedTables: productionTables }),
+      new RegExp(`accounts_receivable service_role ${operation}`),
+    );
+  }
+  assert.throws(() => validateRenderedAclSql({
+    sql: "GRANT ALL ON TABLE public.accounts_receivable TO authenticated;\n",
+    privilegeMatrix: matrix,
+    expectedTables: productionTables,
+  }), /accounts_receivable authenticated SELECT/);
+  assert.throws(() => validateRenderedAclSql({
+    sql: "GRANT ALL ON TABLE public.customers TO service_role;\n",
+    privilegeMatrix: matrix,
+    expectedTables: productionTables,
+  }), /accounts_receivable service_role SELECT/);
+});
+
+test("rendered ACL SQL supports quoted identifiers and still detects forbidden grants", () => {
+  const matrix = privilegeMatrix();
+  const sql = "GRANT ALL PRIVILEGES ON TABLE \"public\".\"shops\" TO \"service_role\";\n";
+  assert.equal(validateRenderedAclSql({ sql, privilegeMatrix: matrix, expectedTables: tables }), true);
+  assert.throws(() => validateRenderedAclSql({
+    sql: `${sql}GRANT SELECT ON TABLE \"public\".\"shops\" TO \"anon\";\n`,
+    privilegeMatrix: matrix,
+    expectedTables: tables,
+  }), /shops anon SELECT/);
+});
 test("manifest rejects checksum, database, Shop, migration, and inventory drift", () => {
   assert.equal(validateBackupManifest({ manifest: manifest(), dumpFilename: "cutover.dump", dumpBytes: 10, dumpSha256: "abc", expectedIdentity: identity, expectedShopId: "shop-1", expectedTables: tables }), true);
   assert.throws(() => validateBackupManifest({ manifest: manifest(), dumpFilename: "cutover.dump", dumpBytes: 10, dumpSha256: "wrong", expectedIdentity: identity, expectedShopId: "shop-1", expectedTables: tables }), /checksum/);
