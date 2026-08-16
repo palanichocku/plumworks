@@ -73,6 +73,15 @@ This creates exactly one PostgreSQL custom-format `plumworks-public-cutover.dump
 
 The archive contains every current Prisma-managed `public` table, Shop counters, marketing leads and attribution, staging/import records, `_prisma_migrations`, and public-schema object ACLs. It excludes Supabase Auth, Storage, PostgreSQL roles, and ownership. It is a same-project rollback artifact: the existing Supabase roles must already exist in the target project. It is written under an incomplete name and atomically finalized only after archive structure, exact inventory, RLS, ACL baseline, migration, database/Shop identity, checksum, size, and permissions pass. Reset receives an in-memory gate from that exact verification; a flag or files from another invocation cannot unlock it.
 
+## Explicit cutover lifecycle
+
+The default/legacy invocation remains one-way and fail-closed: an existing `legacy_cutover_completed` marker blocks another full replacement. Historical markers are retained unchanged.
+
+- **Parallel baseline:** Windows remains authoritative. A repeatable baseline replacement requires `--cutover-mode parallel-baseline`, `--windows-authority-through YYYY-MM-DD`, the ordinary reset confirmation, and the separate `REPLACE_PARALLEL_BASELINE_FROM_WINDOWS` confirmation. Success records the non-terminal `legacy_parallel_baseline_completed` event.
+- **Final production:** the one-time terminal transition requires `--cutover-mode final-production`, the ordinary reset confirmation, and the separate `FINALIZE_WINDOWS_PRODUCTION_CUTOVER` confirmation. Success records `legacy_final_production_cutover_completed`; after that event, no default, parallel, or final full Windows replacement is permitted.
+
+Explicit parallel or final mode may proceed past historical pre-lifecycle `legacy_cutover_completed` records only with its dedicated confirmation and only while no final-production terminal marker exists. Lifecycle events use `entityType: shop`, so operational reset does not delete them. They are written only after reload and mandatory verification succeed.
+
 ## Confirmed reset and reload
 
 Review the dry-run immediately before cutover. Then run:
@@ -90,6 +99,8 @@ node --env-file=.env.local scripts/legacy-cutover.mjs \
   --reload-legacy \
   --verify \
   --report \
+  --cutover-mode final-production \
+  --confirm-final-production FINALIZE_WINDOWS_PRODUCTION_CUTOVER \
   --confirm RESET_SHOP_OPERATIONAL_DATA
 ```
 
@@ -97,7 +108,7 @@ The confirmation phrase and `--backup` are mandatory. The authoritative archive 
 
 Only the consolidated confirmed final-cutover driver operationalizes active `orders.DBF` / `LABORorder.DBF` work. Each accepted active order keeps the authoritative Windows number in both `legacyRoNo` and `repairOrderNumber`, but has a null parent `legacySourceTable` so it enters the normal editable workflow. Generic open-order transformation remains historical and read-only. Before reset, final-cutover acceptance rejects invalid or epoch dates, unresolved or ambiguous Customer/Vehicle identity, duplicate destination numbers, and any collision with finalized Invoice history. The shop's next Repair Order number is advanced above accepted imported numbers and is never lowered.
 
-After a confirmed final cutover succeeds and staff begins editing these operationalized orders, do not run the full Windows replacement command again. The cutoff snapshot is a one-way transition, not a merge source; a later replacement would discard PlumWorks edits. Preserve the accepted ZIP/snapshot, cutover report, and pre-cutover database backup as the audit and recovery artifacts.
+After a confirmed final-production cutover succeeds, Windows becomes read-only and the terminal audit marker prevents every later full Windows replacement. Parallel-baseline data is disposable only while Windows remains explicitly authoritative. Preserve each accepted ZIP/snapshot, cutover report, and pre-cutover database backup as audit and recovery artifacts.
 
 The confirmation phrase is authorization, not an execution request. A full replacement requires all five execution safeguards together: `--backup`, `--reset-operational-data`, `--reload-legacy`, `--verify`, and `--report`. Supplying confirmation without those flags fails clearly and cannot start a reset.
 

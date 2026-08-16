@@ -64,6 +64,15 @@ import { databaseIdentityFromUrl, loadExpectedPublicTables, requireVerifiedBacku
 import { verifyDirectory as verifyPublicBackupDirectory } from "./db/public-db-backup.mjs";
 import { deleteOperationalData, OPERATIONAL_MODELS } from "./lib/legacy-cutover-reset.mjs";
 import { loadOpenOrderSourceRows } from "./lib/legacy-open-order-source.mjs";
+import {
+  assertCutoverLifecycleAllowed,
+  completionActionForMode,
+  completionMetadata,
+  CUTOVER_LIFECYCLE_ACTIONS,
+  FINAL_PRODUCTION_CONFIRMATION,
+  PARALLEL_BASELINE_CONFIRMATION,
+  parseCutoverLifecycle,
+} from "./lib/legacy-cutover-lifecycle.mjs";
 
 const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
@@ -81,6 +90,9 @@ function argument(name) {
 
 const flags = new Set(process.argv.slice(2).filter((value) => value.startsWith("--")));
 const execution = flags.has("--help") ? null : parseLegacyCutoverExecution(process.argv.slice(2));
+const lifecycle = flags.has("--help") ? null : parseCutoverLifecycle(process.argv.slice(2), {
+  confirmedFullReplacement: execution.confirmedFullReplacement,
+});
 const adjudicationArguments = flags.has("--help") ? { manifestPath: null, snapshotManifestPath: null } : finalCutoverAdjudicationArguments(process.argv.slice(2));
 const resolutionArguments = flags.has("--help") ? { manifestPath: null, snapshotManifestPath: null } : finalCutoverResolutionArguments(process.argv.slice(2));
 const resolvedLegacySource = flags.has("--help") ? null : await resolveLegacySource({ requiredFiles: REQUIRED_SOURCES });
@@ -129,6 +141,7 @@ const runSummary = {
   warnings: [],
   criticalIssues: [],
   nextActions: [],
+  lifecycle: lifecycle ? { mode: lifecycle.mode, windowsAuthorityThrough: lifecycle.windowsAuthorityThrough } : null,
 };
 
 function recordStage(name, details = {}) {
@@ -150,6 +163,8 @@ function usage() {
   console.log("  --backup [--backup-dir <path>]");
   console.log("  --report [--report-dir <path>] [--summary-only]");
   console.log(`  --confirm ${CONFIRMATION}`);
+  console.log(`  --cutover-mode parallel-baseline --windows-authority-through YYYY-MM-DD --confirm-parallel-baseline ${PARALLEL_BASELINE_CONFIRMATION}`);
+  console.log(`  --cutover-mode final-production --confirm-final-production ${FINAL_PRODUCTION_CONFIRMATION}`);
 }
 
 async function sourceCounts(sourceDirectory) {
@@ -1056,6 +1071,7 @@ async function verify(prisma, shopId, preservedBefore, paymentContext = null) {
 async function main() {
   if (flags.has("--help")) return usage();
   const paymentDatePolicy = parsePaymentDatePolicyArgument(process.argv.slice(2));
+  const repositoryCommit = (process.env.VERCEL_GIT_COMMIT_SHA || (await capturedCommand("git", ["rev-parse", "HEAD"])).stdout).trim();
   runSummary.payment.datePolicy = paymentDatePolicy;
   finalLog(`legacy source directory: ${resolvedLegacySource.path}`);
   finalLog(`legacy source required files: ${Object.values(resolvedLegacySource.actualFiles).join(", ")}`);
@@ -1116,13 +1132,11 @@ async function main() {
     let adjudicationContext = null;
     let resolutionContext = null;
     if (execution.confirmedFullReplacement) {
-      const priorCompletedCutover = await prisma.auditLog.findFirst({
-        where: { shopId: shop.id, action: "legacy_cutover_completed", entityType: "shop" },
-        select: { id: true },
+      const priorLifecycleMarkers = await prisma.auditLog.findMany({
+        where: { shopId: shop.id, action: { in: CUTOVER_LIFECYCLE_ACTIONS }, entityType: "shop" },
+        select: { id: true, action: true, createdAt: true },
       });
-      if (priorCompletedCutover) {
-        throw new Error("A completed final cutover is already recorded for this shop. Full Windows replacement is one-way and cannot be run again after PlumWorks operations begin.");
-      }
+      assertCutoverLifecycleAllowed({ lifecycle, priorMarkers: priorLifecycleMarkers, confirmedFullReplacement: true });
     }
     console.log("database connection works: 1");
     runSummary.verification.databaseConnection = 1;
@@ -1510,12 +1524,25 @@ async function main() {
       }
     }
     if (wantsReload && runSummary.criticalIssues.length === 0) {
+      const action = completionActionForMode(lifecycle.mode);
       await prisma.auditLog.create({
         data: {
-          shopId: shop.id, action: "legacy_cutover_completed", entityType: "shop",
-          entityId: shop.id, entityLabel: "Legacy cutover", entityHref: "/admin/data-tools",
-          contextSummary: "Operational data reloaded from approved legacy source",
-          metadata: { sourceType: "Shopman32 DBF", driver: "legacy-cutover", invoiceArImportRunId: completedPaymentContext?.importRunId },
+          shopId: shop.id, action, entityType: "shop",
+          entityId: shop.id, entityLabel: lifecycle.mode === "parallel-baseline" ? "Legacy parallel baseline" : lifecycle.mode === "final-production" ? "Final production cutover" : "Legacy cutover",
+          entityHref: "/admin/data-tools",
+          contextSummary: lifecycle.mode === "parallel-baseline"
+            ? "Parallel baseline reloaded from approved Windows source; Windows remains authoritative"
+            : lifecycle.mode === "final-production"
+              ? "Final production cutover completed from approved Windows source"
+              : "Operational data reloaded from approved legacy source",
+          metadata: completionMetadata({
+            lifecycle,
+            snapshot: loadedRecovery?.approval?.snapshot,
+            sourceFingerprint: resolvedLegacySource.fingerprint,
+            repositoryCommit,
+            reportReference: wantsReport ? `cutover-${timestampSlug}.json` : null,
+            invoiceArImportRunId: completedPaymentContext?.importRunId,
+          }),
         },
       });
     }

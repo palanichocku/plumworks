@@ -110,8 +110,8 @@ test("generic open-order transform remains legacy while confirmed cutover explic
   assert.match(transform, /process\.argv\.includes\(FINAL_CUTOVER_OPEN_ORDER_FLAG\)/);
   assert.match(cutover, /transform-open-orders\.mjs", \[[\s\S]*FINAL_CUTOVER_OPEN_ORDER_FLAG,[\s\S]*FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG, FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION/);
   assert.match(transform, /Final-cutover operationalization requires its explicit confirmation token/);
-  assert.match(cutover, /action: "legacy_cutover_completed", entityType: "shop"/);
-  assert.match(cutover, /Full Windows replacement is one-way/);
+  assert.match(cutover, /completionActionForMode\(lifecycle\.mode\)/);
+  assert.match(cutover, /assertCutoverLifecycleAllowed/);
 });
 
 test("operational routes accept source-null cutoff ROs and Invoice creation stays native", async () => {
