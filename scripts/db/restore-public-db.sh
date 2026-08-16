@@ -7,6 +7,10 @@ source "$SCRIPT_DIR/common.sh"
 
 CONFIRM_TOKEN="RESTORE_PUBLIC_BASELINE"
 
+restore_stage() {
+  printf '[%s] restore-stage: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1"
+}
+
 usage() {
   cat <<EOF
 Usage:
@@ -92,27 +96,45 @@ require_command psql
 printf '  Mode: CONFIRMED RESTORE\n'
 
 SAFETY_ROOT="${SAFETY_BACKUP_ROOT:-$HOME/Projects/Web/plumworks-backups/cardoc/pre-restore-safety}"
+restore_stage 'safety-backup:start'
 printf '\nCreating an automatic pre-restore safety backup...\n'
 "$SCRIPT_DIR/backup-public-db.sh" \
   --backup-root "$SAFETY_ROOT" \
   --label before-restore \
   --env-file "$ENV_FILE" \
   --shop-id "$SHOP_ID"
+restore_stage 'safety-backup:complete exit=0'
 
 printf '\nRestoring public schema to %s...\n' "$TARGET"
+restore_stage 'pg_restore:start'
 
-pg_restore \
-  --dbname="$DB_URL" \
-  --clean \
-  --if-exists \
-  --no-owner \
-  --single-transaction \
-  "$DUMP_FILE"
+if pg_restore \
+    --dbname="$DB_URL" \
+    --clean \
+    --if-exists \
+    --no-owner \
+    --single-transaction \
+    "$DUMP_FILE"; then
+  restore_stage 'pg_restore:complete exit=0'
+else
+  restore_exit=$?
+  restore_stage "pg_restore:failed exit=$restore_exit"
+  exit "$restore_exit"
+fi
 
-node "$SCRIPT_DIR/public-db-backup.mjs" post-restore --directory "$BACKUP_DIR" --shop-id "$SHOP_ID"
+restore_stage 'post-restore-verification:start'
+if node "$SCRIPT_DIR/public-db-backup.mjs" post-restore --directory "$BACKUP_DIR" --shop-id "$SHOP_ID"; then
+  restore_stage 'post-restore-verification:complete exit=0'
+else
+  verifier_exit=$?
+  restore_stage "post-restore-verification:failed exit=$verifier_exit"
+  exit "$verifier_exit"
+fi
 
 unset DIRECT_URL DB_URL
 
+restore_stage 'restore:complete exit=0'
 printf '\nRestore completed successfully.\n'
 printf 'Manifest controls, relationships, financial controls, Auth membership links, and database security match the baseline.\n'
 printf 'Restart the local app and run the normal application smoke tests.\n'
+exit 0

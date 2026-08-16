@@ -148,3 +148,29 @@ test("cutover and restore source contracts use only the authoritative archive", 
   assert.match(restore, /post-restore/);
   assert.match(restore, /RESTORE_PUBLIC_BASELINE/);
 });
+test("restore completion is gated by pg_restore and post-restore verification", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const restore = await readFile("scripts/db/restore-public-db.sh", "utf8");
+  const pgStart = restore.indexOf("restore_stage 'pg_restore:start'");
+  const pgCommand = restore.indexOf("if pg_restore");
+  const pgComplete = restore.indexOf("restore_stage 'pg_restore:complete exit=0'");
+  const verifierStart = restore.indexOf("restore_stage 'post-restore-verification:start'");
+  const verifierCommand = restore.indexOf('if node "$SCRIPT_DIR/public-db-backup.mjs" post-restore');
+  const verifierComplete = restore.indexOf("restore_stage 'post-restore-verification:complete exit=0'");
+  const finalComplete = restore.indexOf("restore_stage 'restore:complete exit=0'");
+  const successFooter = restore.indexOf("Restore completed successfully.");
+  const explicitExit = restore.lastIndexOf("exit 0");
+  assert.ok(pgStart < pgCommand && pgCommand < pgComplete);
+  assert.ok(pgComplete < verifierStart && verifierStart < verifierCommand && verifierCommand < verifierComplete);
+  assert.ok(verifierComplete < finalComplete && finalComplete < successFooter && successFooter < explicitExit);
+  assert.match(restore, /pg_restore:failed exit=\$restore_exit[\s\S]*exit "\$restore_exit"/);
+  assert.match(restore, /post-restore-verification:failed exit=\$verifier_exit[\s\S]*exit "\$verifier_exit"/);
+  assert.doesNotMatch(restore, /pg_restore[^\n]*&|post-restore[^\n]*&|\|\s*tee|\bwait\b|<\(/);
+});
+test("database helpers close clients and await archive subprocess completion", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const helper = await readFile("scripts/db/public-db-backup.mjs", "utf8");
+  assert.ok((helper.match(/await client\.end\(\)/g) ?? []).length >= 3);
+  assert.match(helper, /child\.once\("exit", \(code\)/);
+  assert.doesNotMatch(helper, /new PrismaClient|new Pool|setInterval|readline/);
+});

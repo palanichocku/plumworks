@@ -36,6 +36,8 @@ This validates the archive, manifest, checksum, target identity, PostgreSQL majo
 
 Confirmed restore first backs up the target, restores in a single transaction, and verifies exact tables/counts, migrations, financial controls, Shop counter, RLS/policies, the complete captured object-privilege matrix, direct access, and membership links to unchanged `auth.users`. Ownership is not restored; ACLs are.
 
+Timestamped `restore-stage` markers identify safety-backup, `pg_restore`, post-restore verification, and final completion boundaries with exit status. The success footer is emitted only after the post-restore verifier exits successfully; a long-running `pg_restore` must not be inferred to have failed or succeeded from a quiet log interval.
+
 ## Required isolated rehearsal
 
 Using `.env.isolated-restore` for a dedicated non-production Supabase project:
