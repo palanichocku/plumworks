@@ -57,6 +57,7 @@ import {
 } from "./lib/legacy-cutover-preflight.mjs";
 import { databaseIdentityFromUrl, loadExpectedPublicTables, requireVerifiedBackupGate } from "./lib/public-db-backup.mjs";
 import { verifyDirectory as verifyPublicBackupDirectory } from "./db/public-db-backup.mjs";
+import { deleteOperationalData, OPERATIONAL_MODELS } from "./lib/legacy-cutover-reset.mjs";
 
 const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
@@ -65,31 +66,6 @@ const REQUIRED_SOURCES = [
 ];
 const DBF_SOURCES = REQUIRED_SOURCES.filter((name) => name.endsWith(".DBF"));
 const PROTECTED_TABLES = await loadExpectedPublicTables(resolve("prisma/schema.prisma"));
-const OPERATIONAL_MODELS = [
-  ["payments", "payment"],
-  ["accounts_receivable", "accountReceivable"],
-  ["invoice_parts", "invoicePart"],
-  ["invoice_labor", "invoiceLabor"],
-  ["invoices", "invoice"],
-  ["repair_order_parts", "repairOrderPart"],
-  ["repair_order_labor", "repairOrderLabor"],
-  ["repair_orders", "repairOrder"],
-  ["vehicles", "vehicle"],
-  ["customers", "customer"],
-  ["legacy_import_errors", "legacyImportError"],
-  ["raw_legacy_customers", "rawLegacyCustomer"],
-  ["raw_legacy_vehicles", "rawLegacyVehicle"],
-  ["raw_legacy_final", "rawLegacyFinal"],
-  ["raw_legacy_labor_final", "rawLegacyLaborFinal"],
-  ["raw_legacy_ar", "rawLegacyAr"],
-  ["raw_legacy_order_parts", "rawLegacyOrderPart"],
-  ["raw_legacy_order_labor", "rawLegacyOrderLabor"],
-  ["legacy_import_runs", "legacyImportRun"],
-];
-const OPERATIONAL_AUDIT_TYPES = [
-  "customer", "vehicle", "repair_order", "repair_order_part", "repair_order_labor",
-  "invoice", "payment", "accounts_receivable",
-];
 const legacyDecoder = new TextDecoder("windows-1252");
 
 function argument(name) {
@@ -826,12 +802,7 @@ async function resetOperationalData(prisma, shopId, verifiedBackupGate) {
   const identity = databaseIdentityFromUrl(process.env.DIRECT_URL ?? "");
   requireVerifiedBackupGate(verifiedBackupGate, { databaseFingerprint: identity.fingerprint, shopId });
   await prisma.$transaction(async (transaction) => {
-    await transaction.auditLog.deleteMany({
-      where: { shopId, entityType: { in: OPERATIONAL_AUDIT_TYPES } },
-    });
-    for (const [, model] of OPERATIONAL_MODELS) {
-      await transaction[model].deleteMany({ where: { shopId } });
-    }
+    await deleteOperationalData(transaction, shopId);
   }, { maxWait: 10_000, timeout: 120_000 });
 }
 
