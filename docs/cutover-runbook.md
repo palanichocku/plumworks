@@ -9,7 +9,8 @@ The licensed shop deployment uses one safe-by-default driver for legacy cutover.
 ```sh
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
   --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
@@ -20,9 +21,9 @@ This is the default mode. It checks the shop database connection and required so
 
 ## Snapshot-specific Customer recovery
 
-Some historical Invoice/AR rows reference Customers that cannot be imported normally from `Cust.DBF`. Their reviewed recovery decisions are supplied explicitly with `--customer-recovery-manifest`; the cutover never searches for or chooses a manifest. The version 2 manifest must bind the review to the exact combined source fingerprint, shop UUID, expected source tables, and reviewed recovered/alias/unresolved counts.
+Some historical Invoice/AR rows reference Customers that cannot be imported normally from `Cust.DBF`. Generate a deterministic, non-authorizing proposal from the accepted snapshot, review every candidate, and explicitly create Recovery Approval v3. Final cutover requires both the exact proposal and its approved artifact. The cutover never searches for, chooses, or auto-approves either artifact.
 
-A manifest created for the original seed is not valid for a later snapshot. Even when filenames are unchanged, a changed source fingerprint requires regenerating and reviewing the recovery evidence and approving a new manifest. The manifest may keep an unresolved order skipped only when its non-sensitive order/customer identity and authoritative total still exactly match the approved entry. New or materially changed unresolved evidence blocks the cutover.
+Version 1/version 2 manifests remain historical compatibility inputs only and cannot unlock final-cutover backup or reset. Approval v3 binds the Shop, ZIP, snapshot-manifest SHA-256, combined source fingerprint, each relevant DBF hash, exact proposal bytes, candidate-set hash, stable source rows/evidence, Vehicle evidence, AR authority, order sets, counts, and review metadata. A new ZIP requires a new proposal and approval. The approval may keep an unresolved order skipped only under the existing exact reviewed zero-dollar policy.
 
 ## Exceptional active Repair Order source adjudication
 
@@ -73,7 +74,8 @@ Review the dry-run immediately before cutover. Then run:
 ```sh
 node --env-file=.env.local scripts/legacy-cutover.mjs \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
   --final-cutover-adjudication /protected/plumworks-snapshots/2026-07-31-abc123/active-ro-adjudication.json \
   --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
@@ -98,7 +100,9 @@ Run a read-only readiness report before the confirmed command:
 ```sh
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --preflight --report
 ```
@@ -110,7 +114,9 @@ Preflight prints the backup destination, rows that would be deleted, authoritati
 ```sh
 npm run legacy:cutover -- \
   --source /protected/plumworks-snapshots/2026-07-31-abc123/Shopman32/data \
-  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/legacy-customer-recovery.json \
+  --customer-recovery-proposal /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-proposal.json \
+  --customer-recovery-manifest /protected/plumworks-snapshots/2026-07-31-abc123/customer-recovery-approval-v3.json \
+  --snapshot-manifest /protected/plumworks-snapshots/2026-07-31-abc123/manifest.json \
   --payment-date-policy invoice-date-proxy \
   --verify --report
 ```

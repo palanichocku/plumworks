@@ -26,7 +26,13 @@ import {
   validateApprovedPaymentUnresolved,
   verifyPersistedLegacyPayments,
 } from "./lib/legacy-payment-stage.mjs";
-import { loadRecoveryManifest, recoveryManifestArgument } from "./lib/legacy-recovery-manifest.mjs";
+import { loadRecoveryManifest, recoveryManifestArgument, recoveryProposalArgument } from "./lib/legacy-recovery-manifest.mjs";
+import {
+  loadAndValidateRecoveryApprovalV3,
+  isRecoveryApprovalV3,
+  RECOVERY_APPROVAL_VERSION,
+  requireFinalCutoverRecoveryApproval,
+} from "./lib/legacy-customer-recovery-proposal.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import {
@@ -149,8 +155,8 @@ function recordStage(name, details = {}) {
 function usage() {
   console.log("Usage: node --env-file=.env.local scripts/legacy-cutover.mjs [flags]");
   console.log("  --source <immutable snapshot data directory> (required)");
-  console.log("  --customer-recovery-manifest <source-bound approved JSON> (required when source Customer references need recovery)");
-  console.log("  --final-cutover-adjudication <approved snapshot-bound JSON> --snapshot-manifest <immutable snapshot manifest JSON>");
+  console.log("  --customer-recovery-manifest <approved Recovery v3 JSON> --customer-recovery-proposal <exact reviewed proposal JSON>");
+  console.log("  --snapshot-manifest <immutable snapshot manifest JSON> [--final-cutover-adjudication <approved snapshot-bound JSON>]");
   console.log("  --payment-date-policy invoice-date-proxy (required)");
   console.log("  --shop-id <shop UUID> (optional when the database contains exactly one shop)");
   console.log("  --dry-run (default) | --snapshot | --verify");
@@ -1084,25 +1090,7 @@ async function main() {
         shopSuppliesTaxable: true,
       },
     });
-    const adjudicationContext = adjudicationArguments.manifestPath ? await loadFinalCutoverAdjudicationContext({
-      manifestPath: adjudicationArguments.manifestPath,
-      snapshotManifestPath: adjudicationArguments.snapshotManifestPath,
-      shopId: shop.id,
-      source: resolvedLegacySource,
-    }) : null;
-    if (adjudicationContext) {
-      runSummary.activeRoAdjudication = {
-        provided: true,
-        manifestFingerprint: adjudicationContext.plan.manifestFingerprint,
-        reviewedExclusions: adjudicationContext.plan.reviewedExclusions,
-        reviewedExclusionCount: adjudicationContext.plan.reviewedExclusions.length,
-        reviewedExcludedSourceRows: adjudicationContext.plan.reviewedExclusions.reduce((sum, decision) => sum + decision.sourceRows, 0),
-      };
-      recordStage("active-ro-adjudication-validation", {
-        manifestFingerprint: adjudicationContext.plan.manifestFingerprint,
-        reviewedExclusionCount: adjudicationContext.plan.reviewedExclusions.length,
-      });
-    }
+    let adjudicationContext = null;
     if (execution.confirmedFullReplacement) {
       const priorCompletedCutover = await prisma.auditLog.findFirst({
         where: { shopId: shop.id, action: "legacy_cutover_completed", entityType: "shop" },
@@ -1117,7 +1105,27 @@ async function main() {
     const requiresRecovery = recoveryIsRequired(source);
     runSummary.recovery.required = requiresRecovery;
     const manifestPath = recoveryManifestArgument(process.argv.slice(2), { required: requiresRecovery });
-    const loadedRecovery = manifestPath ? await loadRecoveryManifest({ path: manifestPath }) : null;
+    const initiallyLoadedRecovery = manifestPath ? await loadRecoveryManifest({ path: manifestPath }) : null;
+    const snapshotBoundFinalMode = execution.confirmedFullReplacement || Boolean(adjudicationArguments.snapshotManifestPath);
+    const v3ApprovalSupplied = isRecoveryApprovalV3(initiallyLoadedRecovery?.manifest);
+    requireFinalCutoverRecoveryApproval({ finalCutover: snapshotBoundFinalMode, recoveryRequired: requiresRecovery, artifact: initiallyLoadedRecovery?.manifest });
+    let loadedRecovery = initiallyLoadedRecovery;
+    if (v3ApprovalSupplied) {
+      const proposalPath = recoveryProposalArgument(process.argv.slice(2), { required: true });
+      if (!adjudicationArguments.snapshotManifestPath) throw new Error("Recovery Approval v3 requires --snapshot-manifest.");
+      const validated = await loadAndValidateRecoveryApprovalV3({
+        approvalPath: manifestPath,
+        proposalPath,
+        snapshotManifestPath: adjudicationArguments.snapshotManifestPath,
+        shopId: shop.id,
+      });
+      loadedRecovery = { path: validated.path, manifest: validated.legacyManifest, approval: validated.value, proposal: validated.proposal };
+      runSummary.recovery.approvalVersion = RECOVERY_APPROVAL_VERSION;
+      runSummary.recovery.proposalFingerprint = validated.value.proposalSha256;
+      runSummary.recovery.candidateSetFingerprint = validated.value.candidateSetSha256;
+    } else if (recoveryProposalArgument(process.argv.slice(2), { required: false })) {
+      throw new Error("--customer-recovery-proposal may only accompany Recovery Approval v3.");
+    }
     runSummary.recovery.manifestProvided = Boolean(loadedRecovery);
     if (loadedRecovery) {
       runSummary.recovery.manifestFingerprint = createHash("sha256").update(await readFile(loadedRecovery.path)).digest("hex");
@@ -1194,6 +1202,25 @@ async function main() {
     const projectedCustomerIds = new Set(resolvedProjectedCustomers.map((row) => row.legacyCustno));
     const projectedVehicleIds = new Set(projectedState.vehicles.map((row) => row.legacyCarno));
     const projectedCustomerByLegacy = new Map(resolvedProjectedCustomers.map((row) => [row.legacyCustno, row.customerId]));
+    adjudicationContext = adjudicationArguments.manifestPath ? await loadFinalCutoverAdjudicationContext({
+      manifestPath: adjudicationArguments.manifestPath,
+      snapshotManifestPath: adjudicationArguments.snapshotManifestPath,
+      shopId: shop.id,
+      source: resolvedLegacySource,
+    }) : null;
+    if (adjudicationContext) {
+      runSummary.activeRoAdjudication = {
+        provided: true,
+        manifestFingerprint: adjudicationContext.plan.manifestFingerprint,
+        reviewedExclusions: adjudicationContext.plan.reviewedExclusions,
+        reviewedExclusionCount: adjudicationContext.plan.reviewedExclusions.length,
+        reviewedExcludedSourceRows: adjudicationContext.plan.reviewedExclusions.reduce((sum, decision) => sum + decision.sourceRows, 0),
+      };
+      recordStage("active-ro-adjudication-validation", {
+        manifestFingerprint: adjudicationContext.plan.manifestFingerprint,
+        reviewedExclusionCount: adjudicationContext.plan.reviewedExclusions.length,
+      });
+    }
     const projectedOpenOrders = projectFinalCutoverOpenOrders({
       partRows: invoiceSources.orderPartSource.rows,
       laborRows: invoiceSources.orderLaborSource.rows,

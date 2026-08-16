@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdtemp, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { access, lstat, mkdtemp, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { reconcileCustomerVehicleRows } from "./customer-vehicle-transform.mjs";
 import {
@@ -113,7 +113,7 @@ export async function validateSnapshotManifestForRecovery({ manifestPath, reposi
     !nonblank(manifest.detectedApplicationRoot) || !nonblank(manifest.detectedDataDirectory) || manifest.requiredFileValidation?.valid !== true ||
     !Array.isArray(manifest.requiredFileValidation?.required) || !REQUIRED_LEGACY_FILES.every((file) => manifest.requiredFileValidation.required.includes(file)) ||
     !Array.isArray(manifest.fatalIssues) || manifest.fatalIssues.length) throw new Error("Snapshot manifest is incomplete or invalid for recovery binding.");
-  const snapshotRoot = dirname(loaded.path);
+  const snapshotRoot = await realpath(dirname(loaded.path));
   const dataDirectory = resolve(snapshotRoot, manifest.detectedDataDirectory);
   if (!isWithin(snapshotRoot, dataDirectory)) throw new Error("Snapshot manifest data directory escapes the immutable snapshot.");
   const source = await resolveLegacySource({ args: ["--source", dataDirectory], requiredFiles: REQUIRED_LEGACY_FILES, repositoryRoot });

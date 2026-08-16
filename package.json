@@ -33,6 +33,8 @@
     "legacy:snapshot:intake": "node scripts/legacy-snapshot-intake.mjs",
     "legacy:rehearse": "node --env-file=.env.local scripts/legacy-refresh-rehearsal.mjs",
     "legacy:recovery:upgrade": "node scripts/upgrade-legacy-customer-recovery.mjs",
+    "legacy:recovery:propose": "node scripts/generate-legacy-customer-recovery-proposal.mjs",
+    "legacy:recovery:approve": "node scripts/approve-legacy-customer-recovery.mjs",
     "legacy:cutover": "node --env-file=.env.local scripts/legacy-cutover.mjs",
     "legacy:cutover:dry-run": "node --env-file=.env.local scripts/legacy-cutover.mjs --dry-run",
     "legacy:cutover:backup": "node --env-file=.env.local scripts/legacy-cutover.mjs --backup --report",

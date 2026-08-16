@@ -11,7 +11,7 @@ import {
   planCutoverCustomerRecovery,
   runRecoveryBeforeLaterStages,
 } from "./lib/legacy-customer-recovery.mjs";
-import { loadRecoveryManifest, recoveryManifestArgument } from "./lib/legacy-recovery-manifest.mjs";
+import { loadRecoveryManifest, recoveryManifestArgument, recoveryProposalArgument } from "./lib/legacy-recovery-manifest.mjs";
 
 const shopId = "11111111-1111-4111-8111-111111111111";
 const importRunId = "22222222-2222-4222-8222-222222222222";
@@ -71,6 +71,9 @@ test("manifest argument is explicit and duplicates are rejected", () => {
   assert.equal(recoveryManifestArgument([], { required: false }), null);
   assert.equal(recoveryManifestArgument(["--customer-recovery-manifest", "/safe/recovery.json"]), "/safe/recovery.json");
   assert.throws(() => recoveryManifestArgument(["--customer-recovery-manifest", "one", "--customer-recovery-manifest", "two"]), /more than once/);
+  assert.equal(recoveryProposalArgument([], { required: false }), null);
+  assert.throws(() => recoveryProposalArgument([], { required: true }), /is required/);
+  assert.equal(recoveryProposalArgument(["--customer-recovery-proposal", "/safe/proposal.json"]), "/safe/proposal.json");
 });
 
 test("manifest loader rejects malformed files, directories, and OriginalWinApp aliases", async () => {
@@ -214,6 +217,11 @@ test("cutover wires recovery between Customer transformation and exact-run Invoi
   assert.match(source, /importRunId,/);
   assert.match(source, /recoveryContext\.manifest/);
   assert.doesNotMatch(source, /runScript(?:WithOutput)?\("import-legacy-payments\.mjs"/);
+  const approvalGate = source.indexOf("loadAndValidateRecoveryApprovalV3");
+  const backupGate = source.indexOf("const backup = await createBackup");
+  const resetGate = source.indexOf("await resetOperationalData");
+  assert.ok(approvalGate > 0 && backupGate > approvalGate && resetGate > backupGate);
+  assert.match(source, /requireFinalCutoverRecoveryApproval\(\{ finalCutover: snapshotBoundFinalMode, recoveryRequired: requiresRecovery/);
 });
 
 test("private approved aggregate contract is skipped without its reviewed manifest", { skip: !process.env.LEGACY_CUSTOMER_RECOVERY_APPROVED_MANIFEST }, () => {

@@ -19,6 +19,18 @@ export function recoveryManifestArgument(args = process.argv.slice(2), { require
   return value;
 }
 
+export function recoveryProposalArgument(args = process.argv.slice(2), { required = false } = {}) {
+  const positions = args.flatMap((value, index) => value === "--customer-recovery-proposal" ? [index] : []);
+  if (positions.length > 1) throw new Error("--customer-recovery-proposal must not be supplied more than once.");
+  if (!positions.length) {
+    if (required) throw new Error("--customer-recovery-proposal is required for snapshot-bound Recovery Approval v3.");
+    return null;
+  }
+  const value = args[positions[0] + 1];
+  if (!value || value.startsWith("--")) throw new Error("--customer-recovery-proposal requires an explicit file path.");
+  return value;
+}
+
 export async function loadRecoveryManifest({ path, repositoryRoot = process.cwd() }) {
   const requested = resolve(path);
   const protectedPath = resolve(repositoryRoot, "OriginalWinApp");

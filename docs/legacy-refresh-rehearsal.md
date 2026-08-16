@@ -1,8 +1,8 @@
 # End-to-end legacy refresh rehearsal
 
-`legacy:rehearse` is a dry-run-only orchestration command. It accepts either the read-only repository seed or a customer-supplied ZIP, creates an immutable snapshot, validates the explicitly supplied snapshot-bound Customer recovery manifest, captures shop-scoped counts, runs the consolidated cutover dry run, validates its ordered stage ledger and reconciliation results, captures the same counts again, and runs the focused legacy checks.
+`legacy:rehearse` is a dry-run-only orchestration command. It accepts either the read-only repository seed or a customer-supplied ZIP, creates an immutable snapshot, reconstructs and validates the exact Customer recovery proposal and approved Recovery Approval v3, captures shop-scoped counts, runs the consolidated cutover dry run, validates its ordered stage ledger and reconciliation results, captures the same counts again, and runs the focused legacy checks.
 
-An approved version 1 recovery file must first be converted with the documented filesystem-only workflow in `docs/legacy-recovery-manifest-upgrade.md`.
+Version 1 and version 2 recovery files are historical compatibility artifacts and cannot authorize final-cutover rehearsal. Generate a proposal and explicit Recovery Approval v3 using `docs/legacy-recovery-manifest-upgrade.md`.
 
 It has no confirmed mode and rejects every confirmation argument or phrase. It does not pass `OriginalWinApp` as an import source, apply migrations, run reset/backup/import stages, or alter database rows.
 
@@ -12,7 +12,8 @@ Seed rehearsal:
 npm run legacy:rehearse -- \
   --seed \
   --snapshot-date YYYY-MM-DD \
-  --customer-recovery-manifest /protected/path/seed-recovery-v2.json \
+  --customer-recovery-proposal /protected/path/recovery-proposal.json \
+  --customer-recovery-manifest /protected/path/recovery-approval-v3.json \
   --workspace /protected/rehearsal-directory
 ```
 
@@ -22,7 +23,8 @@ Customer ZIP rehearsal:
 npm run legacy:rehearse -- \
   --zip /path/to/shopman32.zip \
   --snapshot-date 2026-07-31 \
-  --customer-recovery-manifest /protected/path/2026-07-31-recovery-v2.json \
+  --customer-recovery-proposal /protected/path/2026-07-31-recovery-proposal.json \
+  --customer-recovery-manifest /protected/path/2026-07-31-recovery-approval-v3.json \
   --final-cutover-adjudication /protected/path/2026-07-31-active-ro-adjudication.json \
   --workspace /protected/rehearsal-directory
 ```
@@ -31,7 +33,7 @@ The command creates a private `rehearsal-*` directory containing `incoming`, `sn
 
 `--final-cutover-adjudication` is optional and is only appropriate after explicit human review of an exceptional active-RO source artifact. The rehearsal supplies its newly created immutable snapshot manifest to the cutover validator automatically. The adjudication must match that exact ZIP, snapshot manifest, source fingerprint, DBF hashes, source rows, and finalized collision; otherwise rehearsal stops. A new ZIP always requires revalidation, and an artifact that disappears receives no carried-forward exclusion.
 
-The JSON and Markdown reports are sanitized aggregate reports. They record Git state, ZIP identity, source fingerprint, recovery-manifest v2 binding, ordered stage validation, Customer/Vehicle, Invoice/AR, Payment and open-order aggregates, before/after database counts, tests, lint, warnings, and any failed stage. Invoice-date payment groupings remain explicitly labeled as proxy allocations rather than receipt chronology.
+The JSON and Markdown reports are sanitized aggregate reports. They record Git state, ZIP identity, source fingerprint, proposal and Recovery Approval v3 fingerprints, ordered stage validation, Customer/Vehicle, Invoice/AR, Payment and open-order aggregates, before/after database counts, tests, lint, warnings, and any failed stage. Invoice-date payment groupings remain explicitly labeled as proxy allocations rather than receipt chronology.
 
 The rehearsal also proves the current fresh-transform contract:
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { canonicalJson } from "./legacy-snapshot-evidence.mjs";
 
 const decoder = new TextDecoder("windows-1252");
 
@@ -60,16 +61,10 @@ export function readActiveDbfRows(file) {
   return rows;
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
-}
-
 export function keyedOpenOrderRows(rows, sourceModel) {
   const occurrences = new Map();
   return rows.map((rawData) => {
-    const hash = createHash("sha256").update(JSON.stringify(canonicalize(rawData))).digest("hex").slice(0, 24);
+    const hash = createHash("sha256").update(canonicalJson(rawData)).digest("hex").slice(0, 24);
     const occurrence = (occurrences.get(hash) ?? 0) + 1;
     occurrences.set(hash, occurrence);
     return { rawData, legacyRowKey: `${sourceModel}:${hash}:${occurrence}` };

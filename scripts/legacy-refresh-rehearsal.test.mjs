@@ -20,7 +20,7 @@ const shopId = "11111111-1111-4111-8111-111111111111";
 const fingerprint = "a".repeat(64);
 
 function options(root, mode = "zip") {
-  return { mode, zip: mode === "zip" ? join(root, "customer.zip") : undefined, snapshotDate: "2026-07-31", recoveryManifest: join(root, "recovery.json"), workspace: join(root, "workspace"), keepSnapshot: false };
+  return { mode, zip: mode === "zip" ? join(root, "customer.zip") : undefined, snapshotDate: "2026-07-31", recoveryManifest: join(root, "recovery.json"), recoveryProposal: join(root, "proposal.json"), workspace: join(root, "workspace"), keepSnapshot: false };
 }
 
 function recoveryManifest(overrides = {}) {
@@ -60,6 +60,7 @@ async function harness(mode = "zip", overrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "legacy-rehearsal-test-"));
   await writeFile(join(root, "customer.zip"), "customer-supplied-zip");
   await writeFile(join(root, "recovery.json"), "{}");
+  await writeFile(join(root, "proposal.json"), "{}");
   let countCalls = 0;
   let cutoverArgs = null;
   let seedZipPath = null;
@@ -87,7 +88,7 @@ async function harness(mode = "zip", overrides = {}) {
 }
 
 test("arguments require one source mode and reject missing, duplicate, unknown, and confirmation arguments", () => {
-  const common = ["--snapshot-date", "2026-07-31", "--customer-recovery-manifest", "/safe/recovery.json", "--workspace", "/safe/work"];
+  const common = ["--snapshot-date", "2026-07-31", "--customer-recovery-manifest", "/safe/recovery.json", "--customer-recovery-proposal", "/safe/proposal.json", "--workspace", "/safe/work"];
   assert.equal(parseLegacyRefreshRehearsalArguments(["--seed", ...common]).mode, "seed");
   assert.equal(parseLegacyRefreshRehearsalArguments(["--zip", "/safe/shopman32.zip", ...common]).mode, "zip");
   assert.throws(() => parseLegacyRefreshRehearsalArguments(common), /Exactly one/);
@@ -98,7 +99,7 @@ test("arguments require one source mode and reject missing, duplicate, unknown, 
 });
 
 test("constructed cutover command is unconditionally dry-run and has no confirmation capability", () => {
-  const args = cutoverDryRunArguments({ repositoryRoot: "/repo", sourcePath: "/snapshot/data", manifestPath: "/manifest.json", reportDirectory: "/reports" });
+  const args = cutoverDryRunArguments({ repositoryRoot: "/repo", sourcePath: "/snapshot/data", manifestPath: "/manifest.json", proposalPath: "/proposal.json", snapshotManifestPath: "/snapshot/manifest.json", reportDirectory: "/reports" });
   assert.ok(args.includes("--dry-run"));
   assert.ok(args.includes("invoice-date-proxy"));
   assert.ok(!args.includes("--confirm"));
@@ -191,12 +192,12 @@ test("a customer-supplied ZIP is never removed when rehearsal fails", async () =
   } finally { await rm(item.root, { recursive: true, force: true }); }
 });
 
-test("stale source fingerprint and wrong shop manifests stop before cutover", async () => {
+test("stale source fingerprint and wrong shop approvals stop before cutover", async () => {
   for (const binding of [{ sourceFingerprint: "c".repeat(64), shopId }, { sourceFingerprint: fingerprint, shopId: "22222222-2222-4222-8222-222222222222" }]) {
     let commands = 0;
-    const item = await harness("zip", { manifestLoader: async ({ path }) => ({ path, manifest: recoveryManifest({ sourceBinding: { ...binding, sourceTables: [...CUTOVER_RECOVERY_SOURCE_TABLES] } }) }), command: async () => { commands += 1; } });
+    const item = await harness("zip", { manifestLoader: async () => { throw new Error(`Customer recovery approval rejected: ${binding.shopId === shopId ? "source" : "shop"} binding failed.`); }, command: async () => { commands += 1; } });
     try {
-      await assert.rejects(runLegacyRefreshRehearsal(item.options, item.dependencies), /manifest binding failed/);
+      await assert.rejects(runLegacyRefreshRehearsal(item.options, item.dependencies), /binding failed/);
       assert.equal(commands, 0);
     } finally { await rm(item.root, { recursive: true, force: true }); }
   }

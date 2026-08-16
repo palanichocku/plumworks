@@ -4,6 +4,7 @@ import { access, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { validateSnapshotManifestForRecovery } from "./legacy-recovery-upgrade.mjs";
 import { readActiveDbfRows, loadOpenOrderSourceRows } from "./legacy-open-order-source.mjs";
+import { canonicalJson, evidenceHash } from "./legacy-snapshot-evidence.mjs";
 
 export const FINAL_CUTOVER_ADJUDICATION_VERSION = 1;
 export const FINAL_CUTOVER_ADJUDICATION_TYPE = "final-cutover-active-ro-adjudication";
@@ -33,8 +34,8 @@ function argument(args, name) {
 export function finalCutoverAdjudicationArguments(args = process.argv.slice(2)) {
   const manifestPath = argument(args, FINAL_CUTOVER_ADJUDICATION_FLAG);
   const snapshotManifestPath = argument(args, SNAPSHOT_MANIFEST_FLAG);
-  if (Boolean(manifestPath) !== Boolean(snapshotManifestPath)) {
-    throw new Error(`${FINAL_CUTOVER_ADJUDICATION_FLAG} and ${SNAPSHOT_MANIFEST_FLAG} must be supplied together.`);
+  if (manifestPath && !snapshotManifestPath) {
+    throw new Error(`${FINAL_CUTOVER_ADJUDICATION_FLAG} requires ${SNAPSHOT_MANIFEST_FLAG}.`);
   }
   return { manifestPath, snapshotManifestPath };
 }
@@ -60,14 +61,8 @@ async function readableManifest(path, repositoryRoot) {
   return { path: resolvedPath, bytes, manifest, fingerprint: createHash("sha256").update(bytes).digest("hex") };
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
-}
-
 function rowHash(rawData) {
-  return createHash("sha256").update(JSON.stringify(canonicalize(rawData))).digest("hex");
+  return evidenceHash(rawData);
 }
 
 function identifier(rawData, candidates) {
@@ -99,7 +94,7 @@ export function finalizedCollisionEvidence(ro, finalizedRows) {
 }
 
 function exact(left, right) {
-  return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
+  return canonicalJson(left) === canonicalJson(right);
 }
 
 function nonblank(value) {

@@ -75,13 +75,13 @@ const settings = {
   shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "25", shopSuppliesTaxable: true,
 };
 
-test("adjudication and immutable snapshot manifests must be supplied as one explicit pair", () => {
+test("adjudication requires a snapshot manifest while recovery may supply the snapshot alone", () => {
   assert.deepEqual(finalCutoverAdjudicationArguments([]), { manifestPath: null, snapshotManifestPath: null });
   assert.deepEqual(finalCutoverAdjudicationArguments(["--final-cutover-adjudication", "/safe/a.json", "--snapshot-manifest", "/safe/s.json"]), {
     manifestPath: "/safe/a.json", snapshotManifestPath: "/safe/s.json",
   });
-  assert.throws(() => finalCutoverAdjudicationArguments(["--final-cutover-adjudication", "/safe/a.json"]), /must be supplied together/);
-  assert.throws(() => finalCutoverAdjudicationArguments(["--snapshot-manifest", "/safe/s.json"]), /must be supplied together/);
+  assert.throws(() => finalCutoverAdjudicationArguments(["--final-cutover-adjudication", "/safe/a.json"]), /requires --snapshot-manifest/);
+  assert.deepEqual(finalCutoverAdjudicationArguments(["--snapshot-manifest", "/safe/s.json"]), { manifestPath: null, snapshotManifestPath: "/safe/s.json" });
 });
 
 function project(adjudicationPlan = null) {
