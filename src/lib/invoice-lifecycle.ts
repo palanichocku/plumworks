@@ -25,27 +25,26 @@ type TransactionTotalsInput = {
   shopSuppliesTaxable: boolean;
 };
 
-function calculateTransactionTotals(input: TransactionTotalsInput, taxableSuppliesUseUncappedAmount: boolean) {
+function calculateNativeTransactionTotals(input: TransactionTotalsInput) {
   const zero = new Prisma.Decimal(0);
   const partsTotal = input.parts.reduce((sum, line) => sum.plus(new Prisma.Decimal(line.quantity).mul(line.unitPrice).toDecimalPlaces(2)), zero).toDecimalPlaces(2);
   const laborTotal = input.labor.reduce((sum, line) => sum.plus(new Prisma.Decimal(line.hours).mul(line.hourlyRate).toDecimalPlaces(2)), zero).toDecimalPlaces(2);
   const supplies = calculateShopSupplies({ enabled: input.shopSuppliesEnabled, laborSubtotal: laborTotal, rate: input.shopSuppliesRate, maximumCap: input.shopSuppliesCap });
   const shopSuppliesAmount = supplies.appliedAmount;
   const subtotal = partsTotal.plus(laborTotal).toDecimalPlaces(2);
-  const taxableShopSupplies = taxableSuppliesUseUncappedAmount ? supplies.uncappedAmount : shopSuppliesAmount;
   const taxable = (input.partsTaxable ? partsTotal : zero)
     .plus(input.laborTaxable ? laborTotal : zero)
-    .plus(input.shopSuppliesTaxable ? taxableShopSupplies : zero);
+    .plus(input.shopSuppliesTaxable ? supplies.uncappedAmount : zero);
   const taxTotal = taxable.mul(input.taxRate).toDecimalPlaces(2);
   return { partsTotal, laborTotal, subtotal, shopSuppliesAmount, shopSuppliesEligibleLaborTotal: laborTotal, shopSuppliesCalculatedAmount: shopSuppliesAmount, taxTotal, total: subtotal.plus(shopSuppliesAmount).plus(taxTotal).toDecimalPlaces(2) };
 }
 
 export function calculateRepairOrderEstimateTotals(input: TransactionTotalsInput) {
-  return calculateTransactionTotals(input, true);
+  return calculateNativeTransactionTotals(input);
 }
 
 export function calculateWebTransactionTotals(input: TransactionTotalsInput) {
-  return calculateTransactionTotals(input, false);
+  return calculateNativeTransactionTotals(input);
 }
 
 export const calculateEditableInvoiceTotals = calculateWebTransactionTotals;

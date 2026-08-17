@@ -58,6 +58,25 @@ test("Repair Order estimates tax taxable Shop Supplies before the charge cap", (
   assert.equal(ro21756.total.toFixed(2), "145.36");
 });
 
+test("native Invoice and Repair Order share pre-cap taxable supplies semantics", () => {
+  const ro21756 = { parts: [{ quantity: "1", unitPrice: "527.56" }], labor: [{ hours: "1", hourlyRate: "404.00" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true };
+  const repairOrder = calculateRepairOrderEstimateTotals(ro21756);
+  const invoice = calculateEditableInvoiceTotals(ro21756);
+  assert.equal(calculate("404.00", "0.08", "20").uncappedAmount.toFixed(2), "32.32");
+  assert.equal(invoice.shopSuppliesAmount.toFixed(2), "20.00");
+  assert.equal(invoice.taxTotal.toFixed(2), "33.59");
+  assert.equal(invoice.total.toFixed(2), "985.15");
+  assert.deepEqual(invoice, repairOrder);
+
+  const ro21759 = { parts: [{ quantity: "1", unitPrice: "352.00" }], labor: [{ hours: "1", hourlyRate: "585.00" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true };
+  const beforeConversion = calculateRepairOrderEstimateTotals(ro21759);
+  const afterConversion = calculateEditableInvoiceTotals(ro21759);
+  assert.equal(calculate("585.00", "0.08", "20").uncappedAmount.toFixed(2), "46.80");
+  assert.equal(beforeConversion.taxTotal.toFixed(2), "23.93");
+  assert.equal(beforeConversion.total.toFixed(2), "980.93");
+  assert.deepEqual(afterConversion, beforeConversion);
+});
+
 test("Repair Order estimate taxability, zero supplies, labor taxability, and rounding remain explicit", () => {
   const zeroSupplies = calculateRepairOrderEstimateTotals({ parts: [{ quantity: "1", unitPrice: "10" }], labor: [], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
   assert.equal(zeroSupplies.shopSuppliesAmount.toFixed(2), "0.00");

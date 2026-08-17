@@ -187,6 +187,7 @@ export async function closeInvoice(formData: FormData) {
   if (!(["OWNER", "ADMIN"] as string[]).includes(membership.role)) throw new Error("Only an owner or administrator can close invoices.");
   await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`SELECT id FROM invoices WHERE id = ${invoiceId}::uuid AND shop_id = ${membership.shopId}::uuid FOR UPDATE`;
+    await refreshInvoice(transaction, membership.shopId, invoiceId);
     const invoice = await transaction.invoice.findFirst({ where: { id: invoiceId, shopId: membership.shopId, status: "open", legacySourceTable: null }, select: { id: true, total: true, repairOrderNumber: true } });
     if (!invoice) throw new Error("Invoice is not open.");
     const payments = await transaction.payment.aggregate({ where: { invoiceId, shopId: membership.shopId }, _sum: { amount: true } });

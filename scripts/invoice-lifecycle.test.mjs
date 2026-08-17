@@ -18,9 +18,10 @@ test("invoice recalculation and balance remain Decimal exact", () => {
   const totals = calculateEditableInvoiceTotals({ parts: [{ quantity: "2", unitPrice: "10.10" }], labor: [{ hours: "1.5", hourlyRate: "100" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "5", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
   assert.equal(totals.partsTotal.toFixed(2), "20.20");
   assert.equal(totals.laborTotal.toFixed(2), "150.00");
-  assert.equal(totals.taxTotal.toFixed(2), "1.51");
-  assert.equal(totals.total.toFixed(2), "176.71");
-  assert.equal(invoiceBalance(totals.total, new Prisma.Decimal("76.71")).toFixed(2), "100.00");
+  assert.equal(totals.shopSuppliesAmount.toFixed(2), "5.00");
+  assert.equal(totals.taxTotal.toFixed(2), "1.93");
+  assert.equal(totals.total.toFixed(2), "177.13");
+  assert.equal(invoiceBalance(totals.total, new Prisma.Decimal("77.13")).toFixed(2), "100.00");
 });
 
 test("invoice creation is locked, unique, idempotent, and creates OPEN", async () => {
@@ -49,6 +50,14 @@ test("invoice edits are transactional, OPEN-only, preserve payments, and refresh
   assert.match(action, /Invoice changes cannot reduce the total below payments already received/);
   assert.match(action, /isolationLevel: "Serializable"/);
   assert.doesNotMatch(action, /payment\.(?:delete|update)/);
+  assert.match(action, /updateInvoiceDetails[\s\S]*mutateOpenInvoice/);
+  for (const mutation of ["addInvoicePart", "updateInvoicePart", "deleteInvoicePart", "addInvoiceLabor", "updateInvoiceLabor", "deleteInvoiceLabor"]) {
+    assert.match(action, new RegExp(`export async function ${mutation}\\([\\s\\S]*?mutateOpenInvoice`));
+  }
+  assert.match(action, /previewInvoiceEditTotals[\s\S]*calculateEditableInvoiceTotals/);
+  assert.match(action, /async function refreshInvoice[\s\S]*calculateEditableInvoiceTotals/);
+  assert.match(action, /await refreshInvoice\(transaction, membership\.shopId, invoiceId\)/);
+  assert.doesNotMatch(action, /formData\.get\("(?:partsTotal|laborTotal|shopSuppliesAmount|taxTotal|total)"\)/);
 });
 
 test("close requires zero balance, delivery, OPEN state, and OWNER or ADMIN", async () => {
@@ -56,6 +65,7 @@ test("close requires zero balance, delivery, OPEN state, and OWNER or ADMIN", as
   assert.match(action, /vehicleDelivered/);
   assert.match(action, /\["OWNER", "ADMIN"\]/);
   assert.match(action, /if \(!balance\.isZero\(\)\) throw/);
+  assert.match(action, /closeInvoice[\s\S]*refreshInvoice\(transaction, membership\.shopId, invoiceId\)[\s\S]*if \(!balance\.isZero\(\)\) throw/);
   assert.match(action, /status: "closed"/);
   assert.match(action, /closedAt: now, deliveredAt: now, closedByUserId/);
   assert.match(dialog, /name="vehicleDelivered"/);
