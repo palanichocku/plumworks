@@ -4,13 +4,16 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { DailySalesReportPDF } from "@/components/pdf/daily-sales-report-pdf";
 import { getDailySalesReportModel } from "@/lib/data/reports";
 import { sendGmailMessage } from "@/lib/email/gmail";
+import { resolveSalesReportPeriod, type SalesReportPeriodParams } from "@/lib/sales-report-period";
 
 export async function sendDailySalesReportEmail(
   emailAddress: string,
-  from: string,
-  to: string
+  periodParams: SalesReportPeriodParams,
 ) {
   try {
+    const resolved = resolveSalesReportPeriod(periodParams, { from: "", to: "" });
+    if (!resolved.ok) return { success: false, error: resolved.error };
+    const { from, to, title } = resolved.period;
     console.log(`[Email Action] Starting generation for ${from} to ${to}...`);
 
     const report = await getDailySalesReportModel({ from, to });
@@ -22,16 +25,16 @@ export async function sendDailySalesReportEmail(
     // If your terminal hangs right after this log, @react-pdf is failing to compile 
     // the layout in the server environment.
     const pdfBuffer = await renderToBuffer(
-      <DailySalesReportPDF report={report} fromDate={from} toDate={to} />
+      <DailySalesReportPDF report={report} fromDate={from} toDate={to} reportTitle={title} />
     );
 
     const result = await sendGmailMessage({
       to: emailAddress,
-      subject: `Daily Sales Report: ${from} to ${to}`,
-      text: `Please find the requested daily sales report for CAR DOC LLC attached as a PDF.\n\nInvoice Range: ${from} to ${to}`,
+      subject: `${title}: ${from} to ${to}`,
+      text: `Please find the requested sales report for CAR DOC LLC attached as a PDF.\n\n${title}\nInvoice Range: ${from} to ${to}`,
       attachments: [
         {
-          filename: `CAR_DOC_Daily_Sales_${from}_to_${to}.pdf`,
+          filename: `CAR_DOC_Sales_${resolved.period.mode}_${from}_to_${to}.pdf`,
           content: Buffer.from(pdfBuffer),
           contentType: "application/pdf",
         },

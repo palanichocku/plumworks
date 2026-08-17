@@ -9,12 +9,12 @@ import {
   DAILY_SALES_COLUMNS, 
   formatReportDateRange, 
   formatReportGeneratedTime, 
-  isIsoReportDate, 
   normalizeDailySalesReportOutput 
 } from "@/lib/daily-sales-report-model";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { hasPermission } from "@/lib/permissions";
 import { ReportFilterForm } from "@/components/report-filter-form";
+import { resolveSalesReportPeriod, type SalesReportPeriodParams } from "@/lib/sales-report-period";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ function isoDate(date: Date) {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; output?: string }>;
+  searchParams: Promise<SalesReportPeriodParams & { output?: string }>;
 }) {
   const params = await searchParams;
   const { membership } = await getCurrentMembership();
@@ -35,10 +35,13 @@ export default async function ReportsPage({
   const now = new Date();
   const defaultFrom = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
   const defaultTo = isoDate(now);
-  const from = isIsoReportDate(params.from) ? params.from : defaultFrom;
-  const to = isIsoReportDate(params.to) ? params.to : defaultTo;
   const output = normalizeDailySalesReportOutput(params.output);
-  const report = await getDailySalesReportModel({ from, to });
+  const resolved = resolveSalesReportPeriod(params, { from: defaultFrom, to: defaultTo });
+  if (!resolved.ok) {
+    return <div className="space-y-6"><PageHeading eyebrow="Analytics" title="Reports" description="Recorded shop activity and sales breakdowns." /><div role="alert" className="rounded-2xl border-2 border-red-200 bg-red-50 p-6 text-red-900"><h2 className="font-black">Invalid report period</h2><p className="mt-2 text-sm">{resolved.error}</p><Link href="/reports" className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Return to Reports</Link></div></div>;
+  }
+  const period = resolved.period;
+  const report = await getDailySalesReportModel({ from: period.from, to: period.to });
   if (!report) return null;
 
   const salesCards = [
@@ -68,7 +71,7 @@ export default async function ReportsPage({
     !report.reconciliation.invoicePaidPaymentDifference.isZero();
 
   const reportPayload = `
-Daily Sales Report (${formatReportDateRange(report.from, report.to)})
+${period.title} (${formatReportDateRange(report.from, report.to)})
 Generated: ${formatReportGeneratedTime(report.generatedAt)}
 
 -- SUMMARY --
@@ -91,16 +94,15 @@ Payment Total: ${formatMoney(report.payments.paymentTotal)}
         <PageHeading eyebrow="Analytics" title="Reports" description="Recorded shop activity, sales breakdowns, and balances for a selected date range." />
       </div>
       
-      <ReportFilterForm initialFrom={from} initialTo={to} output={output} />
+      <ReportFilterForm key={JSON.stringify(period.query)} initialPeriod={period} output={output} />
       
       <DailySalesReportControls
         key={`${report.from}:${report.to}`}
-        loadedFrom={report.from}
-        loadedTo={report.to}
         formattedRange={formatReportDateRange(report.from, report.to)}
         generatedTime={formatReportGeneratedTime(report.generatedAt)}
         invoiceCount={report.invoices.length}
         initialOutput={output}
+        period={period}
         canEmail={canEmailDailySalesReport(membership.role)}
         reportPayload={reportPayload}
         summary={

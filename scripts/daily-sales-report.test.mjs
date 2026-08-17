@@ -230,9 +230,9 @@ test("print route preserves dates and consumes the shared report model", async (
     readFile(new URL("../src/lib/data/reports.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/components/daily-sales-report-controls.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(controls, /href=\{`\/reports\/print\?from=\$\{encodeURIComponent\(loadedFrom\)\}&to=\$\{encodeURIComponent\(loadedTo\)\}&output=\$\{output\}`\}/);
-  assert.match(printable, /const from = params\.from as string;[\s\S]*const to = params\.to as string;[\s\S]*getDailySalesReportModel\(\{ from, to \}\)/);
-  assert.match(screen, /getDailySalesReportModel\(\{ from, to \}\)/);
+  assert.match(controls, /href=\{`\/reports\/print\?\$\{salesReportPeriodSearch\(period, view\)\}`\}/);
+  assert.match(printable, /resolveSalesReportPeriod\(params,[\s\S]*const \{ from, to \} = period;[\s\S]*getDailySalesReportModel\(\{ from, to \}\)/);
+  assert.match(screen, /getDailySalesReportModel\(\{ from: period\.from, to: period\.to \}\)/);
   assert.match(reports, /return \{ shop, from, to, generatedAt, range, \.\.\.report \}/);
   assert.doesNotMatch(printable, /buildSalesSummary|aggregatePaymentRows|reconciliationDifferences/);
 });

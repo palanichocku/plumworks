@@ -2,12 +2,14 @@ import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { formatMoney } from "@/lib/formatters";
 import { formatReportDateRange, formatReportGeneratedTime } from "@/lib/daily-sales-report-model";
+import type { DailySalesReportModel } from "@/lib/data/reports";
 
 // Add the date props to your interface
 interface DailySalesReportPDFProps {
-  report: any; // Use your actual report type here
+  report: DailySalesReportModel;
   fromDate: string;
   toDate: string;
+  reportTitle?: string;
 }
 
 const styles = StyleSheet.create({
@@ -35,16 +37,14 @@ const styles = StyleSheet.create({
   highlightValue: { fontWeight: "bold", color: "#0284c7" },
 });
 
-// Using 'any' for report to ensure drop-in compatibility, 
-// replace with your DailySalesReportModel type if available.
-export function DailySalesReportPDF({ report, fromDate, toDate}: DailySalesReportPDFProps) {
-  const otherInternalTotal = report.payments.internalTotal + report.payments.otherTotal;
+export function DailySalesReportPDF({ report, fromDate, toDate, reportTitle = "Daily Sales Report"}: DailySalesReportPDFProps) {
+  const otherInternalTotal = report.payments.internalTotal.plus(report.payments.otherTotal);
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Daily Sales Report</Text>
+          <Text style={styles.title}>{reportTitle}</Text>
           <Text style={styles.subtitle}>{formatReportDateRange(fromDate, toDate)}</Text>
           <Text style={styles.subtitle}>Generated: {formatReportGeneratedTime(report.generatedAt)}</Text>
         </View>

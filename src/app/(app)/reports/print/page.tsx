@@ -7,27 +7,26 @@ import {
   DAILY_SALES_COLUMNS,
   formatReportDateRange,
   formatReportGeneratedAt,
-  isValidReportRange,
   normalizeDailySalesReportOutput,
 } from "@/lib/daily-sales-report-model";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { hasPermission } from "@/lib/permissions";
+import { resolveSalesReportPeriod, salesReportPeriodSearch, type SalesReportPeriodParams } from "@/lib/sales-report-period";
 
 export const dynamic = "force-dynamic";
 
 export default async function PrintableDailySalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; output?: string }>;
+  searchParams: Promise<SalesReportPeriodParams & { output?: string }>;
 }) {
   const [{ membership }, params] = await Promise.all([getCurrentMembership(), searchParams]);
   if (!membership) return <PrintError title="Shop access required" message="Sign in with an active shop membership to view this report." />;
   if (!hasPermission(membership.role, "view_reports")) return <PermissionDenied />;
-  if (!isValidReportRange(params.from, params.to)) {
-    return <PrintError title="Invalid report dates" message="Choose a valid start and end date, with the end date on or after the start date." />;
-  }
-  const from = params.from as string;
-  const to = params.to as string;
+  const resolved = resolveSalesReportPeriod(params, { from: "", to: "" });
+  if (!resolved.ok) return <PrintError title="Invalid report period" message={resolved.error} />;
+  const period = resolved.period;
+  const { from, to } = period;
   const output = normalizeDailySalesReportOutput(params.output);
 
   let report: DailySalesReportModel | null = null;
@@ -38,7 +37,7 @@ export default async function PrintableDailySalesPage({
   }
   if (!report) return <PrintError title="Report unavailable" message="The Daily Sales report could not be loaded. No data was changed; try again shortly." />;
 
-  const backHref = `/reports?from=${encodeURIComponent(report.from)}&to=${encodeURIComponent(report.to)}&output=${output}`;
+  const backHref = `/reports?${salesReportPeriodSearch(period, output)}`;
   const otherInternalTotal = report.payments.internalTotal.plus(report.payments.otherTotal);
   const hasDifference = !report.reconciliation.salesPaymentDifference.isZero() ||
     !report.reconciliation.invoicePaidPaymentDifference.isZero();
@@ -47,14 +46,14 @@ export default async function PrintableDailySalesPage({
     <article className={`${output === "summary" ? "daily-sales-summary-print max-w-4xl" : "daily-sales-print max-w-[1800px]"} mx-auto min-h-screen bg-white text-slate-950`}>
       <div className="print-hidden flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
         <Link href={backHref} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Back to Report</Link>
-        <PrintButton label="Print Report" ariaLabel={`Print Daily Sales ${output}`} />
+        <PrintButton label="Print Report" ariaLabel={`Print ${period.title} ${output}`} />
       </div>
 
       <div className="daily-sales-print-content px-5 py-5">
         <header className="daily-sales-print-heading flex items-start justify-between gap-6 border-b border-slate-300 pb-3">
           <div>
             <p className="text-sm font-semibold text-slate-700">{report.shop.name}</p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight">{output === "summary" ? "Daily Sales Summary" : "Daily Sales Report"}</h1>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight">{period.title}{output === "summary" ? " — Summary" : ""}</h1>
             <p className="mt-1 text-sm text-slate-700">{formatReportDateRange(report.from, report.to)}</p>
           </div>
           <p className="text-right text-xs text-slate-600">{formatReportGeneratedAt(report.generatedAt)}</p>

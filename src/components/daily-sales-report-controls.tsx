@@ -2,14 +2,15 @@
 
 import React, { useState } from "react";
 import { EmailPdfForm } from "@/components/email-pdf-form";
+import Link from "next/link";
+import { salesReportPeriodSearch, type SalesReportPeriod } from "@/lib/sales-report-period";
 
 interface DailySalesReportControlsProps {
-  loadedFrom: string;
-  loadedTo: string;
   formattedRange: string;
   generatedTime: string;
   invoiceCount: number;
   initialOutput: "summary" | "detail";
+  period: SalesReportPeriod;
   canEmail: boolean;
   reportPayload: string;
   summary: React.ReactNode;
@@ -17,12 +18,11 @@ interface DailySalesReportControlsProps {
 }
 
 export function DailySalesReportControls({
-  loadedFrom,
-  loadedTo,
   formattedRange,
   generatedTime,
   invoiceCount,
   initialOutput,
+  period,
   canEmail,
   summary,
   detail,
@@ -35,7 +35,7 @@ export function DailySalesReportControls({
       {/* Print-only Header for White-Labeling */}
       <div className="hidden print:block print:mb-6 print:border-b-2 print:border-slate-800 print:pb-4">
         <h1 className="text-2xl font-black text-slate-900 uppercase tracking-wide">CAR DOC LLC</h1>
-        <h2 className="mt-1 text-lg font-bold text-slate-700">Daily Sales Report</h2>
+        <h2 className="mt-1 text-lg font-bold text-slate-700">{period.title}</h2>
         <p className="mt-1 text-sm font-bold text-slate-500">
           Invoice Range: {formattedRange} &middot; Generated: {generatedTime}
         </p>
@@ -70,7 +70,7 @@ export function DailySalesReportControls({
           </div>
           
           <div className="text-center sm:text-left">
-            <h2 className="text-sm font-black text-slate-900">Daily Sales Report</h2>
+            <h2 className="text-sm font-black text-slate-900">{period.title}</h2>
             <p className="text-xs font-bold text-slate-500">
               {formattedRange} &middot; {invoiceCount} Invoices
             </p>
@@ -78,14 +78,14 @@ export function DailySalesReportControls({
         </div>
 
         {/* Right: Export Actions */}
-        <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-          <button
-            onClick={() => window.print()}
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto lg:justify-end">
+          <Link
+            href={`/reports/print?${salesReportPeriodSearch(period, view)}`}
             className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-white border-2 border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors shadow-sm"
           >
             Print
-          </button>
-          {canEmail && <EmailPdfForm fromDate={loadedFrom} toDate={loadedTo} />}
+          </Link>
+          {canEmail && <EmailPdfForm period={period} />}
         </div>
       </div>
 
