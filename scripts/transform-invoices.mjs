@@ -31,6 +31,7 @@ import {
 } from "./lib/legacy-invoice-change-detection.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { normalizeLegacyOdometer } from "./lib/legacy-odometer.mjs";
+import { finalizedInvoiceHeaderValues } from "./lib/legacy-finalized-invoice-header.mjs";
 
 const options = parseLegacyInvoiceTransformerArguments(process.argv.slice(2));
 
@@ -114,6 +115,7 @@ function bulkUpsertSql(table, columns, conflictColumns, updateColumns, rowCount,
 function proposedInvoiceRow(shopId, legacyRoNo, link) {
   const amounts = link.financials;
   const snapshot = link.shopSuppliesSnapshot;
+  const header = finalizedInvoiceHeaderValues(link.arRow);
   return {
     id: deterministicLegacyInvoiceId(shopId, legacyRoNo), shopId, legacyRoNo, customerId: link.customerId, vehicleId: link.vehicleId,
     status: amounts.balanceCents <= 0 ? "paid" : "open", invoiceDate: link.invoiceDate,
@@ -128,7 +130,10 @@ function proposedInvoiceRow(shopId, legacyRoNo, link) {
     shopSuppliesTaxableSnapshot: snapshot.taxable,
     shopSuppliesEligibleLaborTotal: snapshot.eligibleLaborCents === null ? null : centsToDecimal(snapshot.eligibleLaborCents),
     shopSuppliesCalculatedAmount: snapshot.calculatedAmountCents === null ? null : centsToDecimal(snapshot.calculatedAmountCents),
-    shopSuppliesWasOverridden: false, legacySourceTable: "ar.DBF",
+    shopSuppliesWasOverridden: false,
+    customerComplaint: header.customerComplaint,
+    recommendation: header.recommendation,
+    legacySourceTable: "ar.DBF",
   };
 }
 
@@ -517,7 +522,8 @@ async function main() {
         shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true,
         shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true,
         shopSuppliesEligibleLaborTotal: true, shopSuppliesCalculatedAmount: true,
-        shopSuppliesWasOverridden: true, legacySourceTable: true,
+        shopSuppliesWasOverridden: true, customerComplaint: true,
+        recommendation: true, legacySourceTable: true,
       },
     });
     const invoiceClassification = classifyPersistedRows({
@@ -682,6 +688,7 @@ async function main() {
       "shop_supplies_rate_snapshot", "shop_supplies_cap_snapshot",
       "shop_supplies_taxable_snapshot", "shop_supplies_eligible_labor_total",
       "shop_supplies_calculated_amount", "shop_supplies_was_overridden",
+      "customer_complaint", "recommendation",
       "legacy_ro_no", "legacy_source_table",
     ];
     if (!laborOnly) {
@@ -693,6 +700,7 @@ async function main() {
           row.shopSuppliesRateSnapshot, row.shopSuppliesCapSnapshot,
           row.shopSuppliesTaxableSnapshot, row.shopSuppliesEligibleLaborTotal,
           row.shopSuppliesCalculatedAmount, row.shopSuppliesWasOverridden,
+          row.customerComplaint, row.recommendation,
           row.legacyRoNo, row.legacySourceTable,
         ]);
         const invoices = await transaction.$queryRawUnsafe(

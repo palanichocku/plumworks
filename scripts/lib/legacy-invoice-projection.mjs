@@ -3,6 +3,7 @@ import { mapLegacyInvoiceFinancials } from "./legacy-invoice-financials.mjs";
 import { groupRowsByRo, selectLegacyInvoiceDate, textValue } from "./legacy-invoice-reconciliation.mjs";
 import { normalizeLegacyOdometer } from "./legacy-odometer.mjs";
 import { projectLegacyFinalPartLines } from "./invoice-part-vendor-backfill.mjs";
+import { finalizedInvoiceHeaderValues } from "./legacy-finalized-invoice-header.mjs";
 
 export const LEGACY_INVOICE_UUID_NAMESPACE = "bc5d750a-6f87-4a77-b5ac-ae4b886410fa";
 
@@ -68,6 +69,7 @@ export function projectLegacyInvoicePaymentInputs({
       continue;
     }
     const arRow = arRows[0];
+    const header = finalizedInvoiceHeaderValues(arRow);
     const financials = mapLegacyInvoiceFinancials(arRow.rawData);
     const selectedDate = selectLegacyInvoiceDate({ arRows, finalRows, laborRows });
     const customerId = customerByLegacy.get(arRow.legacyCustno) ?? null;
@@ -90,6 +92,8 @@ export function projectLegacyInvoicePaymentInputs({
       vehicleRecoveryAction: reviewedVehicle?.action ?? null,
       invoiceDate: selectedDate.date,
       odometer: odometerValues.size === 1 ? [...odometerValues][0] : null,
+      customerComplaint: header.customerComplaint,
+      recommendation: header.recommendation,
       total: (financials.totalCents / 100).toFixed(2),
       paidTotal: (financials.paidCents / 100).toFixed(2),
     });

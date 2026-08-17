@@ -37,6 +37,8 @@ export const PERSISTED_FIELDS = {
     shopSuppliesEligibleLaborTotal: [normalizeDecimal, "shop-supplies snapshot"],
     shopSuppliesCalculatedAmount: [normalizeDecimal, "shop-supplies snapshot"],
     shopSuppliesWasOverridden: [scalar, "override metadata"],
+    customerComplaint: [scalar, "historical service text"],
+    recommendation: [scalar, "historical service text"],
     legacySourceTable: [scalar, "legacy source metadata"],
   },
   invoicePart: {

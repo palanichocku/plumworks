@@ -65,6 +65,10 @@ import { verifyDirectory as verifyPublicBackupDirectory } from "./db/public-db-b
 import { deleteOperationalData, OPERATIONAL_MODELS } from "./lib/legacy-cutover-reset.mjs";
 import { loadOpenOrderSourceRows } from "./lib/legacy-open-order-source.mjs";
 import {
+  attachFinalizedInvoiceHeaders,
+  loadLegacyFinalizedInvoiceHeaders,
+} from "./lib/legacy-finalized-invoice-header.mjs";
+import {
   assertCutoverLifecycleAllowed,
   completionActionForMode,
   completionMetadata,
@@ -78,6 +82,7 @@ const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
   "Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF",
   "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF",
+  "finalsold.DBF", "finalsold.FPT",
 ];
 const DBF_SOURCES = REQUIRED_SOURCES.filter((name) => name.endsWith(".DBF"));
 const PROTECTED_TABLES = await loadExpectedPublicTables(resolve("prisma/schema.prisma"));
@@ -192,7 +197,7 @@ async function sourceCounts(sourceDirectory) {
   }
   let reconciliation = null;
   if (validationIssues === 0) {
-    const [customerSource, vehicleSource, finalSource, laborSource, arSource, orderPartSource, orderLaborSource] = await Promise.all([
+    const [customerSource, vehicleSource, finalSource, laborSource, arSource, orderPartSource, orderLaborSource, finalizedHeaders] = await Promise.all([
       readDbfForReconciliation(sourceDirectory.files["Cust.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["vehicles.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["FINAL.DBF"]),
@@ -200,7 +205,13 @@ async function sourceCounts(sourceDirectory) {
       readDbfForReconciliation(sourceDirectory.files["ar.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["orders.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["LABORorder.DBF"]),
+      loadLegacyFinalizedInvoiceHeaders(sourceDirectory),
     ]);
+    const attachedHeaders = attachFinalizedInvoiceHeaders(arSource.rows, finalizedHeaders);
+    if (attachedHeaders.fatalIssues.length > 0) {
+      throw new Error(`finalsold header reconciliation failed for ${attachedHeaders.fatalIssues.length} RO(s).`);
+    }
+    arSource.rows = attachedHeaders.rows;
     const keyedOpenRows = await loadOpenOrderSourceRows(sourceDirectory);
     const enrichOpenRow = (row) => ({
       ...row,
@@ -215,6 +226,7 @@ async function sourceCounts(sourceDirectory) {
       deletedCustomerRows: customerSource.deletedRows,
       deletedVehicleRows: vehicleSource.deletedRows,
       sources: { finalSource, laborSource, arSource, orderPartSource, orderLaborSource },
+      finalizedInvoiceHeaders: attachedHeaders.counts,
     };
   }
   return { counts, validationIssues, reconciliation };

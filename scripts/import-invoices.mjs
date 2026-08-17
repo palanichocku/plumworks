@@ -2,13 +2,20 @@ import { open, readFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
+import {
+  attachFinalizedInvoiceHeaders,
+  loadLegacyFinalizedInvoiceHeaders,
+} from "./lib/legacy-finalized-invoice-header.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const source = await resolveLegacySource({ requiredFiles: ["FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF"] });
+const source = await resolveLegacySource({ requiredFiles: [
+  "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF",
+  "finalsold.DBF", "finalsold.FPT",
+] });
 printLegacySourceSummary(source);
 const SOURCES = [
   {
@@ -222,6 +229,25 @@ async function runImport() {
   let importRun;
 
   try {
+    const sourceRows = new Map();
+    for (const sourceDefinition of SOURCES) {
+      sourceRows.set(sourceDefinition.model, await readAll(sourceDefinition.path, sourceDefinition.memoPath));
+    }
+    const finalizedHeaders = await loadLegacyFinalizedInvoiceHeaders(source);
+    const attachedHeaders = attachFinalizedInvoiceHeaders(
+      sourceRows.get("rawLegacyAr").map((rawData) => ({
+        legacyRoNo: legacyValue(rawData, ["RONO", "RO", "RONUMBER", "INVOICE", "INVNO"]),
+        legacyCustno: legacyValue(rawData, ["CUSTNO", "CUSTOMERNO"]),
+        legacyCarno: legacyValue(rawData, ["CARNO", "VEHICLENO"]),
+        rawData,
+      })),
+      finalizedHeaders,
+    );
+    if (attachedHeaders.fatalIssues.length > 0) {
+      throw new Error(`finalsold header reconciliation failed for ${attachedHeaders.fatalIssues.length} RO(s).`);
+    }
+    sourceRows.set("rawLegacyAr", attachedHeaders.rows.map((row) => row.rawData));
+
     importRun = await prisma.legacyImportRun.create({
       data: {
         shopId,
@@ -234,7 +260,7 @@ async function runImport() {
     const counts = {};
 
     for (const source of SOURCES) {
-      const rows = await readAll(source.path, source.memoPath);
+      const rows = sourceRows.get(source.model);
       for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
         const batch = rows.slice(offset, offset + BATCH_SIZE);
         await prisma[source.model].createMany({
