@@ -61,6 +61,7 @@ export function projectFinalCutoverOpenOrders({
   vehicles,
   finalizedInvoices = [],
   survivingRepairOrders = [],
+  headerRows = [],
   shopSettings,
   currentNextRepairOrderNumber,
   adjudicationPlan = null,
@@ -83,6 +84,12 @@ export function projectFinalCutoverOpenOrders({
   }
   const destinationNumbers = new Set(survivingRepairOrders.map((row) => row.repairOrderNumber).filter(Number.isInteger));
   const projectedNumbers = new Map();
+  const headersByRo = new Map();
+  for (const row of headerRows) {
+    const matches = headersByRo.get(row.legacyRoNo) ?? [];
+    matches.push(row);
+    headersByRo.set(row.legacyRoNo, matches);
+  }
   const orders = [];
   const fatalIssues = [];
 
@@ -95,7 +102,9 @@ export function projectFinalCutoverOpenOrders({
     const vehicleLegacy = vehicleValues.size === 1 ? [...vehicleValues][0] : null;
     const customerId = customerLegacy ? customerByLegacy.get(customerLegacy) : null;
     const vehicle = vehicleLegacy ? vehicleByLegacy.get(vehicleLegacy) : null;
-    const header = group.parts[0] ?? group.labor[0];
+    const sourceHeader = group.parts[0] ?? group.labor[0];
+    const matchingHeaders = headersByRo.get(legacyRoNo) ?? [];
+    const openOrderHeader = matchingHeaders[0] ?? null;
     const sourceDateValues = new Set(rows.map((row) => text(row.rawData, "RO_DATE")).filter(Boolean));
     const parsedDates = rows.map((row) => parseActiveRepairOrderDate(row.rawData)).filter(Boolean);
     const openedAt = parsedDates[0] ?? null;
@@ -103,6 +112,7 @@ export function projectFinalCutoverOpenOrders({
     const issues = [];
 
     if (repairOrderNumber === null) issues.push("invalid-active-ro-number");
+    if (matchingHeaders.length > 1) issues.push("ambiguous-active-ro-header");
     if (customerValues.size !== 1 || !customerId) issues.push(customerValues.size > 1 ? "ambiguous-active-ro-customer" : "unresolved-active-ro-customer");
     if (vehicleValues.size !== 1 || !vehicle) issues.push(vehicleValues.size > 1 ? "ambiguous-active-ro-vehicle" : "unresolved-active-ro-vehicle");
     if (vehicle && customerId && vehicle.customerId !== customerId) issues.push("active-ro-customer-vehicle-mismatch");
@@ -157,7 +167,9 @@ export function projectFinalCutoverOpenOrders({
     });
     orders.push({
       legacyRoNo, repairOrderNumber, customerId, vehicleId: vehicle.id, status: "open", openedAt,
-      odometer: normalizeLegacyOdometer(header.rawData?.ODOMETER), legacySourceTable: null,
+      odometer: normalizeLegacyOdometer(sourceHeader.rawData?.ODOMETER), legacySourceTable: null,
+      customerComplaint: text(openOrderHeader?.rawData, "VNOTES"),
+      recommendation: text(openOrderHeader?.rawData, "RECOMEND"),
       shopSuppliesEnabledSnapshot: shopSettings.shopSuppliesEnabled,
       shopSuppliesRateSnapshot: shopSettings.shopSuppliesRate,
       shopSuppliesCapSnapshot: shopSettings.shopSuppliesCap,

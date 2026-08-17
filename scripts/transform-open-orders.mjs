@@ -10,6 +10,7 @@ import {
   loadFinalCutoverResolutionContext,
 } from "./lib/legacy-final-cutover-resolution.mjs";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
+import { loadLegacyOpenOrderHeaders } from "./lib/legacy-open-order-header.mjs";
 import {
   FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION,
   FINAL_CUTOVER_OPEN_ORDER_CONFIRMATION_FLAG,
@@ -101,6 +102,11 @@ async function main() {
     ]);
 
     if (finalCutoverOperational) {
+      const headerSource = await resolveLegacySource({
+        args: process.argv.slice(2),
+        requiredFiles: ["ordtemps.DBF", "ordtemps.FPT"],
+      });
+      const headerRows = await loadLegacyOpenOrderHeaders(headerSource);
       const adjudicationSource = adjudicationArguments.manifestPath ? await resolveLegacySource({
         args: process.argv.slice(2),
         requiredFiles: ["Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
@@ -141,7 +147,7 @@ async function main() {
       ]);
       const projection = projectFinalCutoverOpenOrders({
         partRows: rawParts, laborRows: rawLabor, customers, vehicles, finalizedInvoices,
-        survivingRepairOrders, shopSettings: shop, currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
+        survivingRepairOrders, headerRows, shopSettings: shop, currentNextRepairOrderNumber: shop.nextRepairOrderNumber,
         adjudicationPlan: adjudicationContext?.plan ?? null,
         resolutionPlan: resolutionContext?.plan ?? null,
       });
