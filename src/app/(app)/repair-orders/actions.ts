@@ -6,6 +6,7 @@ import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { optionalRepairOrderText } from "@/lib/repair-order-fields";
+import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
 import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
 
@@ -161,6 +162,7 @@ export async function createRepairOrder(formData: FormData) {
       },
       select: { id: true },
     });
+    await refreshRepairOrderTotals(transaction, membership.shopId, created.id);
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "repair_order_created", "repair_order", created.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${repairOrderNumber}`, entityHref: `/repair-orders/${created.id}`, contextSummary: "Repair order created" }) });
     return created;
   }, { isolationLevel: "Serializable" });
@@ -194,6 +196,7 @@ export async function updateRepairOrderConcerns(_previousState: RepairOrderSaveS
       where: { id: repairOrderId },
       data: { customerComplaint, recommendation },
     });
+    await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
     await transaction.auditLog.create({
       data: auditEntry(
         membership.shopId,
