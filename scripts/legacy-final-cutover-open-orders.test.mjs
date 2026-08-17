@@ -61,6 +61,17 @@ test("final-cutover projection operationalizes active Windows work with exact id
   assert.equal(result.nextRepairOrderNumber, 22001);
 });
 
+test("final-cutover operational Repair Orders use the shared capped-charge estimate rule", () => {
+  const result = project({
+    partRows: [part("21759", { rawData: { ...part().rawData, RO_NO: "21759", QTY: "1", PRICE: "352" } })],
+    laborRows: [labor("21759", { rawData: { ...labor().rawData, RO_NO: "21759", HOURS: "1", LABORRATE: "585" } })],
+    shopSettings: { ...settings, shopSuppliesCap: "20" },
+  });
+  assert.equal(result.orders[0].shopSuppliesAmount.toFixed(2), "20.00");
+  assert.equal(result.orders[0].taxTotal.toFixed(2), "23.93");
+  assert.equal(result.orders[0].estimatedTotal.toFixed(2), "980.93");
+});
+
 test("next Repair Order number advances only upward", () => {
   assert.equal(project({ currentNextRepairOrderNumber: 23000 }).nextRepairOrderNumber, 23000);
   assert.equal(project({ currentNextRepairOrderNumber: 22000 }).nextRepairOrderNumber, 22001);

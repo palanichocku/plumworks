@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { calculateShopSupplies, calculateShopSuppliesFromPercentage } from "../src/lib/shop-supplies.ts";
-import { calculateEditableInvoiceTotals } from "../src/lib/invoice-lifecycle.ts";
+import { calculateEditableInvoiceTotals, calculateRepairOrderEstimateTotals } from "../src/lib/invoice-lifecycle.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -44,6 +44,31 @@ test("tax includes supplies, excludes labor, and parts do not drive supplies", (
   assert.equal(partsOnly.taxTotal.toFixed(2), "6.00");
 });
 
+test("Repair Order estimates tax taxable Shop Supplies before the charge cap", () => {
+  const ro21759 = calculateRepairOrderEstimateTotals({ parts: [{ quantity: "1", unitPrice: "352" }], labor: [{ hours: "1", hourlyRate: "585" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
+  assert.equal(ro21759.shopSuppliesAmount.toFixed(2), "20.00");
+  assert.equal(ro21759.taxTotal.toFixed(2), "23.93");
+  assert.equal(ro21759.total.toFixed(2), "980.93");
+
+  const ro21756 = calculateRepairOrderEstimateTotals({ parts: [], labor: [{ hours: "1", hourlyRate: "134" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
+  assert.equal(ro21756.shopSuppliesAmount.toFixed(2), "10.72");
+  assert.equal(ro21756.taxTotal.toFixed(2), "0.64");
+  assert.equal(ro21756.total.toFixed(2), "145.36");
+});
+
+test("Repair Order estimate taxability, zero supplies, labor taxability, and rounding remain explicit", () => {
+  const zeroSupplies = calculateRepairOrderEstimateTotals({ parts: [{ quantity: "1", unitPrice: "10" }], labor: [], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
+  assert.equal(zeroSupplies.shopSuppliesAmount.toFixed(2), "0.00");
+  assert.equal(zeroSupplies.taxTotal.toFixed(2), "0.60");
+  assert.equal(zeroSupplies.total.toFixed(2), "10.60");
+
+  const suppliesNotTaxable = calculateRepairOrderEstimateTotals({ parts: [], labor: [{ hours: "1", hourlyRate: "585" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: false });
+  assert.equal(suppliesNotTaxable.taxTotal.toFixed(2), "0.00");
+
+  const laborTaxable = calculateRepairOrderEstimateTotals({ parts: [], labor: [{ hours: "1", hourlyRate: "585" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: true, shopSuppliesTaxable: true });
+  assert.equal(laborTaxable.taxTotal.toFixed(2), "37.91");
+});
+
 test("settings and help UI are tenant-authorized, transparent, and accurate", async () => {
   const [action, page, preview, repairHelp, adminHelp] = await Promise.all([read("src/app/(app)/admin/shop-settings/actions.ts"), read("src/app/(app)/admin/shop-settings/page.tsx"), read("src/components/shop-supplies-settings.tsx"), read("src/app/(app)/help/repair-orders/page.tsx"), read("src/app/(app)/help/admin/page.tsx")]);
   assert.match(action, /requirePermission\("edit_shop_settings"\)/);
@@ -64,13 +89,24 @@ test("settings and help UI are tenant-authorized, transparent, and accurate", as
 });
 
 test("web workflows recalculate from snapshots while legacy and closed invoices stay protected", async () => {
-  const [repairTotals, createInvoice, invoiceEdit] = await Promise.all([read("src/lib/repair-order-totals.ts"), read("src/app/(app)/repair-orders/finalize-actions.ts"), read("src/app/(app)/invoices/lifecycle-actions.ts")]);
-  assert.match(repairTotals, /calculateWebTransactionTotals/);
+  const [repairTotals, createRepairOrder, createInvoice, invoiceEdit, cutover] = await Promise.all([read("src/lib/repair-order-totals.ts"), read("src/app/(app)/repair-orders/actions.ts"), read("src/app/(app)/repair-orders/finalize-actions.ts"), read("src/app/(app)/invoices/lifecycle-actions.ts"), read("scripts/lib/legacy-open-order-projection.mjs")]);
+  assert.match(repairTotals, /calculateRepairOrderEstimateTotals/);
   assert.match(repairTotals, /shopSuppliesTaxable: order\.shopSuppliesTaxableSnapshot/);
   assert.match(repairTotals, /shopSuppliesEligibleLaborTotal: totals\.shopSuppliesEligibleLaborTotal/);
+  assert.match(createRepairOrder, /shopSuppliesEnabledSnapshot: shop\.shopSuppliesEnabled/);
+  assert.match(cutover, /calculateRepairOrderEstimateTotals/);
   assert.match(createInvoice, /calculateEditableInvoiceTotals/);
   assert.match(invoiceEdit, /shopSuppliesRateSnapshot/);
   assert.match(invoiceEdit, /status: "open", legacySourceTable: null/);
+});
+
+test("Repair Order detail, print, PDF, and email share persisted estimate totals", async () => {
+  const [detail, model, html, pdf, email] = await Promise.all([read("src/app/(app)/repair-orders/[id]/page.tsx"), read("src/lib/repair-order-document.ts"), read("src/components/repair-order-document-html.tsx"), read("src/components/pdf/repair-order-document-pdf.tsx"), read("src/lib/email/repair-order-email-core.ts")]);
+  assert.match(detail, /formatMoney\(order\.estimatedTotal\)/);
+  assert.match(model, /estimatedTotal: formatMoney\(order\.estimatedTotal\)/);
+  assert.match(html, /model\.totals\.estimatedTotal/);
+  assert.match(pdf, /model\.totals\.estimatedTotal/);
+  assert.match(email, /RepairOrderDocumentModel/);
 });
 
 test("existing Shop Supplies migration is additive and performs no historical rewrite", async () => {

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
-import { calculateWebTransactionTotals } from "@/lib/invoice-lifecycle";
+import { calculateRepairOrderEstimateTotals } from "@/lib/invoice-lifecycle";
 
 export async function refreshRepairOrderTotals(
   transaction: Prisma.TransactionClient,
@@ -27,7 +27,7 @@ export async function refreshRepairOrderTotals(
     }),
   ]);
 
-  const totals = calculateWebTransactionTotals({
+  const totals = calculateRepairOrderEstimateTotals({
     parts,
     labor,
     shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,

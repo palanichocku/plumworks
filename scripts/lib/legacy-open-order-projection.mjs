@@ -1,5 +1,5 @@
 import { normalizeLegacyOdometer } from "./legacy-odometer.mjs";
-import { calculateWebTransactionTotals } from "../../src/lib/invoice-lifecycle.ts";
+import { calculateRepairOrderEstimateTotals } from "../../src/lib/invoice-lifecycle.ts";
 import { applyFinalCutoverResolution } from "./legacy-final-cutover-resolution.mjs";
 
 export const FINAL_CUTOVER_OPEN_ORDER_FLAG = "--final-cutover-operational";
@@ -144,7 +144,7 @@ export function projectFinalCutoverOpenOrders({
       legacyRoNo,
       legacySourceTable: "LABORorder",
     }));
-    const totals = calculateWebTransactionTotals({
+    const totals = calculateRepairOrderEstimateTotals({
       parts,
       labor,
       shopSuppliesEnabled: shopSettings.shopSuppliesEnabled,
