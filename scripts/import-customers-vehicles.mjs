@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { printLegacySourceSummary, resolveLegacySource } from "./lib/legacy-source.mjs";
+import { legacyCustomerMemo } from "./lib/legacy-customer-contact.mjs";
 
 const BATCH_SIZE = 100;
 const decoder = new TextDecoder("windows-1252");
@@ -12,9 +13,10 @@ function getArgument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const source = await resolveLegacySource({ requiredFiles: ["Cust.DBF", "vehicles.DBF"] });
+const source = await resolveLegacySource({ requiredFiles: ["Cust.DBF", "Cust.FPT", "vehicles.DBF"] });
 printLegacySourceSummary(source);
 const CUSTOMER_DBF = source.files["Cust.DBF"];
+const CUSTOMER_FPT = source.files["Cust.FPT"];
 const VEHICLE_DBF = source.files["vehicles.DBF"];
 
 function parseFields(file, headerLength) {
@@ -94,7 +96,7 @@ function decodeField(value, type) {
   return { hex: value.toString("hex") };
 }
 
-function decodeRecord(record, fields) {
+function decodeRecord(record, fields, memoFile = null) {
   const rawData = {};
 
   for (const field of fields) {
@@ -102,7 +104,7 @@ function decodeRecord(record, fields) {
       field.recordOffset,
       field.recordOffset + field.length,
     );
-    const decoded = decodeField(value, field.type);
+    const decoded = field.type === "M" ? legacyCustomerMemo(value, memoFile) : decodeField(value, field.type);
     if (decoded !== undefined) {
       rawData[field.name] = decoded;
     }
@@ -111,8 +113,8 @@ function decodeRecord(record, fields) {
   return rawData;
 }
 
-async function readDbf(relativePath) {
-  const file = await readFile(relativePath);
+async function readDbf(relativePath, memoPath) {
+  const [file, memoFile] = await Promise.all([readFile(relativePath), memoPath ? readFile(memoPath) : null]);
   const recordCount = file.readUInt32LE(4);
   const headerLength = file.readUInt16LE(8);
   const recordLength = file.readUInt16LE(10);
@@ -129,7 +131,7 @@ async function readDbf(relativePath) {
       continue;
     }
 
-    records.push(decodeRecord(record, fields));
+    records.push(decodeRecord(record, fields, memoFile));
   }
 
   return {
@@ -260,7 +262,7 @@ async function runImport() {
   let validationErrors = 0;
 
   try {
-    const customerSource = await readDbf(CUSTOMER_DBF);
+    const customerSource = await readDbf(CUSTOMER_DBF, CUSTOMER_FPT);
     const vehicleSource = await readDbf(VEHICLE_DBF);
     const sourceFingerprint = createHash("sha256")
       .update(customerSource.fingerprint)

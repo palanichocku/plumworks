@@ -1,3 +1,5 @@
+import { legacyEmail, legacyPhone } from "./legacy-customer-contact.mjs";
+
 function rawValue(rawData, field) {
   if (!rawData || typeof rawData !== "object" || Array.isArray(rawData)) return null;
   const value = rawData[field];
@@ -24,11 +26,6 @@ export function preservedOperationalNote(existingNote, incomingNote) {
   return typeof existingNote === "string" && existingNote.trim() ? existingNote : legacyNote(incomingNote);
 }
 
-function cleanEmail(value) {
-  const email = cleanText(value)?.toLowerCase();
-  return email && email.includes("@") ? email : null;
-}
-
 function cleanInteger(value, minimum = 0, maximum = 2147483647) {
   if (!value) return null;
   const number = Number.parseInt(value.replaceAll(/[^0-9-]/g, ""), 10);
@@ -42,9 +39,9 @@ export function customerData(row) {
   return {
     legacyCustno,
     displayName,
-    phone: cleanText(rawValue(row.rawData, "PHONE")),
-    phone2: cleanText(rawValue(row.rawData, "PHONE2")),
-    email: cleanEmail(rawValue(row.rawData, "EMAIL")),
+    phone: legacyPhone(rawValue(row.rawData, "PHONE")).value,
+    phone2: legacyPhone(rawValue(row.rawData, "PHONE2")).value,
+    email: legacyEmail(rawValue(row.rawData, "EMAIL")).value,
     addressLine1: cleanText(rawValue(row.rawData, "ADDRESS")),
     addressLine2: cleanText(rawValue(row.rawData, "ADDRESS2")),
     city: cleanText(rawValue(row.rawData, "CITY")),
@@ -53,6 +50,14 @@ export function customerData(row) {
     notes: noteValue(row.rawData, "NOTE"),
     message: cleanText(rawValue(row.rawData, "MESSAGE")),
     legacySourceTable: "Cust.DBF",
+  };
+}
+
+export function customerContactIssues(row) {
+  return {
+    phone: legacyPhone(rawValue(row.rawData, "PHONE")).issue,
+    phone2: legacyPhone(rawValue(row.rawData, "PHONE2")).issue,
+    email: legacyEmail(rawValue(row.rawData, "EMAIL")).issue,
   };
 }
 
@@ -88,6 +93,9 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
   const additionalPhoneMissingValues = transformedCustomers.filter((row) => row.phone2 === null).length;
   const customerContextSourceValues = validCustomers.filter((row) => row.notes !== null).length;
   const customerContextDestinationValues = transformedCustomers.filter((row) => row.notes !== null).length;
+  const invalidCustomerPhones = rawCustomers.filter((row) => customerContactIssues(row).phone).length;
+  const invalidCustomerPhone2 = rawCustomers.filter((row) => customerContactIssues(row).phone2).length;
+  const invalidCustomerEmails = rawCustomers.filter((row) => customerContactIssues(row).email).length;
 
   const invalidVehicleId = rawVehicles.filter((row) => !cleanText(row.legacyCustno) || !cleanText(row.legacyCarno)).length;
   const validVehicles = rawVehicles.map(vehicleData).filter(Boolean);
@@ -108,6 +116,9 @@ export function reconcileCustomerVehicleRows(rawCustomers, rawVehicles) {
       invalidCustomerId,
       blankCustomerName,
       duplicateCustomerId,
+      invalidCustomerPhones,
+      invalidCustomerPhone2,
+      invalidCustomerEmails,
       invalidVehicleId,
       missingCustomerLink,
       duplicateVehicleId,
