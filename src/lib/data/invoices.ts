@@ -120,6 +120,7 @@ export async function getInvoiceForCurrentShop(id: string) {
           defaultTaxRate: true,
           partsTaxable: true,
           laborTaxable: true,
+          vendors: { orderBy: { name: "asc" }, select: { id: true, name: true } },
         },
       },
       customer: {
@@ -157,6 +158,7 @@ export async function getInvoiceForCurrentShop(id: string) {
           partNumber: true,
           quantity: true,
           unitPrice: true,
+          vendorNameSnapshot: true,
         },
       },
       labor: {

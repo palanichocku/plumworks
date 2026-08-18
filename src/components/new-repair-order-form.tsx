@@ -18,16 +18,20 @@ function cleanSuggestion(value: string) {
 export function NewRepairOrderForm({
   citySuggestions,
   vehicleSuggestions,
+  initialCustomer = null,
+  initialVehicleId = null,
 }: {
   citySuggestions: string[];
   vehicleSuggestions: VehicleSuggestion[];
+  initialCustomer?: RepairOrderCustomerSearchResult | null;
+  initialVehicleId?: string | null;
 }) {
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear + 2 - 1970 }, (_, index) => currentYear + 1 - index);
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
-  const [selectedCustomer, setSelectedCustomer] = useState<RepairOrderCustomerSearchResult | null>(null);
-  const [vehicleId, setVehicleId] = useState("");
-  const [vehicleMode, setVehicleMode] = useState<"existing" | "new">("new");
+  const [selectedCustomer, setSelectedCustomer] = useState<RepairOrderCustomerSearchResult | null>(initialCustomer);
+  const [vehicleId, setVehicleId] = useState(initialVehicleId ?? "");
+  const [vehicleMode, setVehicleMode] = useState<"existing" | "new">(initialVehicleId ? "existing" : "new");
   const [newVehicleMake, setNewVehicleMake] = useState("");
   const vehicles = selectedCustomer?.vehicles ?? [];
   const selectedVehicle = vehicleMode === "existing" ? vehicles.find((vehicle) => vehicle.id === vehicleId) ?? null : null;

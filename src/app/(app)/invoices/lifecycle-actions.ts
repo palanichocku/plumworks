@@ -105,6 +105,22 @@ async function mutateOpenInvoice(invoiceId: string, mutation: (transaction: Pris
   revalidatePath(`/invoices/${invoiceId}/edit`);
 }
 
+async function invoicePartVendor(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string, formData: FormData) {
+  const vendorId = String(formData.get("vendorId") ?? "");
+  if (!vendorId) return null;
+  if (vendorId === "current-snapshot") {
+    const partId = String(formData.get("partId") ?? "");
+    if (!UUID.test(partId)) throw new Error("Invalid Invoice Part.");
+    const part = await transaction.invoicePart.findFirst({ where: { id: partId, invoiceId, shopId }, select: { vendorNameSnapshot: true } });
+    if (!part) throw new Error("Part not found.");
+    return part.vendorNameSnapshot;
+  }
+  if (!UUID.test(vendorId)) throw new Error("Invalid Vendor selection.");
+  const vendor = await transaction.vendor.findFirst({ where: { id: vendorId, shopId }, select: { name: true } });
+  if (!vendor) throw new Error("That Vendor is not available for this shop.");
+  return vendor.name;
+}
+
 export async function updateInvoiceDetails(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const customerComplaint = String(formData.get("customerComplaint") ?? "");
@@ -116,13 +132,13 @@ export async function updateInvoiceDetails(formData: FormData) {
 export async function addInvoicePart(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const quantity = money(formData.get("quantity")); const unitPrice = money(formData.get("unitPrice"));
   if (!description || description.length > 500 || !quantity.greaterThan(0)) throw new Error("Invalid part.");
-  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { await transaction.invoicePart.create({ data: { shopId, invoiceId, description, quantity, unitPrice, legacyLineKey: `web:invoice:${invoiceId}:part:${crypto.randomUUID()}` } }); });
+  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const vendorNameSnapshot = await invoicePartVendor(transaction, shopId, invoiceId, formData); await transaction.invoicePart.create({ data: { shopId, invoiceId, description, quantity, unitPrice, vendorNameSnapshot, legacyLineKey: `web:invoice:${invoiceId}:part:${crypto.randomUUID()}` } }); });
 }
 
 export async function updateInvoicePart(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? ""); const partId = String(formData.get("partId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const quantity = money(formData.get("quantity")); const unitPrice = money(formData.get("unitPrice"));
   if (!UUID.test(partId) || !description || !quantity.greaterThan(0)) throw new Error("Invalid part.");
-  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const result = await transaction.invoicePart.updateMany({ where: { id: partId, invoiceId, shopId }, data: { description, quantity, unitPrice } }); if (result.count !== 1) throw new Error("Part not found."); });
+  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const vendorNameSnapshot = await invoicePartVendor(transaction, shopId, invoiceId, formData); const result = await transaction.invoicePart.updateMany({ where: { id: partId, invoiceId, shopId }, data: { description, quantity, unitPrice, vendorNameSnapshot } }); if (result.count !== 1) throw new Error("Part not found."); });
 }
 
 export async function deleteInvoicePart(formData: FormData) {

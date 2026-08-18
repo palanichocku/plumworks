@@ -3,6 +3,28 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function getRepairOrderPrefill(customerId?: string, vehicleId?: string) {
+  if (!customerId || !UUID.test(customerId) || (vehicleId !== undefined && !UUID.test(vehicleId))) return null;
+  const { membership } = await getCurrentMembership();
+  if (!membership) return null;
+
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, shopId: membership.shopId, archivedAt: null },
+    select: {
+      id: true, displayName: true, phone: true, email: true, notes: true,
+      vehicles: {
+        where: { archivedAt: null },
+        orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }],
+        select: { id: true, year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true, notes: true },
+      },
+    },
+  });
+  if (!customer || (vehicleId && !customer.vehicles.some((vehicle) => vehicle.id === vehicleId))) return null;
+  return { customer, vehicleId: vehicleId ?? customer.vehicles[0]?.id ?? null };
+}
+
 export async function getRepairOrderFormOptions() {
   const { membership } = await getCurrentMembership();
   if (!membership) return { citySuggestions: [], vehicleSuggestions: [] };
