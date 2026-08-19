@@ -25,3 +25,22 @@ test("mobile navigation and permission filtering remain unchanged", async () => 
   assert.match(navigation, /item\.href !== "\/reports" \|\| canViewReports/);
   assert.match(navigation, /!\["\/", "\/admin"\]\.includes\(item\.href\) \|\| canViewAdmin/);
 });
+
+test("desktop and mobile share the customer-requested navigation order", async () => {
+  const source = await read("src/components/app-navigation.tsx");
+  const orderedItems = [...source.matchAll(/\{ href: "([^"]+)", label: "([^"]+)", icon: \w+ \}/g)]
+    .map((match) => ({ href: match[1], label: match[2] }));
+  assert.deepEqual(orderedItems, [
+    { href: "/repair-orders", label: "Repair Orders" },
+    { href: "/invoices", label: "Invoices" },
+    { href: "/customers", label: "Customers" },
+    { href: "/vehicles", label: "Vehicles" },
+    { href: "/", label: "Website" },
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/reports", label: "Reports" },
+    { href: "/admin", label: "Admin" },
+    { href: "/help", label: "Help" },
+    { href: "/accounts-receivable", label: "Accounts Receivable" },
+  ]);
+  assert.equal((source.match(/allowedNavigation\(canViewReports, canViewAdmin\)\.map/g) ?? []).length, 2);
+});

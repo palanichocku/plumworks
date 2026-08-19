@@ -35,16 +35,16 @@ const CircleHelp = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle 
 const Shield = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></Icon>;
 
 const navigation = [
-  { href: "/", label: "Website", icon: Globe },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/repair-orders", label: "Repair Orders", icon: Wrench },
+  { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/vehicles", label: "Vehicles", icon: Car },
-  { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/accounts-receivable", label: "Accounts Receivable", icon: Wallet },
-  { href: "/repair-orders", label: "Repair Orders", icon: Wrench },
+  { href: "/", label: "Website", icon: Globe },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/help", label: "Help", icon: CircleHelp },
   { href: "/admin", label: "Admin", icon: Shield },
+  { href: "/help", label: "Help", icon: CircleHelp },
+  { href: "/accounts-receivable", label: "Accounts Receivable", icon: Wallet },
 ];
 
 function NavigationLink({
