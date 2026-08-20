@@ -239,8 +239,7 @@ model CannedService {
   defaultHours         Decimal  @default(1) @map("default_hours") @db.Decimal(8, 2)
   defaultLaborRate     Decimal  @default(0) @map("default_labor_rate") @db.Decimal(12, 2)
   active               Boolean  @default(true)
-  /// Defaults false so adding this schema cannot make existing services charge-eligible.
-  shopSuppliesEligible Boolean  @default(false) @map("shop_supplies_eligible")
+  shopSuppliesEligible Boolean  @default(true) @map("shop_supplies_eligible")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
   shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -486,8 +485,7 @@ model RepairOrderLabor {
   hours                Decimal     @default(0) @db.Decimal(8, 2)
   hourlyRate           Decimal     @default(0) @map("hourly_rate") @db.Decimal(12, 2)
   complimentary        Boolean     @default(false)
-  /// Defaults false so existing labor cannot affect totals before calculation wiring is added.
-  shopSuppliesEligible Boolean     @default(false) @map("shop_supplies_eligible")
+  shopSuppliesEligible Boolean     @default(true) @map("shop_supplies_eligible")
   legacyLineKey        String      @map("legacy_line_key")
   legacyRoNo           String?     @map("legacy_ro_no")
   legacySourceTable    String?     @map("legacy_source_table")
@@ -603,20 +601,21 @@ model InvoicePart {
 }
 
 model InvoiceLabor {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId            String   @map("shop_id") @db.Uuid
-  invoiceId         String   @map("invoice_id") @db.Uuid
-  description       String
-  hours             Decimal  @default(0) @db.Decimal(8, 2)
-  hourlyRate        Decimal  @default(0) @map("hourly_rate") @db.Decimal(12, 2)
-  complimentary     Boolean  @default(false)
-  legacyLineKey     String   @map("legacy_line_key")
-  legacyRoNo        String?  @map("legacy_ro_no")
-  legacySourceTable String?  @map("legacy_source_table")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
-  shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId               String   @map("shop_id") @db.Uuid
+  invoiceId            String   @map("invoice_id") @db.Uuid
+  description          String
+  hours                Decimal  @default(0) @db.Decimal(8, 2)
+  hourlyRate           Decimal  @default(0) @map("hourly_rate") @db.Decimal(12, 2)
+  complimentary        Boolean  @default(false)
+  shopSuppliesEligible Boolean  @default(true) @map("shop_supplies_eligible")
+  legacyLineKey        String   @map("legacy_line_key")
+  legacyRoNo           String?  @map("legacy_ro_no")
+  legacySourceTable    String?  @map("legacy_source_table")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoice              Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, legacyLineKey])
   @@index([invoiceId])

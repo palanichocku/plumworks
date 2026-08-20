@@ -24,6 +24,17 @@ test("invoice recalculation and balance remain Decimal exact", () => {
   assert.equal(invoiceBalance(totals.total, new Prisma.Decimal("77.13")).toFixed(2), "100.00");
 });
 
+test("RO to Invoice eligibility survives conversion and later recalculation", async () => {
+  const input = { parts: [], labor: [{ hours: "3", hourlyRate: "100", shopSuppliesEligible: true }, { hours: "1", hourlyRate: "145", shopSuppliesEligible: false }], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true };
+  const before = calculateEditableInvoiceTotals(input);
+  const after = calculateEditableInvoiceTotals({ ...input, labor: input.labor.map((line) => ({ ...line })) });
+  assert.deepEqual(after, before);
+  assert.equal(after.shopSuppliesEligibleLaborTotal.toFixed(2), "300.00");
+  const action = await read("src/app/(app)/repair-orders/finalize-actions.ts");
+  assert.match(action, /labor: \{ orderBy:[\s\S]*shopSuppliesEligible: true/);
+  assert.match(action, /shopSuppliesEligible: line\.shopSuppliesEligible/);
+});
+
 test("invoice creation is locked, unique, idempotent, and creates OPEN", async () => {
   const [schema, action] = await Promise.all([read("prisma/schema.prisma"), read("src/app/(app)/repair-orders/finalize-actions.ts")]);
   assert.match(schema, /@@unique\(\[repairOrderId\]\)/);

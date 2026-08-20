@@ -41,7 +41,7 @@ export default async function CannedServicesPage() {
             <form 
               key={service.id} 
               action={updateCannedService} 
-              className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[1.5fr_2.5fr_7rem_9rem_auto] lg:items-end transition-all hover:border-slate-300"
+              className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[1.5fr_2.5fr_7rem_9rem_auto_auto] lg:items-end transition-all hover:border-slate-300"
             >
               <input type="hidden" name="serviceId" value={service.id} />
               
@@ -63,6 +63,11 @@ export default async function CannedServicesPage() {
               <label className={labelClass}>
                 Labor rate
                 <input name="defaultLaborRate" type="number" required min="0" max="1000000" step="0.01" defaultValue={service.defaultLaborRate.toString()} className={inputClass} />
+              </label>
+
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                <input name="shopSuppliesEligible" type="checkbox" defaultChecked={service.shopSuppliesEligible} className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                Apply Shop Supplies
               </label>
               
               <div className="flex items-center gap-2 pt-2 lg:pt-0">
@@ -99,7 +104,7 @@ export default async function CannedServicesPage() {
           <p className="mt-0.5 text-sm font-medium text-slate-500">Create a reusable catalog workflow shortcut.</p>
         </div>
         
-        <form action={createCannedService} className="mt-5 grid gap-4 lg:grid-cols-[1.5fr_2.5fr_7rem_9rem_auto] lg:items-end">
+        <form action={createCannedService} className="mt-5 grid gap-4 lg:grid-cols-[1.5fr_2.5fr_7rem_9rem_auto_auto] lg:items-end">
           <label className={labelClass}>
             Service name
             <input name="name" required maxLength={100} placeholder="e.g. Synthetic Oil Change" className={inputClass} />
@@ -118,6 +123,11 @@ export default async function CannedServicesPage() {
           <label className={labelClass}>
             Labor rate ($ / hr)
             <input name="defaultLaborRate" type="number" required min="0" max="1000000" step="0.01" defaultValue="60" className={inputClass} />
+          </label>
+
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+            <input name="shopSuppliesEligible" type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+            Apply Shop Supplies
           </label>
           
           <div className="flex items-center gap-3 pt-2 lg:pt-0">

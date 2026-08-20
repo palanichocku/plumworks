@@ -26,6 +26,6 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     },
     vendors: invoice.shop.vendors,
     parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, quantity: part.quantity.toString(), unitPrice: part.unitPrice.toString(), vendorNameSnapshot: part.vendorNameSnapshot })),
-    labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: labor.description, hours: labor.hours.toString(), hourlyRate: labor.hourlyRate.toString() })),
+    labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: labor.description, hours: labor.hours.toString(), hourlyRate: labor.hourlyRate.toString(), shopSuppliesEligible: labor.shopSuppliesEligible })),
   }} />;
 }

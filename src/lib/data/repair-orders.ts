@@ -98,7 +98,7 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           cannedServices: {
             where: { active: true },
             orderBy: { name: "asc" },
-            select: { id: true, name: true, description: true, defaultHours: true, defaultLaborRate: true },
+            select: { id: true, name: true, description: true, defaultHours: true, defaultLaborRate: true, shopSuppliesEligible: true },
           },
           vendors: {
             orderBy: { name: "asc" },
@@ -150,6 +150,7 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           hours: true,
           hourlyRate: true,
           complimentary: true,
+          shopSuppliesEligible: true,
         },
       },
     },

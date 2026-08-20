@@ -28,7 +28,7 @@ export type InvoiceEditPreview = {
 
 export async function previewInvoiceEditTotals(invoiceId: string, lines: {
   parts: Array<{ quantity: string; unitPrice: string }>;
-  labor: Array<{ hours: string; hourlyRate: string }>;
+  labor: Array<{ hours: string; hourlyRate: string; shopSuppliesEligible: boolean }>;
 }): Promise<InvoiceEditPreview | null> {
   if (!UUID.test(invoiceId) || lines.parts.length > 100 || lines.labor.length > 100) return null;
   const { membership } = await requirePermission("edit_draft_repair_order");
@@ -45,7 +45,7 @@ export async function previewInvoiceEditTotals(invoiceId: string, lines: {
   if (!invoice) return null;
   try {
     const parts = lines.parts.map((line) => ({ quantity: money(line.quantity), unitPrice: money(line.unitPrice) }));
-    const labor = lines.labor.map((line) => ({ hours: money(line.hours), hourlyRate: money(line.hourlyRate) }));
+    const labor = lines.labor.map((line) => ({ hours: money(line.hours), hourlyRate: money(line.hourlyRate), shopSuppliesEligible: line.shopSuppliesEligible }));
     if (parts.some((line) => !line.quantity.greaterThan(0)) || labor.some((line) => !line.hours.greaterThan(0))) return null;
     const shop = (invoice.shopSnapshot ?? {}) as { defaultTaxRate?: string | number; partsTaxable?: boolean; laborTaxable?: boolean };
     const totals = calculateEditableInvoiceTotals({
@@ -79,7 +79,7 @@ export async function previewInvoiceEditTotals(invoiceId: string, lines: {
 async function refreshInvoice(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string) {
   const invoice = await transaction.invoice.findFirstOrThrow({ where: { id: invoiceId, shopId, status: "open", legacySourceTable: null }, select: {
     id: true, total: true, paidTotal: true, shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,
-    parts: { select: { quantity: true, unitPrice: true } }, labor: { where: { complimentary: false }, select: { hours: true, hourlyRate: true } }, accountsReceivable: { take: 1, select: { id: true } },
+    parts: { select: { quantity: true, unitPrice: true } }, labor: { where: { complimentary: false }, select: { hours: true, hourlyRate: true, shopSuppliesEligible: true } }, accountsReceivable: { take: 1, select: { id: true } },
   } });
   const shop = (invoice.shopSnapshot ?? {}) as { defaultTaxRate?: string | number; partsTaxable?: boolean; laborTaxable?: boolean };
   const totals = calculateEditableInvoiceTotals({ parts: invoice.parts, labor: invoice.labor, shopSuppliesEnabled: invoice.shopSuppliesEnabledSnapshot ?? false, shopSuppliesRate: invoice.shopSuppliesRateSnapshot ?? 0, shopSuppliesCap: invoice.shopSuppliesCapSnapshot ?? 0, taxRate: shop.defaultTaxRate ?? 0, partsTaxable: shop.partsTaxable ?? true, laborTaxable: shop.laborTaxable ?? false, shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true });
@@ -148,15 +148,15 @@ export async function deleteInvoicePart(formData: FormData) {
 }
 
 export async function addInvoiceLabor(formData: FormData) {
-  const invoiceId = String(formData.get("invoiceId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const hours = money(formData.get("hours")); const hourlyRate = money(formData.get("hourlyRate"));
+  const invoiceId = String(formData.get("invoiceId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const hours = money(formData.get("hours")); const hourlyRate = money(formData.get("hourlyRate")); const eligibleValue = formData.get("shopSuppliesEligible"); const shopSuppliesEligible = eligibleValue === null || eligibleValue === "true";
   if (!description || description.length > 500 || !hours.greaterThan(0)) throw new Error("Invalid labor.");
-  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { await transaction.invoiceLabor.create({ data: { shopId, invoiceId, description, hours, hourlyRate, complimentary: false, legacyLineKey: `web:invoice:${invoiceId}:labor:${crypto.randomUUID()}` } }); });
+  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { await transaction.invoiceLabor.create({ data: { shopId, invoiceId, description, hours, hourlyRate, complimentary: false, shopSuppliesEligible, legacyLineKey: `web:invoice:${invoiceId}:labor:${crypto.randomUUID()}` } }); });
 }
 
 export async function updateInvoiceLabor(formData: FormData) {
-  const invoiceId = String(formData.get("invoiceId") ?? ""); const laborId = String(formData.get("laborId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const hours = money(formData.get("hours")); const hourlyRate = money(formData.get("hourlyRate"));
+  const invoiceId = String(formData.get("invoiceId") ?? ""); const laborId = String(formData.get("laborId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const hours = money(formData.get("hours")); const hourlyRate = money(formData.get("hourlyRate")); const shopSuppliesEligible = formData.get("shopSuppliesEligible") === "true";
   if (!UUID.test(laborId) || !description || !hours.greaterThan(0)) throw new Error("Invalid labor.");
-  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const result = await transaction.invoiceLabor.updateMany({ where: { id: laborId, invoiceId, shopId, complimentary: false }, data: { description, hours, hourlyRate } }); if (result.count !== 1) throw new Error("Labor not found."); });
+  await mutateOpenInvoice(invoiceId, async (transaction, shopId) => { const result = await transaction.invoiceLabor.updateMany({ where: { id: laborId, invoiceId, shopId, complimentary: false }, data: { description, hours, hourlyRate, shopSuppliesEligible } }); if (result.count !== 1) throw new Error("Labor not found."); });
 }
 
 export async function deleteInvoiceLabor(formData: FormData) {

@@ -77,6 +77,61 @@ test("native Invoice and Repair Order share pre-cap taxable supplies semantics",
   assert.deepEqual(afterConversion, beforeConversion);
 });
 
+test("labor-level eligibility changes only the Shop Supplies basis", () => {
+  const input = { parts: [], labor: [
+    { hours: "3", hourlyRate: "100", shopSuppliesEligible: true },
+    { hours: "1", hourlyRate: "145", shopSuppliesEligible: false },
+  ], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true };
+  const totals = calculateRepairOrderEstimateTotals(input);
+  assert.equal(totals.laborTotal.toFixed(2), "445.00");
+  assert.equal(totals.shopSuppliesEligibleLaborTotal.toFixed(2), "300.00");
+  assert.equal(totals.shopSuppliesCalculatedAmount.toFixed(2), "20.00");
+  assert.equal(totals.shopSuppliesAmount.toFixed(2), "20.00");
+  assert.equal(totals.taxTotal.toFixed(2), "1.44");
+  assert.equal(totals.total.toFixed(2), "466.44");
+  assert.deepEqual(calculateEditableInvoiceTotals(input), totals);
+});
+
+test("complimentary labor never contributes even when marked eligible", () => {
+  const totals = calculateRepairOrderEstimateTotals({ parts: [], labor: [
+    { hours: "1", hourlyRate: "100", complimentary: false, shopSuppliesEligible: true },
+    { hours: "2", hourlyRate: "100", complimentary: true, shopSuppliesEligible: true },
+  ], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
+  assert.equal(totals.laborTotal.toFixed(2), "100.00");
+  assert.equal(totals.shopSuppliesEligibleLaborTotal.toFixed(2), "100.00");
+  assert.equal(totals.shopSuppliesAmount.toFixed(2), "8.00");
+});
+
+test("labor eligibility is persisted through RO, Invoice, canned-service, and cutover paths", async () => {
+  const [schema, migration, roAction, roTotals, roUi, finalize, invoiceAction, invoiceUi, cannedAction, cannedUi, cutover] = await Promise.all([
+    read("prisma/schema.prisma"),
+    read("prisma/migrations/20260819120000_add_labor_shop_supplies_eligibility/migration.sql"),
+    read("src/app/(app)/repair-orders/labor-actions.ts"),
+    read("src/lib/repair-order-totals.ts"),
+    read("src/components/repair-order-line-items.tsx"),
+    read("src/app/(app)/repair-orders/finalize-actions.ts"),
+    read("src/app/(app)/invoices/lifecycle-actions.ts"),
+    read("src/components/invoice-edit-workspace.tsx"),
+    read("src/app/(app)/admin/services/actions.ts"),
+    read("src/app/(app)/admin/services/page.tsx"),
+    read("scripts/lib/legacy-open-order-projection.mjs"),
+  ]);
+  assert.match(schema, /model RepairOrderLabor[\s\S]*shopSuppliesEligible\s+Boolean\s+@default\(true\)/);
+  assert.match(schema, /model InvoiceLabor[\s\S]*shopSuppliesEligible\s+Boolean\s+@default\(true\)/);
+  assert.match(migration, /UPDATE "repair_order_labor"[\s\S]*SET "shop_supplies_eligible" = true/);
+  assert.match(migration, /ADD COLUMN "shop_supplies_eligible" BOOLEAN NOT NULL DEFAULT true/);
+  assert.match(roAction, /const shopSuppliesEligible = eligibleValue === null \|\| eligibleValue === "true"/);
+  assert.match(roAction, /shopSuppliesEligible: service\.shopSuppliesEligible/);
+  assert.match(roTotals, /select: \{ hours: true, hourlyRate: true, shopSuppliesEligible: true \}/);
+  assert.match(roUi, /Apply Shop Supplies/);
+  assert.match(finalize, /shopSuppliesEligible: line\.shopSuppliesEligible/);
+  assert.match(invoiceAction, /select: \{ hours: true, hourlyRate: true, shopSuppliesEligible: true \}/);
+  assert.match(invoiceUi, /Apply Shop Supplies/);
+  assert.match(cannedAction, /shopSuppliesEligible: formData\.get\("shopSuppliesEligible"\) === "on"/);
+  assert.match(cannedUi, /Apply Shop Supplies/);
+  assert.match(cutover, /shopSuppliesEligible: true/);
+});
+
 test("Repair Order estimate taxability, zero supplies, labor taxability, and rounding remain explicit", () => {
   const zeroSupplies = calculateRepairOrderEstimateTotals({ parts: [{ quantity: "1", unitPrice: "10" }], labor: [], shopSuppliesEnabled: true, shopSuppliesRate: "0.08", shopSuppliesCap: "20", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: true });
   assert.equal(zeroSupplies.shopSuppliesAmount.toFixed(2), "0.00");

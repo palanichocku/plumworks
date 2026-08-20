@@ -59,7 +59,7 @@
   }
 
   .ro-labor-row {
-    grid-template-columns: minmax(0, 1fr) 5.5rem 7rem minmax(12rem, auto);
+    grid-template-columns: minmax(0, 1fr) 5.5rem 7rem minmax(10rem, .7fr) minmax(12rem, auto);
   }
 }
 

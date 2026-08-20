@@ -21,7 +21,9 @@ function laborValues(formData: FormData) {
   ) {
     throw new Error("Invalid labor line.");
   }
-  return { description, hours: hours.toFixed(2), hourlyRate: hourlyRate.toFixed(2) };
+  const eligibleValue = formData.get("shopSuppliesEligible");
+  const shopSuppliesEligible = eligibleValue === null || eligibleValue === "true";
+  return { description, hours: hours.toFixed(2), hourlyRate: hourlyRate.toFixed(2), shopSuppliesEligible };
 }
 
 async function editableOrder(shopId: string, repairOrderId: string) {
@@ -67,7 +69,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const service = await transaction.cannedService.findFirst({
       where: { id: serviceId, shopId: membership.shopId, active: true },
-      select: { description: true, defaultHours: true, defaultLaborRate: true },
+      select: { description: true, defaultHours: true, defaultLaborRate: true, shopSuppliesEligible: true },
     });
     if (!service) throw new Error("Canned service is unavailable.");
     const line = await transaction.repairOrderLabor.create({
@@ -77,6 +79,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
         description: service.description,
         hours: service.defaultHours,
         hourlyRate: service.defaultLaborRate,
+        shopSuppliesEligible: service.shopSuppliesEligible,
         complimentary: false,
         legacyLineKey: `web:${randomUUID()}`,
       },

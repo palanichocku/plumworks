@@ -151,6 +151,7 @@ export function projectFinalCutoverOpenOrders({
       hours: number(row.rawData, "HOURS") ?? 0,
       hourlyRate: number(row.rawData, "LABORRATE") ?? 0,
       complimentary: false,
+      shopSuppliesEligible: true,
       legacyRoNo,
       legacySourceTable: "LABORorder",
     }));

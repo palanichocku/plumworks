@@ -16,7 +16,7 @@ function values(formData: FormData) {
   if (!name || name.length > 100 || !description || description.length > 500 || !defaultHours.isFinite() || defaultHours.lte(0) || defaultHours.gt(1000) || !defaultLaborRate.isFinite() || defaultLaborRate.lt(0) || defaultLaborRate.gt(1_000_000)) {
     throw new Error("Invalid canned service.");
   }
-  return { name, description, defaultHours: defaultHours.toDecimalPlaces(2), defaultLaborRate: defaultLaborRate.toDecimalPlaces(2), active: formData.get("active") === "on" };
+  return { name, description, defaultHours: defaultHours.toDecimalPlaces(2), defaultLaborRate: defaultLaborRate.toDecimalPlaces(2), shopSuppliesEligible: formData.get("shopSuppliesEligible") === "on", active: formData.get("active") === "on" };
 }
 
 export async function createCannedService(formData: FormData) {

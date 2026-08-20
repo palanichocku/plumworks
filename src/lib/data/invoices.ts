@@ -170,6 +170,7 @@ export async function getInvoiceForCurrentShop(id: string) {
           hours: true,
           hourlyRate: true,
           complimentary: true,
+          shopSuppliesEligible: true,
         },
       },
     },

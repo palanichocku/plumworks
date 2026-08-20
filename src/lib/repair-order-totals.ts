@@ -23,7 +23,7 @@ export async function refreshRepairOrderTotals(
     }),
     transaction.repairOrderLabor.findMany({
       where: { repairOrderId, shopId, complimentary: false },
-      select: { hours: true, hourlyRate: true },
+      select: { hours: true, hourlyRate: true, shopSuppliesEligible: true },
     }),
   ]);
 
