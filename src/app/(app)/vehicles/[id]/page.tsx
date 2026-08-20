@@ -9,6 +9,7 @@ import { updateVehicleNotes } from "../../internal-notes-actions";
 import { canEditInternalNotes } from "@/lib/internal-notes";
 import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
 import { archiveVehicle, deleteVehiclePermanently, restoreVehicle } from "../../customer-vehicle-lifecycle-actions";
+import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function VehicleDetailPage({
     [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
     "Unnamed vehicle";
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
+  const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && !vehicle.archivedAt && !vehicle.customer.archivedAt);
   const canManageLifecycle = membership?.role === "OWNER" || membership?.role === "ADMIN";
   const canDelete = membership?.role === "OWNER";
   const deleteBlockers = vehicle._count.repairOrders + vehicle._count.invoices + (vehicle.legacyCarno || vehicle.legacySourceTable ? 1 : 0);
@@ -66,10 +68,8 @@ export default async function VehicleDetailPage({
             <dd className="min-w-0 break-all text-slate-900">
               {vehicle.vin ?? "Not recorded"}
             </dd>
-            <dt className="text-slate-500">License</dt>
-            <dd className="text-slate-900">
-              {vehicle.licensePlate ?? "Not recorded"}
-            </dd>
+            <dt className="sr-only">License Plate</dt>
+            <dd className="col-span-2"><VehicleLicensePlateField vehicleId={vehicle.id} licensePlate={vehicle.licensePlate} context="vehicle" contextId={vehicle.id} editable={canEditVehicle} /></dd>
             <dt className="text-slate-500">Odometer</dt>
             <dd className="text-slate-900">{vehicle.odometer?.toLocaleString() ?? "Not recorded"}</dd>
             <dt className="text-slate-500">Legacy ID</dt>

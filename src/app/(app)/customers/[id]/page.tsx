@@ -9,6 +9,7 @@ import { updateCustomerNotes } from "../../internal-notes-actions";
 import { canEditInternalNotes } from "@/lib/internal-notes";
 import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
 import { archiveCustomer, deleteCustomerPermanently, restoreCustomer } from "../../customer-vehicle-lifecycle-actions";
+import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
 
 type CustomerDetail = NonNullable<
   Awaited<ReturnType<typeof getCustomerForCurrentShop>>
@@ -29,6 +30,7 @@ export default async function CustomerDetailPage({
     notFound();
   }
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
+  const canEditVehicles = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && !customer.archivedAt);
   const canManageLifecycle = membership?.role === "OWNER" || membership?.role === "ADMIN";
   const canDelete = membership?.role === "OWNER";
   const deleteBlockers = Object.values(customer._count).reduce((sum, count) => sum + count, 0) + (customer.legacyCustno || customer.legacySourceTable ? 1 : 0);
@@ -102,20 +104,15 @@ export default async function CustomerDetailPage({
         ) : (
           <ul className="divide-y divide-slate-200">
             {customer.vehicles.map((vehicle: CustomerVehicle) => (
-              <li key={vehicle.id}>
-                <Link
-                  href={`/vehicles/${vehicle.id}`}
-                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50"
-                >
+              <li key={vehicle.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <Link href={`/vehicles/${vehicle.id}`} className="min-w-0 hover:text-brand-primary">
                   <span className="font-medium text-slate-950">
                     {[vehicle.year, vehicle.make, vehicle.model]
                       .filter(Boolean)
                       .join(" ") || "Unnamed vehicle"} {vehicle.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
                   </span>
-                  <span className="text-sm text-slate-500">
-                    {vehicle.licensePlate ?? "No plate"}
-                  </span>
                 </Link>
+                <div className="w-full sm:w-72"><VehicleLicensePlateField vehicleId={vehicle.id} licensePlate={vehicle.licensePlate} context="customer" contextId={customer.id} editable={Boolean(canEditVehicles && !vehicle.archivedAt)} /></div>
               </li>
             ))}
           </ul>
