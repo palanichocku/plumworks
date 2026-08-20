@@ -101,6 +101,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
         partsTotal,
         laborTotal,
         subtotal,
+        discountAmount: zero,
         taxTotal,
         total,
         paidTotal: zero,

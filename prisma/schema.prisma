@@ -518,6 +518,7 @@ model Invoice {
   partsTotal                     Decimal               @default(0) @map("parts_total") @db.Decimal(12, 2)
   laborTotal                     Decimal               @default(0) @map("labor_total") @db.Decimal(12, 2)
   subtotal                       Decimal               @default(0) @db.Decimal(12, 2)
+  discountAmount                 Decimal               @default(0) @map("discount_amount") @db.Decimal(12, 2)
   taxTotal                       Decimal               @default(0) @map("tax_total") @db.Decimal(12, 2)
   total                          Decimal               @default(0) @db.Decimal(12, 2)
   paidTotal                      Decimal               @default(0) @map("paid_total") @db.Decimal(12, 2)

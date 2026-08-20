@@ -17,11 +17,12 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     repairOrderNumber: invoice.repairOrderNumber,
     customerComplaint: invoice.customerComplaint,
     recommendation: invoice.recommendation,
+    discountAmount: invoice.discountAmount.toFixed(2),
     partsTotal: invoice.partsTotal.toString(),
     laborTotal: invoice.laborTotal.toString(),
     totals: {
       parts: invoice.partsTotal.toFixed(2), labor: invoice.laborTotal.toFixed(2), shopSupplies: invoice.shopSuppliesAmount.toFixed(2),
-      subtotalBeforeTax: subtotalBeforeTax.toFixed(2), tax: invoice.taxTotal.toFixed(2), total: invoice.total.toFixed(2),
+      subtotalBeforeTax: subtotalBeforeTax.toFixed(2), discount: invoice.discountAmount.toFixed(2), tax: invoice.taxTotal.toFixed(2), total: invoice.total.toFixed(2),
       paid: invoice.paidTotal.toFixed(2), balance: balance.toFixed(2),
     },
     vendors: invoice.shop.vendors,

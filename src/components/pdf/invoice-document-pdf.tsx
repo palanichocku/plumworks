@@ -125,6 +125,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           <View style={styles.totalRow}><Text>Labor</Text><Text>{model.totals.labor}</Text></View>
           <View style={styles.totalRow}><Text>Shop supplies</Text><Text>{model.totals.shopSupplies}</Text></View>
           <View style={styles.totalRow}><Text>Subtotal before tax</Text><Text>{model.totals.displaySubtotalBeforeTax}</Text></View>
+          {model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <View style={styles.totalRow}><Text>Discount</Text><Text>{model.totals.discount}</Text></View> : null}
           {model.legacyCharges.map((charge) => <View key={charge.label} style={styles.totalRow}><Text>{charge.label}</Text><Text>{charge.amount}</Text></View>)}
           <View style={styles.totalRow}><Text>Tax</Text><Text>{model.totals.tax}</Text></View>
           <View style={[styles.totalRow, styles.grandTotal]}><Text>Total</Text><Text>{model.totals.total}</Text></View>

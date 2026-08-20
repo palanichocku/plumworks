@@ -108,6 +108,7 @@ export default async function InvoiceDetailPage({
             <dt className="text-slate-500">Labor</dt><dd>{formatMoney(invoice.laborTotal)}</dd>
             <dt className="text-slate-500">Shop supplies</dt><dd>{formatMoney(invoice.shopSuppliesAmount)}</dd>
             <dt className="text-slate-500">Subtotal before tax</dt><dd>{formatMoney(displaySubtotalBeforeTax)}</dd>
+            {!invoice.discountAmount.isZero() ? <><dt className="text-slate-500">Discount</dt><dd>{formatMoney(invoice.discountAmount.negated())}</dd></> : null}
             <dt className="text-slate-500">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
             <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-900">Total</dt>
             <dd className="border-t border-slate-200 pt-3 font-semibold">{formatMoney(invoice.total)}</dd>

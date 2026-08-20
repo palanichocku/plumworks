@@ -12,7 +12,7 @@ const invoiceDocumentSelect = {
   id: true, repairOrderNumber: true, legacyRoNo: true, legacySourceTable: true,
   invoiceDate: true, odometer: true, status: true, closedAt: true, deliveredAt: true, createdAt: true,
   customerComplaint: true, recommendation: true, partsTotal: true, laborTotal: true,
-  subtotal: true, shopSuppliesAmount: true, taxTotal: true, total: true, paidTotal: true,
+  subtotal: true, discountAmount: true, shopSuppliesAmount: true, taxTotal: true, total: true, paidTotal: true,
   shopSnapshot: true, customerSnapshot: true, vehicleSnapshot: true,
   shop: { select: {
     name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true,
@@ -128,7 +128,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
     legacyCharges: invoice.legacyCharges.map((charge) => ({ label: charge.sourceLabel?.trim() || charge.sourceBucket, amount: formatMoney(charge.amount) })),
     totals: {
       parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), displaySubtotalBeforeTax: formatMoney(displaySubtotalBeforeTax),
-      shopSupplies: formatMoney(invoice.shopSuppliesAmount), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total),
+      shopSupplies: formatMoney(invoice.shopSuppliesAmount), discount: formatMoney(invoice.discountAmount.negated()), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total),
       amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance),
     },
     paymentMethods: [...paymentTotals.entries()].map(([method, amount]) => ({ method, amount: formatMoney(amount) })),
