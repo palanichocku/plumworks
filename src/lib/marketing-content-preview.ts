@@ -58,13 +58,13 @@ export function parseMarketingContentPreview(value: unknown) {
     name: text(rawOwner.name, "aboutOwner.name", true)!,
     role: text(rawOwner.role, "aboutOwner.role", true)!,
     biography: text(rawOwner.biography, "aboutOwner.biography", true)!,
-    imageUrl: text(rawOwner.imageUrl, "aboutOwner.imageUrl", true)!,
-    imageAlt: text(rawOwner.imageAlt, "aboutOwner.imageAlt", true)!,
+    imageUrl: text(rawOwner.imageUrl, "aboutOwner.imageUrl"),
+    imageAlt: text(rawOwner.imageAlt, "aboutOwner.imageAlt"),
     homepageSummary: text(rawOwner.homepageSummary, "aboutOwner.homepageSummary"),
     historyLabel: text(rawOwner.historyLabel, "aboutOwner.historyLabel"),
     principles: list(rawOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)!),
   } : null;
-  if (aboutOwner && !aboutOwner.imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
+  if (aboutOwner?.imageUrl && !aboutOwner.imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
   const settings = {
     headline: text(rawSettings.headline, "settings.headline"),
     subheadline: text(rawSettings.subheadline, "settings.subheadline"),

@@ -22,12 +22,12 @@ const document = JSON.parse(await readFile(resolve(fileArgument), "utf8"));
 const brandName = text(document.brandName, "brandName");
 
 const owner = document.aboutOwner == null ? null : (() => {
-  const imageUrl = text(document.aboutOwner.imageUrl, "aboutOwner.imageUrl", true);
-  if (!imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
+  const imageUrl = text(document.aboutOwner.imageUrl, "aboutOwner.imageUrl");
+  if (imageUrl && !imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
   return {
     slug: "about-owner", eyebrow: text(document.aboutOwner.heading, "aboutOwner.heading", true),
     title: text(document.aboutOwner.name, "aboutOwner.name", true), description: text(document.aboutOwner.role, "aboutOwner.role", true),
-    body: JSON.stringify({ biography: text(document.aboutOwner.biography, "aboutOwner.biography", true), imageUrl, imageAlt: text(document.aboutOwner.imageAlt, "aboutOwner.imageAlt", true), homepageSummary: text(document.aboutOwner.homepageSummary, "aboutOwner.homepageSummary"), historyLabel: text(document.aboutOwner.historyLabel, "aboutOwner.historyLabel"), principles: list(document.aboutOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)) }), active: true,
+    body: JSON.stringify({ biography: text(document.aboutOwner.biography, "aboutOwner.biography", true), imageUrl, imageAlt: text(document.aboutOwner.imageAlt, "aboutOwner.imageAlt"), homepageSummary: text(document.aboutOwner.homepageSummary, "aboutOwner.homepageSummary"), historyLabel: text(document.aboutOwner.historyLabel, "aboutOwner.historyLabel"), principles: list(document.aboutOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)) }), active: true,
   };
 })();
 

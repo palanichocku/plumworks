@@ -61,8 +61,8 @@ export const getMarketingAboutOwner = cache(async () => {
     const details = JSON.parse(page.body) as unknown;
     if (!details || typeof details !== "object" || Array.isArray(details)) return null;
     const { biography, imageUrl, imageAlt, homepageSummary, historyLabel, principles } = details as Record<string, unknown>;
-    if (typeof biography !== "string" || typeof imageUrl !== "string" || typeof imageAlt !== "string" || !imageUrl.startsWith("/client-assets/")) return null;
-    return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl, imageAlt, homepageSummary: typeof homepageSummary === "string" ? homepageSummary : null, historyLabel: typeof historyLabel === "string" ? historyLabel : null, principles: Array.isArray(principles) ? principles.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [] };
+    if (typeof biography !== "string" || (imageUrl != null && (typeof imageUrl !== "string" || !imageUrl.startsWith("/client-assets/"))) || (imageAlt != null && typeof imageAlt !== "string")) return null;
+    return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl: typeof imageUrl === "string" ? imageUrl : null, imageAlt: typeof imageAlt === "string" ? imageAlt : null, homepageSummary: typeof homepageSummary === "string" ? homepageSummary : null, historyLabel: typeof historyLabel === "string" ? historyLabel : null, principles: Array.isArray(principles) ? principles.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [] };
   } catch { return null; }
 });
 

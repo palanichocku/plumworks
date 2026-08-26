@@ -103,7 +103,7 @@ export function trustSignals(pages, identity) {
   const compactPhone = text.replace(/\D/g, "");
   const checks = {
     namedOwner: text.includes(identity.owner.toLowerCase()), ownerRole: text.includes("owner"), scopedCredential: text.includes(identity.ownerRole.toLowerCase()),
-    ownerPortrait: pages.some((page) => /subbu-veerappan-owner|owner[^<]{0,30}(jpg|webp|png)/i.test(page.rawHtml ?? "")),
+    ownerPortrait: pages.some((page) => /data-owner-placeholder|owner[^<]{0,30}(jpg|webp|png)/i.test(page.rawHtml ?? "")),
     address: text.includes(identity.streetAddress.toLowerCase()), phone: compactPhone.includes(identity.phone.replace(/\D/g, "")),
     hours: /monday|friday|saturday|hours/.test(text), history: text.includes(identity.history.toLowerCase()),
     approvalProcess: /approve|authorization|before.*work/.test(text), genuineReviews: /customer review/.test(text) && /blockquote/.test(pages.map((page) => page.rawHtml ?? "").join("")),

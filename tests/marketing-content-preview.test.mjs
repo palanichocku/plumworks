@@ -63,7 +63,7 @@ test("Car Doc owner content passes the shared content-file validator", async () 
   const preview = parseMarketingContentPreview(JSON.parse(await readFile(file, "utf8")));
   assert.equal(preview.aboutOwner?.name, "Subbu Veerappan");
   assert.equal(preview.brandName, "Car Doc");
-  assert.equal(preview.aboutOwner?.imageUrl, "/client-assets/cardoc/subbu-veerappan-owner.jpg");
+  assert.equal(preview.aboutOwner?.imageUrl, null);
   assert.equal(preview.services.length, 10);
   assert.ok(preview.services.every((service) => service.detail.startsWith('{"version":1')));
 });

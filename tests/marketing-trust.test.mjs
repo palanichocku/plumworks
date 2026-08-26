@@ -39,7 +39,7 @@ test("homepage presents a compact owner-led trust block and the five-step approv
   assert.match(home, /owner\.homepageSummary/);
   assert.match(home, /href="\/about"/);
   assert.match(home, /Meet the owner/);
-  assert.match(home, /<Image src=\{owner\.imageUrl\} alt=\{owner\.imageAlt\} width=\{96\} height=\{120\}/);
+  assert.match(home, /<OwnerPortrait name=\{owner\.name\}[\s\S]*compact/);
   for (const step of ["Explain the concern", "Evaluate the vehicle", "Review the findings", "Discuss the options", "Approve the work"]) assert.match(home, new RegExp(step));
   assert.doesNotMatch(home, /["']Car Doc["']|Subbu Veerappan|since 2009/);
 });
@@ -50,8 +50,8 @@ test("About scopes the credential to Subbu and uses approved customer-specific p
   assert.match(about, /owner\.biography/);
   assert.match(about, /owner\.principles/);
   assert.match(about, /owner\.historyLabel/);
-  assert.match(about, /alt=\{owner\.imageAlt\}/);
-  assert.equal(owner.imageAlt, "Subbu Veerappan, owner of Car Doc");
+  assert.match(about, /<OwnerPortrait name=\{owner\.name\}/);
+  assert.equal(owner.imageAlt, undefined);
   assert.doesNotMatch(about, /all technicians.*ASE|ASE-certified shop/i);
 });
 

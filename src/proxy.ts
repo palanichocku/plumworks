@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 import { marketingAttributionCookie, parseFirstTouch, preserveFirstTouch } from "@/lib/marketing-attribution";
+import { resolveCardocLegacyRedirect } from "@/lib/cardoc-legacy-redirects";
 
 const publicMarketingPaths = new Set(["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services"]);
 
@@ -9,6 +10,11 @@ function isPublicMarketingPath(pathname: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
+    if (legacyRedirect) return NextResponse.redirect(legacyRedirect.location, legacyRedirect.status);
+    if (/(?:\.html|\.php|\/defaults\/files\/DrivabilityForm\.pdf)$/i.test(request.nextUrl.pathname)) return NextResponse.next();
+  }
   if (isPublicMarketingPath(request.nextUrl.pathname)) {
     const response = NextResponse.next();
     const existing = request.cookies.get(marketingAttributionCookie)?.value;
@@ -51,5 +57,8 @@ export const config = {
     "/help/:path*",
     "/admin/:path*",
     "/settings/:path*",
+    "/((?:.*)\\.html)",
+    "/((?:.*)\\.php)",
+    "/defaults/files/DrivabilityForm.pdf",
   ],
 };

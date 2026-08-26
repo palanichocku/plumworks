@@ -8,6 +8,8 @@
     "build": "next build",
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
+    "website:legacy:inventory": "node scripts/legacy-url-inventory.mjs --origin https://www.subbuscardoc.com --output /private/tmp/cardoc-legacy-url-inventory.json --cap 300 --delay-ms 100",
+    "website:redirects:verify": "node scripts/verify-cardoc-legacy-redirects.mjs",
     "test:benchmark": "node --test tests/website-benchmark.test.mjs",
     "test:backup": "node --test scripts/public-db-backup.test.mjs",
     "start": "next start",

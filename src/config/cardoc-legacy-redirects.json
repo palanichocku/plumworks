@@ -1,0 +1,835 @@
+{
+  "formatVersion": 1,
+  "customer": "cardoc",
+  "legacyHosts": [
+    "subbuscardoc.com",
+    "www.subbuscardoc.com"
+  ],
+  "canonicalHostAfterCutover": "www.subbuscardoc.com",
+  "redirects": [
+    {
+      "source": "/AC-repair-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/auto_repair_blog.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "repair tips",
+      "reason": "No vendor articles copied; current service index"
+    },
+    {
+      "source": "/best-tire-shop-in-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "No current tire-specific route"
+    },
+    {
+      "source": "/Car-Doc-auto-service-tips.html",
+      "decision": "redirect",
+      "destination": "/services/scheduled-maintenance",
+      "status": 301,
+      "category": "repair tips",
+      "reason": "Closest current maintenance guidance"
+    },
+    {
+      "source": "/Clinton-Township.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/coupons.html",
+      "decision": "redirect",
+      "destination": "/",
+      "status": 301,
+      "category": "reviews/photos/coupons",
+      "reason": "No approved current coupons"
+    },
+    {
+      "source": "/defaults/files/DrivabilityForm.pdf",
+      "decision": "redirect",
+      "destination": "/drop-off",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current drop-off information workflow"
+    },
+    {
+      "source": "/Detroit.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/guarantee.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "home/shop",
+      "reason": "Closest stable shop-information page without copying vendor claims"
+    },
+    {
+      "source": "/index.php",
+      "decision": "redirect",
+      "destination": "/",
+      "status": 301,
+      "category": "home/shop",
+      "reason": "Legacy home entry point"
+    },
+    {
+      "source": "/isuzu-auto-repair-in-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Macomb-Township.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/privacy-policy.html",
+      "decision": "redirect",
+      "destination": "/privacy",
+      "status": 301,
+      "category": "privacy",
+      "reason": "Current privacy policy"
+    },
+    {
+      "source": "/recharging-car-AC-freon-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/referral.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow; legacy referral content is not copied"
+    },
+    {
+      "source": "/repair-car-AC-compressor-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/repair-car-AC-evaporator-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/replace-car-AC-condenser-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/replace-car-AC-thermal-expansion-valve-orifice-tube-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/review-our-service-contact.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow"
+    },
+    {
+      "source": "/review-our-service.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow; no unapproved reviews"
+    },
+    {
+      "source": "/Rochester-Hills.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/Royal-Oak-.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/saab-auto-repair-in-Sterling-Heights.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/site-map.html",
+      "decision": "redirect",
+      "destination": "/",
+      "status": 301,
+      "category": "other",
+      "reason": "Current site navigation replaces legacy site map"
+    },
+    {
+      "source": "/St-Clair-Shores.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/Sterling-Heights-4x4-services.html",
+      "decision": "redirect",
+      "destination": "/services/undercar-service",
+      "status": 301,
+      "category": "service",
+      "reason": "Closest undercar and drivetrain replacement"
+    },
+    {
+      "source": "/Sterling-Heights-acura-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-appointment-request.php",
+      "decision": "redirect",
+      "destination": "/appointment",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current service-request workflow"
+    },
+    {
+      "source": "/Sterling-Heights-asian-vehicles.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-ask-an-expert.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow"
+    },
+    {
+      "source": "/Sterling-Heights-audi-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-auto-ac-repair.html",
+      "decision": "redirect",
+      "destination": "/services/ac-heating-cooling",
+      "status": 301,
+      "category": "service",
+      "reason": "A/C, heating and cooling replacement"
+    },
+    {
+      "source": "/Sterling-Heights-auto-brakes.html",
+      "decision": "redirect",
+      "destination": "/services/brakes",
+      "status": 301,
+      "category": "service",
+      "reason": "Brake-service replacement"
+    },
+    {
+      "source": "/Sterling-Heights-auto-electrical-repair.html",
+      "decision": "redirect",
+      "destination": "/services/battery-electrical",
+      "status": 301,
+      "category": "service",
+      "reason": "Battery and electrical replacement"
+    },
+    {
+      "source": "/Sterling-Heights-auto-electronics.html",
+      "decision": "redirect",
+      "destination": "/services/diagnostics",
+      "status": 301,
+      "category": "service",
+      "reason": "Diagnostic-service replacement"
+    },
+    {
+      "source": "/Sterling-Heights-auto-maintenance.html",
+      "decision": "redirect",
+      "destination": "/services/scheduled-maintenance",
+      "status": 301,
+      "category": "service",
+      "reason": "Scheduled-maintenance replacement"
+    },
+    {
+      "source": "/Sterling-Heights-auto-repair-careers.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact page for shop inquiries"
+    },
+    {
+      "source": "/Sterling-Heights-auto-repair-services.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "Current service index"
+    },
+    {
+      "source": "/Sterling-Heights-auto-repair-shop-location.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current shop location and contact page"
+    },
+    {
+      "source": "/Sterling-Heights-auto-repair-shop.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current shop contact page"
+    },
+    {
+      "source": "/Sterling-Heights-auto-repairs.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "home/shop",
+      "reason": "Closest current shop and owner page"
+    },
+    {
+      "source": "/Sterling-Heights-auto-service-repair.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "Current service index"
+    },
+    {
+      "source": "/Sterling-Heights-auto-services.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "Current service index"
+    },
+    {
+      "source": "/Sterling-Heights-bmw-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-broken-car.html",
+      "decision": "redirect",
+      "destination": "/services/diagnostics",
+      "status": 301,
+      "category": "service",
+      "reason": "Diagnostic-service replacement"
+    },
+    {
+      "source": "/Sterling-Heights-buick-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-cadillac-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-chevrolet-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-chrysler-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-code-of-ethics.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "home/shop",
+      "reason": "Closest current shop approach page"
+    },
+    {
+      "source": "/Sterling-Heights-customer-service.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "home/shop",
+      "reason": "Closest current shop approach page"
+    },
+    {
+      "source": "/Sterling-Heights-customer-survey.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow; legacy survey content is not copied"
+    },
+    {
+      "source": "/Sterling-Heights-dodge-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-domestic-auto-repair.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-electric-hybrid.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-engine-maintenance.html",
+      "decision": "redirect",
+      "destination": "/services/engine-repair",
+      "status": 301,
+      "category": "service",
+      "reason": "Engine-service replacement"
+    },
+    {
+      "source": "/Sterling-Heights-engine-overhaul-replacement.html",
+      "decision": "redirect",
+      "destination": "/services/engine-repair",
+      "status": 301,
+      "category": "service",
+      "reason": "Engine-service replacement"
+    },
+    {
+      "source": "/Sterling-Heights-expired-warranty-care.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "Current service index"
+    },
+    {
+      "source": "/Sterling-Heights-fiat-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-ford-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-general-maintenance.html",
+      "decision": "redirect",
+      "destination": "/services/scheduled-maintenance",
+      "status": 301,
+      "category": "service",
+      "reason": "Scheduled-maintenance replacement"
+    },
+    {
+      "source": "/Sterling-Heights-gmc-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-helpful-info.html",
+      "decision": "redirect",
+      "destination": "/services/scheduled-maintenance",
+      "status": 301,
+      "category": "service",
+      "reason": "Scheduled-maintenance replacement"
+    },
+    {
+      "source": "/Sterling-Heights-honda-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-hummer-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-hyundai-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-import-foreign-auto-repair.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-infiniti-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-insurance-questions.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "other",
+      "reason": "No insurance-service claim; contact shop for guidance"
+    },
+    {
+      "source": "/Sterling-Heights-jaguar-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-kia-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-land-rover-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-lexus-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-lincoln-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-mazda-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-mercedes-benz-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-mercury-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-mini-cooper-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-mitsubishi-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-nissan-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-oldsmobile-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-pontiac-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-porsche-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-review-our-service-contact.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow"
+    },
+    {
+      "source": "/Sterling-Heights-review-our-service.php",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Current contact workflow; no unapproved reviews"
+    },
+    {
+      "source": "/Sterling-Heights-saturn-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-scion-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-slideshow.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "reviews/photos/coupons",
+      "reason": "No approved gallery; use stable shop page"
+    },
+    {
+      "source": "/Sterling-Heights-subaru-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-suspension-repairs.html",
+      "decision": "redirect",
+      "destination": "/services/steering-suspension",
+      "status": 301,
+      "category": "service",
+      "reason": "Steering and suspension replacement"
+    },
+    {
+      "source": "/Sterling-Heights-suzuki-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-testimonials.html",
+      "decision": "redirect",
+      "destination": "/about",
+      "status": 301,
+      "category": "reviews/photos/coupons",
+      "reason": "No approved reviews; use stable shop page"
+    },
+    {
+      "source": "/Sterling-Heights-tire-selector.php",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "service",
+      "reason": "No current tire-specific route"
+    },
+    {
+      "source": "/Sterling-Heights-toyota-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-transmission-repair.html",
+      "decision": "redirect",
+      "destination": "/services/transmission-clutch",
+      "status": 301,
+      "category": "service",
+      "reason": "Transmission and clutch replacement"
+    },
+    {
+      "source": "/Sterling-Heights-undercar-services.html",
+      "decision": "redirect",
+      "destination": "/services/undercar-service",
+      "status": 301,
+      "category": "service",
+      "reason": "Closest undercar and drivetrain replacement"
+    },
+    {
+      "source": "/Sterling-Heights-volkswagen-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-volvo-repairs.html",
+      "decision": "redirect",
+      "destination": "/services",
+      "status": 301,
+      "category": "manufacturer/make",
+      "reason": "No current make-specific route; use honest service index"
+    },
+    {
+      "source": "/Sterling-Heights-when-accidents-happen.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "other",
+      "reason": "No collision-service claim; contact shop for guidance"
+    },
+    {
+      "source": "/thankyou.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "forms/contact",
+      "reason": "Legacy form completion page has no standalone replacement"
+    },
+    {
+      "source": "/Troy.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    },
+    {
+      "source": "/Warren.html",
+      "decision": "redirect",
+      "destination": "/contact",
+      "status": 301,
+      "category": "city/location",
+      "reason": "Current Sterling Heights shop location"
+    }
+  ]
+}

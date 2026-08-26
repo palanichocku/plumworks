@@ -44,7 +44,7 @@ test("bounded crawl discovery is same-origin and excludes PlumWorks private path
 test("content, trust, and conversion scoring are deterministic while unknowns stay unavailable", () => {
   const rich = inspectHtml(`<html lang="en"><head><meta name="viewport" content="width=device-width"><title>Brakes</title><meta name="description" content="Brake help"><link rel="canonical" href="https://example.com/services/brakes"></head><body><h1>Brake Repair</h1><h2>Signs and symptoms</h2><p>${"Sterling Heights warning noise vibration concern inspect evaluate helpful why does not always what to expect approve authorization. ".repeat(20)}</p><h2>Common questions</h2><a href="/services/diagnostics">Related service</a><a href="/appointment">Request Service</a><a href="tel:5868433347">Call</a></body></html>`, "https://example.com/services/brakes");
   const content = contentSignals(rich, { service: true, locality: "Sterling Heights" }); assert.equal(content.passed, 10);
-  const trust = trustSignals([{ ...rich, text: `${rich.text} Subbu Veerappan Owner and ASE Master Technician 42464 Mound Road Monday Friday Saturday since 2009 before work`, rawHtml: '<img src="subbu-veerappan-owner.jpg">' }], config.identity);
+  const trust = trustSignals([{ ...rich, text: `${rich.text} Subbu Veerappan Owner and ASE Master Technician 42464 Mound Road Monday Friday Saturday since 2009 before work`, rawHtml: '<div data-owner-placeholder>SV</div>' }], config.identity);
   assert.equal(trust.checks.namedOwner, true); assert.equal(trust.checks.ownerPortrait, true);
   assert.equal(measurementState("garbage"), "not_verifiable"); assert.equal(measurementState("public_detected"), "public_detected");
   const page = { key: "home", service: false, status: 200, analysis: rich };
