@@ -2,6 +2,9 @@ import Link from "next/link";
 import { DesktopNavigation, MobileNavigation } from "./app-navigation";
 import { signOut } from "@/app/(app)/actions";
 import { poweredByText } from "@/lib/branding";
+import { getBusinessProfile } from "@/lib/business-profile";
+
+const businessProfile = getBusinessProfile();
 
 export function AppShell({
   children,
@@ -46,7 +49,7 @@ export function AppShell({
           </span>
           <div>
             <span className="block text-base font-extrabold tracking-tight text-slate-900 leading-tight">{shopName}</span>
-            <span className="block text-[11px] font-medium text-slate-400 mt-0.5 tracking-wide uppercase">Shop Workspace</span>
+            <span className="block text-[11px] font-medium text-slate-400 mt-0.5 tracking-wide uppercase">{businessProfile.terminology.businessWorkspace}</span>
           </div>
         </Link>
 

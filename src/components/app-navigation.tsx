@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { getBusinessProfile, type ModuleRegistry } from "@/lib/business-profile";
 
 type NavigationIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -34,18 +35,21 @@ const BarChart3 = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="
 const CircleHelp = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.8 2.13c-.8.48-1.3.87-1.3 1.87M12 17h.01" /></Icon>;
 const Shield = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></Icon>;
 
+const businessProfile = getBusinessProfile();
+const { terminology } = businessProfile;
+
 const navigation = [
-  { href: "/repair-orders", label: "Repair Orders", icon: Wrench },
-  { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/vehicles", label: "Vehicles", icon: Car },
-  { href: "/", label: "Website", icon: Globe },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin", label: "Admin", icon: Shield },
-  { href: "/help", label: "Help", icon: CircleHelp },
-  { href: "/accounts-receivable", label: "Accounts Receivable", icon: Wallet },
-];
+  { href: "/repair-orders", label: terminology.workOrderPlural, icon: Wrench, module: "workOrders" },
+  { href: "/invoices", label: "Invoices", icon: FileText, module: "invoices" },
+  { href: "/customers", label: "Customers", icon: Users, module: "customers" },
+  { href: "/vehicles", label: terminology.assetPlural, icon: Car, module: "assets" },
+  { href: "/", label: "Website", icon: Globe, module: null },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: null },
+  { href: "/reports", label: "Reports", icon: BarChart3, module: "reports" },
+  { href: "/admin", label: "Admin", icon: Shield, module: "admin" },
+  { href: "/help", label: "Help", icon: CircleHelp, module: null },
+  { href: "/accounts-receivable", label: "Accounts Receivable", icon: Wallet, module: "accountsReceivable" },
+] as const satisfies ReadonlyArray<{ href: string; label: string; icon: NavigationIcon; module: keyof ModuleRegistry | null }>;
 
 function NavigationLink({
   href,
@@ -99,7 +103,7 @@ function NavigationLink({
 }
 
 function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
-  return navigation.filter((item) => (item.href !== "/reports" || canViewReports) && (!["/", "/admin"].includes(item.href) || canViewAdmin));
+  return navigation.filter((item) => (item.module === null || businessProfile.modules[item.module]) && (item.href !== "/reports" || canViewReports) && (!["/", "/admin"].includes(item.href) || canViewAdmin));
 }
 
 export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {

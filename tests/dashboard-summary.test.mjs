@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { currentUtcMonthRange } from "../src/lib/dashboard-summary.ts";
 import { formatMoney } from "../src/lib/formatters.ts";
+import { getBusinessProfile } from "../src/lib/business-profile.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const [page, data, formatters, leadContext] = await Promise.all([
@@ -16,8 +17,13 @@ const [page, data, formatters, leadContext] = await Promise.all([
 const lifecycle = await read("src/lib/invoice-lifecycle.ts");
 
 test("dashboard renders exactly the five requested summary cards", () => {
-  for (const label of ["Open Repair Orders", "Customers", "Vehicles", "Invoices This Month", "New Leads"]) assert.match(page, new RegExp(`label: "${label}"`));
-  assert.equal((page.match(/label: "/g) ?? []).length, 5);
+  const profile = getBusinessProfile();
+  assert.equal(`Open ${profile.terminology.workOrderPlural}`, "Open Repair Orders");
+  assert.equal(profile.terminology.assetPlural, "Vehicles");
+  for (const label of ["Customers", "Invoices This Month", "New Leads"]) assert.match(page, new RegExp(`label: "${label}"`));
+  assert.match(page, /label: `Open \$\{businessProfile\.terminology\.workOrderPlural\}`/);
+  assert.match(page, /label: businessProfile\.terminology\.assetPlural/);
+  assert.equal((page.match(/label:/g) ?? []).length, 5);
   assert.doesNotMatch(page, /Open receivables|Open AR balance|Web draft\/open orders|Invoices, last 30 days/i);
 });
 

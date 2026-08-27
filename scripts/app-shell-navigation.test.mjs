@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { getBusinessProfile } from "../src/lib/business-profile.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -15,7 +16,7 @@ test("desktop sidebar reserves a viewport-height scroll region for every authori
   assert.match(shell, /action="\/search" className="[^"]*shrink-0/);
   assert.match(shell, /mt-4 shrink-0 rounded-xl/);
   assert.match(navigation, /<nav className="[^"]*min-h-0[^"]*flex-1[^"]*overflow-x-hidden[^"]*overflow-y-auto[^"]*overscroll-contain/);
-  assert.match(navigation, /href: "\/admin", label: "Admin"/);
+  assert.match(navigation, /href: "\/admin", label: "Admin", icon: Shield, module: "admin"/);
 });
 
 test("mobile navigation and permission filtering remain unchanged", async () => {
@@ -28,19 +29,13 @@ test("mobile navigation and permission filtering remain unchanged", async () => 
 
 test("desktop and mobile share the customer-requested navigation order", async () => {
   const source = await read("src/components/app-navigation.tsx");
-  const orderedItems = [...source.matchAll(/\{ href: "([^"]+)", label: "([^"]+)", icon: \w+ \}/g)]
-    .map((match) => ({ href: match[1], label: match[2] }));
-  assert.deepEqual(orderedItems, [
-    { href: "/repair-orders", label: "Repair Orders" },
-    { href: "/invoices", label: "Invoices" },
-    { href: "/customers", label: "Customers" },
-    { href: "/vehicles", label: "Vehicles" },
-    { href: "/", label: "Website" },
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/reports", label: "Reports" },
-    { href: "/admin", label: "Admin" },
-    { href: "/help", label: "Help" },
-    { href: "/accounts-receivable", label: "Accounts Receivable" },
-  ]);
+  const orderedRoutes = [...source.matchAll(/\{ href: "([^"]+)", label: [^,]+, icon: \w+, module:/g)].map((match) => match[1]);
+  assert.deepEqual(orderedRoutes, ["/repair-orders", "/invoices", "/customers", "/vehicles", "/", "/dashboard", "/reports", "/admin", "/help", "/accounts-receivable"]);
+  const profile = getBusinessProfile();
+  assert.equal(profile.terminology.workOrderPlural, "Repair Orders");
+  assert.equal(profile.terminology.assetPlural, "Vehicles");
+  assert.match(source, /label: terminology\.workOrderPlural/);
+  assert.match(source, /label: terminology\.assetPlural/);
+  assert.match(source, /item\.module === null \|\| businessProfile\.modules\[item\.module\]/);
   assert.equal((source.match(/allowedNavigation\(canViewReports, canViewAdmin\)\.map/g) ?? []).length, 2);
 });

@@ -4,10 +4,12 @@ import { PageHeading } from "@/components/page-heading";
 import { getDashboardSummary } from "@/lib/data/dashboard";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { formatDate, formatMoney } from "@/lib/formatters";
+import { getBusinessProfile } from "@/lib/business-profile";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const businessProfile = getBusinessProfile();
   const [{ membership }, summary] = await Promise.all([
     getCurrentMembership(),
     getDashboardSummary(),
@@ -26,9 +28,9 @@ export default async function DashboardPage() {
   }
 
   const cards = [
-    { label: "Open Repair Orders", value: String(summary.openRepairOrders), supporting: "Draft and open", href: "/repair-orders" },
+    { label: `Open ${businessProfile.terminology.workOrderPlural}`, value: String(summary.openRepairOrders), supporting: "Draft and open", href: "/repair-orders" },
     { label: "Customers", value: String(summary.customers), supporting: "Customer records", href: "/customers" },
-    { label: "Vehicles", value: String(summary.vehicles), supporting: "Registered vehicles", href: "/vehicles" },
+    { label: businessProfile.terminology.assetPlural, value: String(summary.vehicles), supporting: `Registered ${businessProfile.terminology.assetPlural.toLowerCase()}`, href: "/vehicles" },
     {
   label: "Invoices This Month",
   value: summary.monthlyInvoiceCount.toLocaleString(),
