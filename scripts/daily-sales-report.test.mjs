@@ -259,6 +259,21 @@ test("print stylesheet requests landscape pages and repeatable table headers", a
   assert.match(shell, /<header[^>]*print:hidden/);
 });
 
+test("report presentation keeps detail values regular and reserves emphasis for totals", async () => {
+  const [screen, printable, pdf, css] = await Promise.all([
+    readFile(new URL("../src/app/(app)/reports/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/(app)/reports/print/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/pdf/daily-sales-report-pdf.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(screen, /strong \? "font-semibold[^\"]+" : "font-normal/);
+  assert.match(screen, /const thClass = "[^"]*font-semibold/);
+  assert.match(printable, /index === rows\.length - 1 \? "[^"]*font-semibold" : "font-normal"/);
+  assert.match(pdf, /value: \{ color: "#111827" \}/);
+  assert.match(pdf, /totalValue: \{ fontWeight: "bold"/);
+  assert.match(css, /\.daily-sales-print-table td\s*\{[^}]*font-weight:\s*400;/s);
+});
+
 test("report date validation and print heading formatting are explicit", () => {
   assert.equal(isValidReportRange("2026-07-20", "2026-07-20"), true);
   assert.equal(isValidReportRange("2026-07-21", "2026-07-20"), false);

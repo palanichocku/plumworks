@@ -196,14 +196,16 @@ body {
     page: daily-sales-landscape;
     max-width: none;
     min-height: 0;
-    color: #0f172a;
+    color: #111827;
+    background: white;
   }
 
   .daily-sales-summary-print {
     page: daily-sales-portrait;
     max-width: none;
     min-height: 0;
-    color: #0f172a;
+    color: #111827;
+    background: white;
   }
 
   .daily-sales-print-content {
@@ -221,6 +223,7 @@ body {
     table-layout: auto;
     font-size: 7pt;
     line-height: 1.2;
+    color: #111827;
   }
 
   .daily-sales-print-table thead {
@@ -255,6 +258,10 @@ body {
   .daily-sales-print-table td:nth-child(n + 5),
   .daily-sales-print-table th:nth-child(n + 5) {
     white-space: nowrap;
+  }
+
+  .daily-sales-print-table td {
+    font-weight: 400;
   }
 
   .daily-sales-print-table tfoot th,

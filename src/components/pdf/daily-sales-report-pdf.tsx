@@ -13,28 +13,30 @@ interface DailySalesReportPDFProps {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#1e293b" },
-  header: { marginBottom: 20, borderBottom: "1pt solid #cbd5e1", paddingBottom: 10 },
-  title: { fontSize: 18, fontWeight: "bold", color: "#0f172a", marginBottom: 4 },
-  subtitle: { fontSize: 10, color: "#64748b" },
-  section: { marginBottom: 20 },
-  sectionTitle: { 
-    fontSize: 12, 
-    fontWeight: "bold", 
-    backgroundColor: "#f8fafc", 
-    padding: 6, 
-    marginBottom: 8, 
-    border: "1pt solid #e2e8f0" 
+  page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#111827", backgroundColor: "#ffffff" },
+  header: { marginBottom: 16, borderBottom: "0.75pt solid #9ca3af", paddingBottom: 8 },
+  title: { fontSize: 16, fontWeight: "bold", color: "#111827", marginBottom: 4 },
+  subtitle: { fontSize: 9, color: "#4b5563", marginBottom: 2 },
+  section: { marginBottom: 16 },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#111827",
+    paddingBottom: 5,
+    marginBottom: 3,
+    borderBottom: "0.75pt solid #9ca3af",
   },
   row: { 
     flexDirection: "row", 
     justifyContent: "space-between", 
-    paddingVertical: 4, 
-    borderBottom: "0.5pt solid #f1f5f9" 
+    paddingVertical: 4,
+    borderBottom: "0.5pt solid #e5e7eb",
   },
-  label: { color: "#475569" },
-  value: { fontWeight: "bold" },
-  highlightValue: { fontWeight: "bold", color: "#0284c7" },
+  label: { color: "#374151" },
+  value: { color: "#111827" },
+  totalRow: { borderTop: "0.75pt solid #6b7280", borderBottom: "none", marginTop: 3, paddingTop: 6 },
+  totalLabel: { fontWeight: "bold", color: "#111827" },
+  totalValue: { fontWeight: "bold", color: "#111827" },
 });
 
 export function DailySalesReportPDF({ report, fromDate, toDate, reportTitle = "Daily Sales Report"}: DailySalesReportPDFProps) {
@@ -55,9 +57,9 @@ export function DailySalesReportPDF({ report, fromDate, toDate, reportTitle = "D
             <Text style={styles.label}>Invoices</Text>
             <Text style={styles.value}>{report.sales.invoiceCount.toLocaleString()}</Text>
           </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Gross Sales</Text>
-            <Text style={styles.highlightValue}>{formatMoney(report.sales.grossSalesTotal)}</Text>
+          <View style={[styles.row, styles.totalRow]}>
+            <Text style={styles.totalLabel}>Gross Sales</Text>
+            <Text style={styles.totalValue}>{formatMoney(report.sales.grossSalesTotal)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Parts</Text>
@@ -99,9 +101,9 @@ export function DailySalesReportPDF({ report, fromDate, toDate, reportTitle = "D
             <Text style={styles.label}>Internal</Text>
             <Text style={styles.value}>{formatMoney(otherInternalTotal)}</Text>
           </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Payment Total</Text>
-            <Text style={styles.highlightValue}>{formatMoney(report.payments.paymentTotal)}</Text>
+          <View style={[styles.row, styles.totalRow]}>
+            <Text style={styles.totalLabel}>Payment Total</Text>
+            <Text style={styles.totalValue}>{formatMoney(report.payments.paymentTotal)}</Text>
           </View>
         </View>
       </Page>

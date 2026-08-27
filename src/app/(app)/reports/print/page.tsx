@@ -52,8 +52,8 @@ export default async function PrintableDailySalesPage({
       <div className="daily-sales-print-content px-5 py-5">
         <header className="daily-sales-print-heading flex items-start justify-between gap-6 border-b border-slate-300 pb-3">
           <div>
-            <p className="text-sm font-semibold text-slate-700">{report.shop.name}</p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight">{period.title}{output === "summary" ? " — Summary" : ""}</h1>
+            <p className="text-sm font-normal text-slate-700">{report.shop.name}</p>
+            <h1 className="mt-0.5 text-xl font-semibold tracking-tight">{period.title}{output === "summary" ? " — Summary" : ""}</h1>
             <p className="mt-1 text-sm text-slate-700">{formatReportDateRange(report.from, report.to)}</p>
           </div>
           <p className="text-right text-xs text-slate-600">{formatReportGeneratedAt(report.generatedAt)}</p>
@@ -108,7 +108,7 @@ export default async function PrintableDailySalesPage({
 }
 
 function CompactSummary({ title, rows }: { title: string; rows: Array<[string, string]> }) {
-  return <section className="border border-slate-300 p-3"><h2 className="mb-2 text-sm font-semibold">{title}</h2><dl className="grid grid-cols-[1fr_auto] gap-x-5 gap-y-1 text-xs">{rows.map(([label, value], index) => <div key={label} className={`col-span-2 grid grid-cols-subgrid ${index === rows.length - 1 ? "mt-1 border-t border-slate-300 pt-1" : ""}`}><dt>{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}</dl></section>;
+  return <section className="border border-slate-300 p-3"><h2 className="mb-2 text-sm font-semibold">{title}</h2><dl className="grid grid-cols-[1fr_auto] gap-x-5 gap-y-1 text-xs">{rows.map(([label, value], index) => <div key={label} className={`col-span-2 grid grid-cols-subgrid ${index === rows.length - 1 ? "mt-1 border-t border-slate-400 pt-1 font-semibold" : "font-normal"}`}><dt>{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}</dl></section>;
 }
 
 function PrintMoneyCell({ value, children }: { value: { toString(): string }; children?: React.ReactNode }) {
