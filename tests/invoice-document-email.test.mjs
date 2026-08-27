@@ -43,7 +43,7 @@ test("document loader authenticates and scopes Invoice lookup to the membership 
 });
 
 test("shared document maps authoritative values and customer/vehicle data without Vendor", () => {
-  for (const field of ["partsTotal", "laborTotal", "subtotal", "shopSuppliesAmount", "taxTotal", "total", "paidTotal"]) {
+  for (const field of ["partsTotal", "laborTotal", "subtotal", "discountAmount", "shopSuppliesAmount", "taxTotal", "total", "paidTotal"]) {
     assert.match(model, new RegExp(`${field}: true`));
   }
   assert.match(model, /accountsReceivable\[0\]\?\.balance \?\? invoice\.total\.minus\(invoice\.paidTotal\)/);
@@ -53,8 +53,11 @@ test("shared document maps authoritative values and customer/vehicle data withou
   assert.match(model, /vehicleSnapshot/);
   assert.match(model, /complaint: invoice\.customerComplaint/);
   assert.match(model, /recommendation: invoice\.recommendation/);
+  assert.match(model, /discount: formatMoney\(invoice\.discountAmount\.negated\(\)\)/);
+  assert.match(html, /model\.totals\.discount[\s\S]*<Detail label="Discount" value=\{model\.totals\.discount\}/);
+  assert.match(pdf, /model\.totals\.discount[\s\S]*<Text>Discount<\/Text>/);
   assert.doesNotMatch(model + html + pdf, /vendorNameSnapshot|Vendor/);
-  assert.doesNotMatch(model, /sublet|freight|towing|discount/i);
+  assert.doesNotMatch(model, /sublet|freight|towing/i);
 });
 
 test("customer-facing Invoice totals expose stored Shop Supplies in matching order", () => {

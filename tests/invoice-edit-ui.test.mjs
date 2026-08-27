@@ -139,7 +139,8 @@ test("lifecycle, payments, AR, calculations, and customer documents remain uncha
   assert.match(actions, /payment\.aggregate/);
   assert.match(actions, /accountReceivable\.update/);
   assert.match(actions, /shopId: membership\.shopId/);
-  assert.doesNotMatch(ui, /Vendor|Common Service/);
+  assert.match(ui, />Vendor<select name="vendorId"/);
+  assert.doesNotMatch(ui, /Common Service/);
   assert.match(invoiceDocument, /getInvoiceDocumentForCurrentShop/);
   assert.match(invoiceEmail, /renderToBuffer\(<InvoiceDocumentPDF/);
 });
@@ -151,7 +152,7 @@ test("Edit Invoice shows the complete saved financial position at the bottom", (
   const summary = ui.slice(ui.indexOf("function FinancialSummary"), ui.indexOf("export function InvoiceEditWorkspace"));
   assert.match(summary, /Totals and balance/);
   for (const label of ["Parts", "Labor", "Shop supplies", "Subtotal before tax", "Tax", "Total", "Paid", "Balance"]) assert.match(summary, new RegExp(`"${label}"`));
-  assert.match(ui, /<FinancialSummary totals=\{totals\} updating=\{totalsUpdating\} \/>/);
+  assert.match(ui, /<FinancialSummary invoiceId=\{invoice\.id\} totals=\{totals\} updating=\{totalsUpdating\} discount=\{discount\} setDiscount=\{setDiscount\} \/>/);
 });
 
 test("unsaved line values use the authoritative server calculator for a live preview", () => {
@@ -160,7 +161,7 @@ test("unsaved line values use the authoritative server calculator for a live pre
   assert.match(actions, /payment\.aggregate\(\{ where: \{ invoiceId, shopId: membership\.shopId \}/);
   assert.match(actions, /balance: invoiceBalance\(totals\.total, paid\)\.toFixed\(2\)/);
   assert.match(actions, /where: \{ id: invoiceId, shopId: membership\.shopId, status: "open", legacySourceTable: null \}/);
-  assert.match(ui, /previewInvoiceEditTotals\(invoice\.id, \{ parts: Object\.values\(partLines\), labor: Object\.values\(laborLines\) \}\)/);
+  assert.match(ui, /previewInvoiceEditTotals\(invoice\.id, \{ parts: Object\.values\(partLines\), labor: Object\.values\(laborLines\), discountAmount: discount \}\)/);
   assert.match(ui, /window\.setTimeout\(async \(\) =>/);
   assert.match(ui, /sequence === previewSequence\.current/);
   assert.doesNotMatch(ui, /paid\s*[+\-*\/]|balance\s*=/i);

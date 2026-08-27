@@ -47,8 +47,9 @@ test("monthly invoices use one shop-scoped aggregate over stored total", () => {
 
 test("open repair orders, customers, vehicles, and leads remain shop scoped", () => {
   assert.match(data, /repairOrder\.count\(\{ where: operationalRepairOrderWhere\(shopId\) \}\)/);
-  assert.match(data, /customer\.count\(\{ where: \{ shopId \} \}/);
-  assert.match(data, /vehicle\.count\(\{ where: \{ shopId \} \}/);
+  assert.match(data, /customer\.count\(\{ where: \{ shopId, \.\.\.activeCustomerAvailability \} \}/);
+  assert.match(data, /vehicle\.count\(\{ where: \{ shopId, \.\.\.activeVehicleAvailability \} \}/);
+  assert.match(data, /import \{ activeCustomerAvailability, activeVehicleAvailability \}/);
   assert.match(data, /marketingLead\.count/);
   assert.match(data, /where: \{ shopId, status: "NEW"/);
 });
@@ -61,7 +62,7 @@ test("new leads exclude the existing synthetic call-click marker", () => {
 
 test("card destinations remain existing routes and zero values remain renderable", () => {
   for (const href of ["/repair-orders", "/customers", "/vehicles", "/invoices", "/admin/leads?status=NEW"]) assert.match(page, new RegExp(href.replace(/[/?]/g, "\\$&")));
-  assert.match(page, /monthlyInvoiceCount === 1/);
+  assert.match(page, /summary\.monthlyInvoiceCount\.toLocaleString\(\)/);
   assert.match(formatters, /const source = value\?\.toString\(\)\.trim\(\) \?\? "0"/);
 });
 

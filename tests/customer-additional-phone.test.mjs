@@ -48,10 +48,10 @@ test("directory, global, and Repair Order customer searches include phone2 in sc
 });
 
 test("fresh legacy transformation maps authoritative Cust.DBF PHONE2 and reports dynamic coverage", async () => {
-  assert.match(transform, /phone2: cleanText\(rawValue\(row\.rawData, "PHONE2"\)\)/);
+  assert.match(transform, /phone2: legacyPhone\(rawValue\(row\.rawData, "PHONE2"\)\)\.value/);
   const { customerData, reconcileCustomerVehicleRows } = await import("../scripts/lib/customer-vehicle-transform.mjs");
   const source = { legacyCustno: "1", rawData: { CUSTOMER: "Example", PHONE: "586-555-0100", PHONE2: "586-555-0199" } };
-  assert.equal(customerData(source).phone2, "586-555-0199");
+  assert.equal(customerData(source).phone2, "(586) 555-0199");
   const reconciliation = reconcileCustomerVehicleRows([source, { legacyCustno: "2", rawData: { CUSTOMER: "No Second Phone", PHONE2: "  " } }], []);
   assert.deepEqual(reconciliation.secondaryContact, { sourceValues: 1, destinationValues: 1, missingValues: 1, mismatches: 0 });
 });

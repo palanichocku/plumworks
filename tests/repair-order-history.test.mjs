@@ -180,7 +180,8 @@ test("drawer accessibility, form preservation, print, email, and calculations re
   assert.match(drawer, /event\.key === "Escape"/);
   assert.match(drawer, /event\.key !== "Tab"/);
   assert.match(actionsUi, /historyButtonRef\.current\?\.focus\(\)/);
-  assert.match(print, /getWebRepairOrderForCurrentShop/);
+  assert.match(print, /getRepairOrderDocumentForCurrentShop/);
+  assert.match(print, /RepairOrderDocumentHTML/);
   assert.match(email, /RepairOrderDocumentPDF/);
   assert.match(concerns, /updateRepairOrderConcerns/);
   assert.doesNotMatch(loader + actions + drawer, /prisma\.(?:create|update|upsert|delete)|estimatedTotal\s*[+*/-]=/);
