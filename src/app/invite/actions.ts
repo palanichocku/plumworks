@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { confirmedInviteEmail } from "@/lib/staff-invite-identity";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,8 +13,8 @@ export async function acceptStaffInvite(formData: FormData) {
   if (!UUID.test(inviteId)) throw new Error("Invalid invitation.");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const email = user?.email?.trim().toLowerCase();
-  if (!user || !email) redirect("/login");
+  if (!user) redirect("/login");
+  const email = confirmedInviteEmail(user);
 
   await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`

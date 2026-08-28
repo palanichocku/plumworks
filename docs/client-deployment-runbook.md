@@ -16,10 +16,19 @@ Client setup is parameterized and dry-run-first. It never changes a database unl
 
 1. Create a new Supabase organization/project named `plumworks-clientname` in the approved region with a unique generated database password. Use the same stable lowercase hyphenated client slug as Vercel.
 2. Enable the required backup/PITR tier and record retention before loading production data.
-3. In Auth URL Configuration, set the Site URL to the final production origin. Add only the required localhost and Vercel staging/preview callback origins to the matching non-production project.
+3. In Auth URL Configuration, set the Site URL to the exact final production origin. Add the exact production `/auth/callback` recovery destination to the production redirect allowlist. Add localhost or Vercel staging/preview callback origins only to the matching non-production Supabase project.
 4. Obtain the pooled application connection, direct migration connection, project URL, and publishable/anon key from the project dashboard.
 5. Store credentials only in the approved password manager and deployment environment. Do not paste values into tickets, docs, logs, screenshots, or source control.
 6. Do not expose the service-role key to the browser. The current app does not require it at runtime.
+
+### Production Auth readiness
+
+- Disable public self-signup for a controlled staff deployment. Authentication alone never grants shop access; a current `ShopMembership` remains required.
+- Enable **Confirm Email**. Staff invitation acceptance requires the authenticated Supabase user to have `email_confirmed_at` and to match the pending invitation email.
+- Configure a production-capable custom SMTP provider and verify delivery to an owner-controlled mailbox. Supabase's default best-effort mail service is not an accepted production recovery channel.
+- Keep the Site URL and redirect allowlist explicit. Production recovery must return to `https://<production-origin>/auth/callback`, which exchanges the recovery code and permits only the internal `/update-password` destination. Do not use wildcard production redirects.
+- Enable available Supabase security notifications for password and email changes. Record which notifications are enabled in the protected deployment record.
+- Before go-live, perform a recovery rehearsal with a designated non-production account: request recovery, verify delivery, complete the link, set a new password, sign in, and confirm the old password no longer works. Never use a fake or non-deliverable owner email in production.
 
 ## 3. Create the Vercel project
 
@@ -215,7 +224,9 @@ Use a designated test account and synthetic test records only. Do not alter impo
 
 - [ ] Approved release tag and SHA recorded
 - [ ] Dedicated Vercel and Supabase projects confirmed
-- [ ] Environment scopes and Auth redirect URLs verified
+- [ ] Public signup policy, Confirm Email, Site URL, and exact Auth redirect URLs verified
+- [ ] Production SMTP delivery and password-recovery rehearsal verified
+- [ ] Auth security notifications reviewed and recorded
 - [ ] Prisma validation, generation, lint, and build pass
 - [ ] Migration status clean before and after deploy
 - [ ] Exactly one shop configured with correct settings
