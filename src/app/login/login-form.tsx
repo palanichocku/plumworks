@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -74,6 +75,10 @@ export function LoginForm() {
           className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-950 outline-none placeholder:text-slate-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-subtle"
         />
       </label>
+
+      <div className="text-right">
+        <Link href="/forgot-password" className="text-sm font-medium text-brand-primary hover:underline">Forgot password?</Link>
+      </div>
 
       {error && (
         <p

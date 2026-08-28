@@ -5,7 +5,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Staff Login", robots: { index: false, follow: false } };
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ passwordReset?: string }> }) {
+  const resetComplete = (await searchParams).passwordReset === "1";
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-5 py-12">
       <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
@@ -25,6 +26,7 @@ export default function LoginPage() {
           Enter your shop account credentials to continue.
         </p>
         <LoginForm />
+        {resetComplete ? <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">Your password was updated. Sign in with the new password.</p> : null}
         <p className="mt-6 text-center text-xs leading-5 text-slate-500">
           Contact your administrator if you need access.
         </p>
