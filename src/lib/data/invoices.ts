@@ -146,8 +146,10 @@ export async function getInvoiceForCurrentShop(id: string) {
           id: true,
           paidAt: true,
           method: true,
+          payerType: true,
           amount: true,
           reference: true,
+          note: true,
         },
       },
       parts: {

@@ -24,6 +24,7 @@ const zero = () => new Prisma.Decimal(0);
 
 export function normalizePaymentMethod(method: string | null | undefined): NormalizedPaymentMethod {
   const normalized = method?.trim().toLowerCase();
+  if (normalized === "debit_card") return "card";
   return normalized === "cash" || normalized === "check" || normalized === "card" || normalized === "internal"
     ? normalized
     : "other";

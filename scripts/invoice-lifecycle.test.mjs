@@ -96,8 +96,8 @@ test("invoice creation is locked, unique, idempotent, and creates OPEN", async (
 test("payment completion does not close an invoice", async () => {
   const payment = await read("src/app/(app)/invoices/payment-actions.ts");
   assert.match(payment, /status: "open"/);
-  assert.match(payment, /data: \{ paidTotal \}/);
-  assert.match(payment, /invoice\.update\(\{[\s\S]*?data: \{ paidTotal \}/);
+  assert.match(payment, /paidTotal: applied\.paidTotal/);
+  assert.match(payment, /invoice\.update\(\{[\s\S]*?paidTotal: applied\.paidTotal/);
 });
 
 test("invoice edits are transactional, OPEN-only, preserve payments, and refresh AR", async () => {
@@ -140,8 +140,7 @@ test("close requires zero balance, delivery, OPEN state, and OWNER or ADMIN", as
   const [action, dialog] = await Promise.all([read("src/app/(app)/invoices/lifecycle-actions.ts"), read("src/components/close-invoice-button.tsx")]);
   assert.match(action, /vehicleDelivered/);
   assert.match(action, /\["OWNER", "ADMIN"\]/);
-  assert.match(action, /if \(!balance\.isZero\(\)\) throw/);
-  assert.match(action, /closeInvoice[\s\S]*refreshInvoice\(transaction, membership\.shopId, invoiceId\)[\s\S]*if \(!balance\.isZero\(\)\) throw/);
+  assert.match(action, /closeInvoice[\s\S]*refreshInvoice\(transaction, membership\.shopId, invoiceId\)[\s\S]*assertInvoiceCanClose/);
   assert.match(action, /status: "closed"/);
   assert.match(action, /closedAt: now, deliveredAt: now, closedByUserId/);
   assert.match(dialog, /name="vehicleDelivered"/);

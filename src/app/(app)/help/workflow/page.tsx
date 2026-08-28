@@ -27,12 +27,12 @@ export default function WorkflowHelpPage() {
               C --> D["Create repair order"]
               D --> E["Add labor, parts, or canned services"]
               E --> F["Print estimate"]
-              F --> G["Finalize invoice"]
-              G --> H{"Paid in full?"}
-              H -->|Yes| I["Record payment"]
-              H -->|No| J["Leave receivable open"]
-              I --> K["Reports updated"]
-              J --> K`} 
+              F --> G["Create open invoice"]
+              G --> H["Record one or more payments"]
+              H --> I{"Balance is zero?"}
+              I -->|No| H
+              I -->|Yes| J["Employee closes invoice"]
+              J --> K["Closed sale enters reports"]`}
           />
         </div>
 
@@ -44,12 +44,12 @@ export default function WorkflowHelpPage() {
           <MermaidDiagram 
             title="Invoice, payment, and receivables flow" 
             chart={`flowchart TD
-              A["Invoice finalized"] --> B["Paid total updated"]
+              A["Open invoice"] --> B["Payment updates paid total"]
               B --> C{"Balance remains?"}
-              C -->|Yes| D["Receivable stays open"]
-              D --> E["Payment reduces balance"]
-              E --> F["Reports update"]
-              C -->|No| F`} 
+              C -->|Yes| D["Invoice and receivable stay open"]
+              D --> B
+              C -->|No| E["Paid; employee closes invoice"]
+              E --> F["Closed sale enters reports"]`}
           />
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function WorkflowHelpPage() {
             "Begin on the primary Dashboard overview to inspect active garage floor work and open balances.",
             "Always utilize global search queries before creating structural duplicate customers or vehicle folders.",
             "Keep all active work folders fully editable as a draft or an open repair order.",
-            "Thoroughly review structural lines and tax totals before finalization, as this locks records as read-only assets.",
+            "Review lines and tax totals, collect every payment, and close the paid invoice only when the vehicle is released.",
             "Consistently monitor the system Invoice and Receivables pages for complete billing and customer follow-up."
           ]} />
         </HelpSection>

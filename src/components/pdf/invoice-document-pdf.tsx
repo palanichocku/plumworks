@@ -131,6 +131,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           <View style={[styles.totalRow, styles.grandTotal]}><Text>Total</Text><Text>{model.totals.total}</Text></View>
           <View style={styles.totalRow}><Text>Amount paid</Text><Text>{model.totals.amountPaid}</Text></View>
           <View style={styles.totalRow}><Text>Balance due</Text><Text>{model.totals.balanceDue}</Text></View>
+          <View style={styles.totalRow}><Text>Payment status</Text><Text>{model.totals.paymentStatus}</Text></View>
           {model.paymentMethods.length ? <Text style={{ marginTop: 5 }}>Payments: {model.paymentMethods.map((payment) => `${payment.method} ${payment.amount}`).join("; ")}</Text> : null}
         </View>
       </View>

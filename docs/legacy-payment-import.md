@@ -15,6 +15,8 @@ Invoice.paidTotal = PAYMENT
 
 Payment rows supplement those stored totals with tender-method detail. They do not recalculate or replace `Invoice.paidTotal`, Accounts Receivable balance, or any Invoice total. Partial cumulative payments are supported when their tender sum equals `PAYMENT` and the remaining balance reconciles.
 
+The legacy source proves tender bucket but not payer identity. Imported Payment rows therefore use `payerType = OTHER`; no Customer, insurer, or warranty attribution is fabricated. The additive payer/note schema remains in place across a refresh because cutover deletes and reloads operational rows without rolling back Prisma migrations.
+
 Supported source buckets are `CASH`, `CHECK`, `AMEX`, `DISCOVER`, `MAST_VISA`, `ACCC`, and `ACCOUNT`. Each nonzero bucket receives a deterministic identity based on shop, legacy repair-order number, and source bucket. The source bucket remains in the Payment reference so the three card buckets remain distinguishable after normalization to `card`.
 
 ## Date limitation

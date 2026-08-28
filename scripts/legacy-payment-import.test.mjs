@@ -80,6 +80,8 @@ test("projection is pure, explicit, bucket-specific, and labels the date proxy",
     { method: "internal", amount: "1.71", reference: "Legacy tender bucket: ACCC" },
   ]);
   assert.equal(result.proposedRows[0].paidAt, invoice.invoiceDate);
+  assert.equal(result.proposedRows[0].payerType, "OTHER");
+  assert.equal(result.proposedRows[0].note, null);
   assert.equal(result.proposedPaymentAmountCents, 11671);
   assert.equal(result.periodTotals["2026-01"].amountCents, 11671);
 });

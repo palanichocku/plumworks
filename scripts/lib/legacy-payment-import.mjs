@@ -177,7 +177,7 @@ export function tenderReference(bucket) {
 
 export const LEGACY_PAYMENT_PERSISTED_FIELDS = Object.freeze([
   "id", "shopId", "invoiceId", "customerId", "amount", "method", "paidAt",
-  "reference", "legacyRoNo", "legacySourceTable",
+  "payerType", "reference", "note", "legacyRoNo", "legacySourceTable",
 ]);
 
 export function legacyPaymentRowsEqual(proposed, existing) {
@@ -404,8 +404,10 @@ export function projectLegacyPayments({
           customerId,
           amount: centsToDecimal(cents),
           method,
+          payerType: "OTHER",
           paidAt,
           reference: tenderReference(bucket),
+          note: null,
           legacyRoNo,
           legacySourceTable: "ar.DBF",
           sourceBucket: bucket,

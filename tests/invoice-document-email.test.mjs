@@ -76,6 +76,12 @@ test("customer-facing Invoice totals expose stored Shop Supplies in matching ord
   }
 });
 
+test("Invoice print, PDF, and email models distinguish partial payment from Paid", () => {
+  assert.match(model, /paymentStatus: paymentStatusLabel\(paymentSummary\.status\)/);
+  assert.match(html, /label="Payment status"/);
+  assert.match(pdf, />Payment status</);
+});
+
 test("browser print and PDF share one model and contain matching business sections", () => {
   assert.match(printPage, /getInvoiceDocumentForCurrentShop/);
   assert.match(printPage, /<InvoiceDocumentHTML model=\{model\}/);

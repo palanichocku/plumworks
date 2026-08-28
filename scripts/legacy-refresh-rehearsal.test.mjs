@@ -244,9 +244,9 @@ test("valid report requires the exact ordered stage ledger and zero-write proof"
 test("schema readiness requires every recent migration and current additive fields", async () => {
   const root = await mkdtemp(join(tmpdir(), "schema-readiness-test-"));
   try {
-    const migrations = ["20260804120000_add_marketing_lead_attribution", "20260804150000_add_invoice_odometer", "20260804170000_add_complimentary_services"];
+    const migrations = ["20260804120000_add_marketing_lead_attribution", "20260804150000_add_invoice_odometer", "20260804170000_add_complimentary_services", "20260828190000_add_payment_payer_metadata"];
     for (const name of migrations) { await mkdir(join(root, "prisma", "migrations", name), { recursive: true }); await writeFile(join(root, "prisma", "migrations", name, "migration.sql"), "-- additive"); }
-    await writeFile(join(root, "prisma", "schema.prisma"), "model Invoice { odometer Int? }\nmodel InvoiceLabor { complimentary Boolean @default(false) }\nmodel RepairOrderLabor { complimentary Boolean @default(false) }\nmodel MarketingLead { attributionSource String? }");
+    await writeFile(join(root, "prisma", "schema.prisma"), "model Invoice { odometer Int? }\nmodel InvoiceLabor { complimentary Boolean @default(false) }\nmodel RepairOrderLabor { complimentary Boolean @default(false) }\nmodel MarketingLead { attributionSource String? }\nmodel Payment { payerType PaymentPayerType note String? }\nenum PaymentPayerType { CUSTOMER OTHER }");
     const ready = await validateSchemaReadiness(root, migrations);
     assert.equal(ready.requiresMigrateDeploy, false);
     await rm(join(root, "prisma", "migrations", migrations[2]), { recursive: true });

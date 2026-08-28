@@ -70,6 +70,7 @@ test("payment methods normalize case and whitespace; null, blank, and unknown ma
   assert.equal(normalizePaymentMethod(" CASH "), "cash");
   assert.equal(normalizePaymentMethod("Check"), "check");
   assert.equal(normalizePaymentMethod("CARD"), "card");
+  assert.equal(normalizePaymentMethod("debit_card"), "card");
   assert.equal(normalizePaymentMethod(" Internal "), "internal");
   assert.equal(normalizePaymentMethod(null), "other");
   assert.equal(normalizePaymentMethod("  "), "other");

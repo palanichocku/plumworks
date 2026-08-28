@@ -18,6 +18,13 @@ enum ShopMembershipRole {
   STAFF
 }
 
+enum PaymentPayerType {
+  CUSTOMER
+  INSURANCE
+  WARRANTY
+  OTHER
+}
+
 enum MarketingLeadSource {
   CONTACT
   APPOINTMENT
@@ -625,21 +632,23 @@ model InvoiceLabor {
 }
 
 model Payment {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shopId            String    @map("shop_id") @db.Uuid
-  invoiceId         String?   @map("invoice_id") @db.Uuid
-  customerId        String?   @map("customer_id") @db.Uuid
-  amount            Decimal   @db.Decimal(12, 2)
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId            String           @map("shop_id") @db.Uuid
+  invoiceId         String?          @map("invoice_id") @db.Uuid
+  customerId        String?          @map("customer_id") @db.Uuid
+  amount            Decimal          @db.Decimal(12, 2)
   method            String?
-  paidAt            DateTime  @default(now()) @map("paid_at")
+  payerType         PaymentPayerType @default(CUSTOMER) @map("payer_type")
+  paidAt            DateTime         @default(now()) @map("paid_at")
   reference         String?
-  legacyRoNo        String?   @map("legacy_ro_no")
-  legacySourceTable String?   @map("legacy_source_table")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
-  shop              Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  invoice           Invoice?  @relation(fields: [invoiceId], references: [id])
-  customer          Customer? @relation(fields: [customerId], references: [id])
+  note              String?          @db.Text
+  legacyRoNo        String?          @map("legacy_ro_no")
+  legacySourceTable String?          @map("legacy_source_table")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at")
+  shop              Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoice           Invoice?         @relation(fields: [invoiceId], references: [id])
+  customer          Customer?        @relation(fields: [customerId], references: [id])
 
   @@index([shopId, paidAt])
   @@index([invoiceId])

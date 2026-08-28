@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { formatDate, formatLaborDescription, formatMoney } from "@/lib/formatters";
 import { snapshotNumber, snapshotString } from "@/lib/invoice-snapshots";
+import { invoicePaymentSummary, paymentMethodLabel, paymentStatusLabel } from "@/lib/invoice-payments";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -57,10 +58,11 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
   const vehicle = invoice.vehicle;
   const invoiceNumber = String(invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Not assigned");
   const balance = invoice.accountsReceivable[0]?.balance ?? invoice.total.minus(invoice.paidTotal).toDecimalPlaces(2);
+  const paymentSummary = invoicePaymentSummary(invoice.total, invoice.paidTotal);
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const paymentTotals = new Map<string, Prisma.Decimal>();
   for (const payment of invoice.payments) {
-    const method = payment.method?.trim() || "Other";
+    const method = paymentMethodLabel(payment.method);
     paymentTotals.set(method, (paymentTotals.get(method) ?? new Prisma.Decimal(0)).plus(payment.amount));
   }
   const assignedTechnician = invoice.repairOrder?.assignedEmployee?.displayName ?? null;
@@ -129,7 +131,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
     totals: {
       parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), displaySubtotalBeforeTax: formatMoney(displaySubtotalBeforeTax),
       shopSupplies: formatMoney(invoice.shopSuppliesAmount), discount: formatMoney(invoice.discountAmount.negated()), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total),
-      amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance),
+      amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance), paymentStatus: paymentStatusLabel(paymentSummary.status),
     },
     paymentMethods: [...paymentTotals.entries()].map(([method, amount]) => ({ method, amount: formatMoney(amount) })),
   };

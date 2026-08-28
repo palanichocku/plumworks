@@ -6,13 +6,13 @@ import {
   formatLaborDescription,
   formatMoney,
 } from "@/lib/formatters";
-import { recordPayment } from "../payment-actions";
-import { FormSubmitButton } from "@/components/form-submit-button";
 import { CloseInvoiceButton } from "@/components/close-invoice-button";
+import { InvoicePaymentForm } from "@/components/invoice-payment-form";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 import { EmailInvoiceButton } from "@/components/email-invoice-button";
 import { normalizeEmailRecipient } from "@/lib/email/invoice-email-core";
+import { invoicePaymentSummary, paymentMethodLabel, paymentPayerLabel, paymentStatusLabel } from "@/lib/invoice-payments";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -40,6 +40,7 @@ export default async function InvoiceDetailPage({
     : null;
   const receivable = invoice.accountsReceivable[0];
   const paymentAmount = receivable?.balance.toFixed(2) ?? "0.00";
+  const paymentSummary = invoicePaymentSummary(invoice.total, invoice.paidTotal);
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const open = isEditableOpenInvoice(invoice);
   const canClose = open && Boolean(membership && ["OWNER", "ADMIN"].includes(membership.role));
@@ -115,7 +116,9 @@ export default async function InvoiceDetailPage({
             <dt className="text-slate-500">Paid</dt><dd>{formatMoney(invoice.paidTotal)}</dd>
             <dt className="text-slate-500">Balance</dt>
             <dd>{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
+            <dt className="text-slate-500">Payment Status</dt><dd className="font-medium text-slate-900">{paymentStatusLabel(paymentSummary.status)}</dd>
           </dl>
+          {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open and the vehicle must not be released while {formatMoney(receivable.balance)} remains unpaid.</p> : open && receivable?.balance.isZero() ? <p className="mt-5 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Paid in full. The invoice remains open until an authorized employee explicitly closes it.</p> : null}
         </article>
       </section>
 
@@ -125,14 +128,7 @@ export default async function InvoiceDetailPage({
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-950">Record payment</h2>
           <p className="mt-2 text-sm text-slate-600">Payments cannot exceed the current balance of {formatMoney(receivable?.balance)}.</p>
-          <form action={recordPayment} className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4 lg:items-end">
-            <input type="hidden" name="invoiceId" value={invoice.id} />
-            <label className="text-sm font-semibold text-slate-700">Amount<input name="amount" type="number" required min="0.01" max={paymentAmount} step="0.01" defaultValue={paymentAmount} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-            <label className="text-sm font-semibold text-slate-700">Method<select name="method" required defaultValue="card" className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"><option value="card">Card</option><option value="cash">Cash</option><option value="check">Check</option><option value="other">Other</option></select></label>
-            <label className="text-sm font-semibold text-slate-700">Payment date<input name="paymentDate" type="date" required defaultValue={today} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-            <FormSubmitButton pendingLabel="Recording…" confirmTitle="Record this payment?" confirmDescription="Verify the amount, payment method, and date before continuing. This payment cannot be edited or deleted yet." confirmLabel="Record payment" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary disabled:opacity-50">Record payment</FormSubmitButton>
-            <label className="text-sm font-semibold text-slate-700 md:col-span-2 lg:col-span-4">Note <span className="font-normal text-slate-500">(optional)</span><textarea name="note" maxLength={500} rows={2} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-          </form>
+          <InvoicePaymentForm key={paymentAmount} invoiceId={invoice.id} remainingBalance={paymentAmount} paymentDate={today} />
         </section>
       ) : invoice.legacySourceTable ? (
         <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">Imported legacy invoice — payment recording is read-only.</p>
@@ -156,10 +152,11 @@ export default async function InvoiceDetailPage({
         ) : (
           <ul className="divide-y divide-slate-200">
             {invoice.payments.map((payment: InvoicePayment) => (
-              <li key={payment.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[minmax(8rem,auto)_minmax(7rem,auto)_1fr_auto] sm:items-center">
+              <li key={payment.id} className="grid gap-2 px-6 py-4 sm:grid-cols-[minmax(8rem,auto)_minmax(8rem,auto)_minmax(8rem,auto)_1fr_auto] sm:items-center">
                 <span className="text-sm font-medium text-slate-900">{formatDate(payment.paidAt)}</span>
-                <span className="text-sm capitalize text-slate-600">{payment.method?.trim() || "Not specified"}</span>
-                <span className="text-sm text-slate-600">{payment.reference?.trim() || "No reference or note"}</span>
+                <span className="text-sm text-slate-600">{paymentPayerLabel(payment.payerType)}</span>
+                <span className="text-sm text-slate-600">{paymentMethodLabel(payment.method)}</span>
+                <span className="text-sm text-slate-600">{[payment.reference?.trim(), payment.note?.trim()].filter(Boolean).join(" · ") || "No reference or note"}</span>
                 <span className="font-semibold text-slate-950">{formatMoney(payment.amount)}</span>
               </li>
             ))}

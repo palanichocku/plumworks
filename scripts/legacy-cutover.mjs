@@ -891,7 +891,7 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
     const [persistedPayments, accountsReceivable] = await Promise.all([
       prisma.payment.findMany({
         where: { shopId, legacySourceTable: "ar.DBF" },
-        select: { id: true, invoiceId: true, amount: true, method: true, paidAt: true, reference: true },
+        select: { id: true, invoiceId: true, amount: true, method: true, payerType: true, paidAt: true, reference: true, note: true },
       }),
       prisma.accountReceivable.findMany({ where: { shopId }, select: { invoiceId: true, balance: true } }),
     ]);
@@ -1039,7 +1039,7 @@ async function verify(prisma, shopId, preservedBefore, paymentContext = null) {
     const [persistedPayments, operationalAr] = await Promise.all([
       prisma.payment.findMany({
         where: { shopId, legacySourceTable: "ar.DBF" },
-        select: { id: true, invoiceId: true, amount: true, method: true, paidAt: true, reference: true },
+        select: { id: true, invoiceId: true, amount: true, method: true, payerType: true, paidAt: true, reference: true, note: true },
       }),
       prisma.accountReceivable.findMany({ where: { shopId }, select: { invoiceId: true, balance: true } }),
     ]);

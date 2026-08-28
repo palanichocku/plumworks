@@ -21,12 +21,12 @@ export default function InvoicesHelpPage() {
         <MermaidDiagram 
           title="Invoice, payment, and receivables" 
           chart={`flowchart TD
-            A["Invoice finalized"] --> B["Paid total updated"]
-            B --> C{"Balance remains?"}
-            C -->|Yes| D["Receivable stays open"]
-            D --> E["Payment reduces balance"]
-            E --> F["Reports update"]
-            C -->|No| F`} 
+            A["Open invoice"] --> B["Record one or more payments"]
+            B --> C{"Balance is zero?"}
+            C -->|No| D["Invoice and receivable stay open"]
+            D --> B
+            C -->|Yes| E["Employee closes invoice"]
+            E --> F["Closed sale enters reports"]`}
         />
       </div>
 
@@ -42,7 +42,7 @@ export default function InvoicesHelpPage() {
         />
         <HelpCard 
           title="Result" 
-          description="Invoice transaction totals immediately contribute to shop reports and live open balances." 
+          description="Payments reduce the live balance; a paid-in-full invoice enters sales reports only after an employee closes it."
         />
       </section>
 
@@ -50,7 +50,8 @@ export default function InvoicesHelpPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <HelpSection title="Expectations">
           <HelpList items={[
-            "Finalized live web invoices are securely locked and behave as mostly read-only files.",
+            "Open native invoices can accept multiple payments from Customer, Insurance, Warranty Company, or Other payers.",
+            "An invoice remains open until its balance is zero and an authorized employee explicitly closes it.",
             "Imported legacy shop invoices remain permanently locked as fully read-only records.",
             "Complete dynamic payment transaction history renders on eligible web invoices.",
             "The printable receipt view generates directly from historical invoice snapshots, ensuring subsequent customer or vehicle profile modifications never retroactively rewrite history."
