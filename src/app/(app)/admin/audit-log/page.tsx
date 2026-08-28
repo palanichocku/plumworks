@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
+import { formatAuditLogTimestamp } from "@/lib/audit-log-formatters";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -108,7 +109,7 @@ export default async function AuditLogPage({
                 return (
                   <tr key={event.id} className="align-top transition-colors hover:bg-slate-50/30">
                     <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-semibold text-slate-400">
-                      {event.createdAt.toLocaleString("en-US")}
+                      {formatAuditLogTimestamp(event.createdAt)}
                     </td>
                     
                     <td className="px-5 py-4 font-bold text-slate-900">
