@@ -5,6 +5,7 @@ import { ShopMembershipRole } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { assertMemberRemovalAllowed, assertOwnerRoleAssignmentAllowed, assertRoleChangeAllowed } from "@/lib/staff-governance";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roles = new Set(Object.values(ShopMembershipRole));
@@ -22,10 +23,8 @@ export async function changeMemberRole(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const target = await transaction.shopMembership.findFirst({ where: { id: membershipId, shopId: membership.shopId }, select: { id: true, role: true } });
     if (!target) throw new Error("Staff member was not found.");
-    if (target.role === "OWNER" && role !== "OWNER") {
-      const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
-      if (owners <= 1) throw new Error("The last owner cannot be demoted.");
-    }
+    const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
+    assertRoleChangeAllowed({ actingRole: membership.role, targetRole: target.role, requestedRole: role, ownerCount: owners });
     await transaction.shopMembership.update({ where: { id: target.id }, data: { role } });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "member_role_changed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member role changed" }) });
   }, { isolationLevel: "Serializable" });
@@ -40,10 +39,8 @@ export async function removeMember(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const target = await transaction.shopMembership.findFirst({ where: { id: membershipId, shopId: membership.shopId }, select: { id: true, role: true } });
     if (!target) return;
-    if (target.role === "OWNER") {
-      const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
-      if (owners <= 1) throw new Error("The last owner cannot be removed.");
-    }
+    const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
+    assertMemberRemovalAllowed({ actingRole: membership.role, targetRole: target.role, ownerCount: owners });
     await transaction.shopMembership.delete({ where: { id: target.id } });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "member_removed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member removed" }) });
   }, { isolationLevel: "Serializable" });
@@ -55,6 +52,7 @@ export async function createStaffInvite(formData: FormData) {
   const role = String(formData.get("role") ?? "") as ShopMembershipRole;
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254 || !roles.has(role)) throw new Error("Invalid staff invite.");
   const { user, membership } = await managerAccess();
+  assertOwnerRoleAssignmentAllowed(membership.role, role);
 
   await prisma.$transaction(async (transaction) => {
     const invite = await transaction.staffInvite.upsert({

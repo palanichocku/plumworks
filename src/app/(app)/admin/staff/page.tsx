@@ -9,6 +9,7 @@ import { changeMemberRole, createStaffInvite, removeMember, revokeStaffInvite } 
 
 export const dynamic = "force-dynamic";
 const roleOptions = ["OWNER", "ADMIN", "STAFF"] as const;
+const administrativeRoleOptions = ["ADMIN", "STAFF"] as const;
 
 export default async function StaffPage() {
   const { user, membership } = await getCurrentMembership();
@@ -92,31 +93,24 @@ export default async function StaffPage() {
                 </p>
               </div>
               
-              <label className={labelClass}>
-                Workspace Role
-                <select name="role" defaultValue={member.role} className={selectClass}>
-                  {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
-                </select>
-              </label>
-              
-              <FormSubmitButton 
-                pendingLabel="Updating…" 
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 focus:outline-none"
-              >
-                Update Role
-              </FormSubmitButton>
-              
-              <FormSubmitButton 
-                formAction={removeMember} 
-                pendingLabel="Removing…" 
-                confirmTitle="Remove this staff member?" 
-                confirmDescription="This person will lose all real-time access to the shop instantly. This vector cannot be undone." 
-                confirmLabel="Remove staff member" 
-                destructive 
-                className="rounded-lg border border-red-200 bg-red-50/30 px-4 py-2 text-sm font-semibold text-red-600 shadow-2xs transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-              >
-                Remove
-              </FormSubmitButton>
+              {membership.role !== "OWNER" && member.role === "OWNER" ? (
+                <div className="sm:col-span-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Workspace Role</p>
+                  <p className="mt-1.5 text-sm font-semibold text-slate-900">OWNER</p>
+                  <p className="mt-1 text-xs text-slate-500">Only an owner can change or remove owner access.</p>
+                </div>
+              ) : (
+                <>
+                  <label className={labelClass}>
+                    Workspace Role
+                    <select name="role" defaultValue={member.role} className={selectClass}>
+                      {(membership.role === "OWNER" ? roleOptions : administrativeRoleOptions).map((role) => <option key={role} value={role}>{role}</option>)}
+                    </select>
+                  </label>
+                  <FormSubmitButton pendingLabel="Updating…" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 focus:outline-none">Update Role</FormSubmitButton>
+                  <FormSubmitButton formAction={removeMember} pendingLabel="Removing…" confirmTitle="Remove this staff member?" confirmDescription="This person will lose all real-time access to the shop instantly. This vector cannot be undone." confirmLabel="Remove staff member" destructive className="rounded-lg border border-red-200 bg-red-50/30 px-4 py-2 text-sm font-semibold text-red-600 shadow-2xs transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50">Remove</FormSubmitButton>
+                </>
+              )}
             </form>
           ))}
         </div>
@@ -150,7 +144,7 @@ export default async function StaffPage() {
           <label className="w-full sm:w-48 text-xs font-bold uppercase tracking-wider text-slate-500">
             Initial Role
             <select name="role" defaultValue="STAFF" className={selectClass}>
-              {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
+              {(membership.role === "OWNER" ? roleOptions : administrativeRoleOptions).map((role) => <option key={role} value={role}>{role}</option>)}
             </select>
           </label>
           
