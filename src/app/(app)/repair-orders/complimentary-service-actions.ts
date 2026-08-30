@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 
@@ -30,7 +30,7 @@ export async function addComplimentaryService(formData: FormData) {
   const order = await editableOrder(membership.shopId, repairOrderId);
   await prisma.$transaction(async (transaction) => {
     const line = await transaction.repairOrderLabor.create({ data: { shopId: membership.shopId, repairOrderId, ...data, legacyLineKey: `web:${randomUUID()}` }, select: { id: true } });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "complimentary_service_added", "repair_order_labor", line.id, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service added" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "complimentary_service_added", "repair_order_labor", line.id, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service added" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -45,7 +45,7 @@ export async function updateComplimentaryService(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.repairOrderLabor.updateMany({ where: { id: laborLineId, repairOrderId, shopId: membership.shopId, complimentary: true }, data });
     if (result.count !== 1) throw new Error("Complimentary service is not editable.");
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "complimentary_service_updated", "repair_order_labor", laborLineId, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "complimentary_service_updated", "repair_order_labor", laborLineId, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -59,7 +59,7 @@ export async function deleteComplimentaryService(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.repairOrderLabor.deleteMany({ where: { id: laborLineId, repairOrderId, shopId: membership.shopId, complimentary: true } });
     if (result.count !== 1) throw new Error("Complimentary service is not editable.");
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "complimentary_service_deleted", "repair_order_labor", laborLineId, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service deleted" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "complimentary_service_deleted", "repair_order_labor", laborLineId, { complimentary: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Complimentary service deleted" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }

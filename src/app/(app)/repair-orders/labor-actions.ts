@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
@@ -54,7 +54,7 @@ export async function addLaborLine(formData: FormData) {
       select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "manual" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line added" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "manual" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line added" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -86,7 +86,7 @@ export async function addCannedServiceLaborLine(formData: FormData) {
       select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "canned_service" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line added" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "labor_line_added", "repair_order_labor", line.id, { source: "canned_service" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line added" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -106,7 +106,7 @@ export async function updateLaborLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_updated", "repair_order_labor", laborLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "labor_line_updated", "repair_order_labor", laborLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -124,7 +124,7 @@ export async function deleteLaborLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Labor line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "labor_line_deleted", "repair_order_labor", laborLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line deleted" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "labor_line_deleted", "repair_order_labor", laborLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Labor line deleted" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }

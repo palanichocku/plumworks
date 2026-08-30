@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
@@ -103,7 +103,7 @@ export async function addPartLine(formData: FormData) {
       select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "part_line_added", "repair_order_part", line.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line added" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "part_line_added", "repair_order_part", line.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line added" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -124,7 +124,7 @@ export async function updatePartLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Part line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "part_line_updated", "repair_order_part", partLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "part_line_updated", "repair_order_part", partLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }
@@ -142,7 +142,7 @@ export async function deletePartLine(formData: FormData) {
     });
     if (result.count !== 1) throw new Error("Part line is not editable.");
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "part_line_deleted", "repair_order_part", partLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line deleted" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "part_line_deleted", "repair_order_part", partLineId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${repairOrderId}`, contextSummary: "Part line deleted" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   revalidatePath(`/repair-orders/${repairOrderId}`);
 }

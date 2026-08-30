@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -42,15 +42,13 @@ export async function updateVehicleLicensePlate(formData: FormData) {
       data: { licensePlate: storedPlate },
     });
     if (result.count !== 1) throw new Error("Vehicle changed while the license plate was being saved.");
-    await transaction.auditLog.create({
-      data: auditEntry(membership.shopId, user?.id, "vehicle_license_plate_updated", "vehicle", vehicle.id, { source: context }, {
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "vehicle_license_plate_updated", "vehicle", vehicle.id, { source: context }, {
         actorEmail: user?.email,
         actorRole: membership.role,
         entityLabel: [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" "),
         entityHref: `/vehicles/${vehicle.id}`,
         contextSummary: "Vehicle license plate updated",
-      }),
-    });
+      }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
 
   revalidatePath(`/vehicles/${vehicleId}`);

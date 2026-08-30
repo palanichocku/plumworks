@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
@@ -39,7 +39,7 @@ export async function updateCustomer(formData: FormData) {
       data: { displayName, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
     });
     if (result.count !== 1) throw new Error("Customer was not found.");
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: displayName, entityHref: `/customers/${customerId}`, contextSummary: "Customer record updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: displayName, entityHref: `/customers/${customerId}`, contextSummary: "Customer record updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   redirect(`/customers/${customerId}`);
 }

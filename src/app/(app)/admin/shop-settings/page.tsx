@@ -32,6 +32,7 @@ export default async function ShopSettingsPage({
       shopSuppliesRate: true,
       shopSuppliesCap: true,
       shopSuppliesTaxable: true,
+      auditLoggingEnabled: true,
       invoiceFooterMessage: true,
       warrantyText: true,
       invoicePartsWarrantyText: true,
@@ -78,6 +79,17 @@ export default async function ShopSettingsPage({
         )}
 
         <form action={updateInvoiceSettings} className="mt-6 max-w-2xl space-y-5">
+          <section className="rounded-xl border border-slate-200 bg-slate-50/30 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input name="auditLoggingEnabled" type="checkbox" defaultChecked={shop.auditLoggingEnabled} className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+              <span>
+                <span className="block font-semibold text-slate-900">Audit Logging</span>
+                <span className="mt-1 block leading-6">Keep a detailed history of operational changes made by staff. Useful for businesses that require accountability, compliance, or detailed change tracking.</span>
+              </span>
+            </label>
+            {!shop.auditLoggingEnabled ? <p className="mt-3 text-sm text-slate-600">Turning this off stops new operational audit entries. Existing audit history is retained.</p> : null}
+          </section>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
               Default tax rate (%)

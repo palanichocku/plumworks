@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { applyInvoicePayment, invoiceStateAfterPayment } from "@/lib/invoice-payments";
 import { PAYMENT_METHODS, PAYMENT_PAYER_TYPES } from "@/lib/payment-options";
 import { requirePermission } from "@/lib/permissions";
@@ -98,9 +98,9 @@ export async function recordPayment(formData: FormData): Promise<RecordPaymentRe
       where: { id: invoice.accountsReceivable[0].id },
       data: { balance: applied.balance, status: applied.status === "paid" ? "paid" : "open" },
     });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "payment_recorded", "payment", payment.id, { invoiceId: invoice.id, method, payerType: payerType.toLowerCase() }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Payment recorded" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "payment_recorded", "payment", payment.id, { invoiceId: invoice.id, method, payerType: payerType.toLowerCase() }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Payment recorded" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     if (invoiceState.status === "closed") {
-      await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_closed", "invoice", invoice.id, { paymentId: payment.id, automatic: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Invoice automatically closed after final payment" }) });
+      await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "invoice_closed", "invoice", invoice.id, { paymentId: payment.id, automatic: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Invoice automatically closed after final payment" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     }
     return { invoiceClosed: invoiceState.status === "closed" };
   }, { isolationLevel: "Serializable" });

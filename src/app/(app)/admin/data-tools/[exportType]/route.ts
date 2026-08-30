@@ -1,4 +1,4 @@
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -53,7 +53,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ exp
   if (!result) return new Response("Export type not found.", { status: 404 });
 
   const exportLabel = result.filename.replace(".csv", "").replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) + " CSV";
-  await prisma.auditLog.create({ data: auditEntry(membership.shopId, user.id, "shop_data_exported", "shop", membership.shopId, { exportType, rowCount: result.rows.length }, { actorEmail: user.email, actorRole: membership.role, entityLabel: exportLabel, entityHref: "/admin/data-tools", contextSummary: `Exported ${exportLabel}, ${result.rows.length} rows` }) });
+  await writeAuditEntry(prisma, auditEntry(membership.shopId, user.id, "shop_data_exported", "shop", membership.shopId, { exportType, rowCount: result.rows.length }, { actorEmail: user.email, actorRole: membership.role, entityLabel: exportLabel, entityHref: "/admin/data-tools", contextSummary: `Exported ${exportLabel}, ${result.rows.length} rows` }), { category: "governance" });
 
   const encoder = new TextEncoder();
   const lines = [result.headers, ...result.rows];

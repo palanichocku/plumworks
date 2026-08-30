@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
@@ -32,7 +32,7 @@ export async function updateVehicle(formData: FormData) {
       data: { year, make, model, engine, licensePlate: licensePlate || null, vin: vin || null, odometer },
     });
     if (result.count !== 1) throw new Error("Vehicle was not found.");
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "vehicle_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: [year, make, model].join(" "), entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle record updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "vehicle_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: [year, make, model].join(" "), entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle record updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
   redirect(`/vehicles/${vehicleId}`);
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ShopMembershipRole } from "@/generated/prisma/client";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { assertMemberRemovalAllowed, assertOwnerRoleAssignmentAllowed, assertRoleChangeAllowed } from "@/lib/staff-governance";
@@ -26,7 +26,7 @@ export async function changeMemberRole(formData: FormData) {
     const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
     assertRoleChangeAllowed({ actingRole: membership.role, targetRole: target.role, requestedRole: role, ownerCount: owners });
     await transaction.shopMembership.update({ where: { id: target.id }, data: { role } });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "member_role_changed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member role changed" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "member_role_changed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member role changed" }), { category: "governance" });
   }, { isolationLevel: "Serializable" });
   revalidatePath("/admin/staff");
 }
@@ -42,7 +42,7 @@ export async function removeMember(formData: FormData) {
     const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
     assertMemberRemovalAllowed({ actingRole: membership.role, targetRole: target.role, ownerCount: owners });
     await transaction.shopMembership.delete({ where: { id: target.id } });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "member_removed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member removed" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "member_removed", "shop_membership", target.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Staff member removed" }), { category: "governance" });
   }, { isolationLevel: "Serializable" });
   revalidatePath("/admin/staff");
 }
@@ -61,7 +61,7 @@ export async function createStaffInvite(formData: FormData) {
       create: { shopId: membership.shopId, email, role, invitedByUserId: user?.id ?? null },
       select: { id: true },
     });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "staff_invite_created", "staff_invite", invite.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: email, entityHref: "/admin/staff", contextSummary: "Staff invite created" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "staff_invite_created", "staff_invite", invite.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: email, entityHref: "/admin/staff", contextSummary: "Staff invite created" }), { category: "governance" });
   });
   revalidatePath("/admin/staff");
 }
@@ -77,7 +77,7 @@ export async function revokeStaffInvite(formData: FormData) {
       data: { status: "revoked" },
     });
     if (result.count !== 1) throw new Error("Pending invitation was not found.");
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "staff_invite_revoked", "staff_invite", inviteId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: invite?.email ?? "Staff invite", entityHref: "/admin/staff", contextSummary: "Staff invite revoked" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "staff_invite_revoked", "staff_invite", inviteId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: invite?.email ?? "Staff invite", entityHref: "/admin/staff", contextSummary: "Staff invite revoked" }), { category: "governance" });
   });
   revalidatePath("/admin/staff");
 }

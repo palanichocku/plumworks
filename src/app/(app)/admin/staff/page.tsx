@@ -1,7 +1,7 @@
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -28,8 +28,7 @@ export default async function StaffPage() {
         data: { userEmail: currentEmail } 
       });
       if (result.count === 1) {
-        await transaction.auditLog.create({ 
-          data: auditEntry(
+        await writeAuditEntry(transaction, auditEntry(
             membership.shopId, 
             user?.id, 
             "membership_email_backfilled", 
@@ -37,8 +36,7 @@ export default async function StaffPage() {
             membership.id, 
             { source: "authenticated_session" }, 
             { actorEmail: currentEmail, actorRole: membership.role, entityLabel: "Staff membership", entityHref: "/admin/staff", contextSummary: "Membership email snapshot updated" }
-          ) 
-        });
+          ), { category: "governance" });
       }
     });
   }

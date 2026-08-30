@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { optionalRepairOrderText } from "@/lib/repair-order-fields";
@@ -163,7 +163,7 @@ export async function createRepairOrder(formData: FormData) {
       select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, created.id);
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "repair_order_created", "repair_order", created.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${repairOrderNumber}`, entityHref: `/repair-orders/${created.id}`, contextSummary: "Repair order created" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "repair_order_created", "repair_order", created.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${repairOrderNumber}`, entityHref: `/repair-orders/${created.id}`, contextSummary: "Repair order created" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     return created;
   }, { isolationLevel: "Serializable" });
 
@@ -197,8 +197,7 @@ export async function updateRepairOrderConcerns(_previousState: RepairOrderSaveS
       data: { customerComplaint, recommendation },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, repairOrderId);
-    await transaction.auditLog.create({
-      data: auditEntry(
+    await writeAuditEntry(transaction, auditEntry(
         membership.shopId,
         user?.id,
         "repair_order_concerns_updated",
@@ -212,8 +211,7 @@ export async function updateRepairOrderConcerns(_previousState: RepairOrderSaveS
           entityHref: `/repair-orders/${repairOrderId}`,
           contextSummary: "Customer concerns and recommendations updated",
         },
-      ),
-    });
+      ), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
 
   revalidatePath(`/repair-orders/${repairOrderId}`);

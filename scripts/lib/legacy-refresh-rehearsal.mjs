@@ -20,6 +20,7 @@ const REQUIRED_CURRENT_MIGRATIONS = Object.freeze([
   "20260804150000_add_invoice_odometer",
   "20260804170000_add_complimentary_services",
   "20260828190000_add_payment_payer_metadata",
+  "20260830120000_add_shop_audit_logging_setting",
 ]);
 
 export async function validateSchemaReadiness(repositoryRoot, appliedMigrations = null) {
@@ -34,6 +35,7 @@ export async function validateSchemaReadiness(repositoryRoot, appliedMigrations 
     ["RepairOrderLabor.complimentary", /model RepairOrderLabor \{[\s\S]*?complimentary\s+Boolean\s+@default\(false\)/],
     ["MarketingLead attribution", /model MarketingLead \{[\s\S]*?attributionSource\s+String\?/],
     ["Payment payer metadata", /model Payment \{[\s\S]*?payerType\s+PaymentPayerType[\s\S]*?note\s+String\?/],
+    ["Shop audit logging setting", /model Shop \{[\s\S]*?auditLoggingEnabled\s+Boolean\s+@default\(false\)/],
   ];
   const missingSchema = requiredSchema.filter(([, pattern]) => !pattern.test(schema)).map(([label]) => label);
   if (missing.length || missingSchema.length) throw new Error(`Schema readiness failed: missing migrations=${missing.join(",") || "none"}; missing schema=${missingSchema.join(",") || "none"}.`);

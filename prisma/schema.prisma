@@ -62,6 +62,7 @@ model Shop {
   shopSuppliesRate                      Decimal                @default(0) @map("shop_supplies_rate") @db.Decimal(7, 6)
   shopSuppliesCap                       Decimal                @default(0) @map("shop_supplies_cap") @db.Decimal(12, 2)
   shopSuppliesTaxable                   Boolean                @default(true) @map("shop_supplies_taxable")
+  auditLoggingEnabled                   Boolean                @default(false) @map("audit_logging_enabled")
   invoiceFooterMessage                  String?                @map("invoice_footer_message")
   warrantyText                          String?                @map("warranty_text")
   invoicePartsWarrantyText              String?                @map("invoice_parts_warranty_text")

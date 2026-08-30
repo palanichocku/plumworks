@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -42,6 +42,7 @@ export async function updateInvoiceSettings(formData: FormData) {
   const defaultAuthorizedRepresentative = optionalText(formData.get("defaultAuthorizedRepresentative"));
   const defaultInvoiceTechnicianName = optionalText(formData.get("defaultInvoiceTechnicianName"));
   const defaultInvoiceTechnicianLicenseNumber = optionalText(formData.get("defaultInvoiceTechnicianLicenseNumber"));
+  const auditLoggingEnabled = formData.get("auditLoggingEnabled") === "on";
   if ((invoiceFooterMessage?.length ?? 0) > 2000 || [warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText].some((value) => (value?.length ?? 0) > 4000) || [repairFacilityRegistrationNumber, defaultInvoiceTechnicianLicenseNumber].some((value) => (value?.length ?? 0) > 100) || [defaultAuthorizedRepresentative, defaultInvoiceTechnicianName].some((value) => (value?.length ?? 0) > 150)) {
     throw new Error("Invoice settings text is too long.");
   }
@@ -49,9 +50,9 @@ export async function updateInvoiceSettings(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     await transaction.shop.update({
       where: { id: membership.shopId },
-      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: formData.get("shopSuppliesTaxable") === "on", invoiceFooterMessage, warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText, repairFacilityRegistrationNumber, defaultAuthorizedRepresentative, defaultInvoiceTechnicianName, defaultInvoiceTechnicianLicenseNumber },
+      data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: formData.get("shopSuppliesTaxable") === "on", auditLoggingEnabled, invoiceFooterMessage, warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText, repairFacilityRegistrationNumber, defaultAuthorizedRepresentative, defaultInvoiceTechnicianName, defaultInvoiceTechnicianLicenseNumber },
     });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web", auditLoggingEnabled }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }), { category: "governance" });
   });
 
   revalidatePath("/admin/shop-settings");

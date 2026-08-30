@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -32,7 +32,7 @@ export async function deleteDraftRepairOrder(formData: FormData) {
     });
     if (order) {
       await transaction.repairOrder.delete({ where: { id: order.id } });
-      await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "repair_order_deleted", "repair_order", order.id, { source: order.legacyRoNo ? "final_cutover" : "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: null, contextSummary: "Draft repair order deleted" }) });
+      await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "repair_order_deleted", "repair_order", order.id, { source: order.legacyRoNo ? "final_cutover" : "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: null, contextSummary: "Draft repair order deleted" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     }
   });
   redirect("/repair-orders");

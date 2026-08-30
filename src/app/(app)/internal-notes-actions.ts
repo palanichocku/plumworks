@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { canEditInternalNotes, normalizeInternalNotes } from "@/lib/internal-notes";
@@ -24,7 +24,7 @@ export async function updateCustomerNotes(_state: InternalNotesState, formData: 
   const updated = await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({ where: { id: customerId, shopId: membership.shopId }, data: { notes: parsed.notes } });
     if (result.count !== 1) return false;
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "customer_notes_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Customer internal notes", entityHref: `/customers/${customerId}`, contextSummary: "Customer internal notes updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "customer_notes_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Customer internal notes", entityHref: `/customers/${customerId}`, contextSummary: "Customer internal notes updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     return true;
   });
   if (!updated) return { status: "error", message: "Customer was not found." };
@@ -42,7 +42,7 @@ export async function updateVehicleNotes(_state: InternalNotesState, formData: F
   const updated = await prisma.$transaction(async (transaction) => {
     const result = await transaction.vehicle.updateMany({ where: { id: vehicleId, shopId: membership.shopId, ...(contextCustomerId ? { customerId: contextCustomerId } : {}) }, data: { notes: parsed.notes } });
     if (result.count !== 1) return false;
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "vehicle_notes_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Vehicle internal notes", entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle internal notes updated" }) });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "vehicle_notes_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: "Vehicle internal notes", entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle internal notes updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     return true;
   });
   if (!updated) return { status: "error", message: "Vehicle was not found." };

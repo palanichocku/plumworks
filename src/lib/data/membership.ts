@@ -29,6 +29,7 @@ export const getCurrentMembership = cache(async () => {
           state: true,
           postalCode: true,
           phone: true,
+          auditLoggingEnabled: true,
         },
       },
     },

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auditEntry } from "@/lib/audit";
+import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { confirmedInviteEmail } from "@/lib/staff-invite-identity";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +37,7 @@ export async function acceptStaffInvite(formData: FormData) {
       select: { id: true },
     });
     await transaction.staffInvite.update({ where: { id: invite.id }, data: { status: "accepted" } });
-    await transaction.auditLog.create({ data: auditEntry(invite.shopId, user.id, "staff_invite_accepted", "staff_invite", invite.id, { membershipId: membership.id }, { actorEmail: email, actorRole: invite.role, entityLabel: email, entityHref: "/admin/staff", contextSummary: "Staff invite accepted" }) });
+    await writeAuditEntry(transaction, auditEntry(invite.shopId, user.id, "staff_invite_accepted", "staff_invite", invite.id, { membershipId: membership.id }, { actorEmail: email, actorRole: invite.role, entityLabel: email, entityHref: "/admin/staff", contextSummary: "Staff invite accepted" }), { category: "governance" });
   }, { isolationLevel: "Serializable" });
 
   redirect("/dashboard");

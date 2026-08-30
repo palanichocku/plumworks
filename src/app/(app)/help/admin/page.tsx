@@ -46,7 +46,7 @@ export default function AdminHelpPage() {
         />
         <HelpCard 
           title="Audit Log" 
-          description="Complete immutable history tracking who performed core actions and which specific record datasets were affected." 
+          description="Detailed operational history is configurable per shop. Turning it off retains existing history and still records low-volume staff, access, configuration, and data-export governance events."
         />
         <HelpCard 
           title="Data Tools" 
