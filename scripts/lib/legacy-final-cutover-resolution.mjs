@@ -6,6 +6,7 @@ import { validateSnapshotManifestForRecovery } from "./legacy-recovery-upgrade.m
 import { loadOpenOrderSourceRows, readActiveDbfRows } from "./legacy-open-order-source.mjs";
 import { canonicalJson, evidenceHash } from "./legacy-snapshot-evidence.mjs";
 import { finalizedCollisionEvidence } from "./legacy-final-cutover-adjudication.mjs";
+import { validateSnapshotBoundSourceScope } from "./legacy-source.mjs";
 
 export const FINAL_CUTOVER_RESOLUTION_VERSION = 1;
 export const FINAL_CUTOVER_RESOLUTION_TYPE = "final-cutover-active-ro-resolution";
@@ -87,7 +88,9 @@ export function validateFinalCutoverResolution({ manifest, manifestFingerprint, 
   if (binding?.zipSha256 !== snapshot.manifest.zipSha256) fail("active-ro-resolution-zip-mismatch");
   if (binding?.snapshotManifestSha256 !== snapshot.manifestFingerprint) fail("active-ro-resolution-snapshot-manifest-mismatch");
   if (binding?.combinedSourceFingerprint !== source.fingerprint) fail("active-ro-resolution-source-fingerprint-mismatch");
-  for (const file of RESOLUTION_SOURCE_FILES) if (binding?.sourceHashes?.[file] !== source.fingerprints[file]) fail("active-ro-resolution-source-file-mismatch");
+  const boundFiles = snapshot.manifest.requiredFileValidation?.required ?? RESOLUTION_SOURCE_FILES;
+  if (Object.keys(binding?.sourceHashes ?? {}).length !== boundFiles.length) fail("active-ro-resolution-source-file-scope-mismatch");
+  for (const file of boundFiles) if (binding?.sourceHashes?.[file] !== source.fingerprints[file]) fail("active-ro-resolution-source-file-mismatch");
   if (manifest?.approval?.approved !== true || !nonblank(manifest?.approval?.reviewedBy) || !nonblank(manifest?.approval?.reviewedAt) || Number.isNaN(Date.parse(manifest?.approval?.reviewedAt)) || !nonblank(manifest?.approval?.reason)) fail("unapproved-active-ro-resolution");
   if (!Array.isArray(manifest?.decisions) || manifest.decisions.length === 0) fail("missing-active-ro-resolution-decisions");
 
@@ -164,7 +167,9 @@ export async function loadFinalCutoverResolutionContext({ manifestPath, snapshot
     privateManifest(manifestPath, repositoryRoot),
     validateSnapshotManifestForRecovery({ manifestPath: snapshotManifestPath, repositoryRoot }),
   ]);
-  if (snapshot.source.path !== source.path || snapshot.sourceFingerprint !== source.fingerprint) throw new Error("Snapshot manifest does not identify the selected legacy source directory.");
+  const scoped = validateSnapshotBoundSourceScope({ snapshot, cutoverSource: source, binding: loaded.value?.snapshot });
+  if (scoped.issues.length) throw new Error(`Snapshot-bound active-RO resolution source rejected: ${scoped.issues[0].code}.`);
+  source = scoped.scopedSource;
   snapshot.path = await realpath(snapshotManifestPath);
   snapshot.manifestFingerprint = createHash("sha256").update(await readFile(snapshotManifestPath)).digest("hex");
   const [openRows, final, laborFinal, ar] = await Promise.all([

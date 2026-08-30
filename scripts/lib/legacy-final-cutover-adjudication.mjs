@@ -5,6 +5,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { validateSnapshotManifestForRecovery } from "./legacy-recovery-upgrade.mjs";
 import { readActiveDbfRows, loadOpenOrderSourceRows } from "./legacy-open-order-source.mjs";
 import { canonicalJson, evidenceHash } from "./legacy-snapshot-evidence.mjs";
+import { validateSnapshotBoundSourceScope } from "./legacy-source.mjs";
 
 export const FINAL_CUTOVER_ADJUDICATION_VERSION = 1;
 export const FINAL_CUTOVER_ADJUDICATION_TYPE = "final-cutover-active-ro-adjudication";
@@ -119,7 +120,9 @@ export function validateFinalCutoverAdjudication({
   if (binding?.zipSha256 !== snapshot.manifest.zipSha256) fail("adjudication-zip-hash-mismatch");
   if (binding?.snapshotManifestSha256 !== snapshot.manifestFingerprint) fail("adjudication-snapshot-manifest-mismatch");
   if (binding?.combinedSourceFingerprint !== source.fingerprint) fail("adjudication-source-fingerprint-mismatch");
-  for (const file of RELEVANT_SOURCE_FILES) {
+  const boundFiles = snapshot.manifest.requiredFileValidation?.required ?? RELEVANT_SOURCE_FILES;
+  if (Object.keys(binding?.sourceHashes ?? {}).length !== boundFiles.length) fail("adjudication-source-file-scope-mismatch");
+  for (const file of boundFiles) {
     if (binding?.sourceHashes?.[file] !== source.fingerprints[file]) fail("adjudication-source-file-hash-mismatch");
   }
   if (!Array.isArray(manifest?.activeOpenOrderDecisions) || manifest.activeOpenOrderDecisions.length === 0) fail("missing-active-ro-decisions");
@@ -174,9 +177,9 @@ export async function loadFinalCutoverAdjudicationContext({
     readableManifest(manifestPath, repositoryRoot),
     validateSnapshotManifestForRecovery({ manifestPath: snapshotManifestPath, repositoryRoot }),
   ]);
-  if (snapshot.source.path !== source.path || snapshot.sourceFingerprint !== source.fingerprint) {
-    throw new Error("Snapshot manifest does not identify the selected legacy source directory.");
-  }
+  const scoped = validateSnapshotBoundSourceScope({ snapshot, cutoverSource: source, binding: loaded.manifest?.snapshot });
+  if (scoped.issues.length) throw new Error(`Snapshot-bound adjudication source rejected: ${scoped.issues[0].code}.`);
+  source = scoped.scopedSource;
   snapshot.path = await realpath(snapshotManifestPath);
   snapshot.manifestFingerprint = createHash("sha256").update(await readFile(snapshotManifestPath)).digest("hex");
   const openRows = await loadOpenOrderSourceRows(source);

@@ -29,6 +29,7 @@ import {
 import { loadRecoveryManifest, recoveryManifestArgument, recoveryProposalArgument } from "./lib/legacy-recovery-manifest.mjs";
 import {
   loadAndValidateRecoveryApprovalV4,
+  recoveryPlanSourceFingerprint,
   isRecoveryApprovalV4,
   RECOVERY_APPROVAL_VERSION,
   requireFinalCutoverRecoveryApproval,
@@ -936,7 +937,7 @@ async function reloadLegacy(sourceDirectory, shopId, recoveryContext, adjudicati
       existingAliases: state.aliases,
       shopId,
       importRunId,
-      sourceFingerprint: sourceDirectory.fingerprint,
+      sourceFingerprint: recoveryContext.sourceFingerprint ?? sourceDirectory.fingerprint,
     });
     printRecoveryPlan(plan, "confirmed cutover");
     if (plan.fatalIssues.length) throw new Error("Customer recovery validation failed after Customer transformation; Invoice staging was blocked.");
@@ -1186,8 +1187,14 @@ async function main() {
     const projectedCustomerImportRunId = deterministicLegacyInvoiceId(shop.id, `customer-import:${resolvedLegacySource.fingerprint}`);
     recordStage("customer-vehicle-staging-projection", { importRunId: projectedCustomerImportRunId });
     recordStage("customer-vehicle-transformation-projection", { importRunId: projectedCustomerImportRunId });
+    const recoveryFingerprint = recoveryPlanSourceFingerprint({
+      approval: loadedRecovery?.approval,
+      manifest: loadedRecovery?.manifest,
+      consolidatedSourceFingerprint: resolvedLegacySource.fingerprint,
+    });
     const recoveryContext = loadedRecovery ? {
       ...loadedRecovery,
+      sourceFingerprint: recoveryFingerprint,
       projectedState,
       references: recoveryReferences(source),
     } : null;
@@ -1203,7 +1210,7 @@ async function main() {
         existingAliases: [],
         shopId: shop.id,
         importRunId: projectedCustomerImportRunId,
-        sourceFingerprint: resolvedLegacySource.fingerprint,
+        sourceFingerprint: recoveryFingerprint,
       });
       printRecoveryPlan(projectedRecoveryPlan, dryRun ? "dry run" : "pre-reset validation");
       runSummary.recovery.counts = projectedRecoveryPlan.counts;

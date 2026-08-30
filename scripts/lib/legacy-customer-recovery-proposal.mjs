@@ -782,6 +782,15 @@ export function approvalToLegacyRecoveryManifest(approval) {
   };
 }
 
+export function recoveryPlanSourceFingerprint({ approval, manifest, consolidatedSourceFingerprint }) {
+  if (!approval) return consolidatedSourceFingerprint;
+  const approvedFingerprint = approval?.snapshot?.combinedSourceFingerprint;
+  if (!/^[0-9a-f]{64}$/.test(approvedFingerprint ?? "") || manifest?.sourceBinding?.sourceFingerprint !== approvedFingerprint) {
+    throw new Error("Recovery Approval v4 source binding is inconsistent.");
+  }
+  return approvedFingerprint;
+}
+
 export async function loadAndValidateRecoveryApprovalV4({ approvalPath, proposalPath, snapshotManifestPath, shopId, repositoryRoot = process.cwd() }) {
   const [loadedApproval, loadedProposal, snapshot] = await Promise.all([
     readablePrivateJson(approvalPath, "Customer recovery approval", repositoryRoot),

@@ -9,6 +9,69 @@ function isWithin(parent, child) {
   return path === "" || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
 }
 
+export function legacySourceFingerprint(requiredFiles, fingerprints) {
+  if (!Array.isArray(requiredFiles) || requiredFiles.length === 0) throw new Error("Legacy source fingerprinting requires at least one filename.");
+  if (new Set(requiredFiles).size !== requiredFiles.length) throw new Error("Legacy source fingerprinting requires unique filenames.");
+  const fingerprint = createHash("sha256");
+  for (const expected of requiredFiles) {
+    const hash = fingerprints?.[expected];
+    if (typeof hash !== "string" || !/^[0-9a-f]{64}$/.test(hash)) throw new Error(`Legacy source fingerprint is missing a valid SHA-256 for ${expected}.`);
+    fingerprint.update(expected).update("\0").update(hash).update("\0");
+  }
+  return fingerprint.digest("hex");
+}
+
+export function validateSnapshotBoundSourceScope({ snapshot, cutoverSource, binding }) {
+  const issues = [];
+  const fail = (code, file = null) => issues.push({ code, file });
+  const requiredFiles = snapshot?.manifest?.requiredFileValidation?.required;
+  if (!Array.isArray(requiredFiles) || requiredFiles.length === 0 || new Set(requiredFiles).size !== requiredFiles.length) {
+    fail("invalid-snapshot-required-file-scope");
+    return { issues, scopedSource: null };
+  }
+  if (snapshot.source?.path !== cutoverSource?.path) fail("snapshot-source-directory-mismatch");
+
+  // The consolidated source may be broader, but every selected file must still
+  // be an immutable member of the intake manifest.
+  for (const [file, path] of Object.entries(cutoverSource?.files ?? {})) {
+    if (!isWithin(snapshot.snapshotRoot, path)) { fail("cutover-source-path-outside-snapshot", file); continue; }
+    const manifestPath = relative(snapshot.snapshotRoot, path).split(sep).join("/");
+    const manifestEntry = snapshot.manifest?.files?.[manifestPath];
+    if (!manifestEntry) { fail("cutover-source-file-not-in-snapshot-manifest", file); continue; }
+    if (manifestEntry.sha256 !== cutoverSource.fingerprints?.[file]) fail("cutover-source-manifest-hash-mismatch", file);
+  }
+
+  const boundFiles = Object.keys(binding?.sourceHashes ?? {});
+  if (boundFiles.length !== requiredFiles.length || requiredFiles.some((file) => !boundFiles.includes(file))) {
+    fail("artifact-source-scope-mismatch");
+  }
+  for (const file of requiredFiles) {
+    if (!snapshot.source?.files?.[file] || !cutoverSource?.files?.[file]) { fail("artifact-source-file-missing", file); continue; }
+    if (snapshot.source.files[file] !== cutoverSource.files[file] || snapshot.source.actualFiles?.[file] !== cutoverSource.actualFiles?.[file]) {
+      fail("artifact-source-file-identity-mismatch", file);
+    }
+    const expectedHash = snapshot.source.fingerprints?.[file];
+    const actualHash = cutoverSource.fingerprints?.[file];
+    if (expectedHash !== actualHash || binding?.sourceHashes?.[file] !== actualHash) fail("artifact-source-file-hash-mismatch", file);
+  }
+
+  let fingerprint = null;
+  try { fingerprint = legacySourceFingerprint(requiredFiles, cutoverSource?.fingerprints); }
+  catch { fail("artifact-scoped-fingerprint-unavailable"); }
+  if (fingerprint && binding?.combinedSourceFingerprint !== fingerprint) fail("artifact-scoped-fingerprint-mismatch");
+  if (issues.length) return { issues, scopedSource: null };
+  return {
+    issues,
+    scopedSource: {
+      ...cutoverSource,
+      files: Object.fromEntries(requiredFiles.map((file) => [file, cutoverSource.files[file]])),
+      actualFiles: Object.fromEntries(requiredFiles.map((file) => [file, cutoverSource.actualFiles[file]])),
+      fingerprints: Object.fromEntries(requiredFiles.map((file) => [file, cutoverSource.fingerprints[file]])),
+      fingerprint,
+    },
+  };
+}
+
 function sourceArgument(args) {
   const positions = args.flatMap((value, index) => value === "--source" ? [index] : []);
   if (positions.length !== 1) throw new Error("--source must be provided exactly once; repository seed data is never used as a fallback.");
@@ -76,14 +139,12 @@ export async function resolveLegacySource({
     files[expected] = path;
     fingerprints[expected] = await hashFile(path);
   }
-  const fingerprint = createHash("sha256");
-  for (const expected of requiredFiles) fingerprint.update(expected).update("\0").update(fingerprints[expected]).update("\0");
   return {
     path: resolvedPath,
     files,
     actualFiles: Object.fromEntries(requiredFiles.map((expected) => [expected, filesByName.get(expected.toLocaleLowerCase("en-US"))])),
     fingerprints,
-    fingerprint: fingerprint.digest("hex"),
+    fingerprint: legacySourceFingerprint(requiredFiles, fingerprints),
   };
 }
 

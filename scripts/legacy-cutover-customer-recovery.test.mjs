@@ -215,7 +215,8 @@ test("cutover wires recovery between Customer transformation and exact-run Invoi
   assert.ok(paymentStage > 0 && openOrderStage > paymentStage);
   assert.match(source, /runRecoveryBeforeLaterStages\(\{[\s\S]*runRecovery:[\s\S]*runLaterStages/);
   assert.match(source, /runRecovery:[\s\S]*executeCutoverCustomerRecovery[\s\S]*planCutoverVehicleRecovery[\s\S]*executeCutoverVehicleRecovery/);
-  assert.match(source, /sourceFingerprint:\s*sourceDirectory\.fingerprint/);
+  assert.match(source, /recoveryPlanSourceFingerprint\(\{/);
+  assert.match(source, /sourceFingerprint:\s*recoveryContext\.sourceFingerprint\s*\?\?\s*sourceDirectory\.fingerprint/);
   assert.match(source, /importRunId,/);
   assert.match(source, /recoveryContext\.manifest/);
   assert.doesNotMatch(source, /runScript(?:WithOutput)?\("import-legacy-payments\.mjs"/);
