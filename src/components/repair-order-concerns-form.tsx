@@ -35,7 +35,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
     {createState.status === "error" ? <p role="alert" aria-live="assertive" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{createState.message}</p> : null}
     {!dirty && !pending && state.status === "success" ? <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"><span aria-hidden="true">✓</span> Repair Order saved.</p> : null}
     {!dirty && !pending && state.status === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{state.message}</p> : null}
-    <p className="mt-3 text-xs leading-5 text-slate-500">After creating the invoice, continue final adjustments and payments on the open invoice. Close the invoice only after it is fully paid and the vehicle has been delivered.</p>
+    <p className="mt-3 text-xs leading-5 text-slate-500">After creating the invoice, continue final adjustments and payments on the open invoice. Recording the final payment automatically closes the invoice.</p>
     <Link href="/repair-orders" className="mt-3 inline-flex w-full justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</Link>
   </div>;
 

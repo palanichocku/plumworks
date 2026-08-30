@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry } from "@/lib/audit";
-import { applyInvoicePayment } from "@/lib/invoice-payments";
+import { applyInvoicePayment, invoiceStateAfterPayment } from "@/lib/invoice-payments";
 import { PAYMENT_METHODS, PAYMENT_PAYER_TYPES } from "@/lib/payment-options";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -13,8 +14,9 @@ const METHODS = new Set<string>(PAYMENT_METHODS);
 const PAYER_TYPES = new Set<string>(PAYMENT_PAYER_TYPES);
 
 export type PaymentActionState = { status: "idle" | "success" | "error"; message?: string };
+export type RecordPaymentResult = { invoiceClosed: boolean };
 
-export async function recordPayment(formData: FormData) {
+export async function recordPayment(formData: FormData): Promise<RecordPaymentResult> {
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const amountText = String(formData.get("amount") ?? "").trim();
   const method = String(formData.get("method") ?? "").trim().toLowerCase();
@@ -37,7 +39,7 @@ export async function recordPayment(formData: FormData) {
 
   const { user, membership } = await requirePermission("record_payment");
 
-  await prisma.$transaction(async (transaction) => {
+  const result = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
       SELECT id FROM invoices
       WHERE id = ${invoiceId}::uuid AND shop_id = ${membership.shopId}::uuid
@@ -82,26 +84,37 @@ export async function recordPayment(formData: FormData) {
       },
       select: { id: true },
     });
+    const recordedAt = new Date();
+    const invoiceState = invoiceStateAfterPayment(applied, recordedAt);
     await transaction.invoice.update({
       where: { id: invoice.id },
-      data: { paidTotal: applied.paidTotal },
+      data: {
+        paidTotal: applied.paidTotal,
+        ...invoiceState,
+        closedByUserId: invoiceState.status === "closed" ? user?.id ?? null : null,
+      },
     });
     await transaction.accountReceivable.update({
       where: { id: invoice.accountsReceivable[0].id },
       data: { balance: applied.balance, status: applied.status === "paid" ? "paid" : "open" },
     });
     await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "payment_recorded", "payment", payment.id, { invoiceId: invoice.id, method, payerType: payerType.toLowerCase() }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Payment recorded" }) });
+    if (invoiceState.status === "closed") {
+      await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_closed", "invoice", invoice.id, { paymentId: payment.id, automatic: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoice.id}`, contextSummary: "Invoice automatically closed after final payment" }) });
+    }
+    return { invoiceClosed: invoiceState.status === "closed" };
   }, { isolationLevel: "Serializable" });
 
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath("/invoices");
   revalidatePath("/accounts-receivable");
+  return result;
 }
 
 export async function recordPaymentWithState(_state: PaymentActionState, formData: FormData): Promise<PaymentActionState> {
+  let result: RecordPaymentResult;
   try {
-    await recordPayment(formData);
-    return { status: "success", message: "Payment recorded." };
+    result = await recordPayment(formData);
   } catch (error) {
     const message = error instanceof Error && (
       error.message.startsWith("Payment cannot exceed") ||
@@ -110,4 +123,6 @@ export async function recordPaymentWithState(_state: PaymentActionState, formDat
     ) ? error.message : "Payment could not be recorded. Check the values and try again.";
     return { status: "error", message };
   }
+  if (result.invoiceClosed) redirect(`/invoices/${String(formData.get("invoiceId"))}?payment=closed`);
+  return { status: "success", message: "Payment recorded." };
 }

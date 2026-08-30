@@ -30,10 +30,8 @@ export function applyInvoicePayment(totalInput: DecimalInput, existingPaidInput:
   return invoicePaymentSummary(before.total, before.paidTotal.plus(amount));
 }
 
-export function assertInvoiceCanClose(totalInput: DecimalInput, paidInput: DecimalInput) {
-  const summary = invoicePaymentSummary(totalInput, paidInput);
-  if (!summary.balance.isZero()) {
-    throw new Error(`Invoice cannot be closed. $${summary.balance.toFixed(2)} remains unpaid. All payments must be received before this invoice can be closed.`);
-  }
-  return summary;
+export function invoiceStateAfterPayment(summary: ReturnType<typeof invoicePaymentSummary>, recordedAt: Date) {
+  return summary.balance.isZero()
+    ? { status: "closed" as const, closedAt: recordedAt }
+    : { status: "open" as const, closedAt: null };
 }

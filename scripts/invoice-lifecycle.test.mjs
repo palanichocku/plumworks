@@ -93,11 +93,13 @@ test("invoice creation is locked, unique, idempotent, and creates OPEN", async (
   assert.doesNotMatch(action, /status: "finalized"/);
 });
 
-test("payment completion does not close an invoice", async () => {
-  const payment = await read("src/app/(app)/invoices/payment-actions.ts");
+test("payment completion atomically closes an invoice at the final-payment event", async () => {
+  const [payment, page] = await Promise.all([read("src/app/(app)/invoices/payment-actions.ts"), read("src/app/(app)/invoices/[id]/page.tsx")]);
   assert.match(payment, /status: "open"/);
   assert.match(payment, /paidTotal: applied\.paidTotal/);
-  assert.match(payment, /invoice\.update\(\{[\s\S]*?paidTotal: applied\.paidTotal/);
+  assert.match(payment, /invoiceStateAfterPayment\(applied, recordedAt\)/);
+  assert.match(payment, /invoice\.update\(\{[\s\S]*?paidTotal: applied\.paidTotal[\s\S]*?\.\.\.invoiceState/);
+  assert.match(page, /Payment recorded\. Invoice paid in full and closed\./);
 });
 
 test("invoice edits are transactional, OPEN-only, preserve payments, and refresh AR", async () => {
@@ -136,16 +138,10 @@ test("Invoice customer documents display a nonzero Discount explicitly", async (
   assert.match(sources, />Discount</);
 });
 
-test("close requires zero balance, delivery, OPEN state, and OWNER or ADMIN", async () => {
-  const [action, dialog] = await Promise.all([read("src/app/(app)/invoices/lifecycle-actions.ts"), read("src/components/close-invoice-button.tsx")]);
-  assert.match(action, /vehicleDelivered/);
-  assert.match(action, /\["OWNER", "ADMIN"\]/);
-  assert.match(action, /closeInvoice[\s\S]*refreshInvoice\(transaction, membership\.shopId, invoiceId\)[\s\S]*assertInvoiceCanClose/);
-  assert.match(action, /status: "closed"/);
-  assert.match(action, /closedAt: now, deliveredAt: now, closedByUserId/);
-  assert.match(dialog, /name="vehicleDelivered"/);
-  assert.match(dialog, /Close this invoice\?/);
-  assert.doesNotMatch(action + dialog, /Reopen Invoice/);
+test("manual close and vehicle-delivery confirmation are absent from the native invoice workflow", async () => {
+  const [action, page] = await Promise.all([read("src/app/(app)/invoices/lifecycle-actions.ts"), read("src/app/(app)/invoices/[id]/page.tsx")]);
+  assert.doesNotMatch(action + page, /vehicleDelivered|closeInvoice|Close Invoice|Close this invoice\?/);
+  await assert.rejects(read("src/components/close-invoice-button.tsx"), /ENOENT/);
 });
 
 test("schema migration is additive and leaves historical statuses untouched", async () => {

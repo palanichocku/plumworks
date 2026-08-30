@@ -6,7 +6,7 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("Database configuration is unavailable.");
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 const rollback = new Error("ROLLBACK_VERIFICATION");
-const allowedKeys = new Set(["source", "invoiceId", "method", "payerType", "active"]);
+const allowedKeys = new Set(["source", "invoiceId", "paymentId", "method", "payerType", "active", "automatic"]);
 const allowedWords = new Set(["web", "manual", "canned_service", "cash", "card", "debit_card", "check", "ach_eft", "customer", "insurance", "warranty", "other"]);
 const uuid = /^[0-9a-f-]{36}$/i;
 

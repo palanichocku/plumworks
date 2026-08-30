@@ -1,33 +1,42 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { applyInvoicePayment, assertInvoiceCanClose, invoicePaymentSummary, paymentMethodLabel, paymentPayerLabel, paymentStatusLabel } from "../src/lib/invoice-payments.ts";
+import { applyInvoicePayment, invoicePaymentSummary, invoiceStateAfterPayment, paymentMethodLabel, paymentPayerLabel, paymentStatusLabel } from "../src/lib/invoice-payments.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("one exact payment produces Paid with zero balance without closing", () => {
-  const result = applyInvoicePayment("200.00", "0", "200.00");
-  assert.equal(result.paidTotal.toFixed(2), "200.00");
+test("one exact payment produces Paid with zero balance and a closed invoice state", () => {
+  const result = applyInvoicePayment("100.00", "0", "100.00");
+  const recordedAt = new Date("2026-08-30T14:04:02.000Z");
+  const invoiceState = invoiceStateAfterPayment(result, recordedAt);
+  assert.equal(result.paidTotal.toFixed(2), "100.00");
   assert.equal(result.balance.toFixed(2), "0.00");
   assert.equal(result.status, "paid");
+  assert.deepEqual(invoiceState, { status: "closed", closedAt: recordedAt });
 });
 
 test("partial and subsequent split payments preserve each running balance", () => {
   const first = applyInvoicePayment("1000", "0", "250");
   assert.deepEqual([first.paidTotal.toFixed(2), first.balance.toFixed(2), first.status], ["250.00", "750.00", "partially_paid"]);
+  assert.deepEqual(invoiceStateAfterPayment(first, new Date("2026-08-30T14:00:00Z")), { status: "open", closedAt: null });
   const second = applyInvoicePayment("1000", first.paidTotal, "750");
   assert.deepEqual([second.paidTotal.toFixed(2), second.balance.toFixed(2), second.status], ["1000.00", "0.00", "paid"]);
+  const finalPaymentAt = new Date("2026-08-30T15:00:00Z");
+  assert.deepEqual(invoiceStateAfterPayment(second, finalPaymentAt), { status: "closed", closedAt: finalPaymentAt });
 });
 
 test("deductible then insurance payment and three-payer histories are cent exact", () => {
   const deductible = applyInvoicePayment("3000", "0", "500");
   const insurance = applyInvoicePayment("3000", deductible.paidTotal, "2500");
   assert.equal(deductible.balance.toFixed(2), "2500.00");
+  assert.equal(invoiceStateAfterPayment(deductible, new Date()).status, "open");
   assert.equal(insurance.balance.toFixed(2), "0.00");
+  assert.equal(invoiceStateAfterPayment(insurance, new Date()).status, "closed");
   const one = applyInvoicePayment("800", "0", "100");
   const two = applyInvoicePayment("800", one.paidTotal, "200");
   const three = applyInvoicePayment("800", two.paidTotal, "500");
   assert.deepEqual([one.balance.toFixed(2), two.balance.toFixed(2), three.balance.toFixed(2)], ["700.00", "500.00", "0.00"]);
+  assert.deepEqual([invoiceStateAfterPayment(one, new Date()).status, invoiceStateAfterPayment(two, new Date()).status, invoiceStateAfterPayment(three, new Date()).status], ["open", "open", "closed"]);
 });
 
 test("zero, negative, and overpayment are rejected with authoritative balance", () => {
@@ -44,10 +53,11 @@ test("currency boundaries remain Decimal exact", () => {
   assert.equal(second.balance.toFixed(2), "0.00");
 });
 
-test("closing rejects no payment and partial payment but permits exactly zero balance", () => {
-  assert.throws(() => assertInvoiceCanClose("500", "0"), /\$500\.00 remains unpaid/);
-  assert.throws(() => assertInvoiceCanClose("500", "200"), /\$300\.00 remains unpaid/);
-  assert.doesNotThrow(() => assertInvoiceCanClose("500", "500"));
+test("invoice state remains open until the authoritative balance reaches exactly zero", () => {
+  const at = new Date("2026-08-30T12:00:00Z");
+  assert.deepEqual(invoiceStateAfterPayment(invoicePaymentSummary("500", "0"), at), { status: "open", closedAt: null });
+  assert.deepEqual(invoiceStateAfterPayment(invoicePaymentSummary("500", "200"), at), { status: "open", closedAt: null });
+  assert.deepEqual(invoiceStateAfterPayment(invoicePaymentSummary("500", "500"), at), { status: "closed", closedAt: at });
 });
 
 test("derived payment labels distinguish unpaid, partial, and paid", () => {
@@ -73,12 +83,21 @@ test("payment action is Shop-scoped, serialized, persisted-sum authoritative, an
   assert.doesNotMatch(action, /formData\.get\("(?:balance|paidTotal|shopId)"\)/);
 });
 
-test("final payment never closes and close remains explicit with a zero-balance server gate", async () => {
-  const [payment, lifecycle] = await Promise.all([read("src/app/(app)/invoices/payment-actions.ts"), read("src/app/(app)/invoices/lifecycle-actions.ts")]);
-  assert.doesNotMatch(payment, /status:\s*"closed"|closedAt|closeInvoice/);
-  assert.match(lifecycle, /closeInvoice[\s\S]*payment\.aggregate[\s\S]*assertInvoiceCanClose/);
-  assert.match(lifecycle, /data: \{ status: "closed", closedAt: now/);
-  assert.doesNotMatch(lifecycle, /data: \{ status: "closed", paidTotal:/);
+test("final payment atomically closes the native invoice and records both audit events", async () => {
+  const [payment, page] = await Promise.all([read("src/app/(app)/invoices/payment-actions.ts"), read("src/app/(app)/invoices/[id]/page.tsx")]);
+  assert.match(payment, /payment\.create\([\s\S]*const recordedAt = new Date\(\)/);
+  assert.match(payment, /invoiceStateAfterPayment\(applied, recordedAt\)/);
+  assert.match(payment, /invoice\.update\([\s\S]*paidTotal: applied\.paidTotal,[\s\S]*\.\.\.invoiceState,[\s\S]*closedByUserId/);
+  assert.match(payment, /accountReceivable\.update\([\s\S]*balance: applied\.balance/);
+  assert.match(payment, /"payment_recorded"[\s\S]*"invoice_closed"/);
+  assert.match(payment, /isolationLevel: "Serializable"/);
+  assert.match(page, /Payment recorded\. Invoice paid in full and closed\./);
+});
+
+test("normal invoice UI has no manual close action or delivery confirmation", async () => {
+  const [page, lifecycle] = await Promise.all([read("src/app/(app)/invoices/[id]/page.tsx"), read("src/app/(app)/invoices/lifecycle-actions.ts")]);
+  assert.doesNotMatch(page + lifecycle, /Close Invoice|closeInvoice|vehicleDelivered|delivery confirmation/);
+  await assert.rejects(read("src/components/close-invoice-button.tsx"), /ENOENT/);
 });
 
 test("UI defaults each new payment to current AR balance and displays payer, history, and payment status", async () => {
@@ -117,4 +136,12 @@ test("legacy and closed invoices remain read-only while reports keep closed-nati
   assert.match(payment, /status: "open"/);
   assert.match(reportable, /legacySourceTable: null,\s*status: "closed"/);
   assert.match(reportable, /closedAt/);
+});
+
+test("automatically closed native invoices use the unchanged closedAt reporting authority", async () => {
+  const [paymentState, reportable] = await Promise.all([read("src/lib/invoice-payments.ts"), read("src/lib/reportable-sales.ts")]);
+  assert.match(paymentState, /status: "closed" as const, closedAt: recordedAt/);
+  assert.match(reportable, /legacySourceTable: null,\s*status: "closed"/);
+  assert.match(reportable, /return invoice\.legacySourceTable === null \? invoice\.closedAt : invoice\.invoiceDate/);
+  assert.doesNotMatch(reportable, /paidTotal|balance/);
 });

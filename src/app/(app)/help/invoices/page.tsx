@@ -25,7 +25,7 @@ export default function InvoicesHelpPage() {
             B --> C{"Balance is zero?"}
             C -->|No| D["Invoice and receivable stay open"]
             D --> B
-            C -->|Yes| E["Employee closes invoice"]
+            C -->|Yes| E["Invoice closes automatically"]
             E --> F["Closed sale enters reports"]`}
         />
       </div>
@@ -42,7 +42,7 @@ export default function InvoicesHelpPage() {
         />
         <HelpCard 
           title="Result" 
-          description="Payments reduce the live balance; a paid-in-full invoice enters sales reports only after an employee closes it."
+          description="Payments reduce the live balance; the final payment automatically closes the invoice and enters the sale in reports."
         />
       </section>
 
@@ -51,7 +51,7 @@ export default function InvoicesHelpPage() {
         <HelpSection title="Expectations">
           <HelpList items={[
             "Open native invoices can accept multiple payments from Customer, Insurance, Warranty Company, or Other payers.",
-            "An invoice remains open until its balance is zero and an authorized employee explicitly closes it.",
+            "A native invoice automatically closes when recorded payments reduce its outstanding balance to zero.",
             "Imported legacy shop invoices remain permanently locked as fully read-only records.",
             "Complete dynamic payment transaction history renders on eligible web invoices.",
             "The printable receipt view generates directly from historical invoice snapshots, ensuring subsequent customer or vehicle profile modifications never retroactively rewrite history."

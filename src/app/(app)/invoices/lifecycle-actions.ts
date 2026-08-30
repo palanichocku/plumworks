@@ -1,11 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
-import { auditEntry } from "@/lib/audit";
 import { calculateEditableInvoiceTotals, invoiceBalance } from "@/lib/invoice-lifecycle";
-import { assertInvoiceCanClose } from "@/lib/invoice-payments";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -218,23 +215,4 @@ export async function addInvoiceLaborWithState(_state: InvoiceEditActionState, f
 
 export async function updateInvoiceLaborWithState(_state: InvoiceEditActionState, formData: FormData) {
   return invoiceEditResult(updateInvoiceLabor, formData, "The Invoice labor could not be saved. Check the values and try again.");
-}
-
-export async function closeInvoice(formData: FormData) {
-  const invoiceId = String(formData.get("invoiceId") ?? "");
-  if (!UUID.test(invoiceId) || formData.get("vehicleDelivered") !== "yes") throw new Error("Vehicle delivery confirmation is required.");
-  const { user, membership } = await requirePermission("finalize_repair_order");
-  if (!(["OWNER", "ADMIN"] as string[]).includes(membership.role)) throw new Error("Only an owner or administrator can close invoices.");
-  await prisma.$transaction(async (transaction) => {
-    await transaction.$queryRaw`SELECT id FROM invoices WHERE id = ${invoiceId}::uuid AND shop_id = ${membership.shopId}::uuid FOR UPDATE`;
-    await refreshInvoice(transaction, membership.shopId, invoiceId);
-    const invoice = await transaction.invoice.findFirst({ where: { id: invoiceId, shopId: membership.shopId, status: "open", legacySourceTable: null }, select: { id: true, total: true, repairOrderNumber: true } });
-    if (!invoice) throw new Error("Invoice is not open.");
-    const payments = await transaction.payment.aggregate({ where: { invoiceId, shopId: membership.shopId }, _sum: { amount: true } });
-    assertInvoiceCanClose(invoice.total, payments._sum.amount ?? 0);
-    const now = new Date();
-    await transaction.invoice.update({ where: { id: invoiceId }, data: { status: "closed", closedAt: now, deliveredAt: now, closedByUserId: user?.id ?? null } });
-    await transaction.auditLog.create({ data: auditEntry(membership.shopId, user?.id, "invoice_closed", "invoice", invoiceId, { delivered: true }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `Invoice RO #${invoice.repairOrderNumber}`, entityHref: `/invoices/${invoiceId}`, contextSummary: "Invoice closed after delivery confirmation" }) });
-  }, { isolationLevel: "Serializable" });
-  revalidatePath(`/invoices/${invoiceId}`); redirect(`/invoices/${invoiceId}`);
 }

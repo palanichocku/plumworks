@@ -31,7 +31,7 @@ export default function WorkflowHelpPage() {
               G --> H["Record one or more payments"]
               H --> I{"Balance is zero?"}
               I -->|No| H
-              I -->|Yes| J["Employee closes invoice"]
+              I -->|Yes| J["Invoice closes automatically"]
               J --> K["Closed sale enters reports"]`}
           />
         </div>
@@ -48,7 +48,7 @@ export default function WorkflowHelpPage() {
               B --> C{"Balance remains?"}
               C -->|Yes| D["Invoice and receivable stay open"]
               D --> B
-              C -->|No| E["Paid; employee closes invoice"]
+              C -->|No| E["Paid; invoice closes automatically"]
               E --> F["Closed sale enters reports"]`}
           />
         </div>
@@ -61,7 +61,7 @@ export default function WorkflowHelpPage() {
             "Begin on the primary Dashboard overview to inspect active garage floor work and open balances.",
             "Always utilize global search queries before creating structural duplicate customers or vehicle folders.",
             "Keep all active work folders fully editable as a draft or an open repair order.",
-            "Review lines and tax totals, collect every payment, and close the paid invoice only when the vehicle is released.",
+            "Review lines and tax totals; recording the final payment automatically closes the invoice.",
             "Consistently monitor the system Invoice and Receivables pages for complete billing and customer follow-up."
           ]} />
         </HelpSection>

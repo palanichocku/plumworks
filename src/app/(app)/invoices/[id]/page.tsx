@@ -6,9 +6,7 @@ import {
   formatLaborDescription,
   formatMoney,
 } from "@/lib/formatters";
-import { CloseInvoiceButton } from "@/components/close-invoice-button";
 import { InvoicePaymentForm } from "@/components/invoice-payment-form";
-import { getCurrentMembership } from "@/lib/data/membership";
 import { isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 import { EmailInvoiceButton } from "@/components/email-invoice-button";
 import { normalizeEmailRecipient } from "@/lib/email/invoice-email-core";
@@ -25,11 +23,13 @@ export const dynamic = "force-dynamic";
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ payment?: string }>;
 }) {
   const { id } = await params;
-  const [invoice, { membership }] = await Promise.all([getInvoiceForCurrentShop(id), getCurrentMembership()]);
+  const [invoice, query] = await Promise.all([getInvoiceForCurrentShop(id), searchParams]);
 
   if (!invoice) notFound();
 
@@ -43,8 +43,6 @@ export default async function InvoiceDetailPage({
   const paymentSummary = invoicePaymentSummary(invoice.total, invoice.paidTotal);
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const open = isEditableOpenInvoice(invoice);
-  const canClose = open && Boolean(membership && ["OWNER", "ADMIN"].includes(membership.role));
-  const closeBalanceIsZero = Boolean(receivable?.balance?.isZero());
   const canRecordPayment =
     invoice.legacySourceTable === null &&
     invoice.repairOrderNumber !== null &&
@@ -67,7 +65,6 @@ export default async function InvoiceDetailPage({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Edit Invoice</Link> : null}
-          {canClose && closeBalanceIsZero ? <CloseInvoiceButton invoiceId={invoice.id} balance={formatMoney(receivable?.balance ?? 0)} /> : canClose ? <span aria-disabled="true" title={`Remaining balance ${formatMoney(receivable?.balance ?? 0)}`} className="cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400">Close Invoice</span> : null}
           <EmailInvoiceButton
             invoiceId={invoice.id}
             defaultRecipient={normalizeEmailRecipient(invoice.customer.email ?? "") ?? ""}
@@ -76,6 +73,8 @@ export default async function InvoiceDetailPage({
           />
         </div>
       </header>
+
+      {query.payment === "closed" ? <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Payment recorded. Invoice paid in full and closed.</p> : null}
 
       {!open && invoice.closedAt ? <p className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">Closed {formatDate(invoice.closedAt)}{invoice.deliveredAt ? ` · Vehicle delivered ${formatDate(invoice.deliveredAt)}` : ""}</p> : null}
 
@@ -118,7 +117,7 @@ export default async function InvoiceDetailPage({
             <dd>{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
             <dt className="text-slate-500">Payment Status</dt><dd className="font-medium text-slate-900">{paymentStatusLabel(paymentSummary.status)}</dd>
           </dl>
-          {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open and the vehicle must not be released while {formatMoney(receivable.balance)} remains unpaid.</p> : open && receivable?.balance.isZero() ? <p className="mt-5 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Paid in full. The invoice remains open until an authorized employee explicitly closes it.</p> : null}
+          {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open while {formatMoney(receivable.balance)} remains unpaid.</p> : null}
         </article>
       </section>
 

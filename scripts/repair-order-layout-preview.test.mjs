@@ -111,7 +111,11 @@ test("repair-order save provides pending, success, dirty, and failure feedback w
   assert.equal((form.match(/>Save</g) ?? []).length, 0);
   assert.doesNotMatch(form, /<form[^>]*>[\s\S]*<form/);
   assert.doesNotMatch(detail, /Creating an invoice makes the repair order read-only/);
-  assert.match(form, /After creating the invoice, continue final adjustments and payments on the open invoice\. Close the invoice only after it is fully paid and the vehicle has been delivered\./);
+});
+
+test("Repair Order handoff explains automatic final-payment closure", async () => {
+  const form = await read("src/components/repair-order-concerns-form.tsx");
+  assert.match(form, /After creating the invoice, continue final adjustments and payments on the open invoice\. Recording the final payment automatically closes the invoice\./);
 });
 
 test("detail and print views preserve lines and hide empty read-only sections", async () => {
