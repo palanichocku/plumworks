@@ -73,6 +73,42 @@ test("complete genuine active evidence remains explicitly human-review required"
   assert.equal(result[0].classification, "LIKELY_ACTIVE_REVIEW_REQUIRED");
 });
 
+const finalized = { "FINAL.DBF": [], "laborfinal.DBF": [], "ar.DBF": [], "finalsold.DBF": [] };
+const header = (ro = "21775", fields = {}) => ({ legacyRoNo: ro, legacyRowKey: `header:${ro}`, legacyCustno: "C", legacyCarno: "V", rawData: { RO_NO: ro, CUSTNO: "C", CARNO: "V", RO_DATE: "20260829", ODOMETER: "91705", TECH: "SUBBU", ...fields } });
+const identity = { customers: [{ deleted: false, rawData: { CUSTNO: "C" } }], vehicles: [{ deleted: false, rawData: { CUSTNO: "C", CARNO: "V" } }] };
+
+test("ordtemps-only zero-line open RO is surfaced for explicit human review", () => {
+  const result = classifyActiveOrderCandidates({ partRows: [], laborRows: [], headerRows: [header()], ...identity, finalizedRows: finalized });
+  assert.equal(result[0].classification, "ORDTEMPS_ONLY_REVIEW_REQUIRED");
+  assert.equal(result[0].ordtempsOnly, true); assert.equal(result[0].partRows, 0); assert.equal(result[0].laborRows, 0);
+});
+
+test("ordtemps finalized collision is stale evidence and never an active recommendation", () => {
+  const result = classifyActiveOrderCandidates({ partRows: [], laborRows: [], headerRows: [header()], ...identity, finalizedRows: { ...finalized, "finalsold.DBF": [{ rawData: { RO_NO: "21775" } }] } });
+  assert.equal(result[0].classification, "FINALIZED_STALE_CANDIDATE");
+});
+
+test("ordtemps candidate deduplicates with evidence already surfaced elsewhere", () => {
+  const result = classifyActiveOrderCandidates({ partRows: [row("21775", "part", { CUSTNO: "C", CARNO: "V", RO_DATE: "20260829" })], laborRows: [], headerRows: [header()], ...identity, finalizedRows: finalized });
+  assert.equal(result.length, 1); assert.equal(result[0].ordtempsOnly, false); assert.equal(result[0].classification, "LIKELY_ACTIVE_REVIEW_REQUIRED");
+});
+
+test("ordtemps missing destination Customer or Vehicle fails closed", () => {
+  const result = classifyActiveOrderCandidates({ partRows: [], laborRows: [], headerRows: [header()], customers: [], vehicles: [{ deleted: false, rawData: { CUSTNO: "C", CARNO: "V" } }], finalizedRows: finalized });
+  assert.equal(result[0].classification, "UNRESOLVED_REVIEW_REQUIRED");
+});
+
+test("ambiguous ordtemps structural identity fails closed", () => {
+  const result = classifyActiveOrderCandidates({ partRows: [], laborRows: [], headerRows: [header(), header("21775", { CUSTNO: "OTHER" })], ...identity, finalizedRows: finalized });
+  assert.equal(result[0].classification, "UNRESOLVED_REVIEW_REQUIRED");
+});
+
+test("deleted structural rows are retained as compact hashed evidence", () => {
+  const structuralPartRows = [{ deleted: true, stableRowKey: "deleted:part", evidenceSha256: "a", rawData: { RO_NO: "21775" } }];
+  const result = classifyActiveOrderCandidates({ partRows: [], laborRows: [], headerRows: [header()], structuralPartRows, ...identity, finalizedRows: finalized });
+  assert.deepEqual(result[0].structuralEvidence, [{ sourceTable: "orders.DBF", stableRowKey: "deleted:part", evidenceSha256: "a", deleted: true }]);
+});
+
 test("matching prior stale and active decisions reduce review work without authorizing the new snapshot", () => {
   const candidates = [{ roNumber: "9", stableRowKeys: ["a"] }, { roNumber: "10", stableRowKeys: ["b"] }];
   const result = compareActiveOrderBaseline({ candidates, adjudication: { activeOpenOrderDecisions: [{ roNumber: 9, expectedStableRowKeys: ["a"] }] }, resolution: { decisions: [{ roNumber: 10, sourceRows: [{ stableRowKey: "b" }] }] } });

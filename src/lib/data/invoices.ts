@@ -1,7 +1,18 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
+
+export const invoiceBusinessOrderSql = Prisma.sql`
+  i.invoice_date DESC NULLS LAST,
+  COALESCE(i.repair_order_number::bigint,
+    CASE WHEN i.legacy_ro_no ~ '^[0-9]+$' THEN i.legacy_ro_no::bigint END
+  ) DESC NULLS LAST,
+  i.repair_order_number DESC NULLS LAST,
+  i.legacy_ro_no DESC NULLS LAST,
+  i.id DESC
+`;
 
 export async function getInvoicesForCurrentShop(search?: string, page = 1) {
   const { membership } = await getCurrentMembership();
@@ -10,49 +21,30 @@ export async function getInvoicesForCurrentShop(search?: string, page = 1) {
 
   const query = search?.trim();
 
-  const invoices = await prisma.invoice.findMany({
+  const searchClause = query ? Prisma.sql`AND (
+    i.legacy_ro_no ILIKE ${`%${query}%`}
+    OR (${/^\d+$/.test(query)} AND i.repair_order_number = ${/^\d+$/.test(query) ? Number(query) : -1})
+    OR c.display_name ILIKE ${`%${query}%`}
+    OR v.make ILIKE ${`%${query}%`}
+    OR v.model ILIKE ${`%${query}%`}
+    OR v.license_plate ILIKE ${`%${query}%`}
+  )` : Prisma.empty;
+  const orderedIds = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT i.id
+    FROM invoices i
+    JOIN customers c ON c.id = i.customer_id
+    LEFT JOIN vehicles v ON v.id = i.vehicle_id
+    WHERE i.shop_id = ${membership.shopId}::uuid
+    ${searchClause}
+    ORDER BY ${invoiceBusinessOrderSql}
+    OFFSET ${(page - 1) * 50}
+    LIMIT 51
+  `);
+  const pageIds = orderedIds.slice(0, 50).map(({ id }) => id);
+  const rows = await prisma.invoice.findMany({
     where: {
-      shopId: membership.shopId,
-      ...(query
-        ? {
-            OR: [
-              { legacyRoNo: { contains: query, mode: "insensitive" as const } },
-              ...(/^\d+$/.test(query)
-                ? [{ repairOrderNumber: Number(query) }]
-                : []),
-              {
-                customer: {
-                  is: {
-                    displayName: {
-                      contains: query,
-                      mode: "insensitive" as const,
-                    },
-                  },
-                },
-              },
-              {
-                vehicle: {
-                  is: {
-                    OR: [
-                      { make: { contains: query, mode: "insensitive" as const } },
-                      { model: { contains: query, mode: "insensitive" as const } },
-                      {
-                        licensePlate: {
-                          contains: query,
-                          mode: "insensitive" as const,
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            ],
-          }
-        : {}),
+      shopId: membership.shopId, id: { in: pageIds },
     },
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * 50,
-    take: 51,
     select: {
       id: true,
       legacyRoNo: true,
@@ -77,7 +69,8 @@ export async function getInvoicesForCurrentShop(search?: string, page = 1) {
     },
   });
 
-  return { invoices: invoices.slice(0, 50), hasNext: invoices.length > 50 };
+  const byId = new Map(rows.map((invoice) => [invoice.id, invoice]));
+  return { invoices: pageIds.flatMap((id) => byId.get(id) ?? []), hasNext: orderedIds.length > 50 };
 }
 
 export async function getInvoiceForCurrentShop(id: string) {

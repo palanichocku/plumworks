@@ -3,9 +3,10 @@ import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { runSnapshotIntake } from "../legacy-snapshot-intake.mjs";
-import { loadAndValidateRecoveryApprovalV4 } from "./legacy-customer-recovery-proposal.mjs";
+import { loadAndValidateRecoveryApprovalV4, readRecoveryEvidenceDbf } from "./legacy-customer-recovery-proposal.mjs";
 import { resolveLegacySource } from "./legacy-source.mjs";
 import { loadOpenOrderSourceRows, readActiveDbfRows } from "./legacy-open-order-source.mjs";
+import { loadLegacyOpenOrderHeaders } from "./legacy-open-order-header.mjs";
 import { finalizedCollisionEvidence } from "./legacy-final-cutover-adjudication.mjs";
 import { loadFinalCutoverAdjudicationContext } from "./legacy-final-cutover-adjudication.mjs";
 import { loadFinalCutoverResolutionContext } from "./legacy-final-cutover-resolution.mjs";
@@ -19,6 +20,7 @@ export const PARALLEL_REFRESH_STATES = Object.freeze([
 export const CONSOLIDATED_SOURCE_FILES = Object.freeze([
   "Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF",
   "orders.DBF", "LABORorder.DBF", "finalsold.DBF", "finalsold.FPT",
+  "ordtemps.DBF", "ordtemps.FPT",
 ]);
 export const PARALLEL_REFRESH_CONFIRMATION = "REPLACE_PARALLEL_BASELINE_FROM_WINDOWS";
 
@@ -133,7 +135,7 @@ function text(row, fields) {
   return entry?.[1] == null ? null : String(entry[1]).trim() || null;
 }
 
-export function classifyActiveOrderCandidates({ partRows, laborRows, finalizedRows }) {
+export function classifyActiveOrderCandidates({ partRows, laborRows, headerRows = [], structuralPartRows = [], structuralLaborRows = [], customers = [], vehicles = [], finalizedRows }) {
   const rows = [
     ...partRows.map((row) => ({ ...row, sourceTable: "orders.DBF" })),
     ...laborRows.map((row) => ({ ...row, sourceTable: "LABORorder.DBF" })),
@@ -145,22 +147,44 @@ export function classifyActiveOrderCandidates({ partRows, laborRows, finalizedRo
     if (!groups.has(ro)) groups.set(ro, []);
     groups.get(ro).push(row);
   }
+  for (const header of headerRows) {
+    const ro = header.legacyRoNo?.trim();
+    if (!ro) continue;
+    if (!groups.has(ro)) groups.set(ro, []);
+  }
+  const customerIds = new Set(customers.filter((row) => !row.deleted).map((row) => text(row, ["CUSTNO", "CUSTOMERNO"])).filter(Boolean));
+  const vehicleOwners = new Map(vehicles.filter((row) => !row.deleted).map((row) => [text(row, ["CARNO", "VEHICLENO"]), text(row, ["CUSTNO", "CUSTOMERNO"])]));
   return [...groups].map(([roNumber, candidates]) => {
+    const headers = headerRows.filter((row) => row.legacyRoNo?.trim() === roNumber);
+    const structuralParts = structuralPartRows.filter((row) => row.deleted && text(row, ["RONO", "RO", "RONUMBER"]) === roNumber);
+    const structuralLabor = structuralLaborRows.filter((row) => row.deleted && text(row, ["RONO", "RO", "RONUMBER"]) === roNumber);
+    const evidence = [...candidates, ...headers.map((row) => ({ ...row, sourceTable: "ordtemps.DBF" }))];
     const collision = finalizedCollisionEvidence(roNumber, finalizedRows);
     const finalized = Object.values(collision.sourceRows).some((items) => items.length > 0);
-    const customer = candidates.map((row) => row.legacyCustno || text(row, ["CUSTNO", "CUSTOMERNO"])).find((item) => item && item !== "0") ?? null;
-    const vehicle = candidates.map((row) => row.legacyCarno || text(row, ["CARNO", "VEHICLENO"])).find(Boolean) ?? null;
-    const date = candidates.map((row) => text(row, ["RODATE"])).find((item) => /^\d{8}$/.test(item ?? "")) ?? null;
-    const classification = finalized ? "FINALIZED_STALE_CANDIDATE" : customer && vehicle && date ? "LIKELY_ACTIVE_REVIEW_REQUIRED" : "UNRESOLVED_REVIEW_REQUIRED";
+    const customerValues = new Set(evidence.map((row) => row.legacyCustno || text(row, ["CUSTNO", "CUSTOMERNO"])).filter((item) => item && item !== "0"));
+    const vehicleValues = new Set(evidence.map((row) => row.legacyCarno || text(row, ["CARNO", "VEHICLENO"])).filter(Boolean));
+    const customer = customerValues.size === 1 ? [...customerValues][0] : null;
+    const vehicle = vehicleValues.size === 1 ? [...vehicleValues][0] : null;
+    const dateValues = new Set(evidence.map((row) => text(row, ["RODATE"])).filter((item) => /^\d{8}$/.test(item ?? "")));
+    const date = dateValues.size === 1 ? [...dateValues][0] : null;
+    const identityResolved = customer && vehicle && (!customers.length && !vehicles.length || customerIds.has(customer) && vehicleOwners.get(vehicle) === customer);
+    const ordtempsOnly = candidates.length === 0 && headers.length > 0;
+    const ambiguous = headers.length > 1 || customerValues.size !== 1 || vehicleValues.size !== 1 || dateValues.size !== 1;
+    const classification = finalized ? "FINALIZED_STALE_CANDIDATE"
+      : ambiguous || !identityResolved ? "UNRESOLVED_REVIEW_REQUIRED"
+      : ordtempsOnly ? "ORDTEMPS_ONLY_REVIEW_REQUIRED"
+      : "LIKELY_ACTIVE_REVIEW_REQUIRED";
     return {
       roNumber, classification, rowCount: candidates.length,
       partRows: candidates.filter((row) => row.sourceTable === "orders.DBF").length,
       laborRows: candidates.filter((row) => row.sourceTable === "LABORorder.DBF").length,
-      customerLegacyId: customer, vehicleLegacyId: vehicle, sourceDate: date,
-      mileage: candidates.map((row) => text(row, ["ODOMETER", "MILEAGE"])).find(Boolean) ?? null,
+      ordtempsRows: headers.length, ordtempsOnly, customerLegacyId: customer, vehicleLegacyId: vehicle, identityResolved, sourceDate: date,
+      mileage: evidence.map((row) => text(row, ["ODOMETER", "MILEAGE"])).find(Boolean) ?? null,
       laborSummary: [...new Set(candidates.filter((row) => row.sourceTable === "LABORorder.DBF").map((row) => text(row, ["DESCRIPTION", "DESC", "LABOR"])).filter(Boolean))],
-      technicianSummary: [...new Set(candidates.map((row) => text(row, ["TECH", "TECHNICIAN", "MECHANIC"])).filter(Boolean))],
-      stableRowKeys: candidates.map((row) => row.legacyRowKey).sort(), finalizedCollision: collision,
+      technicianSummary: [...new Set(evidence.map((row) => text(row, ["TECH", "TECHNICIAN", "MECHANIC"])).filter(Boolean))],
+      stableRowKeys: evidence.map((row) => row.legacyRowKey).sort(),
+      structuralEvidence: [...structuralParts.map((row) => ({ sourceTable: "orders.DBF", stableRowKey: row.stableRowKey, evidenceSha256: row.evidenceSha256, deleted: true })), ...structuralLabor.map((row) => ({ sourceTable: "LABORorder.DBF", stableRowKey: row.stableRowKey, evidenceSha256: row.evidenceSha256, deleted: true }))],
+      finalizedCollision: collision,
     };
   }).sort((a, b) => Number(a.roNumber) - Number(b.roNumber));
 }
@@ -182,14 +206,20 @@ export function compareActiveOrderBaseline({ candidates, adjudication, resolutio
 }
 
 async function loadActiveEvidence(source) {
-  const [openRows, final, laborFinal, ar] = await Promise.all([
+  const [openRows, headers, allParts, allLabor, customers, vehicles, final, laborFinal, ar, finalSold] = await Promise.all([
     loadOpenOrderSourceRows(source),
+    loadLegacyOpenOrderHeaders(source),
+    readFile(source.files["orders.DBF"]).then((file) => readRecoveryEvidenceDbf(file, "rawLegacyOrderPart")),
+    readFile(source.files["LABORorder.DBF"]).then((file) => readRecoveryEvidenceDbf(file, "rawLegacyOrderLabor")),
+    readFile(source.files["Cust.DBF"]).then((file) => readRecoveryEvidenceDbf(file, "rawLegacyCustomer")),
+    readFile(source.files["vehicles.DBF"]).then((file) => readRecoveryEvidenceDbf(file, "rawLegacyVehicle")),
     readFile(source.files["FINAL.DBF"]).then(readActiveDbfRows),
     readFile(source.files["laborfinal.DBF"]).then(readActiveDbfRows),
     readFile(source.files["ar.DBF"]).then(readActiveDbfRows),
+    readFile(source.files["finalsold.DBF"]).then(readActiveDbfRows),
   ]);
   const wrap = (rows) => rows.map((rawData) => ({ rawData }));
-  return classifyActiveOrderCandidates({ ...openRows, finalizedRows: { "FINAL.DBF": wrap(final), "laborfinal.DBF": wrap(laborFinal), "ar.DBF": wrap(ar) } });
+  return classifyActiveOrderCandidates({ ...openRows, headerRows: headers, structuralPartRows: allParts, structuralLaborRows: allLabor, customers, vehicles, finalizedRows: { "FINAL.DBF": wrap(final), "laborfinal.DBF": wrap(laborFinal), "ar.DBF": wrap(ar), "finalsold.DBF": wrap(finalSold) } });
 }
 
 async function findRun(root, run) {
@@ -279,6 +309,7 @@ export async function prepareParallelRefresh(options, dependencies = {}) {
       evidencePath: join(runDirectory, "evidence", "active-ro-candidates.json"), candidates: activeCandidates.length,
       finalizedStaleCandidates: activeCandidates.filter((item) => item.classification === "FINALIZED_STALE_CANDIDATE").length,
       likelyActiveCandidates: activeCandidates.filter((item) => item.classification === "LIKELY_ACTIVE_REVIEW_REQUIRED").length,
+      ordtempsOnlyCandidates: activeCandidates.filter((item) => item.classification === "ORDTEMPS_ONLY_REVIEW_REQUIRED").length,
       unresolvedCandidates: activeCandidates.filter((item) => item.classification === "UNRESOLVED_REVIEW_REQUIRED").length,
       priorDecisionMatches: activeComparison.filter((item) => item.priorDecision !== "NO_MATCHING_PRIOR_DECISION").length,
       comparison: activeComparison,
@@ -296,7 +327,7 @@ export async function prepareParallelRefresh(options, dependencies = {}) {
 
 export function compactPrepareMarkdown(summary) {
   const r = summary.recovery, a = summary.activeOrders, c = r.comparison;
-  return `# Parallel refresh prepare\n\n- Run: ${summary.runId}\n- Status: **${summary.status}**\n- ZIP SHA-256: ${summary.zipSha256}\n- Full source fingerprint: ${summary.sourceFingerprint}\n- Schema validation: ${summary.schemaValidation}\n- Customer candidates: ${r.customerCandidates} (${c.customers?.newCandidates ?? r.customerCandidates} new, ${c.customers?.unchangedCandidates ?? 0} baseline matches)\n- Vehicle candidates: ${r.vehicleCandidates} (${c.vehicles?.newCandidates ?? r.vehicleCandidates} new, ${c.vehicles?.unchangedCandidates ?? 0} baseline matches)\n- Active-RO candidates: ${a.candidates}; finalized/stale=${a.finalizedStaleCandidates}; likely-active=${a.likelyActiveCandidates}; unresolved=${a.unresolvedCandidates}\n- Production writes: 0\n\nDetailed evidence: ${dirname(a.evidencePath)}\n`;
+  return `# Parallel refresh prepare\n\n- Run: ${summary.runId}\n- Status: **${summary.status}**\n- ZIP SHA-256: ${summary.zipSha256}\n- Full source fingerprint: ${summary.sourceFingerprint}\n- Schema validation: ${summary.schemaValidation}\n- Customer candidates: ${r.customerCandidates} (${c.customers?.newCandidates ?? r.customerCandidates} new, ${c.customers?.unchangedCandidates ?? 0} baseline matches)\n- Vehicle candidates: ${r.vehicleCandidates} (${c.vehicles?.newCandidates ?? r.vehicleCandidates} new, ${c.vehicles?.unchangedCandidates ?? 0} baseline matches)\n- Active-RO candidates: ${a.candidates}; finalized/stale=${a.finalizedStaleCandidates}; likely-active=${a.likelyActiveCandidates}; ordtemps-only=${a.ordtempsOnlyCandidates ?? 0}; unresolved=${a.unresolvedCandidates}\n- Production writes: 0\n\nDetailed evidence: ${dirname(a.evidencePath)}\n`;
 }
 
 export async function reviewParallelRefresh({ run, runRoot, config, repositoryRoot = process.cwd() }) {
@@ -322,7 +353,7 @@ export async function reviewParallelRefresh({ run, runRoot, config, repositoryRo
     } catch { return false; }
   };
   const staleReady = await validateOptional(summary.activeOrders.finalizedStaleCandidates > 0, paths.staleAdjudication, loadFinalCutoverAdjudicationContext);
-  const resolutionReady = await validateOptional(summary.activeOrders.likelyActiveCandidates + summary.activeOrders.unresolvedCandidates > 0, paths.activeResolution, loadFinalCutoverResolutionContext);
+  const resolutionReady = await validateOptional(summary.activeOrders.likelyActiveCandidates + summary.activeOrders.unresolvedCandidates + (summary.activeOrders.ordtempsOnlyCandidates ?? 0) > 0, paths.activeResolution, loadFinalCutoverResolutionContext);
   const activeArtifactsReady = staleReady && resolutionReady;
   return { directory, summary, paths, recoveryValid, staleReady, resolutionReady, activeArtifactsReady, ready: recoveryValid && activeArtifactsReady };
 }

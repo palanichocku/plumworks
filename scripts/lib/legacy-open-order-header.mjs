@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { evidenceHash } from "./legacy-snapshot-evidence.mjs";
 
 const decoder = new TextDecoder("windows-1252");
 
@@ -30,7 +31,7 @@ function memo(value, memoFile) {
   return decoder.decode(memoFile.subarray(offset + 8, offset + 8 + length)).replaceAll("\0", "").trim() || null;
 }
 
-export function readLegacyOpenOrderHeaders(dbfFile, memoFile) {
+export function readLegacyOpenOrderHeaders(dbfFile, memoFile, includeEvidence = false) {
   const recordCount = dbfFile.readUInt32LE(4);
   const headerLength = dbfFile.readUInt16LE(8);
   const recordLength = dbfFile.readUInt16LE(10);
@@ -49,7 +50,16 @@ export function readLegacyOpenOrderHeaders(dbfFile, memoFile) {
         : decoder.decode(value).trim() || null;
     }
     const legacyRoNo = typeof rawData.RO_NO === "string" ? rawData.RO_NO.trim() || null : null;
-    if (legacyRoNo) rows.push({ legacyRoNo, rawData });
+    if (legacyRoNo) rows.push(includeEvidence ? {
+      legacyRoNo,
+      legacyCustno: typeof rawData.CUSTNO === "string" ? rawData.CUSTNO.trim() || null : null,
+      legacyCarno: typeof rawData.CARNO === "string" ? rawData.CARNO.trim() || null : null,
+      physicalRecordNumber: index + 1,
+      deleted: false,
+      rawData,
+      evidenceSha256: evidenceHash(rawData),
+      legacyRowKey: `rawLegacyOpenOrderHeader:${evidenceHash(rawData).slice(0, 24)}:1`,
+    } : { legacyRoNo, rawData });
   }
   return rows;
 }
@@ -59,5 +69,5 @@ export async function loadLegacyOpenOrderHeaders(source) {
     readFile(source.files["ordtemps.DBF"]),
     readFile(source.files["ordtemps.FPT"]),
   ]);
-  return readLegacyOpenOrderHeaders(dbfFile, memoFile);
+  return readLegacyOpenOrderHeaders(dbfFile, memoFile, true);
 }
