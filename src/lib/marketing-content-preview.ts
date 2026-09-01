@@ -3,6 +3,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { encodeServiceContent } from "@/lib/marketing-service-content";
+import { isClientAssetUrl, type MarketingMedia } from "@/lib/marketing-media";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -35,6 +36,18 @@ function text(value: unknown, name: string, required = false): string | null {
 
 function order(value: unknown): number { return Number.isInteger(value) ? value as number : 0; }
 
+function clientAsset(value: unknown, name: string, required = false): string | null {
+  const imageUrl = text(value, name, required);
+  if (imageUrl && !isClientAssetUrl(imageUrl)) throw new Error(`${name} must use a local client asset path.`);
+  return imageUrl;
+}
+
+function publicImage(value: unknown, name: string): string | null {
+  const imageUrl = text(value, name);
+  if (imageUrl && !isClientAssetUrl(imageUrl) && !imageUrl.startsWith("https://")) throw new Error(`${name} must use HTTPS or a local client asset path.`);
+  return imageUrl;
+}
+
 function slug(value: unknown, name: string): string {
   const normalized = text(value, name, true)!;
   if (!SLUG.test(normalized)) throw new Error(`${name} is invalid.`);
@@ -64,7 +77,19 @@ export function parseMarketingContentPreview(value: unknown) {
     historyLabel: text(rawOwner.historyLabel, "aboutOwner.historyLabel"),
     principles: list(rawOwner.principles, "aboutOwner.principles").map((item, index) => text(item, `aboutOwner.principles[${index}]`, true)!),
   } : null;
-  if (aboutOwner?.imageUrl && !aboutOwner.imageUrl.startsWith("/client-assets/")) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
+  if (aboutOwner?.imageUrl && !isClientAssetUrl(aboutOwner.imageUrl)) throw new Error("aboutOwner.imageUrl must use a local client asset path.");
+  const media = list(document.media, "media").map((value, index): MarketingMedia => {
+    const item = record(value, `media[${index}]`);
+    return {
+      slot: slug(item.slot, `media[${index}].slot`),
+      imageUrl: clientAsset(item.imageUrl, `media[${index}].imageUrl`, true)!,
+      alt: text(item.alt, `media[${index}].alt`, true)!,
+      heading: text(item.heading, `media[${index}].heading`),
+      body: text(item.body, `media[${index}].body`),
+      objectPosition: text(item.objectPosition, `media[${index}].objectPosition`),
+    };
+  });
+  if (new Set(media.map((item) => item.slot)).size !== media.length) throw new Error("media slots must be unique.");
   const settings = {
     headline: text(rawSettings.headline, "settings.headline"),
     subheadline: text(rawSettings.subheadline, "settings.subheadline"),
@@ -96,11 +121,10 @@ export function parseMarketingContentPreview(value: unknown) {
   });
   const gallery = list(document.gallery, "gallery").map((value, index) => {
     const item = record(value, `gallery[${index}]`);
-    const imageUrl = text(item.imageUrl, `gallery[${index}].imageUrl`);
-    if (imageUrl && !imageUrl.startsWith("https://")) throw new Error(`gallery[${index}].imageUrl must use HTTPS.`);
-    return { id: `preview-gallery-${index}`, title: text(item.title, `gallery[${index}].title`, true)!, caption: text(item.caption, `gallery[${index}].caption`), imageUrl, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
+    const imageUrl = publicImage(item.imageUrl, `gallery[${index}].imageUrl`);
+    return { id: `preview-gallery-${index}`, title: text(item.title, `gallery[${index}].title`, true)!, caption: text(item.caption, `gallery[${index}].caption`), alt: text(item.alt, `gallery[${index}].alt`), imageUrl, active: item.active !== false, sortOrder: order(item.sortOrder), previewIndex: index };
   });
-  return { brandName, settings, aboutOwner, pages, services, coupons, testimonials, gallery };
+  return { brandName, settings, aboutOwner, media, pages, services, coupons, testimonials, gallery };
 }
 
 export async function getMarketingContentPreview(environment: PreviewEnvironment = process.env): Promise<MarketingContentPreview | null> {

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { AttributionLink } from "@/components/marketing/attribution-link";
 import { OwnerPortrait } from "@/components/marketing/owner-portrait";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
-import { getMarketingAboutOwner, getMarketingCoupons, getMarketingGallery, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
+import { getMarketingAboutOwner, getMarketingCoupons, getMarketingMedia, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
 import { autoRepairJsonLd, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd } from "@/lib/marketing-seo";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -14,15 +15,16 @@ export async function generateMetadata(): Promise<Metadata> {
 const focusRing = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30 focus-visible:ring-offset-2";
 
 export default async function MarketingHome() {
-  const [shop, seoShop, settings, owner, services, coupons, testimonials, gallery] = await Promise.all([
-    getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(),
+  const [shop, seoShop, settings, owner, services, coupons, testimonials, media] = await Promise.all([
+    getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingMedia(),
   ]);
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
   const featuredServices = services.filter((service) => service.name.trim() && service.summary.trim()).slice(0, 6);
   const activeTestimonials = testimonials.filter((item) => !item.id.startsWith("fallback-") && item.quote.trim()).slice(0, 3);
   const activeCoupon = coupons.find((item) => !item.id.startsWith("fallback-") && item.title.trim() && item.body.trim());
-  const heroImage = gallery.find((item) => !item.id.startsWith("fallback-") && (item.imageUrl?.startsWith("https://") || item.imageUrl?.startsWith("/")));
+  const primaryMedia = media.find((item) => item.slot === "home-primary");
+  const secondaryMedia = media.find((item) => item.slot === "home-secondary");
   const jsonLd = autoRepairJsonLd(seoShop);
 
   return <>
@@ -45,9 +47,11 @@ export default async function MarketingHome() {
             </dl>
           </div>
         </div>
-        {heroImage ? <div role="img" aria-label={heroImage.title} className="min-h-80 bg-slate-800 bg-cover bg-center lg:min-h-full" style={{ backgroundImage: `linear-gradient(180deg, rgb(15 23 42 / .08), rgb(15 23 42 / .38)), url(${JSON.stringify(heroImage.imageUrl)})` }} /> : <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start with what you notice</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">Share the warning light, sound, maintenance need, or driving concern. The shop can help plan the next step.</p></div></div>}
+        <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start with what you notice</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">Share the warning light, sound, maintenance need, or driving concern. The shop can help plan the next step.</p></div></div>
       </div>
     </section>
+
+    {primaryMedia ? <section className="bg-white"><div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-8"><div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-100 shadow-sm"><Image src={primaryMedia.imageUrl} alt={primaryMedia.alt} fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover" style={{ objectPosition: primaryMedia.objectPosition ?? "center" }} /></div><div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Inside the business</p>{primaryMedia.heading ? <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{primaryMedia.heading}</h2> : null}{primaryMedia.body ? <p className="mt-5 text-lg leading-8 text-slate-600">{primaryMedia.body}</p> : null}</div></div></section> : null}
 
     {featuredServices.length ? <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <div className="max-w-3xl"><p className="text-sm font-black uppercase tracking-widest text-orange-700">Core services</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Help for common vehicle needs</h2><p className="mt-4 text-lg leading-8 text-slate-600">{settings.serviceIntro}</p></div>
@@ -62,6 +66,8 @@ export default async function MarketingHome() {
         {(owner?.principles.length ? owner.principles : ["Discuss the concern and review the shop’s recommendation before deciding how to proceed."]).map((body, index) => <article key={body} className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="font-black text-slate-950">{["Start with the concern", "Explain the findings", "Customer approval before work"][index] ?? "Clear next steps"}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{body}</p></article>)}
       </div>
     </div></section>
+
+    {secondaryMedia ? <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8"><figure className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="relative aspect-[16/7]"><Image src={secondaryMedia.imageUrl} alt={secondaryMedia.alt} fill sizes="(min-width: 1280px) 1152px, 100vw" className="object-cover" style={{ objectPosition: secondaryMedia.objectPosition ?? "center" }} /></div>{secondaryMedia.heading || secondaryMedia.body ? <figcaption className="p-6 sm:p-8">{secondaryMedia.heading ? <h2 className="text-2xl font-black">{secondaryMedia.heading}</h2> : null}{secondaryMedia.body ? <p className="mt-3 leading-7 text-slate-600">{secondaryMedia.body}</p> : null}</figcaption> : null}</figure></section> : null}
 
     <section className="border-y border-slate-200 bg-stone-100"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <div className="max-w-3xl"><p className="text-sm font-black uppercase tracking-widest text-orange-700">How requesting service works</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A request starts the conversation</h2><p className="mt-4 text-slate-600">Your request is not an automatically confirmed appointment. The shop will contact you before timing is finalized.</p></div>

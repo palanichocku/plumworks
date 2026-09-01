@@ -8,7 +8,8 @@ const moduleDirectory = await mkdtemp(join(tmpdir(), "marketing-preview-module-"
 const moduleFile = join(moduleDirectory, "marketing-content-preview.ts");
 const moduleSource = await readFile(new URL("../src/lib/marketing-content-preview.ts", import.meta.url), "utf8");
 await writeFile(join(moduleDirectory, "marketing-service-content.ts"), await readFile(new URL("../src/lib/marketing-service-content.ts", import.meta.url), "utf8"));
-await writeFile(moduleFile, moduleSource.replace('import "server-only";\n\n', "").replace('from "@/lib/marketing-service-content"', 'from "./marketing-service-content.ts"'));
+await writeFile(join(moduleDirectory, "marketing-media.ts"), await readFile(new URL("../src/lib/marketing-media.ts", import.meta.url), "utf8"));
+await writeFile(moduleFile, moduleSource.replace('import "server-only";\n\n', "").replace('from "@/lib/marketing-service-content"', 'from "./marketing-service-content.ts"').replace('from "@/lib/marketing-media"', 'from "./marketing-media.ts"'));
 const { getMarketingContentPreview, marketingContentPreviewEnabled, parseMarketingContentPreview } = await import(moduleFile);
 
 const validDocument = {
@@ -41,6 +42,7 @@ test("valid deployment content is normalized without inventing optional records"
   assert.deepEqual(preview.coupons, []);
   assert.deepEqual(preview.testimonials, []);
   assert.deepEqual(preview.gallery, []);
+  assert.deepEqual(preview.media, []);
   assert.equal(preview.aboutOwner, null);
 });
 
@@ -49,7 +51,7 @@ test("active optional preview records receive non-fallback identities for existi
     ...validDocument,
     coupons: [{ title: "Active offer", body: "Offer body", active: true, sortOrder: 1 }, { title: "Inactive offer", body: "Hidden", active: false, sortOrder: 2 }],
     testimonials: [{ quote: "Approved review", active: true, sortOrder: 1 }],
-    gallery: [{ title: "Shop exterior", imageUrl: "https://example.test/shop.jpg", active: true, sortOrder: 1 }],
+    gallery: [{ title: "Shop exterior", imageUrl: "/client-assets/example/shop.jpg", active: true, sortOrder: 1 }],
   });
   assert.equal(preview.coupons[0].id, "preview-coupon-0");
   assert.equal(preview.coupons[1].active, false);
@@ -63,7 +65,9 @@ test("Car Doc owner content passes the shared content-file validator", async () 
   const preview = parseMarketingContentPreview(JSON.parse(await readFile(file, "utf8")));
   assert.equal(preview.aboutOwner?.name, "Subbu Veerappan");
   assert.equal(preview.brandName, "Car Doc");
-  assert.equal(preview.aboutOwner?.imageUrl, null);
+  assert.equal(preview.aboutOwner?.imageUrl, "/client-assets/cardoc/subbu-owner-portrait.jpg");
+  assert.equal(preview.media.length, 6);
+  assert.equal(preview.gallery.length, 8);
   assert.equal(preview.services.length, 10);
   assert.ok(preview.services.every((service) => service.detail.startsWith('{"version":1')));
 });
@@ -89,7 +93,7 @@ test("preview feeds every public content loader and the banner exposes no file p
     readFile(new URL("../src/components/marketing/marketing-shell.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/app/sitemap.ts", import.meta.url), "utf8"),
   ]);
-  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 8);
+  assert.equal((loaders.match(/await getMarketingContentPreview\(\)/g) ?? []).length, 9);
   assert.ok((loaders.match(/filter\(\(item\) => item\.active\)/g) ?? []).length >= 4);
   assert.match(layout, /previewMode=\{marketingContentPreviewEnabled\(\)\}/);
   assert.match(shell, /Local marketing-content preview — database content is not being used/);

@@ -40,13 +40,13 @@ test("homepage renders no empty service grid and limits prioritized active servi
   assert.match(home, /href="\/services"/);
 });
 
-test("placeholder or empty reviews, coupons, and gallery items never render", () => {
+test("placeholder reviews and coupons never render and deployment media remains optional", () => {
   assert.match(home, /activeTestimonials = testimonials\.filter\(\(item\) => !item\.id\.startsWith\("fallback-"\) && item\.quote\.trim\(\)\)\.slice\(0, 3\)/);
   assert.match(home, /activeCoupon = coupons\.find\(\(item\) => !item\.id\.startsWith\("fallback-"\) && item\.title\.trim\(\) && item\.body\.trim\(\)\)/);
-  assert.match(home, /heroImage = gallery\.find\(\(item\) => !item\.id\.startsWith\("fallback-"\)/);
+  assert.match(home, /primaryMedia = media\.find\(\(item\) => item\.slot === "home-primary"\)/);
   assert.match(home, /\{activeTestimonials\.length \? <section/);
   assert.match(home, /\{activeCoupon \? <section/);
-  assert.match(home, /heroImage \? <div role="img"/);
+  assert.match(home, /\{primaryMedia \? <section/);
   assert.doesNotMatch(home, /Review placeholder|Photo placeholder|Ask About Current Offers/);
 });
 

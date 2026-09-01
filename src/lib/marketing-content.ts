@@ -7,6 +7,8 @@ import { marketingServices } from "@/lib/marketing-services";
 import { marketingContentTablesAvailable } from "@/lib/marketing-schema";
 import { getMarketingContentPreview } from "@/lib/marketing-content-preview";
 import { decodeServiceDetail } from "@/lib/marketing-service-content";
+import { decodeGalleryCaption } from "@/lib/marketing-gallery-content";
+import { decodeMarketingMedia } from "@/lib/marketing-media";
 
 export const fallbackMarketingSettings = {
   headline: "Auto repair built around trust.",
@@ -28,7 +30,7 @@ export const fallbackPages = {
 
 export const fallbackCoupons = [{ id: "fallback-maintenance", title: "Ask About Current Offers", body: "Contact the shop to learn whether a current maintenance or service offer applies to your visit.", terms: "Availability and terms are confirmed by the shop." }];
 export const fallbackTestimonials = [{ id: "fallback-review", quote: "Verified customer feedback will appear here after shop approval.", attribution: "Review placeholder", rating: null }];
-export const fallbackGallery = ["Front of shop", "Customer area", "Service bays", "Team at work", "Diagnostic equipment", "Community moment"].map((title, index) => ({ id: `fallback-${index}`, title, caption: null, imageUrl: null }));
+export const fallbackGallery = ["Front of shop", "Customer area", "Service bays", "Team at work", "Diagnostic equipment", "Community moment"].map((title, index) => ({ id: `fallback-${index}`, title, caption: null, alt: null, imageUrl: null }));
 
 export const getMarketingSettings = cache(async () => {
   const preview = await getMarketingContentPreview();
@@ -64,6 +66,17 @@ export const getMarketingAboutOwner = cache(async () => {
     if (typeof biography !== "string" || (imageUrl != null && (typeof imageUrl !== "string" || !imageUrl.startsWith("/client-assets/"))) || (imageAlt != null && typeof imageAlt !== "string")) return null;
     return { heading: page.eyebrow, name: page.title, role: page.description, biography, imageUrl: typeof imageUrl === "string" ? imageUrl : null, imageAlt: typeof imageAlt === "string" ? imageAlt : null, homepageSummary: typeof homepageSummary === "string" ? homepageSummary : null, historyLabel: typeof historyLabel === "string" ? historyLabel : null, principles: Array.isArray(principles) ? principles.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [] };
   } catch { return null; }
+});
+
+export const getMarketingMedia = cache(async () => {
+  const preview = await getMarketingContentPreview();
+  if (preview) return preview.media;
+  const shop = await getPublicShop();
+  if (!shop.id || !await marketingContentTablesAvailable()) return [];
+  try {
+    const page = await prisma.marketingPage.findFirst({ where: { shopId: shop.id, slug: "marketing-media", active: true }, select: { body: true } });
+    return decodeMarketingMedia(page?.body);
+  } catch { return []; }
 });
 
 export const getMarketingBrandName = cache(async (): Promise<string | null> => {
@@ -111,11 +124,12 @@ export const getMarketingTestimonials = cache(async () => {
 
 export const getMarketingGallery = cache(async () => {
   const preview = await getMarketingContentPreview();
-  if (preview) return preview.gallery.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title) || left.previewIndex - right.previewIndex).map(({ id, title, caption, imageUrl }) => ({ id, title, caption, imageUrl }));
+  if (preview) return preview.gallery.filter((item) => item.active).sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title) || left.previewIndex - right.previewIndex).map(({ id, title, caption, alt, imageUrl }) => ({ id, title, caption, alt, imageUrl }));
   const shop = await getPublicShop();
   if (!shop.id || !await marketingContentTablesAvailable()) return fallbackGallery;
   try {
-    return await prisma.marketingGalleryItem.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, caption: true, imageUrl: true } });
+    const rows = await prisma.marketingGalleryItem.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ sortOrder: "asc" }, { title: "asc" }], select: { id: true, title: true, caption: true, imageUrl: true } });
+    return rows.map(({ caption, ...item }) => ({ ...item, ...decodeGalleryCaption(caption) }));
   } catch {
     return fallbackGallery;
   }

@@ -51,7 +51,7 @@ test("About scopes the credential to Subbu and uses approved customer-specific p
   assert.match(about, /owner\.principles/);
   assert.match(about, /owner\.historyLabel/);
   assert.match(about, /<OwnerPortrait name=\{owner\.name\}/);
-  assert.equal(owner.imageAlt, undefined);
+  assert.equal(owner.imageAlt, "Subbu, owner of Car Doc, inside the repair shop");
   assert.doesNotMatch(about, /all technicians.*ASE|ASE-certified shop/i);
 });
 
@@ -65,9 +65,10 @@ test("contact retains authoritative location, hours, tracked phone, and lightwei
   assert.match(contact, /Get Directions/);
 });
 
-test("reviews and photos remain genuine-data-only and hidden while empty", () => {
+test("reviews remain genuine-data-only and approved photos make the gallery visible", () => {
   assert.deepEqual(content.testimonials, []);
-  assert.deepEqual(content.gallery, []);
+  assert.equal(content.gallery.length, 8);
+  assert.equal(content.gallery[0].caption, "Subbu at work in the Car Doc service bay");
   assert.equal(content.settings.reviewUrl, null);
   assert.match(loader, /fallbackTestimonials[\s\S]*rating: null/);
   assert.doesNotMatch(reviews, /rating \?\? 5/);

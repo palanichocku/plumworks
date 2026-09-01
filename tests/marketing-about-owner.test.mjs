@@ -19,6 +19,8 @@ test("Car Doc config contains the complete optional owner content without changi
     name: "Subbu Veerappan",
     role: "Owner and ASE Master Technician",
     biography: "Subbu Veerappan is the owner of Car Doc, serving drivers in Sterling Heights and nearby communities. Car Doc has provided automotive maintenance and repair services in the area since 2009.\n\nSubbu believes customers should receive clear explanations and practical recommendations before repair work begins. Whether the vehicle needs routine maintenance, diagnostics, or a more involved repair, his focus is on helping customers understand their options and keeping their vehicles safe and reliable.",
+    imageUrl: "/client-assets/cardoc/subbu-owner-portrait.jpg",
+    imageAlt: "Subbu, owner of Car Doc, inside the repair shop",
     homepageSummary: "Subbu leads Car Doc with a practical approach: understand the concern, evaluate the vehicle, explain the findings, and let the customer review the recommendation before work proceeds.",
     historyLabel: "Serving the Sterling Heights area since 2009",
     principles: [
@@ -35,8 +37,8 @@ test("Car Doc config contains the complete optional owner content without changi
   });
 });
 
-test("owner portrait is optional and uses a neutral initials placeholder", () => {
-  assert.equal(content.aboutOwner.imageUrl, undefined);
+test("owner portrait is deployment configured while the generic placeholder remains optional", () => {
+  assert.equal(content.aboutOwner.imageUrl, "/client-assets/cardoc/subbu-owner-portrait.jpg");
   assert.match(portrait, /data-owner-placeholder/);
   assert.match(portrait, /initials\(name\)/);
   assert.match(portrait, /if \(imageUrl\)/);
