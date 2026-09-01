@@ -18,7 +18,7 @@ test("Car Doc gallery uses the approved order, captions, alt text, and local ass
   const expected = [
     ["subbu-working-primary.jpg", "Subbu at work in the Car Doc service bay"],
     ["shop-service-bays-wide.jpg", "Inside our Sterling Heights repair shop"],
-    ["subbu-and-jon.jpg", "The Car Doc team"],
+    ["subbu-and-jon-2026.jpg", "The Car Doc team"],
     ["service-alignment-equipment.jpg", "Service and alignment equipment"],
     ["customer-entrance.jpg", "The Car Doc customer entrance"],
     ["subbu-working-secondary.jpg", "Hands-on diagnostics and repair"],
