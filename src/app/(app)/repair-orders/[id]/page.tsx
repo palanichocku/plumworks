@@ -13,6 +13,7 @@ import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
 import { canEditInternalNotes } from "@/lib/internal-notes";
 import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
+import { RepairOrderAssignmentActions } from "@/components/repair-order-assignment-dialog";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -27,6 +28,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
+  const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
   return (
@@ -46,12 +48,12 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
       /> : <RepairOrderWorkspace
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={false} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={false} canCorrectAssignment={false} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         concerns={<ConcernsSection order={order} />}
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}
@@ -62,9 +64,22 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   );
 }
 
-function OrderOverview({ order, vehicle, canEditVehicle }: { order: RepairOrder; vehicle: string; canEditVehicle: boolean }) {
+function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment }: { order: RepairOrder; vehicle: string; canEditVehicle: boolean; canCorrectAssignment: boolean }) {
   const locality = [order.customer.city, order.customer.state, order.customer.postalCode].filter(Boolean).join(", ");
-  return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Customer</h2><Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold text-slate-950">Vehicle</h2><Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link><div className="mt-3"><VehicleLicensePlateField vehicleId={order.vehicle.id} licensePlate={order.vehicle.licensePlate} context="repair-order" contextId={order.id} editable={canEditVehicle} /></div><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? order.vehicle.odometer?.toLocaleString() ?? "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl></section></div>;
+  const assignment = { customerId: order.customer.id, customerName: order.customer.displayName, vehicleId: order.vehicle.id, vehicleName: vehicle || "Vehicle details unavailable" };
+  return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold text-slate-950">Customer</h2>{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div>
+      <Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl>
+    </section>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold text-slate-950">Vehicle</h2>{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /> : null}</div>
+      <Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link>
+      <div className="mt-3"><VehicleLicensePlateField vehicleId={order.vehicle.id} licensePlate={order.vehicle.licensePlate} context="repair-order" contextId={order.id} editable={canEditVehicle} /></div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? order.vehicle.odometer?.toLocaleString() ?? "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
+    </section>
+  </div>;
 }
 
 function ConcernsSection({ order }: { order: RepairOrder }) {
