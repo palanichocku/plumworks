@@ -11,6 +11,9 @@ import { isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 import { EmailInvoiceButton } from "@/components/email-invoice-button";
 import { normalizeEmailRecipient } from "@/lib/email/invoice-email-core";
 import { invoicePaymentSummary, paymentMethodLabel, paymentPayerLabel, paymentStatusLabel } from "@/lib/invoice-payments";
+import { VoidInvoiceButton } from "@/components/void-invoice-button";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -29,7 +32,7 @@ export default async function InvoiceDetailPage({
   searchParams: Promise<{ payment?: string }>;
 }) {
   const { id } = await params;
-  const [invoice, query] = await Promise.all([getInvoiceForCurrentShop(id), searchParams]);
+  const [invoice, query, { membership }] = await Promise.all([getInvoiceForCurrentShop(id), searchParams, getCurrentMembership()]);
 
   if (!invoice) notFound();
 
@@ -43,6 +46,8 @@ export default async function InvoiceDetailPage({
   const paymentSummary = invoicePaymentSummary(invoice.total, invoice.paidTotal);
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const open = isEditableOpenInvoice(invoice);
+  const voided = invoice.status === "void";
+  const canVoid = Boolean(membership && hasPermission(membership.role, "finalize_repair_order") && invoice.legacySourceTable === null && invoice.status === "open" && invoice.payments.length === 0);
   const canRecordPayment =
     invoice.legacySourceTable === null &&
     invoice.repairOrderNumber !== null &&
@@ -64,17 +69,20 @@ export default async function InvoiceDetailPage({
           <p className="mt-2 text-sm text-slate-600">{formatDate(invoice.invoiceDate)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {canVoid ? <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={String(invoice.repairOrderNumber)} originalTotal={formatMoney(invoice.total)} /> : null}
           {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Edit Invoice</Link> : null}
           <EmailInvoiceButton
             invoiceId={invoice.id}
             defaultRecipient={normalizeEmailRecipient(invoice.customer.email ?? "") ?? ""}
-            status={open ? "Open" : "Closed"}
+            status={voided ? "Void" : open ? "Open" : "Closed"}
             printHref={`/invoices/${invoice.id}/print`}
           />
         </div>
       </header>
 
       {query.payment === "closed" ? <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Payment recorded. Invoice paid in full and closed.</p> : null}
+
+      {voided ? <div className="mt-4 rounded-xl border-2 border-red-300 bg-red-50 px-5 py-4 text-red-900"><p className="text-xl font-black tracking-widest">VOID</p><p className="mt-1 text-sm">Voided {formatDate(invoice.voidedAt)} · Reason: {invoice.voidReason?.replaceAll("_", " ").toLowerCase() ?? "Not recorded"}{invoice.voidNote ? ` · ${invoice.voidNote}` : ""}</p></div> : null}
 
       {!open && invoice.closedAt ? <p className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">Closed {formatDate(invoice.closedAt)}{invoice.deliveredAt ? ` · Vehicle delivered ${formatDate(invoice.deliveredAt)}` : ""}</p> : null}
 
@@ -110,12 +118,12 @@ export default async function InvoiceDetailPage({
             <dt className="text-slate-500">Subtotal before tax</dt><dd>{formatMoney(displaySubtotalBeforeTax)}</dd>
             {!invoice.discountAmount.isZero() ? <><dt className="text-slate-500">Discount</dt><dd>{formatMoney(invoice.discountAmount.negated())}</dd></> : null}
             <dt className="text-slate-500">Tax</dt><dd>{formatMoney(invoice.taxTotal)}</dd>
-            <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-900">Total</dt>
+            <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-900">{voided ? "Original Total" : "Total"}</dt>
             <dd className="border-t border-slate-200 pt-3 font-semibold">{formatMoney(invoice.total)}</dd>
             <dt className="text-slate-500">Paid</dt><dd>{formatMoney(invoice.paidTotal)}</dd>
-            <dt className="text-slate-500">Balance</dt>
-            <dd>{receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
-            <dt className="text-slate-500">Payment Status</dt><dd className="font-medium text-slate-900">{paymentStatusLabel(paymentSummary.status)}</dd>
+            <dt className="text-slate-500">Balance Due</dt>
+            <dd>{voided ? "$0.00" : receivable ? formatMoney(receivable.balance) : "Unavailable"}</dd>
+            <dt className="text-slate-500">Status</dt><dd className="font-medium text-slate-900">{voided ? "VOID" : paymentStatusLabel(paymentSummary.status)}</dd>
           </dl>
           {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open while {formatMoney(receivable.balance)} remains unpaid.</p> : null}
         </article>

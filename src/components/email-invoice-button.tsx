@@ -13,7 +13,7 @@ const fallbackError = "Invoice could not be emailed. Please try again.";
 export function EmailInvoiceButton({ invoiceId, defaultRecipient, status, printHref }: {
   invoiceId: string;
   defaultRecipient: string;
-  status: "Open" | "Closed";
+  status: "Open" | "Closed" | "Void";
   printHref: string;
 }) {
   const [open, setOpen] = useState(false);

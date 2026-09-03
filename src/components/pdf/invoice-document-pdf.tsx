@@ -31,6 +31,7 @@ const styles = StyleSheet.create({
   grandTotal: { borderTop: "1pt solid #000000", marginTop: 2, paddingTop: 4, fontSize: 10 },
   signature: { marginTop: 12, borderTop: "0.5pt solid #000000", paddingTop: 2 },
   footer: { marginTop: 10, paddingTop: 5, borderTop: "0.5pt solid #777777", textAlign: "center", fontSize: 7.5 },
+  voidBanner: { border: "3pt solid #991b1b", color: "#991b1b", padding: 8, marginBottom: 10, textAlign: "center", fontSize: 22, fontWeight: 700, letterSpacing: 4 },
 });
 
 function locality(city: string | null, state: string | null, postalCode: string | null) {
@@ -47,6 +48,7 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
   const customerLocality = locality(model.customer.city, model.customer.state, model.customer.postalCode);
   return <Document title={`Invoice ${model.invoiceNumber}`} author={model.shop.name}>
     <Page size="LETTER" style={styles.page} wrap>
+      {model.status === "void" ? <View style={styles.voidBanner}><Text>VOID</Text><Text style={{ fontSize: 8, letterSpacing: 0, marginTop: 3 }}>Balance due: $0.00 · Voided {model.voidedDate ?? "date unavailable"}</Text></View> : null}
       <View fixed style={styles.repeatHeader}><Text>{model.shop.name}</Text><Text>Invoice {model.invoiceNumber}</Text></View>
       <View style={styles.header}>
         <View>

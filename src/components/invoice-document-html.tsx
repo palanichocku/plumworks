@@ -13,6 +13,7 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
   const shopLocality = locality(model.shop.city, model.shop.state, model.shop.postalCode);
   const customerLocality = locality(model.customer.city, model.customer.state, model.customer.postalCode);
   return <article className="invoice-document">
+    {model.status === "void" ? <section style={{ border: "4px solid #991b1b", color: "#991b1b", padding: "12px", marginBottom: "16px", textAlign: "center", fontWeight: 900, fontSize: "28px", letterSpacing: "0.2em" }}>VOID<div style={{ fontSize: "12px", letterSpacing: "normal", marginTop: "4px" }}>Balance due: $0.00 · Voided {model.voidedDate ?? "date unavailable"}{model.voidReason ? ` · ${model.voidReason.replaceAll("_", " ")}` : ""}</div></section> : null}
     <div className="invoice-document-repeat"><span>{model.shop.name}</span><span>Invoice {model.invoiceNumber}</span></div>
     <header className="invoice-document-header">
       <address><h1>{model.shop.name}</h1>{model.shop.addressLine1 && <span>{model.shop.addressLine1}</span>}{shopLocality && <span>{shopLocality}</span>}{model.shop.phone && <span>{model.shop.phone}</span>}{model.shop.repairFacilityRegistrationNumber && <span>Repair Facility Registration: {model.shop.repairFacilityRegistrationNumber}</span>}</address>

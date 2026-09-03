@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 const invoiceDocumentSelect = {
   id: true, repairOrderNumber: true, legacyRoNo: true, legacySourceTable: true,
-  invoiceDate: true, odometer: true, status: true, closedAt: true, deliveredAt: true, createdAt: true,
+  invoiceDate: true, odometer: true, status: true, closedAt: true, deliveredAt: true, createdAt: true, voidedAt: true, voidReason: true, voidNote: true,
   customerComplaint: true, recommendation: true, partsTotal: true, laborTotal: true,
   subtotal: true, discountAmount: true, shopSuppliesAmount: true, taxTotal: true, total: true, paidTotal: true,
   shopSnapshot: true, customerSnapshot: true, vehicleSnapshot: true,
@@ -57,7 +57,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
   const customer = invoice.customer;
   const vehicle = invoice.vehicle;
   const invoiceNumber = String(invoice.repairOrderNumber ?? invoice.legacyRoNo ?? "Not assigned");
-  const balance = invoice.accountsReceivable[0]?.balance ?? invoice.total.minus(invoice.paidTotal).toDecimalPlaces(2);
+  const balance = invoice.status === "void" ? new Prisma.Decimal(0) : invoice.accountsReceivable[0]?.balance ?? invoice.total.minus(invoice.paidTotal).toDecimalPlaces(2);
   const paymentSummary = invoicePaymentSummary(invoice.total, invoice.paidTotal);
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const paymentTotals = new Map<string, Prisma.Decimal>();
@@ -78,6 +78,9 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
     createdDate: formatDate(invoice.createdAt),
     closedDate: invoice.closedAt ? formatDate(invoice.closedAt) : null,
     deliveredDate: invoice.deliveredAt ? formatDate(invoice.deliveredAt) : null,
+    voidedDate: invoice.voidedAt ? formatDate(invoice.voidedAt) : null,
+    voidReason: invoice.voidReason,
+    voidNote: invoice.voidNote,
     repairOrderReference: invoice.repairOrderNumber === null ? null : String(invoice.repairOrderNumber),
     legacyRepairOrderReference: invoice.legacyRoNo,
     shop: {
@@ -131,7 +134,7 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
     totals: {
       parts: formatMoney(invoice.partsTotal), labor: formatMoney(invoice.laborTotal), subtotal: formatMoney(invoice.subtotal), displaySubtotalBeforeTax: formatMoney(displaySubtotalBeforeTax),
       shopSupplies: formatMoney(invoice.shopSuppliesAmount), discount: formatMoney(invoice.discountAmount.negated()), tax: formatMoney(invoice.taxTotal), total: formatMoney(invoice.total),
-      amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance), paymentStatus: paymentStatusLabel(paymentSummary.status),
+      amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance), paymentStatus: invoice.status === "void" ? "VOID" : paymentStatusLabel(paymentSummary.status),
     },
     paymentMethods: [...paymentTotals.entries()].map(([method, amount]) => ({ method, amount: formatMoney(amount) })),
   };

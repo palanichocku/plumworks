@@ -88,6 +88,7 @@ export async function getCustomerForCurrentShop(id: string) {
           legacyRoNo: true,
           repairOrderNumber: true,
           invoiceDate: true,
+          status: true,
           total: true,
           parts: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, partNumber: true, vendorNameSnapshot: true } },
           vehicle: {

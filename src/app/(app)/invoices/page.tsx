@@ -112,6 +112,7 @@ export default async function InvoicesPage({
                         <span className="block text-xs font-medium text-slate-400 mt-0.5">
                           {formatDate(invoice.invoiceDate)}
                         </span>
+                        {invoice.status === "void" ? <span className="mt-1 inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">VOID</span> : null}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-slate-700 truncate max-w-[180px]">
                         {invoice.customer.displayName}
@@ -123,7 +124,7 @@ export default async function InvoicesPage({
                         {formatMoney(invoice.total)}
                       </td>
                       <td className="px-5 py-4 text-sm font-medium">
-                        {balance && Number(balance) > 0 ? (
+                        {invoice.status === "void" ? <span className="text-xs font-bold text-red-700">VOID · $0.00</span> : balance && Number(balance) > 0 ? (
                           <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100 shadow-2xs">
                             {formatMoney(balance)}
                           </span>

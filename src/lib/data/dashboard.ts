@@ -21,7 +21,7 @@ export async function getDashboardSummary() {
     prisma.customer.count({ where: { shopId, ...activeCustomerAvailability } }),
     prisma.vehicle.count({ where: { shopId, ...activeVehicleAvailability } }),
     prisma.invoice.aggregate({
-      where: { shopId, invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+      where: { shopId, status: { not: "void" }, invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
       _count: { _all: true },
       _sum: { total: true },
     }),

@@ -518,6 +518,10 @@ model Invoice {
   closedAt                       DateTime?             @map("closed_at")
   deliveredAt                    DateTime?             @map("delivered_at")
   closedByUserId                 String?               @map("closed_by_user_id") @db.Uuid
+  voidedAt                       DateTime?             @map("voided_at")
+  voidedByUserId                 String?               @map("voided_by_user_id") @db.Uuid
+  voidReason                     String?               @map("void_reason")
+  voidNote                       String?               @map("void_note") @db.Text
   customerComplaint              String?               @map("customer_complaint") @db.Text
   recommendation                 String?               @db.Text
   invoiceDate                    DateTime?             @map("invoice_date")
