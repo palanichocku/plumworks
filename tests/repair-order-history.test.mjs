@@ -142,7 +142,8 @@ test("current Repair Order mileage is stored and copied into the completed Invoi
   const createAction = await read("src/app/(app)/repair-orders/actions.ts");
   const finalization = await read("src/app/(app)/repair-orders/finalize-actions.ts");
   const newOrderForm = await read("src/components/new-repair-order-form.tsx");
-  assert.match(newOrderForm, /Mileage at service/);
+  assert.match(newOrderForm, /Current mileage/);
+  assert.match(newOrderForm, /Last recorded mileage/);
   assert.match(newOrderForm, /name="mileage" type="number" min="1"/);
   assert.match(createAction, /status: "draft",\s*odometer: mileage/);
   assert.match(finalization, /repairOrderNumber: true,\s*odometer: true/);

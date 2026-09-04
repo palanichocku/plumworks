@@ -14,6 +14,8 @@ import { RepairOrderInternalNotesPanel } from "@/components/repair-order-interna
 import { canEditInternalNotes } from "@/lib/internal-notes";
 import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
 import { RepairOrderAssignmentActions } from "@/components/repair-order-assignment-dialog";
+import { RepairOrderMileageField } from "@/components/repair-order-mileage-field";
+import { getLastRecordedMileageForVehicle } from "@/lib/data/vehicle-mileage";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -23,6 +25,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const [order, internalNotes, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getRepairOrderInternalNotesForCurrentShop(id), getCurrentMembership()]);
   if (!order || !internalNotes || internalNotes.vehicle.customerId !== internalNotes.customer.id) notFound();
+  const lastMileage = membership ? await getLastRecordedMileageForVehicle(membership.shopId, order.vehicle.id) : null;
   const editable = order.status === "draft" || order.status === "open";
   const invoice = order.invoices[0];
   const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
@@ -48,12 +51,12 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
       /> : <RepairOrderWorkspace
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={false} canCorrectAssignment={false} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         concerns={<ConcernsSection order={order} />}
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}
@@ -64,7 +67,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   );
 }
 
-function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment }: { order: RepairOrder; vehicle: string; canEditVehicle: boolean; canCorrectAssignment: boolean }) {
+function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment, lastMileage }: { order: RepairOrder; vehicle: string; canEditVehicle: boolean; canCorrectAssignment: boolean; lastMileage: { mileage: number; recordedAt: Date } | null }) {
   const locality = [order.customer.city, order.customer.state, order.customer.postalCode].filter(Boolean).join(", ");
   const assignment = { customerId: order.customer.id, customerName: order.customer.displayName, vehicleId: order.vehicle.id, vehicleName: vehicle || "Vehicle details unavailable" };
   return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -77,7 +80,8 @@ function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment }:
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold text-slate-950">Vehicle</h2>{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /> : null}</div>
       <Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link>
       <div className="mt-3"><VehicleLicensePlateField vehicleId={order.vehicle.id} licensePlate={order.vehicle.licensePlate} context="repair-order" contextId={order.id} editable={canEditVehicle} /></div>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? order.vehicle.odometer?.toLocaleString() ?? "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{lastMileage ? `${lastMileage.mileage.toLocaleString()} · ${formatDate(lastMileage.recordedAt)}` : "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
+      {canCorrectAssignment ? <RepairOrderMileageField repairOrderId={order.id} mileage={order.odometer} /> : <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-sm"><dt className="text-slate-500">Current mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? "Not recorded"}</dd></dl>}
     </section>
   </div>;
 }

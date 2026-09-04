@@ -83,8 +83,8 @@ test("the full customer collection is no longer loaded or sent to the form", () 
   assert.match(form, /<RepairOrderCustomerCombobox/);
 });
 
-test("new-customer fields, vehicle selector, mileage, and layout remain present", () => {
-  for (const marker of ["Existing Customer", "New Customer", "displayName", "Primary phone", "Additional phone (optional)", 'name="phone2"', "Select Active Vehicle", 'select id="vehicleId"', "Mileage at service", 'data-repair-order-layout="split"']) {
+test("new-customer fields, vehicle selector, current mileage, and layout remain present", () => {
+  for (const marker of ["Existing Customer", "New Customer", "displayName", "Primary phone", "Additional phone (optional)", 'name="phone2"', "Select Active Vehicle", 'select id="vehicleId"', "Current mileage", "Last recorded mileage", 'data-repair-order-layout="split"']) {
     assert.ok(form.includes(marker), `missing ${marker}`);
   }
 });

@@ -6,6 +6,7 @@ import {
   normalizeRepairOrderCustomerQuery,
   REPAIR_ORDER_CUSTOMER_SEARCH_LIMIT,
 } from "@/lib/repair-order-customer-search";
+import { getLastRecordedMileageForVehicles } from "@/lib/data/vehicle-mileage";
 
 export type RepairOrderCustomerSearchResult = {
   id: string;
@@ -21,6 +22,8 @@ export type RepairOrderCustomerSearchResult = {
     engine: string | null;
     vin: string | null;
     odometer: number | null;
+    lastRecordedMileage: number | null;
+    lastRecordedMileageAt: Date | null;
     licensePlate: string | null;
     notes: string | null;
   }>;
@@ -32,7 +35,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
   const { membership } = await getCurrentMembership();
   if (!membership) return [];
 
-  return prisma.customer.findMany({
+  const customers = await prisma.customer.findMany({
     where: {
       shopId: membership.shopId,
       archivedAt: null,
@@ -58,4 +61,10 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       },
     },
   });
+  const mileageByVehicle = await getLastRecordedMileageForVehicles(membership.shopId, customers.flatMap(({ vehicles }) => vehicles.map(({ id }) => id)));
+  return customers.map((customer) => ({ ...customer, vehicles: customer.vehicles.map((vehicle) => ({
+    ...vehicle,
+    lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null,
+    lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null,
+  })) }));
 }

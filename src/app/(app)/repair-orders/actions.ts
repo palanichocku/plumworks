@@ -9,6 +9,8 @@ import { optionalRepairOrderText } from "@/lib/repair-order-fields";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
 import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
+import { repairOrderMileageForStorage } from "@/lib/repair-order-mileage";
+import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -53,11 +55,10 @@ export async function createRepairOrder(formData: FormData) {
   const engine = vehicleEngineForStorage(formData.get("engine"));
   const licensePlate = String(formData.get("licensePlate") ?? "").trim();
   const vin = String(formData.get("vin") ?? "").trim();
-  const mileageValue = String(formData.get("mileage") ?? "").trim();
-  const mileage = mileageValue ? Number(mileageValue) : null;
+  const mileage = repairOrderMileageForStorage(formData.get("mileage"));
   const maximumYear = new Date().getFullYear() + 1;
 
-  if (mileage !== null && (!Number.isInteger(mileage) || mileage <= 0 || mileage > 10_000_000)) {
+  if (mileage === undefined) {
     redirect("/repair-orders/new?error=invalid-vehicle");
   }
 
@@ -172,6 +173,27 @@ export async function createRepairOrder(formData: FormData) {
 }
 
 export type RepairOrderSaveState = { status: "idle" | "success" | "error"; message?: string };
+
+export async function updateRepairOrderMileage(_previousState: RepairOrderSaveState, formData: FormData): Promise<RepairOrderSaveState> {
+  const repairOrderId = String(formData.get("repairOrderId") ?? "");
+  const odometer = repairOrderMileageForStorage(formData.get("mileage"));
+  if (!UUID.test(repairOrderId) || odometer === undefined) return { status: "error", message: "Enter a valid current mileage." };
+  const { user, membership } = await requirePermission("edit_draft_repair_order");
+  const updated = await prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`SELECT id FROM repair_orders WHERE id = ${repairOrderId}::uuid AND shop_id = ${membership.shopId}::uuid FOR UPDATE`;
+    const order = await transaction.repairOrder.findFirst({
+      where: { id: repairOrderId, ...operationalRepairOrderWhere(membership.shopId) },
+      select: { id: true, repairOrderNumber: true, odometer: true },
+    });
+    if (!order) return false;
+    await transaction.repairOrder.update({ where: { id: order.id }, data: { odometer } });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "repair_order_mileage_updated", "repair_order", order.id, { from: order.odometer, to: odometer }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/repair-orders/${order.id}`, contextSummary: "Repair order current mileage updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
+    return true;
+  }, { isolationLevel: "Serializable" });
+  if (!updated) return { status: "error", message: "This Repair Order is no longer editable." };
+  revalidatePath(`/repair-orders/${repairOrderId}`);
+  return { status: "success", message: "Current mileage updated." };
+}
 
 export async function updateRepairOrderConcerns(_previousState: RepairOrderSaveState, formData: FormData): Promise<RepairOrderSaveState> {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");

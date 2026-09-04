@@ -8,6 +8,7 @@ import { CustomerPhoneInput } from "@/components/customer-phone-input";
 import { RepairOrderCustomerCombobox } from "@/components/repair-order-customer-combobox";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
 import type { RepairOrderCustomerSearchResult } from "@/app/(app)/repair-orders/customer-search-actions";
+import { formatDate } from "@/lib/formatters";
 
 type VehicleSuggestion = { make: string | null; model: string | null };
 
@@ -220,9 +221,10 @@ export function NewRepairOrderForm({
             </label>
           </div>
         )}
-        {selectedVehicle ? <dl key={selectedVehicle.id} className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{selectedVehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Mileage</dt><dd className="text-slate-800">{selectedVehicle.odometer?.toLocaleString() ?? "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{selectedVehicle.engine ?? "Not recorded"}</dd></dl> : null}
-        <label className={`${labelClass} mt-4 block max-w-sm`}>Mileage at service <span className="font-normal text-slate-500">(optional)</span>
-          <input name="mileage" type="number" min="1" max="10000000" className={inputClass} />
+        {selectedVehicle ? <dl key={selectedVehicle.id} className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{selectedVehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{selectedVehicle.lastRecordedMileage === null ? "Not recorded" : `${selectedVehicle.lastRecordedMileage.toLocaleString()}${selectedVehicle.lastRecordedMileageAt ? ` · ${formatDate(selectedVehicle.lastRecordedMileageAt)}` : ""}`}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{selectedVehicle.engine ?? "Not recorded"}</dd></dl> : null}
+        <label className={`${labelClass} mt-4 block max-w-sm`}>Current mileage <span className="font-normal text-slate-500">(optional)</span>
+          <input key={`${vehicleMode}:${vehicleId}`} name="mileage" type="number" min="1" max="10000000" placeholder="Enter current mileage" className={inputClass} />
+          <span className="mt-2 block text-xs font-normal normal-case tracking-normal text-slate-500">Enter the vehicle&apos;s current odometer reading.</span>
         </label>
       </fieldset>
       </div>

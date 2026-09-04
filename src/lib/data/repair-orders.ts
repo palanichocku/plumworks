@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
+import { getLastRecordedMileageForVehicles } from "./vehicle-mileage";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -22,7 +23,8 @@ export async function getRepairOrderPrefill(customerId?: string, vehicleId?: str
     },
   });
   if (!customer || (vehicleId && !customer.vehicles.some((vehicle) => vehicle.id === vehicleId))) return null;
-  return { customer, vehicleId: vehicleId ?? customer.vehicles[0]?.id ?? null };
+  const mileageByVehicle = await getLastRecordedMileageForVehicles(membership.shopId, customer.vehicles.map(({ id }) => id));
+  return { customer: { ...customer, vehicles: customer.vehicles.map((vehicle) => ({ ...vehicle, lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null, lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null })) }, vehicleId: vehicleId ?? customer.vehicles[0]?.id ?? null };
 }
 
 export async function getRepairOrderFormOptions() {

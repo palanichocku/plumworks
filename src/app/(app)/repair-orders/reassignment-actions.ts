@@ -21,6 +21,16 @@ export async function searchRepairOrderVehicles(value: string): Promise<VehicleS
   ] }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 15, select: { id: true, customerId: true, year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true, notes: true, customer: { select: { displayName: true } } } });
 }
 
+export async function getRepairOrderCustomerVehicles(customerId: string): Promise<VehicleSearchResult[]> {
+  if (!UUID.test(customerId)) return [];
+  const { membership } = await requirePermission("edit_draft_repair_order");
+  return prisma.vehicle.findMany({
+    where: { shopId: membership.shopId, customerId, archivedAt: null, customer: { archivedAt: null } },
+    orderBy: [{ year: "desc" }, { make: "asc" }, { model: "asc" }, { id: "desc" }],
+    select: { id: true, customerId: true, year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true, notes: true, customer: { select: { displayName: true } } },
+  });
+}
+
 export type ReassignRepairOrderState = { status: "idle" | "success" | "error"; message?: string; mileageCleared?: boolean };
 export type InlineVehicleCreateState = { status: "success"; vehicle: VehicleSearchResult } | { status: "error"; message: string };
 

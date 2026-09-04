@@ -71,6 +71,16 @@ test("UI reuses customer search, searches identifying vehicle fields, confirms, 
   assert.match(page, /editable && !invoice/);
 });
 
+test("Change Vehicle initially loads active vehicles for the current shop/customer and marks the current one", async () => {
+  const [dialog, action] = await Promise.all([read("src/components/repair-order-assignment-dialog.tsx"), read("src/app/(app)/repair-orders/reassignment-actions.ts")]);
+  assert.match(dialog, /getRepairOrderCustomerVehicles\(current\.customerId\)/);
+  assert.match(dialog, /Vehicles for \{current\.customerName\}/);
+  assert.match(dialog, /item\.id === current\.vehicleId[\s\S]*Current/);
+  assert.match(action, /shopId: membership\.shopId, customerId, archivedAt: null, customer: \{ archivedAt: null \}/);
+  assert.match(dialog, /No vehicles are currently recorded for \{current\.customerName\}/);
+  assert.match(dialog, /Add new vehicle/);
+});
+
 test("customer correction offers only selected-customer vehicles and handles no-vehicle customers", async () => {
   const dialog = await read("src/components/repair-order-assignment-dialog.tsx");
   assert.match(dialog, /customer\.vehicles\.map/);
@@ -85,7 +95,7 @@ test("customer correction offers only selected-customer vehicles and handles no-
 test("inline vehicle creation preserves RO context and automatically selects the result", async () => {
   const dialog = await read("src/components/repair-order-assignment-dialog.tsx");
   assert.match(dialog, /createRepairOrderCorrectionVehicle\(formData\)/);
-  assert.match(dialog, /vehicles: \[\.\.\.selected\.vehicles, result\.vehicle\]/);
+  assert.match(dialog, /vehicles: \[\.\.\.selected\.vehicles, \{ \.\.\.result\.vehicle/);
   assert.match(dialog, /setVehicle\(result\.vehicle\)/);
   assert.match(dialog, /setAddingVehicle\(false\)/);
   assert.match(dialog, /onClick=\{\(\) => \{ setAddingVehicle\(false\)/);
