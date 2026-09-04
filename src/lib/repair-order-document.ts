@@ -13,6 +13,7 @@ const repairOrderDocumentSelect = {
   status: true,
   openedAt: true,
   closedAt: true,
+  odometer: true,
   customerComplaint: true,
   recommendation: true,
   partsTotal: true,
@@ -31,7 +32,7 @@ const repairOrderDocumentSelect = {
   } },
   vehicle: { select: {
     id: true, year: true, make: true, model: true, vin: true,
-    licensePlate: true, odometer: true,
+    licensePlate: true,
   } },
   parts: { orderBy: { createdAt: "asc" as const }, select: {
     description: true, partNumber: true, quantity: true, unitPrice: true,
@@ -70,6 +71,7 @@ function mapRepairOrderDocument(order: RepairOrderDocumentRecord) {
       email: order.customer.email,
     },
     vehicle: order.vehicle,
+    odometer: order.odometer,
     complaint: order.customerComplaint,
     recommendation: order.recommendation,
     parts: order.parts.map((part) => ({

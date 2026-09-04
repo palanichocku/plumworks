@@ -76,7 +76,7 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
           <Text style={styles.sectionTitle}>VEHICLE</Text>
           <Text>{vehicleName}</Text>
           <Value label="VIN" value={model.vehicle.vin} />
-          <Value label="License" value={model.vehicle.licensePlate} /><Value label="Mileage" value={model.vehicle.odometer?.toLocaleString()} />
+          <Value label="License" value={model.vehicle.licensePlate} /><Value label="Mileage" value={model.odometer?.toLocaleString() ?? "—"} />
         </View>
       </View>
 

@@ -20,7 +20,7 @@ export default async function PrintableOpenOrderPage({ params }: { params: Promi
   const shopLocality = [order.shop.city, order.shop.state, order.shop.postalCode].filter(Boolean).join(", ");
   const customerLocality = [order.customer.city, order.customer.state, order.customer.postalCode].filter(Boolean).join(", ");
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable";
-  const mileage = order.odometer ?? order.vehicle.odometer;
+  const mileage = order.odometer;
   const subtotal = Number(order.partsTotal) + Number(order.laborTotal);
 
   return <article className="print-page mx-auto max-w-5xl overflow-hidden rounded-2xl bg-white text-slate-950 shadow-xl print:rounded-none print:shadow-none">
