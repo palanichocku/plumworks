@@ -39,6 +39,40 @@ export default async function DashboardPage() {
 },
     { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Admin access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/admin/leads?status=NEW" },
   ] as const;
+  const overview = summary.businessOverview;
+  const comparison = (value: number | null) => value === null
+    ? "No prior-month comparison"
+    : `${value >= 0 ? "+" : ""}${value.toFixed(1)}% vs last month`;
+  const overviewCards = [
+    {
+      label: "Sales This Month",
+      value: formatMoney(overview.salesThisMonth),
+      supporting: comparison(overview.salesChangePercent),
+      href: "/reports",
+      tone: overview.salesChangePercent,
+    },
+    {
+      label: "Average Invoice",
+      value: formatMoney(overview.averageInvoiceThisMonth),
+      supporting: comparison(overview.averageInvoiceChangePercent),
+      href: "/reports",
+      tone: overview.averageInvoiceChangePercent,
+    },
+    {
+      label: "Returning Customers",
+      value: `${overview.returningCustomerRate}%`,
+      supporting: `${overview.returningCustomers} returning · ${overview.newCustomers} new`,
+      href: "/dashboard/customer-insights",
+      tone: null,
+    },
+    {
+      label: "Needs Attention",
+      value: String(overview.agedOpenRepairOrders),
+      supporting: overview.agedOpenRepairOrders === 0 ? "No ROs open > 3 days" : `${overview.agedOpenRepairOrders} open > 3 days`,
+      href: "/repair-orders",
+      tone: null,
+    },
+  ] as const;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -65,6 +99,25 @@ export default async function DashboardPage() {
           const className = "group relative flex min-h-40 flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200";
           return card.href ? <Link key={card.label} href={card.href} className={`${className} hover:-translate-y-1 hover:border-brand-primary/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20`}>{content}</Link> : <article key={card.label} className={`${className} opacity-75`}>{content}</article>;
         })}
+      </section>
+
+      <section className="space-y-4" aria-labelledby="business-overview-heading">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-widest text-brand-primary">Owner insights</p>
+          <h2 id="business-overview-heading" className="mt-1 text-xl font-black tracking-tight text-slate-950">Business Overview</h2>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewCards.map((card) => {
+            const content = <>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">{card.label}</p>
+              <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{card.value}</p>
+              <p className={`mt-2 text-xs font-semibold ${card.tone === null ? "text-slate-500" : card.tone >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{card.supporting}</p>
+              {card.label === "Returning Customers" ? <p className="mt-4 text-xs font-bold text-brand-primary">View customers →</p> : null}
+            </>;
+            const className = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200";
+            return <Link key={card.label} href={card.href} className={`${className} hover:-translate-y-0.5 hover:border-brand-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20`}>{content}</Link>;
+          })}
+        </div>
       </section>
 
       {/* --- MAIN OPERATIONAL ACTIVITY LAYOUT --- */}

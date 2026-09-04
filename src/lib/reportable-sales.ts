@@ -26,6 +26,16 @@ export function reportableSaleWhere(shopId: string, range: ReportRange): Prisma.
   };
 }
 
+export function reportableSaleBeforeWhere(shopId: string, before: Date): Prisma.InvoiceWhereInput {
+  return {
+    shopId,
+    OR: [
+      { legacySourceTable: null, status: "closed", closedAt: { lt: before } },
+      { legacySourceTable: { not: null }, invoiceDate: { lt: before } },
+    ],
+  };
+}
+
 export function reportingDateForSale(invoice: SaleDateInput) {
   return invoice.legacySourceTable === null ? invoice.closedAt : invoice.invoiceDate;
 }
