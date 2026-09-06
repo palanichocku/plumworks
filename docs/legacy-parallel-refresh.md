@@ -6,6 +6,24 @@ This wrapper coordinates the proven snapshot intake, Recovery Approval v4, activ
 
 Deployment identity and safe defaults live in `config/legacy-parallel-refresh.json`. The database URL remains environment-owned and is never written to a run artifact.
 
+## Existing-baseline adoption — zero production writes
+
+Use `legacy:parallel-refresh:adopt-baseline` only to adopt a successful cutover that predates this wrapper. A verified historical baseline is used only for source, evidence, and decision comparison. Adoption validates the immutable snapshot and manifest, source fingerprints, Recovery Approval v4, every active-RO approval or adjudication, the successful historical cutover report, verified backup evidence, provenance commits, required historical reconciliation evidence, current production database identity, Shop identity, and readable migration state.
+
+Legitimate PlumWorks business activity after the historical cutover is permitted. Adoption captures current production counts, compares them with the historical baseline, and records the resulting drift as provenance; business-count drift alone does not invalidate adoption. Historical adoption still fails closed when any required historical evidence or identity binding cannot be verified.
+
+An adopted historical baseline is comparison-only and can never authorize a destructive refresh. A new prepare run independently captures the current production reset scope, and execute requires that scope to remain unchanged through preflight and destructive execution. Adoption creates provenance-marked permanent-workflow artifacts in the existing immutable run directory and reaches `COMPLETE` only after every adoption gate passes. It neither creates approval nor executes a refresh.
+
+```sh
+npm run legacy:parallel-refresh:adopt-baseline -- \
+  --run /protected/parallel-baseline/YYYY-MM-DD/run-id \
+  --cutover-report /protected/reports/cutover.json \
+  --cutover-backup /protected/backups/cutover-id \
+  --source-cutover-commit <commit> \
+  --post-cutover-correction-artifact /protected/recovery/approved-correction.json \
+  --post-cutover-correction-commit <commit>
+```
+
 ## 1. Prepare — zero production writes
 
 ```sh

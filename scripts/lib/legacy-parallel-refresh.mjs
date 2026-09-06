@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -40,15 +40,23 @@ function validDate(date) {
 export function parseParallelRefreshArguments(command, args) {
   const common = new Set(["--config", "--run-root"]);
   const allowed = {
+    "adopt-baseline": new Set([...common, "--run", "--cutover-report", "--cutover-backup", "--source-cutover-commit", "--post-cutover-correction-artifact", "--post-cutover-correction-commit"]),
     prepare: new Set([...common, "--zip", "--windows-authority-through", "--shop-id", "--baseline-run", "--baseline-approval", "--baseline-adjudication", "--baseline-resolution"]),
     review: new Set([...common, "--run"]),
     status: new Set([...common, "--run"]),
     execute: new Set([...common, "--run", "--confirm"]),
   }[command];
-  if (!allowed) throw new Error("Command must be prepare, review, status, or execute.");
+  if (!allowed) throw new Error("Command must be adopt-baseline, prepare, review, status, or execute.");
   for (const item of args) if (item.startsWith("--") && !allowed.has(item)) throw new Error(`Unknown argument: ${item}`);
   const parsed = { command, config: value(args, "--config", false), runRoot: value(args, "--run-root", false) };
-  if (command === "prepare") {
+  if (command === "adopt-baseline") {
+    parsed.run = value(args, "--run");
+    parsed.cutoverReport = value(args, "--cutover-report");
+    parsed.cutoverBackup = value(args, "--cutover-backup");
+    parsed.sourceCutoverCommit = value(args, "--source-cutover-commit");
+    parsed.postCutoverCorrectionArtifact = value(args, "--post-cutover-correction-artifact");
+    parsed.postCutoverCorrectionCommit = value(args, "--post-cutover-correction-commit");
+  } else if (command === "prepare") {
     parsed.zip = value(args, "--zip");
     parsed.windowsAuthorityThrough = value(args, "--windows-authority-through");
     parsed.shopId = value(args, "--shop-id", false);
@@ -63,6 +71,50 @@ export function parseParallelRefreshArguments(command, args) {
     if (command === "execute") parsed.confirm = value(args, "--confirm");
   }
   return parsed;
+}
+
+export function validateExistingBaselineAdoption({ config, manifest, sourceFingerprint, report, reportPath, backupPath, production, expected, correctionSha256 }) {
+  const fail = (condition, message) => { if (!condition) throw new Error(message); };
+  fail(manifest?.snapshotDate === "2026-08-29", "Adoption snapshot date mismatch.");
+  fail(manifest?.zipSha256 === expected.zipSha256, "Adoption ZIP SHA-256 mismatch.");
+  fail(sourceFingerprint === expected.sourceFingerprint, "Adoption source fingerprint mismatch.");
+  fail(report?.status?.startsWith("PASS") && report?.mode === "cutover", "Original cutover report did not pass.");
+  fail(report?.source?.path && report?.source?.expectedCleanCounts, "Original cutover report is incomplete.");
+  fail(report?.source?.expectedCleanCounts?.customers === 3668 && report?.source?.expectedCleanCounts?.vehicles === 5239 && report?.source?.expectedCleanCounts?.invoices === 11727 && report?.source?.expectedCleanCounts?.accounts_receivable === 11727 && report?.source?.expectedCleanCounts?.payments === 11887, "Original cutover expected counts mismatch.");
+  fail(report?.verification?.verifiedAfterReload === 1 && report?.verification?.authoritativeBackupVerified === 1 && report?.criticalIssues?.length === 0, "Original cutover verification is not clean.");
+  fail(report?.lifecycle?.windowsAuthorityThrough === "2026-08-29", "Original cutover authority date mismatch.");
+  fail(correctionSha256 === expected.correctionSha256, "RO 21775 correction artifact SHA-256 mismatch.");
+  fail(production.databaseFingerprint === config.expectedDatabaseFingerprint, "Production database fingerprint mismatch.");
+  fail(production.shop?.id === config.shopId && production.shop?.name === config.shopName, "Production Shop identity mismatch.");
+  fail(production.migrations?.pending === 0 && production.migrations?.failed === 0, `Prisma migrations are not current (pending=${production.migrations?.pending ?? "unknown"}, failed=${production.migrations?.failed ?? "unknown"}).`);
+  const countDrift = Object.fromEntries(Object.entries(expected.counts).map(([key, historical]) => [key, {
+    historical, current: production.counts?.[key] ?? null,
+    delta: typeof production.counts?.[key] === "number" ? production.counts[key] - historical : null,
+  }]));
+  const currentProductionMatchesHistoricalCounts = Object.values(countDrift).every((entry) => entry.delta === 0);
+  return { reportPath, backupPath, verified: true, historicalBaseline: true, currentProductionMatchesHistoricalCounts, countDrift };
+}
+
+export async function writeAdoptedBaselineArtifacts({ directory, summary, approvalPath, stalePath, activePath, ordtempsPath, adoptedAt = new Date().toISOString() }) {
+  for (const name of ["recovery", "approvals", "evidence"]) await mkdir(join(directory, name), { recursive: true, mode: 0o700 });
+  const copies = [
+    [approvalPath, join(directory, "recovery", "customer-vehicle-recovery-approval-v4.json")],
+    [stalePath, join(directory, "approvals", "active-ro-stale-adjudication-approved.json")],
+    [activePath, join(directory, "approvals", "active-ro-resolution-approved.json")],
+    [ordtempsPath, join(directory, "approvals", "active-ro-ordtemps-resolution-approved.json")],
+  ];
+  for (const [source, target] of copies) if (resolve(source) !== resolve(target)) await copyFile(source, target, 0);
+  await writeJson(join(directory, "evidence", "recovery-candidates.json"), summary.adoptionEvidence.recovery, true);
+  await writeJson(join(directory, "evidence", "active-ro-candidates.json"), summary.adoptionEvidence.activeOrders, true);
+  const stored = { ...summary }; delete stored.adoptionEvidence;
+  await writeJson(join(directory, "prepare-summary.json"), stored, true);
+  await writeFile(join(directory, "prepare-summary.md"), compactPrepareMarkdown(stored), { flag: "wx", mode: 0o600 });
+  let state = { runId: stored.runId, createdAt: adoptedAt, adoptedExistingBaseline: true, historicalBaseline: true,
+    historicalAuthorityThrough: stored.historicalAuthorityThrough, currentProductionMatchesHistoricalCounts: stored.currentProductionMatchesHistoricalCounts,
+    currentProductionDrift: stored.currentProductionDrift, adoptedAt, history: [] };
+  for (const stage of PARALLEL_REFRESH_STATES) state = transitionRunState(state, stage, adoptedAt);
+  await writeJson(join(directory, "run-state.json"), state, true);
+  return state;
 }
 
 function expandHome(path) { return path?.startsWith("~/") ? join(homedir(), path.slice(2)) : path; }
@@ -189,23 +241,26 @@ export function classifyActiveOrderCandidates({ partRows, laborRows, headerRows 
   }).sort((a, b) => Number(a.roNumber) - Number(b.roNumber));
 }
 
-export function compareActiveOrderBaseline({ candidates, adjudication, resolution }) {
+export function compareActiveOrderBaseline({ candidates, adjudication, resolution, ordtempsResolution }) {
   const stale = new Map((adjudication?.activeOpenOrderDecisions ?? []).map((decision) => [String(decision.roNumber), decision]));
   const active = new Map((resolution?.decisions ?? []).map((decision) => [String(decision.roNumber), decision]));
+  const ordtemps = new Map((ordtempsResolution?.decisions ?? []).map((decision) => [String(decision.resolved?.roNumber), decision]));
   return candidates.map((candidate) => {
     const staleDecision = stale.get(candidate.roNumber);
     const resolutionDecision = active.get(candidate.roNumber);
+    const ordtempsDecision = ordtemps.get(candidate.roNumber);
     const staleKeys = [...(staleDecision?.expectedStableRowKeys ?? [])].sort();
     const resolutionKeys = [...(resolutionDecision?.sourceRows ?? [])].map((row) => row.stableRowKey).sort();
     const priorDecision = staleDecision && JSON.stringify(staleKeys) === JSON.stringify(candidate.stableRowKeys)
       ? "MATCHING_PRIOR_STALE_EXCLUSION"
       : resolutionDecision && JSON.stringify(resolutionKeys) === JSON.stringify(candidate.stableRowKeys)
-        ? "MATCHING_PRIOR_ACTIVE_RESOLUTION" : "NO_MATCHING_PRIOR_DECISION";
+        ? "MATCHING_PRIOR_ACTIVE_RESOLUTION"
+        : ordtempsDecision && candidate.ordtempsOnly ? "MATCHING_PRIOR_ORDTEMPS_RESOLUTION" : "NO_MATCHING_PRIOR_DECISION";
     return { roNumber: candidate.roNumber, priorDecision };
   });
 }
 
-async function loadActiveEvidence(source) {
+export async function loadActiveEvidence(source) {
   const [openRows, headers, allParts, allLabor, customers, vehicles, final, laborFinal, ar, finalSold] = await Promise.all([
     loadOpenOrderSourceRows(source),
     loadLegacyOpenOrderHeaders(source),
@@ -264,12 +319,13 @@ export async function prepareParallelRefresh(options, dependencies = {}) {
     proposalResult = { proposal: JSON.parse(await readFile(proposalPath, "utf8")) };
   }
   let baselineApproval = null;
-  let baselineAdjudication = null, baselineResolution = null;
+  let baselineAdjudication = null, baselineResolution = null, baselineOrdtempsResolution = null;
   if (options.baselineRun) {
     const baselineDirectory = await findRun(runRoot, options.baselineRun);
     baselineApproval = JSON.parse(await readFile(join(baselineDirectory, "recovery", "customer-vehicle-recovery-approval-v4.json"), "utf8"));
     try { baselineAdjudication = JSON.parse(await readFile(join(baselineDirectory, "approvals", "active-ro-stale-adjudication-approved.json"), "utf8")); } catch {}
     try { baselineResolution = JSON.parse(await readFile(join(baselineDirectory, "approvals", "active-ro-resolution-approved.json"), "utf8")); } catch {}
+    try { baselineOrdtempsResolution = JSON.parse(await readFile(join(baselineDirectory, "approvals", "active-ro-ordtemps-resolution-approved.json"), "utf8")); } catch {}
   } else if (options.baselineApproval) baselineApproval = JSON.parse(await readFile(resolve(options.baselineApproval), "utf8"));
   if (options.baselineAdjudication) baselineAdjudication = JSON.parse(await readFile(resolve(options.baselineAdjudication), "utf8"));
   if (options.baselineResolution) baselineResolution = JSON.parse(await readFile(resolve(options.baselineResolution), "utf8"));
@@ -290,7 +346,7 @@ export async function prepareParallelRefresh(options, dependencies = {}) {
     })),
   });
   const activeCandidates = await (dependencies.activeEvidence ?? loadActiveEvidence)(source);
-  const activeComparison = compareActiveOrderBaseline({ candidates: activeCandidates, adjudication: baselineAdjudication, resolution: baselineResolution });
+  const activeComparison = compareActiveOrderBaseline({ candidates: activeCandidates, adjudication: baselineAdjudication, resolution: baselineResolution, ordtempsResolution: baselineOrdtempsResolution });
   await writeJson(join(runDirectory, "evidence", "active-ro-candidates.json"), { formatVersion: 1, sourceFingerprint: source.fingerprint, candidates: activeCandidates });
   const summary = {
     formatVersion: 1, runId: basename(runDirectory), status: "READY_FOR_HUMAN_REVIEW", shopId,
@@ -377,6 +433,7 @@ export function buildParallelCutoverArguments({ summary, paths, reportDirectory 
 }
 
 export function validateParallelExecutionSafety({ config, summary, shop, databaseFingerprint, migrationStatus, currentCounts }) {
+  if (summary.historicalBaseline || summary.adoptedExistingBaseline) throw new Error("Historical adopted baselines are comparison-only and cannot authorize execution.");
   if (databaseFingerprint !== config.expectedDatabaseFingerprint) throw new Error("Production database fingerprint mismatch.");
   if (shop?.id !== config.shopId || shop?.name !== config.shopName || summary.shopId !== config.shopId) throw new Error("Production Shop identity mismatch.");
   if (migrationStatus?.pending || migrationStatus?.failed) throw new Error("Prisma migration state blocks refresh execution.");

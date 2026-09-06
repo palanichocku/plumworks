@@ -4,7 +4,36 @@ import test from "node:test";
 import {
   buildParallelCutoverArguments, buildParallelPreflightArguments, classifyActiveOrderCandidates, compareActiveOrderBaseline,
   compareRecoveryBaseline, parseParallelRefreshArguments, transitionRunState, validateParallelExecutionSafety,
+  validateExistingBaselineAdoption,
 } from "./lib/legacy-parallel-refresh.mjs";
+
+test("existing baseline adoption requires explicit provenance inputs", () => {
+  const parsed = parseParallelRefreshArguments("adopt-baseline", ["--run", "/baseline", "--cutover-report", "/report", "--cutover-backup", "/backup", "--source-cutover-commit", "abc", "--post-cutover-correction-artifact", "/correction", "--post-cutover-correction-commit", "def"]);
+  assert.equal(parsed.command, "adopt-baseline");
+  assert.equal(parsed.run, "/baseline");
+  assert.throws(() => parseParallelRefreshArguments("adopt-baseline", ["--run", "/baseline"]), /--cutover-report/);
+});
+
+test("historical adoption validates immutable evidence and platform identity while recording later business drift", () => {
+  const config = { expectedDatabaseFingerprint: "db", shopId: "shop", shopName: "CAR DOC LLC" };
+  const expected = { zipSha256: "zip", sourceFingerprint: "source", correctionSha256: "correction", counts: { customers: 3668, vehicles: 5239, invoices: 11727, accountsReceivable: 11727, payments: 11887, repairOrders: 2 }, controlTotals: { january2026: "13608.61", h1_2026: "130599.15", year2025: "273292.61" } };
+  const fixture = { config, expected, manifest: { snapshotDate: "2026-08-29", zipSha256: "zip" }, sourceFingerprint: "source", reportPath: "/report", backupPath: "/backup", correctionSha256: "correction",
+    report: { status: "PASS WITH WARNINGS", mode: "cutover", source: { path: "/source", expectedCleanCounts: { customers: 3668, vehicles: 5239, invoices: 11727, accounts_receivable: 11727, payments: 11887 } }, verification: { verifiedAfterReload: 1, authoritativeBackupVerified: 1 }, criticalIssues: [], lifecycle: { windowsAuthorityThrough: "2026-08-29" } },
+    production: { databaseFingerprint: "db", shop: { id: "shop", name: "CAR DOC LLC" }, migrations: { pending: 0, failed: 0 }, counts: expected.counts, operationalRepairOrders: [{ repairOrderNumber: 21773 }, { repairOrderNumber: 21775 }], controlTotals: expected.controlTotals, unexpectedNativeBusinessRows: 0 } };
+  assert.equal(validateExistingBaselineAdoption(fixture).verified, true);
+  const drifted = { ...fixture, production: { ...fixture.production, counts: { customers: 3675, vehicles: 5246, invoices: 11740, accountsReceivable: 11740, payments: 11896, repairOrders: 17 }, operationalRepairOrders: [{ repairOrderNumber: 21773 }, { repairOrderNumber: 21775 }, { repairOrderNumber: 21798 }, { repairOrderNumber: 21799 }], unexpectedNativeBusinessRows: 42 } };
+  const adopted = validateExistingBaselineAdoption(drifted);
+  assert.equal(adopted.verified, true);
+  assert.equal(adopted.historicalBaseline, true);
+  assert.equal(adopted.currentProductionMatchesHistoricalCounts, false);
+  assert.deepEqual(adopted.countDrift.customers, { historical: 3668, current: 3675, delta: 7 });
+  assert.deepEqual(adopted.countDrift.repairOrders, { historical: 2, current: 17, delta: 15 });
+  assert.throws(() => validateExistingBaselineAdoption({ ...fixture, production: { ...fixture.production, databaseFingerprint: "wrong" } }), /fingerprint/);
+  assert.throws(() => validateExistingBaselineAdoption({ ...fixture, production: { ...fixture.production, shop: { id: "wrong", name: "CAR DOC LLC" } } }), /Shop/);
+  assert.throws(() => validateExistingBaselineAdoption({ ...fixture, report: { ...fixture.report, status: "FAIL" } }), /cutover report/);
+  assert.throws(() => validateExistingBaselineAdoption({ ...fixture, manifest: { ...fixture.manifest, zipSha256: "changed" } }), /ZIP/);
+  assert.throws(() => validateExistingBaselineAdoption({ ...fixture, sourceFingerprint: "changed" }), /source fingerprint/);
+});
 
 const candidate = (id) => ({ candidateId: id });
 const proposal = { candidateSetSha256: "a", vehicleCandidateSetSha256: "b", candidates: [candidate("c1")], vehicleCandidates: [candidate("v1")] };
@@ -109,6 +138,35 @@ test("deleted structural rows are retained as compact hashed evidence", () => {
   assert.deepEqual(result[0].structuralEvidence, [{ sourceTable: "orders.DBF", stableRowKey: "deleted:part", evidenceSha256: "a", deleted: true }]);
 });
 
+test("known active-RO edge cases 11159, 21773, and 21775 remain explicitly classified", () => {
+  const customers = [
+    { deleted: false, rawData: { CUSTNO: "87612367" } },
+    { deleted: false, rawData: { CUSTNO: "87612072" } },
+  ];
+  const vehicles = [
+    { deleted: false, rawData: { CUSTNO: "87612367", CARNO: "87612368" } },
+    { deleted: false, rawData: { CUSTNO: "87612072", CARNO: "87612073" } },
+  ];
+  const labor21773 = row("21773", "labor", { CUSTNO: "87612367", CARNO: "87612368", RO_DATE: "20260828", ODOMETER: "178016", DESCRIPTION: "Substantive active labor" });
+  const result = classifyActiveOrderCandidates({
+    partRows: [],
+    laborRows: [row("11159", "labor", { CUSTNO: "OLD", CARNO: "OLDV", RO_DATE: "20121213" }), labor21773],
+    headerRows: [{ ...header("21775", { CUSTNO: "87612072", CARNO: "87612073" }), legacyCustno: "87612072", legacyCarno: "87612073" }],
+    structuralPartRows: [{ deleted: true, stableRowKey: "orders:21773:deleted", evidenceSha256: "p", rawData: { RO_NO: "21773" } }],
+    structuralLaborRows: [{ deleted: true, stableRowKey: "labor:21773:deleted", evidenceSha256: "l", rawData: { RO_NO: "21773" } }],
+    customers,
+    vehicles,
+    finalizedRows: { ...finalized, "FINAL.DBF": [{ rawData: { RO_NO: "11159", CUSTNO: "OLD", CARNO: "OLDV", DATE_SOLD: "20121213" } }] },
+  });
+  const known = Object.fromEntries(result.map((candidate) => [candidate.roNumber, candidate]));
+  assert.equal(known["11159"].classification, "FINALIZED_STALE_CANDIDATE");
+  assert.equal(known["21773"].classification, "LIKELY_ACTIVE_REVIEW_REQUIRED");
+  assert.deepEqual({ customer: known["21773"].customerLegacyId, vehicle: known["21773"].vehicleLegacyId, date: known["21773"].sourceDate, mileage: known["21773"].mileage, labor: known["21773"].laborRows, structural: known["21773"].structuralEvidence.length }, { customer: "87612367", vehicle: "87612368", date: "20260828", mileage: "178016", labor: 1, structural: 2 });
+  assert.equal(known["21773"].finalizedCollision.sourceRows["FINAL.DBF"].length, 0);
+  assert.equal(known["21775"].classification, "ORDTEMPS_ONLY_REVIEW_REQUIRED");
+  assert.deepEqual({ customer: known["21775"].customerLegacyId, vehicle: known["21775"].vehicleLegacyId, date: known["21775"].sourceDate, mileage: known["21775"].mileage, parts: known["21775"].partRows, labor: known["21775"].laborRows }, { customer: "87612072", vehicle: "87612073", date: "20260829", mileage: "91705", parts: 0, labor: 0 });
+});
+
 test("matching prior stale and active decisions reduce review work without authorizing the new snapshot", () => {
   const candidates = [{ roNumber: "9", stableRowKeys: ["a"] }, { roNumber: "10", stableRowKeys: ["b"] }];
   const result = compareActiveOrderBaseline({ candidates, adjudication: { activeOpenOrderDecisions: [{ roNumber: 9, expectedStableRowKeys: ["a"] }] }, resolution: { decisions: [{ roNumber: 10, sourceRows: [{ stableRowKey: "b" }] }] } });
@@ -135,6 +193,11 @@ for (const [label, change, message] of [
 ]) test(`${label} blocks execute`, () => { const value = executionFixture(); change(value); assert.throws(() => validateParallelExecutionSafety(value), message); });
 
 test("exact production identity, migrations, Shop, and reset scope pass", () => assert.equal(validateParallelExecutionSafety(executionFixture()), true));
+
+test("an adopted historical baseline is comparison-only and can never authorize execution", () => {
+  const value = executionFixture(); value.summary.historicalBaseline = true;
+  assert.throws(() => validateParallelExecutionSafety(value), /comparison-only/);
+});
 
 test("preflight is always separate and zero-write; execute retains every destructive safety gate", () => {
   const summary = { sourcePath: "/snapshot/data", shopId: "s", recovery: { proposalPath: "/proposal" }, snapshotManifest: "/manifest", windowsAuthorityThrough: "2026-09-05" };
