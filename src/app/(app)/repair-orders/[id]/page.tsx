@@ -16,6 +16,7 @@ import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-fie
 import { RepairOrderAssignmentActions } from "@/components/repair-order-assignment-dialog";
 import { RepairOrderMileageField } from "@/components/repair-order-mileage-field";
 import { getLastRecordedMileageForVehicle } from "@/lib/data/vehicle-mileage";
+import { RepairOrderHistoryButton } from "@/components/repair-order-history-button";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -72,7 +73,7 @@ function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment, l
   const assignment = { customerId: order.customer.id, customerName: order.customer.displayName, vehicleId: order.vehicle.id, vehicleName: vehicle || "Vehicle details unavailable" };
   return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2>{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2><div className="flex flex-wrap items-center justify-end gap-2"><RepairOrderHistoryButton customerId={order.customer.id} currentRepairOrderId={order.id} />{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div></div>
       <Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link>
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl>
     </section>

@@ -6,9 +6,9 @@ import Link from "next/link";
 import { loadRepairOrderHistory, loadRepairOrderHistoryDetail } from "@/app/(app)/repair-orders/history-actions";
 import type { RepairOrderHistoryCursor, RepairOrderHistoryDetail, RepairOrderHistoryRow, RepairOrderHistorySource } from "@/lib/data/repair-order-history";
 
-const emptyMessage = "No previous Repair Orders were found for this customer and vehicle.";
+const emptyMessage = "No previous Repair Orders were found for this customer.";
 
-export function RepairOrderHistoryDrawer({ currentRepairOrderId, onClose }: { currentRepairOrderId: string; onClose: () => void }) {
+export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onClose }: { customerId: string; currentRepairOrderId?: string; onClose: () => void }) {
   const [rows, setRows] = useState<RepairOrderHistoryRow[]>([]);
   const [nextCursor, setNextCursor] = useState<RepairOrderHistoryCursor | null>(null);
   const [detail, setDetail] = useState<RepairOrderHistoryDetail | null>(null);
@@ -21,7 +21,7 @@ export function RepairOrderHistoryDrawer({ currentRepairOrderId, onClose }: { cu
 
   useEffect(() => {
     let active = true;
-    void loadRepairOrderHistory(currentRepairOrderId).then((result) => {
+    void loadRepairOrderHistory(customerId, currentRepairOrderId).then((result) => {
       if (!active) return;
       if (result.ok) {
         setRows(result.rows);
@@ -30,7 +30,7 @@ export function RepairOrderHistoryDrawer({ currentRepairOrderId, onClose }: { cu
       setLoading(false);
     });
     return () => { active = false; };
-  }, [currentRepairOrderId]);
+  }, [customerId, currentRepairOrderId]);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -53,7 +53,7 @@ export function RepairOrderHistoryDrawer({ currentRepairOrderId, onClose }: { cu
   const loadMore = useCallback(async () => {
     if (nextCursor === null || loadingMore) return;
     setLoadingMore(true);
-    const result = await loadRepairOrderHistory(currentRepairOrderId, nextCursor);
+    const result = await loadRepairOrderHistory(customerId, currentRepairOrderId, nextCursor);
     if (result.ok) {
       setRows((current) => {
         const known = new Set(current.map((row) => `${row.source}:${row.id}`));
@@ -62,16 +62,16 @@ export function RepairOrderHistoryDrawer({ currentRepairOrderId, onClose }: { cu
       setNextCursor(result.nextCursor);
     } else setError(result.message);
     setLoadingMore(false);
-  }, [currentRepairOrderId, loadingMore, nextCursor]);
+  }, [customerId, currentRepairOrderId, loadingMore, nextCursor]);
 
   const showDetail = useCallback(async (source: RepairOrderHistorySource, historicalId: string) => {
     setLoading(true);
     setError(null);
-    const result = await loadRepairOrderHistoryDetail(currentRepairOrderId, source, historicalId);
+    const result = await loadRepairOrderHistoryDetail(customerId, currentRepairOrderId, source, historicalId);
     if (result.ok) setDetail(result.detail);
     else setError(result.message);
     setLoading(false);
-  }, [currentRepairOrderId]);
+  }, [customerId, currentRepairOrderId]);
 
   if (typeof document === "undefined") return null;
 
@@ -111,7 +111,7 @@ function RepairOrderHistoryList({ rows, nextCursor, loadingMore, onSelect, onLoa
         <button type="button" onClick={() => onSelect(row.source, row.id)} className="grid w-full min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-brand-primary/40 hover:bg-brand-subtle/30 focus:outline-none focus:ring-4 focus:ring-brand-primary/10 sm:grid-cols-[minmax(0,1fr)_auto]">
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-2"><span className="font-bold text-slate-950">RO #{row.number}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase text-slate-600">{row.status}</span></span>
-            <span className="mt-1 block text-sm text-slate-600">{row.date} · Mileage at service: {row.odometer ?? "Not recorded"}</span>
+            <span className="mt-1 block text-sm text-slate-600">{row.date} · {row.vehicle} · Mileage at service: {row.odometer ?? "Not recorded"}</span>
             <span className="mt-2 block truncate text-sm text-slate-800">{row.summary}</span>
           </span>
           <span className="self-center font-bold text-slate-950">{row.total}</span>

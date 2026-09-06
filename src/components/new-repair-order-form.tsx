@@ -7,6 +7,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { CustomerPhoneInput } from "@/components/customer-phone-input";
 import { RepairOrderCustomerCombobox } from "@/components/repair-order-customer-combobox";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
+import { RepairOrderHistoryButton } from "@/components/repair-order-history-button";
 import type { RepairOrderCustomerSearchResult } from "@/app/(app)/repair-orders/customer-search-actions";
 import { formatDate } from "@/lib/formatters";
 
@@ -88,6 +89,7 @@ export function NewRepairOrderForm({
       >
       <fieldset className={sectionClass}>
         <legend className="text-sm font-bold text-slate-800 tracking-wide">Customer Information</legend>
+        {customerMode === "existing" && selectedCustomer ? <div className="flex justify-end"><RepairOrderHistoryButton key={selectedCustomer.id} customerId={selectedCustomer.id} className="rounded-lg border border-brand-primary/40 bg-white px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20" /></div> : null}
         
         {/* Customer Mode Segmented Toggle */}
         <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold">

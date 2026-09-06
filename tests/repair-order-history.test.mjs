@@ -3,9 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [page, actionsUi, drawer, actions, loader, concerns, print, email] = await Promise.all([
+const [page, actionsUi, historyButton, newForm, drawer, actions, loader, concerns, print, email] = await Promise.all([
   read("src/app/(app)/repair-orders/[id]/page.tsx"),
   read("src/components/email-repair-order-button.tsx"),
+  read("src/components/repair-order-history-button.tsx"),
+  read("src/components/new-repair-order-form.tsx"),
   read("src/components/repair-order-history-drawer.tsx"),
   read("src/app/(app)/repair-orders/history-actions.ts"),
   read("src/lib/data/repair-order-history.ts"),
@@ -14,14 +16,22 @@ const [page, actionsUi, drawer, actions, loader, concerns, print, email] = await
   read("src/lib/email/repair-order-email.tsx"),
 ]);
 
-test("History remains a non-submitting in-page action ordered before Email and Print", () => {
+test("saved Repair Order uses the shared non-submitting History action in the Customer card", () => {
   assert.match(page, /<EmailRepairOrderButton/);
   const marker = actionsUi.indexOf("data-repair-order-action-row");
   const row = actionsUi.slice(actionsUi.lastIndexOf("<div", marker), actionsUi.indexOf("{success ?"));
-  assert.match(row, /\{status\}[\s\S]*History[\s\S]*Email[\s\S]*Print/);
-  assert.match(row, /ref=\{historyButtonRef\}[\s\S]*type="button"[\s\S]*setHistoryOpen\(true\)/);
-  assert.doesNotMatch(drawer + actionsUi, /router\.|window\.location|pushState|replaceState/);
-  assert.match(actionsUi, /historyOpen \? <RepairOrderHistoryDrawer/);
+  assert.match(row, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.match(page, /ro-section-heading">Customer[\s\S]*RepairOrderHistoryButton customerId=\{order\.customer\.id\} currentRepairOrderId=\{order\.id\}/);
+  assert.match(historyButton, /type="button"[\s\S]*setOpen\(true\)/);
+  assert.doesNotMatch(drawer + actionsUi + historyButton, /router\.|window\.location|pushState|replaceState/);
+  assert.match(historyButton, /open \? <RepairOrderHistoryDrawer/);
+});
+
+test("new Repair Order exposes customer History only for the selected existing customer", () => {
+  assert.match(newForm, /customerMode === "existing" && selectedCustomer \? [\s\S]*RepairOrderHistoryButton[\s\S]*customerId=\{selectedCustomer\.id\}/);
+  assert.match(newForm, /key=\{selectedCustomer\.id\}/);
+  assert.doesNotMatch(newForm, /RepairOrderHistoryButton[^>]*repairOrderId/);
+  assert.match(newForm, /function selectCustomer\([\s\S]*setSelectedCustomer\(nextCustomer\)/);
 });
 
 test("drawer preserves mounted unsaved Repair Order form state", () => {
@@ -31,17 +41,18 @@ test("drawer preserves mounted unsaved Repair Order form state", () => {
   assert.doesNotMatch(actions, /revalidatePath|redirect/);
 });
 
-test("unified query authenticates through current RO and filters both sources by exact relational IDs", () => {
+test("customer history authenticates and validates the customer against the current shop", () => {
   assert.match(loader, /const \{ user, membership \} = await getCurrentMembership\(\)/);
   assert.match(loader, /if \(!user \|\| !membership\) return null/);
-  assert.match(loader, /where: \{ id: currentRepairOrderId, shopId: membership\.shopId \}/);
-  assert.match(loader, /select: \{ id: true, customerId: true, vehicleId: true \}/);
+  assert.match(loader, /where: \{ id: customerId, shopId: membership\.shopId \}/);
+  assert.match(loader, /getCustomerHistoryScope\(customerId, currentRepairOrderId\)/);
   for (const table of ["invoices i", "repair_orders ro"]) assert.match(loader, new RegExp(`FROM ${table}`));
   for (const prefix of ["i", "ro"]) {
     assert.match(loader, new RegExp(`${prefix}\\.shop_id = \\$\\{scope\\.shopId\\}`));
     assert.match(loader, new RegExp(`${prefix}\\.customer_id = \\$\\{scope\\.customerId\\}`));
-    assert.match(loader, new RegExp(`${prefix}\\.vehicle_id = \\$\\{scope\\.vehicleId\\}`));
   }
+  assert.match(loader, /invoiceVehicleClause/);
+  assert.match(loader, /repairOrderVehicleClause/);
   assert.doesNotMatch(loader, /display_name\s*=|vin\s*=|license_plate\s*=|legacy_custno\s*=|legacy_carno\s*=/i);
 });
 
@@ -83,8 +94,8 @@ test("unified cursor contract handles mixed same-date rows and an imbalanced sou
   assert.deepEqual(records.filter((row) => row.serviceDate === "2026-01-01").map((row) => row.source), ["invoice", "invoice", "invoice", "invoice", "repairOrder", "repairOrder", "repairOrder", "repairOrder"]);
 });
 
-test("Load More uses source-aware keys and cannot collapse equal IDs or display numbers", () => {
-  assert.match(drawer, /loadRepairOrderHistory\(currentRepairOrderId, nextCursor\)/);
+test("Load More uses the live customer identity and source-aware keys", () => {
+  assert.match(drawer, /loadRepairOrderHistory\(customerId, currentRepairOrderId, nextCursor\)/);
   assert.match(drawer, /`\$\{row\.source\}:\$\{row\.id\}`/);
   assert.match(drawer, /!known\.has\(`\$\{row\.source\}:\$\{row\.id\}`\)/);
   assert.match(drawer, /nextCursor !== null/);
@@ -116,11 +127,11 @@ test("relationship fixture suppresses only linked RO and keeps equal unlinked di
 test("list includes both sources and all scan fields; invoices prevent empty state", () => {
   assert.match(loader, /source: "invoice"/);
   assert.match(loader, /source: "repairOrder"/);
-  assert.match(drawer, /No previous Repair Orders were found for this customer and vehicle\./);
-  for (const field of ["number", "status", "date", "odometer", "summary", "total"]) assert.match(drawer, new RegExp(`row\\.${field}`));
+  assert.match(drawer, /No previous Repair Orders were found for this customer\./);
+  for (const field of ["number", "status", "date", "vehicle", "odometer", "summary", "total"]) assert.match(drawer, new RegExp(`row\\.${field}`));
   assert.match(loader, /conciseSummary\(invoice, "invoice"\)/);
   assert.match(loader, /conciseSummary\(order, "repairOrder"\)/);
-  assert.match(loader, /status: "completed"/);
+  assert.match(loader, /status: invoice\.status === "void" \? "void" : "completed"/);
   assert.match(drawer, /Mileage at service: \{row\.odometer \?\? "Not recorded"\}/);
 });
 
@@ -152,8 +163,8 @@ test("current Repair Order mileage is stored and copied into the completed Invoi
 
 test("browser sends source and ID; unsupported and cross-scope details are rejected", () => {
   assert.match(drawer, /onSelect\(row\.source, row\.id\)/);
-  assert.match(drawer, /loadRepairOrderHistoryDetail\(currentRepairOrderId, source, historicalId\)/);
-  assert.match(actions, /getRepairOrderHistoryDetail\(currentRepairOrderId, source, historicalId\)/);
+  assert.match(drawer, /loadRepairOrderHistoryDetail\(customerId, currentRepairOrderId, source, historicalId\)/);
+  assert.match(actions, /getCustomerRepairOrderHistoryDetail\(customerId, currentRepairOrderId, source, historicalId\)/);
   assert.match(loader, /value === "invoice" \|\| value === "repairOrder"/);
   assert.match(loader, /if \(!isHistorySource\(source\)\) return null/);
   const invoiceDetail = loader.slice(loader.indexOf('if (source === "invoice")'), loader.indexOf("const order = await prisma.repairOrder.findFirst"));
@@ -180,7 +191,7 @@ test("drawer accessibility, form preservation, print, email, and calculations re
   assert.match(drawer, /role="dialog" aria-modal="true" aria-labelledby=\{titleId\}/);
   assert.match(drawer, /event\.key === "Escape"/);
   assert.match(drawer, /event\.key !== "Tab"/);
-  assert.match(actionsUi, /historyButtonRef\.current\?\.focus\(\)/);
+  assert.match(historyButton, /buttonRef\.current\?\.focus\(\)/);
   assert.match(print, /getRepairOrderDocumentForCurrentShop/);
   assert.match(print, /RepairOrderDocumentHTML/);
   assert.match(email, /RepairOrderDocumentPDF/);
