@@ -21,8 +21,8 @@ export function AppShell({
 }) {
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white shadow-sm print:hidden lg:hidden">
+    <div className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
+      <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:hidden">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary text-xs font-black text-white shadow-sm">
@@ -42,7 +42,7 @@ export function AppShell({
         <MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
       </header>
 
-      <aside className="fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r border-slate-200 bg-white p-6 print:hidden lg:flex lg:flex-col">
+      <aside className="app-shell-chrome app-shell-sidebar fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r p-6 print:hidden lg:flex lg:flex-col">
         <Link href="/dashboard" className="group flex shrink-0 items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-sm font-black text-white shadow-md shadow-brand-primary/20 transition-transform group-hover:scale-[1.02]">
             {shopInitials}

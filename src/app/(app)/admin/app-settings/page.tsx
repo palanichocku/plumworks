@@ -16,9 +16,9 @@ const THEMES = [
   {
     id: 'detroit',
     name: 'Motor City Slate',
-    primary: 'bg-[#1e293b]',
-    secondary: 'bg-[#0ea5e9]',
-    accent: 'bg-[#f59e0b]',
+    primary: 'bg-[#9f1239]',
+    secondary: 'bg-[#334155]',
+    accent: 'bg-[#d97706]',
   },
   {
     id: 'emerald',

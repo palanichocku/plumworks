@@ -9,7 +9,7 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
   notes: ReactNode;
   actions?: ReactNode;
 }) {
-  return <div className="ro-workspace-container min-w-0 space-y-5" data-repair-order-layout="split">
+  return <div className="ro-workspace-container ro-screen min-w-0 space-y-5 rounded-3xl border border-slate-300 bg-slate-100/80 p-3 sm:p-5" data-repair-order-layout="split">
     <div className="ro-workspace-grid grid min-w-0 items-start gap-6">
       <div className="min-w-0 space-y-6" data-ro-section="overview">{overview}</div>
       <div className="min-w-0 space-y-6" data-ro-main="true">
