@@ -5,13 +5,19 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("Repair Order descriptions use wrapping, resizable multiline controls", async () => {
+test("Repair Order Parts and Labor descriptions use compact auto-growing multiline controls", async () => {
   const [combobox, lines] = await Promise.all([
     read("src/components/historical-description-combobox.tsx"),
     read("src/components/repair-order-line-items.tsx"),
   ]);
-  assert.match(combobox, /multiline \? <textarea/);
-  assert.match(lines, /min-h-24 resize-y whitespace-pre-wrap break-words leading-6/);
+  assert.match(combobox, /textarea\.rows = 1/);
+  assert.match(combobox, /textarea\.style\.height = "auto"/);
+  assert.match(combobox, /Math\.min\(textarea\.scrollHeight, maximum\)/);
+  assert.match(combobox, /textarea\.style\.overflowY = textarea\.scrollHeight > maximum \? "auto" : "hidden"/);
+  assert.match(combobox, /maxVisibleRows = 5/);
+  assert.match(combobox, /useLayoutEffect\(\(\) => \{ if \(enabled\) resize\(\); \}, \[enabled, resize, value\]\)/);
+  assert.match(lines, /resize-none overflow-y-hidden whitespace-pre-wrap break-words leading-6/);
+  assert.ok((lines.match(/autoGrow/g) ?? []).length >= 2);
   assert.ok((lines.match(/multiline/g) ?? []).length >= 3);
   assert.doesNotMatch(lines, /truncate|line-clamp/);
 });

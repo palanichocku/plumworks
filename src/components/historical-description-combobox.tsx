@@ -1,13 +1,41 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { searchHistoricalDescriptions } from "@/app/(app)/repair-orders/description-history-actions";
 import { HISTORICAL_DESCRIPTION_MIN_CHARS, normalizeHistoricalDescription, type HistoricalDescriptionKind, type HistoricalDescriptionSuggestion } from "@/lib/historical-descriptions";
 
 const DEBOUNCE_MS = 275;
 
-export function HistoricalDescriptionCombobox({ kind, value, onChange, label = "Description", placeholder, inputClass, rowKey, multiline = false }: { kind: HistoricalDescriptionKind; value: string; onChange: (value: string) => void; label?: string; placeholder?: string; inputClass: string; rowKey: string; multiline?: boolean }) {
+function useAutoGrowingTextarea(inputId: string, value: string, enabled: boolean, maxVisibleRows = 5) {
+  const resize = useCallback(() => {
+    const textarea = document.getElementById(inputId) as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    textarea.rows = 1;
+    textarea.style.height = "auto";
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
+    const chrome = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom) + Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth);
+    const maximum = (lineHeight * maxVisibleRows) + chrome;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maximum)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maximum ? "auto" : "hidden";
+  }, [inputId, maxVisibleRows]);
+
+  useLayoutEffect(() => { if (enabled) resize(); }, [enabled, resize, value]);
+  useEffect(() => {
+    if (!enabled) return;
+    const textarea = document.getElementById(inputId) as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    textarea.addEventListener("input", resize);
+    if (typeof ResizeObserver === "undefined") return () => textarea.removeEventListener("input", resize);
+    const observer = new ResizeObserver(resize);
+    observer.observe(textarea);
+    return () => { observer.disconnect(); textarea.removeEventListener("input", resize); };
+  }, [enabled, inputId, resize]);
+}
+
+export function HistoricalDescriptionCombobox({ kind, value, onChange, label = "Description", placeholder, inputClass, rowKey, multiline = false, autoGrow = kind === "part" }: { kind: HistoricalDescriptionKind; value: string; onChange: (value: string) => void; label?: string; placeholder?: string; inputClass: string; rowKey: string; multiline?: boolean; autoGrow?: boolean }) {
   const inputId = useId(); const listboxId = useId(); const [results, setResults] = useState<HistoricalDescriptionSuggestion[]>([]); const [loading, setLoading] = useState(false); const [error, setError] = useState(false); const [open, setOpen] = useState(false); const [active, setActive] = useState(-1); const sequence = useRef(0); const query = normalizeHistoricalDescription(value); const eligible = query.length >= HISTORICAL_DESCRIPTION_MIN_CHARS;
+  useAutoGrowingTextarea(inputId, value, multiline && autoGrow);
   useEffect(() => {
     if (!open || !eligible) return;
     const request = ++sequence.current;

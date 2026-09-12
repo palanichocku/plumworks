@@ -37,6 +37,7 @@ export function NewRepairOrderForm({
   const [newVehicleMake, setNewVehicleMake] = useState("");
   const vehicles = selectedCustomer?.vehicles ?? [];
   const selectedVehicle = vehicleMode === "existing" ? vehicles.find((vehicle) => vehicle.id === vehicleId) ?? null : null;
+  const selectedVehicleLabel = selectedVehicle ? [selectedVehicle.year, selectedVehicle.make, selectedVehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable" : undefined;
   const makeSuggestions = useMemo(
     () => Array.from(new Set(vehicleSuggestions.flatMap(({ make }) => make ? [cleanSuggestion(make)] : []))).sort(),
     [vehicleSuggestions],
@@ -89,7 +90,7 @@ export function NewRepairOrderForm({
       >
       <fieldset className={sectionClass}>
         <legend className="text-sm font-bold text-slate-800 tracking-wide">Customer Information</legend>
-        {customerMode === "existing" && selectedCustomer ? <div className="flex justify-end"><RepairOrderHistoryButton key={selectedCustomer.id} customerId={selectedCustomer.id} className="rounded-lg border border-brand-primary/40 bg-white px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20" /></div> : null}
+        {customerMode === "existing" && selectedCustomer ? <div className="flex flex-wrap justify-end gap-2"><RepairOrderHistoryButton key={`${selectedCustomer.id}:customer`} customerId={selectedCustomer.id} label="Customer History" className="rounded-lg border border-brand-primary/40 bg-white px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20" />{selectedVehicle ? <RepairOrderHistoryButton key={`${selectedCustomer.id}:${selectedVehicle.id}:vehicle`} customerId={selectedCustomer.id} vehicleId={selectedVehicle.id} vehicleLabel={selectedVehicleLabel} label="Vehicle History" className="rounded-lg border border-brand-primary/40 bg-white px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20" /> : null}</div> : null}
         
         {/* Customer Mode Segmented Toggle */}
         <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5 text-xs font-semibold">

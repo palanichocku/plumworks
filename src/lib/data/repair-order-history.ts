@@ -54,14 +54,18 @@ async function getHistoryScope(currentRepairOrderId: string): Promise<HistorySco
   return current ? { shopId: membership.shopId, customerId: current.customerId, vehicleId: current.vehicleId, currentRepairOrderId: current.id } : null;
 }
 
-async function getCustomerHistoryScope(customerId: string, currentRepairOrderId?: string): Promise<HistoryScope | null> {
+async function getCustomerHistoryScope(customerId: string, vehicleId?: string, currentRepairOrderId?: string): Promise<HistoryScope | null> {
   const { user, membership } = await getCurrentMembership();
   if (!user || !membership) return null;
   const customer = await prisma.customer.findFirst({ where: { id: customerId, shopId: membership.shopId }, select: { id: true } });
   if (!customer) return null;
-  if (!currentRepairOrderId) return { shopId: membership.shopId, customerId: customer.id };
-  const current = await prisma.repairOrder.findFirst({ where: { id: currentRepairOrderId, shopId: membership.shopId, customerId: customer.id }, select: { id: true } });
-  return current ? { shopId: membership.shopId, customerId: customer.id, currentRepairOrderId: current.id } : null;
+  if (vehicleId) {
+    const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, customerId: customer.id, shopId: membership.shopId, archivedAt: null }, select: { id: true } });
+    if (!vehicle) return null;
+  }
+  if (!currentRepairOrderId) return { shopId: membership.shopId, customerId: customer.id, vehicleId };
+  const current = await prisma.repairOrder.findFirst({ where: { id: currentRepairOrderId, shopId: membership.shopId, customerId: customer.id, ...(vehicleId ? { vehicleId } : {}) }, select: { id: true } });
+  return current ? { shopId: membership.shopId, customerId: customer.id, vehicleId, currentRepairOrderId: current.id } : null;
 }
 
 function isHistorySource(value: unknown): value is RepairOrderHistorySource {
@@ -192,8 +196,8 @@ async function getHistoryForScope(scope: HistoryScope, cursor?: RepairOrderHisto
   return { rows, nextCursor: keys.length > REPAIR_ORDER_HISTORY_PAGE_SIZE && lastKey ? { serviceDate: lastKey.serviceDate.toISOString(), source: lastKey.source, id: lastKey.id } satisfies RepairOrderHistoryCursor : null };
 }
 
-export async function getCustomerRepairOrderHistory(customerId: string, currentRepairOrderId?: string, cursor?: RepairOrderHistoryCursor | null) {
-  const scope = await getCustomerHistoryScope(customerId, currentRepairOrderId);
+export async function getCustomerRepairOrderHistory(customerId: string, vehicleId?: string, currentRepairOrderId?: string, cursor?: RepairOrderHistoryCursor | null) {
+  const scope = await getCustomerHistoryScope(customerId, vehicleId, currentRepairOrderId);
   return scope ? getHistoryForScope(scope, cursor) : null;
 }
 
@@ -247,11 +251,11 @@ export async function getRepairOrderHistoryDetail(currentRepairOrderId: string, 
   return getScopedHistoryDetail({ shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId, excludedRepairOrderId: scope.currentRepairOrderId }, source, historicalId);
 }
 
-export async function getCustomerRepairOrderHistoryDetail(customerId: string, currentRepairOrderId: string | undefined, source: unknown, historicalId: string): Promise<RepairOrderHistoryDetail | null> {
+export async function getCustomerRepairOrderHistoryDetail(customerId: string, vehicleId: string | undefined, currentRepairOrderId: string | undefined, source: unknown, historicalId: string): Promise<RepairOrderHistoryDetail | null> {
   if (!isHistorySource(source)) return null;
-  const scope = await getCustomerHistoryScope(customerId, currentRepairOrderId);
+  const scope = await getCustomerHistoryScope(customerId, vehicleId, currentRepairOrderId);
   if (!scope) return null;
-  return getScopedHistoryDetail({ shopId: scope.shopId, customerId: scope.customerId, vehicleId: undefined, excludedRepairOrderId: scope.currentRepairOrderId }, source, historicalId);
+  return getScopedHistoryDetail({ shopId: scope.shopId, customerId: scope.customerId, vehicleId: scope.vehicleId, excludedRepairOrderId: scope.currentRepairOrderId }, source, historicalId);
 }
 
 export async function getServiceHistoryDetail(context: unknown, contextId: string, source: unknown, historicalId: string) {

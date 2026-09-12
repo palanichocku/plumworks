@@ -6,9 +6,7 @@ import Link from "next/link";
 import { loadRepairOrderHistory, loadRepairOrderHistoryDetail } from "@/app/(app)/repair-orders/history-actions";
 import type { RepairOrderHistoryCursor, RepairOrderHistoryDetail, RepairOrderHistoryRow, RepairOrderHistorySource } from "@/lib/data/repair-order-history";
 
-const emptyMessage = "No previous Repair Orders were found for this customer.";
-
-export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onClose }: { customerId: string; currentRepairOrderId?: string; onClose: () => void }) {
+export function RepairOrderHistoryDrawer({ customerId, vehicleId, vehicleLabel, currentRepairOrderId, onClose }: { customerId: string; vehicleId?: string; vehicleLabel?: string; currentRepairOrderId?: string; onClose: () => void }) {
   const [rows, setRows] = useState<RepairOrderHistoryRow[]>([]);
   const [nextCursor, setNextCursor] = useState<RepairOrderHistoryCursor | null>(null);
   const [detail, setDetail] = useState<RepairOrderHistoryDetail | null>(null);
@@ -21,7 +19,7 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
 
   useEffect(() => {
     let active = true;
-    void loadRepairOrderHistory(customerId, currentRepairOrderId).then((result) => {
+    void loadRepairOrderHistory(customerId, vehicleId, currentRepairOrderId).then((result) => {
       if (!active) return;
       if (result.ok) {
         setRows(result.rows);
@@ -30,7 +28,7 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
       setLoading(false);
     });
     return () => { active = false; };
-  }, [customerId, currentRepairOrderId]);
+  }, [customerId, vehicleId, currentRepairOrderId]);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -53,7 +51,7 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
   const loadMore = useCallback(async () => {
     if (nextCursor === null || loadingMore) return;
     setLoadingMore(true);
-    const result = await loadRepairOrderHistory(customerId, currentRepairOrderId, nextCursor);
+    const result = await loadRepairOrderHistory(customerId, vehicleId, currentRepairOrderId, nextCursor);
     if (result.ok) {
       setRows((current) => {
         const known = new Set(current.map((row) => `${row.source}:${row.id}`));
@@ -62,16 +60,16 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
       setNextCursor(result.nextCursor);
     } else setError(result.message);
     setLoadingMore(false);
-  }, [customerId, currentRepairOrderId, loadingMore, nextCursor]);
+  }, [customerId, vehicleId, currentRepairOrderId, loadingMore, nextCursor]);
 
   const showDetail = useCallback(async (source: RepairOrderHistorySource, historicalId: string) => {
     setLoading(true);
     setError(null);
-    const result = await loadRepairOrderHistoryDetail(customerId, currentRepairOrderId, source, historicalId);
+    const result = await loadRepairOrderHistoryDetail(customerId, vehicleId, currentRepairOrderId, source, historicalId);
     if (result.ok) setDetail(result.detail);
     else setError(result.message);
     setLoading(false);
-  }, [customerId, currentRepairOrderId]);
+  }, [customerId, vehicleId, currentRepairOrderId]);
 
   if (typeof document === "undefined") return null;
 
@@ -81,7 +79,8 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
       <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div className="min-w-0">
           {detail ? <button type="button" onClick={() => { setDetail(null); setError(null); }} className="mb-1 text-sm font-semibold text-brand-primary hover:underline">← Back to History</button> : null}
-          <h2 id={titleId} className="truncate text-xl font-bold text-slate-950">{detail ? `Repair Order ${detail.number}` : "Repair Order History"}</h2>
+          <h2 id={titleId} className="truncate text-xl font-bold text-slate-950">{detail ? `Repair Order ${detail.number}` : vehicleId ? "Vehicle History" : "Customer History"}</h2>
+          {!detail ? <p className="mt-1 truncate text-sm text-slate-600">{vehicleId ? vehicleLabel ?? "Selected vehicle only" : "All vehicles for this customer"}</p> : null}
         </div>
         <button ref={closeRef} type="button" onClick={onClose} className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200">Close</button>
       </header>
@@ -91,18 +90,19 @@ export function RepairOrderHistoryDrawer({ customerId, currentRepairOrderId, onC
           {!loading && error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm font-medium text-red-800">{error}</div> : null}
         </div>
         {!loading && !error && detail ? <RepairOrderHistoryDetailView detail={detail} /> : null}
-        {!loading && !error && !detail ? <RepairOrderHistoryList rows={rows} nextCursor={nextCursor} loadingMore={loadingMore} onSelect={showDetail} onLoadMore={loadMore} /> : null}
+        {!loading && !error && !detail ? <RepairOrderHistoryList rows={rows} nextCursor={nextCursor} loadingMore={loadingMore} onSelect={showDetail} onLoadMore={loadMore} emptyMessage={vehicleId ? "No previous Repair Orders were found for this vehicle." : "No previous Repair Orders were found for this customer."} /> : null}
       </div>
     </section>
   </div>, document.body);
 }
 
-function RepairOrderHistoryList({ rows, nextCursor, loadingMore, onSelect, onLoadMore }: {
+function RepairOrderHistoryList({ rows, nextCursor, loadingMore, onSelect, onLoadMore, emptyMessage }: {
   rows: RepairOrderHistoryRow[];
   nextCursor: RepairOrderHistoryCursor | null;
   loadingMore: boolean;
   onSelect: (source: RepairOrderHistorySource, id: string) => void;
   onLoadMore: () => void;
+  emptyMessage: string;
 }) {
   if (!rows.length) return <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{emptyMessage}</p>;
   return <div>

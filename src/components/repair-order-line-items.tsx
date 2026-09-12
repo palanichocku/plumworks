@@ -15,7 +15,8 @@ type LaborLine = { id: string; description: string; hours: string; hourlyRate: s
 type CommonService = { id: string; name: string; description: string; defaultHours: string; defaultLaborRate: string; shopSuppliesEligible: boolean };
 
 const inputClass = "mt-1.5 w-full min-w-0 rounded-lg border border-slate-400 bg-white px-3 py-2 font-normal text-slate-950 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20";
-const descriptionClass = `${inputClass} min-h-24 resize-y whitespace-pre-wrap break-words leading-6`;
+const descriptionClass = `${inputClass} resize-none overflow-y-hidden whitespace-pre-wrap break-words leading-6`;
+const complimentaryDescriptionClass = `${inputClass} min-h-24 resize-y whitespace-pre-wrap break-words leading-6`;
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number.isFinite(value) ? value : 0);
 
 function SavedDeleteButton({ action, label }: { action: (formData: FormData) => Promise<void>; label: string }) {
@@ -36,7 +37,7 @@ function SavedPartRow({ repairOrderId, line, vendors }: { repairOrderId: string;
   const dirty = vendorChanged || description !== saved.description || quantity !== saved.quantity || unitPrice !== saved.unitPrice;
   return <PartActionForm action={updatePartLineWithState} onSuccess={() => { setSaved({ description, quantity, unitPrice }); setVendorChanged(false); }} className="space-y-3 rounded-lg border border-slate-300 p-3">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} />
-    <HistoricalDescriptionCombobox kind="part" rowKey={line.id} value={description} onChange={setDescription} inputClass={descriptionClass} multiline />
+    <HistoricalDescriptionCombobox kind="part" rowKey={line.id} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
     <div className="ro-part-controls grid min-w-0 items-end gap-3"><VendorCombobox vendors={vendors} defaultVendor={line.vendor} onValueChange={() => setVendorChanged(true)} /><label className="text-sm font-semibold text-slate-700">Quantity<input name="quantity" type="number" required min="0.01" max="1000000" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} className={inputClass} /></label><label className="text-sm font-semibold text-slate-700">Unit price<input name="unitPrice" type="number" required min="0" max="1000000" step="0.01" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} className={inputClass} /></label><LineItemAmountActions amount={Number(quantity) * Number(unitPrice)}><FormSubmitButton disabled={!dirty} pendingLabel={<PendingIcon />} pendingAriaLabel="Saving part" ariaLabel="Save part" title="Save part" className={saveLineItemButtonClass}><CheckIcon /></FormSubmitButton><SavedDeleteButton action={deletePartLine} label="Delete part" /></LineItemAmountActions></div>
   </PartActionForm>;
 }
@@ -91,7 +92,7 @@ function DraftComplimentaryRow({ repairOrderId, services, onReset }: { repairOrd
 }
 
 function LaborDescription({ value, onChange, rowKey }: { value: string; onChange: (value: string) => void; rowKey: string }) {
-  return <HistoricalDescriptionCombobox kind="labor" rowKey={rowKey} value={value} onChange={onChange} label="Service / description" placeholder="Search services or enter labor" inputClass={descriptionClass} multiline />;
+  return <HistoricalDescriptionCombobox kind="labor" rowKey={rowKey} value={value} onChange={onChange} label="Service / description" placeholder="Search services or enter labor" inputClass={descriptionClass} multiline autoGrow />;
 }
 
 function CommonServiceSelect({ services, onSelect }: { services: CommonService[]; onSelect: (service: CommonService) => void }) {
@@ -100,5 +101,5 @@ function CommonServiceSelect({ services, onSelect }: { services: CommonService[]
 }
 
 function ServiceCombobox({ services, value, onChange, onSelect, placeholder = "Search services or enter labor", complimentary = placeholder.startsWith("Complimentary"), rowKey = "draft-labor" }: { services: CommonService[]; value: string; onChange: (value: string) => void; onSelect: (service: CommonService) => void; placeholder?: string; complimentary?: boolean; rowKey?: string }) {
-  return <div className="min-w-0 space-y-3"><HistoricalDescriptionCombobox kind={complimentary ? "complimentary-labor" : "labor"} rowKey={rowKey} value={value} onChange={onChange} label="Service / description" placeholder={placeholder} inputClass={descriptionClass} multiline /><CommonServiceSelect services={services} onSelect={onSelect} /></div>;
+  return <div className="min-w-0 space-y-3"><HistoricalDescriptionCombobox kind={complimentary ? "complimentary-labor" : "labor"} rowKey={rowKey} value={value} onChange={onChange} label="Service / description" placeholder={placeholder} inputClass={complimentaryDescriptionClass} multiline /><CommonServiceSelect services={services} onSelect={onSelect} /></div>;
 }

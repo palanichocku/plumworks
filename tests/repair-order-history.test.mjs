@@ -16,22 +16,25 @@ const [page, actionsUi, historyButton, newForm, drawer, actions, loader, concern
   read("src/lib/email/repair-order-email.tsx"),
 ]);
 
-test("saved Repair Order uses the shared non-submitting History action in the Customer card", () => {
+test("saved Repair Order uses exact customer and vehicle History through the shared action", () => {
   assert.match(page, /<EmailRepairOrderButton/);
   const marker = actionsUi.indexOf("data-repair-order-action-row");
   const row = actionsUi.slice(actionsUi.lastIndexOf("<div", marker), actionsUi.indexOf("{success ?"));
   assert.match(row, /\{status\}[\s\S]*Email[\s\S]*Print/);
-  assert.match(page, /ro-section-heading">Customer[\s\S]*RepairOrderHistoryButton customerId=\{order\.customer\.id\} currentRepairOrderId=\{order\.id\}/);
+  assert.match(page, /ro-section-heading">Customer[\s\S]*RepairOrderHistoryButton customerId=\{order\.customer\.id\} vehicleId=\{order\.vehicle\.id\} vehicleLabel=\{vehicle \|\| "Vehicle details unavailable"\} currentRepairOrderId=\{order\.id\}/);
   assert.match(historyButton, /type="button"[\s\S]*setOpen\(true\)/);
   assert.doesNotMatch(drawer + actionsUi + historyButton, /router\.|window\.location|pushState|replaceState/);
   assert.match(historyButton, /open \? <RepairOrderHistoryDrawer/);
 });
 
-test("new Repair Order exposes customer History only for the selected existing customer", () => {
+test("new Repair Order exposes Customer and selected Vehicle History before save", () => {
   assert.match(newForm, /customerMode === "existing" && selectedCustomer \? [\s\S]*RepairOrderHistoryButton[\s\S]*customerId=\{selectedCustomer\.id\}/);
-  assert.match(newForm, /key=\{selectedCustomer\.id\}/);
+  assert.match(newForm, /label="Customer History"/);
+  assert.match(newForm, /selectedVehicle \? <RepairOrderHistoryButton[\s\S]*vehicleId=\{selectedVehicle\.id\}[\s\S]*label="Vehicle History"/);
+  assert.match(newForm, /key=\{`\$\{selectedCustomer\.id\}:\$\{selectedVehicle\.id\}:vehicle`\}/);
   assert.doesNotMatch(newForm, /RepairOrderHistoryButton[^>]*repairOrderId/);
   assert.match(newForm, /function selectCustomer\([\s\S]*setSelectedCustomer\(nextCustomer\)/);
+  assert.match(newForm, /setVehicleId\(nextCustomer\?\.vehicles\[0\]\?\.id \?\? ""\)/);
 });
 
 test("drawer preserves mounted unsaved Repair Order form state", () => {
@@ -45,7 +48,7 @@ test("customer history authenticates and validates the customer against the curr
   assert.match(loader, /const \{ user, membership \} = await getCurrentMembership\(\)/);
   assert.match(loader, /if \(!user \|\| !membership\) return null/);
   assert.match(loader, /where: \{ id: customerId, shopId: membership\.shopId \}/);
-  assert.match(loader, /getCustomerHistoryScope\(customerId, currentRepairOrderId\)/);
+  assert.match(loader, /getCustomerHistoryScope\(customerId, vehicleId, currentRepairOrderId\)/);
   for (const table of ["invoices i", "repair_orders ro"]) assert.match(loader, new RegExp(`FROM ${table}`));
   for (const prefix of ["i", "ro"]) {
     assert.match(loader, new RegExp(`${prefix}\\.shop_id = \\$\\{scope\\.shopId\\}`));
@@ -54,6 +57,38 @@ test("customer history authenticates and validates the customer against the curr
   assert.match(loader, /invoiceVehicleClause/);
   assert.match(loader, /repairOrderVehicleClause/);
   assert.doesNotMatch(loader, /display_name\s*=|vin\s*=|license_plate\s*=|legacy_custno\s*=|legacy_carno\s*=/i);
+});
+
+test("vehicle-scoped history validates active ownership in the current Shop", () => {
+  assert.match(loader, /if \(vehicleId\) \{[\s\S]*prisma\.vehicle\.findFirst/);
+  assert.match(loader, /where: \{ id: vehicleId, customerId: customer\.id, shopId: membership\.shopId, archivedAt: null \}/);
+  assert.match(loader, /if \(!vehicle\) return null/);
+  assert.match(loader, /currentRepairOrderId, shopId: membership\.shopId, customerId: customer\.id, \.\.\.\(vehicleId \? \{ vehicleId \} : \{\}\)/);
+  assert.match(loader, /vehicleId: scope\.vehicleId/);
+  assert.match(actions, /getCustomerRepairOrderHistory\(customerId, vehicleId, currentRepairOrderId, cursor\)/);
+  assert.match(actions, /getCustomerRepairOrderHistoryDetail\(customerId, vehicleId, currentRepairOrderId, source, historicalId\)/);
+});
+
+test("customer and vehicle history use the same unified query with only optional vehicle filtering", () => {
+  assert.match(loader, /const invoiceVehicleClause = scope\.vehicleId \? Prisma\.sql`AND i\.vehicle_id/);
+  assert.match(loader, /const repairOrderVehicleClause = scope\.vehicleId \? Prisma\.sql`AND ro\.vehicle_id/);
+  assert.match(loader, /return scope \? getHistoryForScope\(scope, cursor\) : null/);
+  assert.match(drawer, /vehicleId \? "Vehicle History" : "Customer History"/);
+  assert.match(drawer, /vehicleLabel \?\? "Selected vehicle only"/);
+  assert.match(drawer, /"All vehicles for this customer"/);
+});
+
+test("saved and new history scopes preserve the intended vehicle filtering contract", () => {
+  const history = [
+    { id: "a1-old", customerId: "customer-a", vehicleId: "vehicle-a1" },
+    { id: "a2-old", customerId: "customer-a", vehicleId: "vehicle-a2" },
+    { id: "b1-old", customerId: "customer-b", vehicleId: "vehicle-b1" },
+    { id: "current", customerId: "customer-a", vehicleId: "vehicle-a1" },
+  ];
+  const scoped = ({ customerId, vehicleId, currentRepairOrderId }) => history.filter((row) => row.customerId === customerId && (!vehicleId || row.vehicleId === vehicleId) && row.id !== currentRepairOrderId);
+  assert.deepEqual(scoped({ customerId: "customer-a" }).map((row) => row.id), ["a1-old", "a2-old", "current"]);
+  assert.deepEqual(scoped({ customerId: "customer-a", vehicleId: "vehicle-a1" }).map((row) => row.id), ["a1-old", "current"]);
+  assert.deepEqual(scoped({ customerId: "customer-a", vehicleId: "vehicle-a1", currentRepairOrderId: "current" }).map((row) => row.id), ["a1-old"]);
 });
 
 test("current RO is excluded and explicit Invoice relationship performs the only deduplication", () => {
@@ -95,7 +130,7 @@ test("unified cursor contract handles mixed same-date rows and an imbalanced sou
 });
 
 test("Load More uses the live customer identity and source-aware keys", () => {
-  assert.match(drawer, /loadRepairOrderHistory\(customerId, currentRepairOrderId, nextCursor\)/);
+  assert.match(drawer, /loadRepairOrderHistory\(customerId, vehicleId, currentRepairOrderId, nextCursor\)/);
   assert.match(drawer, /`\$\{row\.source\}:\$\{row\.id\}`/);
   assert.match(drawer, /!known\.has\(`\$\{row\.source\}:\$\{row\.id\}`\)/);
   assert.match(drawer, /nextCursor !== null/);
@@ -163,8 +198,8 @@ test("current Repair Order mileage is stored and copied into the completed Invoi
 
 test("browser sends source and ID; unsupported and cross-scope details are rejected", () => {
   assert.match(drawer, /onSelect\(row\.source, row\.id\)/);
-  assert.match(drawer, /loadRepairOrderHistoryDetail\(customerId, currentRepairOrderId, source, historicalId\)/);
-  assert.match(actions, /getCustomerRepairOrderHistoryDetail\(customerId, currentRepairOrderId, source, historicalId\)/);
+  assert.match(drawer, /loadRepairOrderHistoryDetail\(customerId, vehicleId, currentRepairOrderId, source, historicalId\)/);
+  assert.match(actions, /getCustomerRepairOrderHistoryDetail\(customerId, vehicleId, currentRepairOrderId, source, historicalId\)/);
   assert.match(loader, /value === "invoice" \|\| value === "repairOrder"/);
   assert.match(loader, /if \(!isHistorySource\(source\)\) return null/);
   const invoiceDetail = loader.slice(loader.indexOf('if (source === "invoice")'), loader.indexOf("const order = await prisma.repairOrder.findFirst"));
