@@ -13,6 +13,14 @@ export async function proxy(request: NextRequest) {
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
     if (legacyRedirect) return NextResponse.redirect(legacyRedirect.location, legacyRedirect.status);
+  }
+  if (request.headers.get("host") === "subbuscardoc.com") {
+    const canonicalUrl = new URL(request.nextUrl.href);
+    canonicalUrl.protocol = "https:";
+    canonicalUrl.host = "www.subbuscardoc.com";
+    return NextResponse.redirect(canonicalUrl, 301);
+  }
+  if (request.method === "GET" || request.method === "HEAD") {
     if (/(?:\.html|\.php|\/defaults\/files\/DrivabilityForm\.pdf)$/i.test(request.nextUrl.pathname)) return NextResponse.next();
   }
   if (isPublicMarketingPath(request.nextUrl.pathname)) {
@@ -33,6 +41,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    { source: "/:path*", has: [{ type: "host", value: "subbuscardoc\\.com" }] },
     "/login",
     "/forgot-password",
     "/auth/callback",
