@@ -15,7 +15,7 @@ export async function getPublicSeoShop(): Promise<PublicSeoShop> {
   return publicSeoShop(shop, brandName);
 }
 
-const FORBIDDEN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "www.subbuscardoc.com", "subbuscardoc.com"]);
+const FORBIDDEN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "subbuscardoc.com"]);
 
 export function configuredPublicSiteOrigin(environment: NodeJS.ProcessEnv = process.env): URL | null {
   const configured = environment.NEXT_PUBLIC_SITE_URL?.trim();

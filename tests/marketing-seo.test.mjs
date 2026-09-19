@@ -5,22 +5,21 @@ import { join } from "node:path";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [seoSource, home, about, services, servicePage, sitemap, robots, appLayout, documentLayout, login, invite, attribution, deploymentContent, deploymentReadme] = await Promise.all([
-  read("src/lib/marketing-seo.ts"), read("src/app/(marketing)/page.tsx"), read("src/app/(marketing)/about/page.tsx"), read("src/app/(marketing)/services/page.tsx"), read("src/app/(marketing)/services/[slug]/page.tsx"), read("src/app/sitemap.ts"), read("src/app/robots.ts"), read("src/app/(app)/layout.tsx"), read("src/app/(documents)/layout.tsx"), read("src/app/login/page.tsx"), read("src/app/invite/page.tsx"), read("src/lib/marketing-attribution.ts"), read("../plumworks-deployments/clients/cardoc/content/marketing-content.json"), read("../plumworks-deployments/clients/cardoc/README.md"),
+const [seoSource, home, about, services, servicePage, sitemap, robots, appLayout, documentLayout, login, invite, attribution, deploymentContent] = await Promise.all([
+  read("src/lib/marketing-seo.ts"), read("src/app/(marketing)/page.tsx"), read("src/app/(marketing)/about/page.tsx"), read("src/app/(marketing)/services/page.tsx"), read("src/app/(marketing)/services/[slug]/page.tsx"), read("src/app/sitemap.ts"), read("src/app/robots.ts"), read("src/app/(app)/layout.tsx"), read("src/app/(documents)/layout.tsx"), read("src/app/login/page.tsx"), read("src/app/invite/page.tsx"), read("src/lib/marketing-attribution.ts"), read("../plumworks-deployments/clients/cardoc/content/marketing-content.json"),
 ]);
 
 const moduleDirectory = await mkdtemp(join(tmpdir(), "marketing-seo-module-"));
 const moduleFile = join(moduleDirectory, "marketing-seo.ts");
 await writeFile(moduleFile, seoSource.replace(/^import .*;\n/gm, "").replace(/export async function getPublicSeoShop[\s\S]*?\n}\n/, "").replace(/: Metadata/g, ""));
 const seo = await import(moduleFile);
-const production = { NODE_ENV: "production", VERCEL_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://cardoc-rho.vercel.app/" };
+const production = { NODE_ENV: "production", VERCEL_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://www.subbuscardoc.com/" };
 
 test("configured canonical origin is explicit, clean, and rejects unsafe hosts", () => {
-  assert.equal(seo.configuredPublicSiteOrigin(production).origin, "https://cardoc-rho.vercel.app");
-  for (const value of ["http://localhost:3000", "https://www.subbuscardoc.com", "https://cardoc-git-seo-user.vercel.app", "https://cardoc-rho.vercel.app/path?utm_source=x"]) assert.equal(seo.configuredPublicSiteOrigin({ NEXT_PUBLIC_SITE_URL: value }), null);
+  assert.equal(seo.configuredPublicSiteOrigin(production).origin, "https://www.subbuscardoc.com");
+  for (const value of ["http://localhost:3000", "https://subbuscardoc.com", "https://cardoc-git-seo-user.vercel.app", "https://www.subbuscardoc.com/path?utm_source=x"]) assert.equal(seo.configuredPublicSiteOrigin({ NEXT_PUBLIC_SITE_URL: value }), null);
   assert.equal(seo.configuredPublicSiteOrigin({ VERCEL_URL: "preview.vercel.app" }), null);
-  assert.equal(seo.canonicalUrl("/services/brakes?utm_source=test", production).href, "https://cardoc-rho.vercel.app/services/brakes");
-  assert.match(deploymentReadme, /NEXT_PUBLIC_SITE_URL=https:\/\/cardoc-rho\.vercel\.app/);
+  assert.equal(seo.canonicalUrl("/services/brakes?utm_source=test", production).href, "https://www.subbuscardoc.com/services/brakes");
   assert.doesNotMatch(seoSource, /process\.env\.VERCEL_URL/);
 });
 
