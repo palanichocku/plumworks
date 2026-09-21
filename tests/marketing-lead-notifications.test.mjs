@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
-async function load(path, dependencies = {}, environment = {}) {
+async function load(path, dependencies = {}, environment = {}, logger = { error() {}, info() {} }) {
   const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const loaded = { exports: {} };
@@ -11,7 +11,7 @@ async function load(path, dependencies = {}, environment = {}) {
     if (id === "server-only") return {};
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency ${id}`);
     return dependencies[id];
-  }, loaded, loaded.exports, { env: environment }, { error() {} });
+  }, loaded, loaded.exports, { env: environment }, logger);
   return loaded.exports;
 }
 const settings = await load("src/lib/marketing-lead-notification-settings.ts");
@@ -283,3 +283,28 @@ test("mark all does not silently read notifications newer than the displayed sna
   assert.equal(center.reads.length, 1);
   assert.equal(center.reads[0].notificationId, center.rows[0].id);
 });
+
+for (const scenario of [
+  { name: "database accepted", db: " Owner@Example.test ", source: "DATABASE", outcome: { ok: true, id: "resend-safe-id" }, result: "accepted" },
+  { name: "fallback accepted", source: "FALLBACK", outcome: { ok: true, id: "resend-safe-id" }, result: "accepted" },
+  { name: "database rejected", db: "owner@example.test", source: "DATABASE", outcome: { ok: false, code: "request_rejected" }, result: "failed", code: "request_rejected" },
+  { name: "thrown error is sanitized", db: "owner@example.test", source: "DATABASE", throws: true, result: "failed", code: "unexpected_error" },
+  { name: "disabled skips fallback", enabled: false, source: null, result: "skipped", code: "notifications_disabled" },
+  { name: "no recipient", noFallback: true, source: null, result: "skipped", code: "no_recipient" },
+]) {
+  test(`safe email observability: ${scenario.name}`, async () => {
+    const logs = [];
+    let sends = 0;
+    const notifier = await load("src/lib/marketing-lead-notifications.ts", {
+      "@/lib/prisma": { prisma: { shop: { findUniqueOrThrow: async () => ({ ...defaults, marketingLeadEmailNotificationsEnabled: scenario.enabled ?? true, marketingLeadNotifyEmail1: scenario.db ?? null }) } } },
+      "@/lib/marketing-lead-notification-settings": settings,
+      "@/lib/email/resend": { sendResendEmail: async () => { sends++; if (scenario.throws) throw new Error(`private-secret ${lead.email} ${lead.message}`); return scenario.outcome; } },
+    }, { MARKETING_LEADS_NOTIFY_EMAIL: scenario.noFallback ? "" : "fallback@example.test" }, {
+      info: (record) => logs.push(record), error: (record) => logs.push(record),
+    });
+    await notifier.notifyNewMarketingLead(lead);
+    assert.equal(sends, scenario.result === "skipped" ? 0 : 1);
+    assert.deepEqual(logs, [{ event: "marketing_lead_email", leadId: lead.id, source: lead.source, recipientSource: scenario.source, recipientCount: sends, result: scenario.result, ...(scenario.code ? { code: scenario.code } : { resendId: "resend-safe-id" }) }]);
+    for (const sensitive of [lead.name, lead.phone, lead.email, lead.message, "owner@example.test", "fallback@example.test", "private-secret"]) assert.ok(!JSON.stringify(logs).includes(sensitive));
+  });
+}

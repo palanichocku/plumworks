@@ -241,3 +241,33 @@ test("the shared card retains all lead sources, statuses, contact actions and sc
     assert.ok(!nodes(card.MarketingLeadCard({ lead: record, notification: null, canManage: false })).some((node) => node.type === "form"));
   }
 });
+
+for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["APPOINTMENT", null, "No time preference"], ["APPOINTMENT", "00:00", "12:00 AM"], ["APPOINTMENT", "12:15", "12:15 PM"], ["CONTACT", null, null], ["DROP_OFF", null, null]]) {
+  test(`${source} requested appointment presentation with time ${time}`, async () => {
+    const card = await load("src/components/marketing-lead-card.tsx", {
+      "next/link": { default: "a" }, "@/generated/prisma/client": { MarketingLeadStatus: statuses },
+      "@/app/(app)/leads/manage-actions": { updateLeadStatus: () => { throw new Error("must not save on render"); } },
+      "@/lib/marketing-lead-context": { callClickMessage: "Call click" },
+      "@/components/lead-read-control": { LeadReadControl: "read-control" },
+    });
+    const record = { ...lead, source, createdAt: new Date("2026-09-21T17:00:00Z"), preferredDate: new Date("2026-09-23T00:00:00Z"), preferredTime: time };
+    const notification = { id: "alert-a", leadId: lead.id, read: false };
+    const rendered = nodes(card.MarketingLeadCard({ lead: record, notification, canManage: true }));
+    const callout = rendered.find((node) => node.type === "section" && node.props["aria-label"] === "Requested Appointment");
+    assert.equal(Boolean(callout), source === "APPOINTMENT");
+    if (callout) {
+      const content = nodes(callout);
+      assert.ok(content.some((node) => node.type === "h3" && node.props.children === "Requested Appointment"));
+      assert.ok(content.some((node) => node.props.children === "Wednesday, September 23, 2026" && /text-lg font-black/.test(node.props.className)));
+      assert.ok(content.some((node) => node.props.children === expected));
+      assert.ok(content.some((node) => typeof node.props.children === "string" && node.props.children.includes("not a confirmed appointment")));
+      assert.ok(rendered.indexOf(callout) < rendered.findIndex((node) => node.type === "form"));
+    }
+    assert.equal(rendered.find((node) => node.props.name === "scheduledDate").props.defaultValue, "");
+    assert.equal(rendered.find((node) => node.props.name === "scheduledTime").props.defaultValue, "");
+    assert.equal(rendered.find((node) => node.props.name === "status").props.defaultValue, "NEW");
+    assert.equal(rendered.find((node) => node.type === "read-control").props.notification, notification);
+    assert.equal(record.status, "NEW");
+    assert.equal(record.scheduledDate, null);
+  });
+}

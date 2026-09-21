@@ -21,7 +21,14 @@ export async function notifyNewMarketingLead(lead: MarketingLead) {
     select: { marketingLeadEmailNotificationsEnabled: true, marketingLeadNotifyEmail1: true, marketingLeadNotifyEmail2: true },
   });
   const recipients = leadNotificationRecipients(settings, process.env.MARKETING_LEADS_NOTIFY_EMAIL);
-  if (!recipients.length) return;
+  const recipientSource = recipients.length
+    ? [settings.marketingLeadNotifyEmail1, settings.marketingLeadNotifyEmail2].some((email) => email?.trim()) ? "DATABASE" : "FALLBACK"
+    : null;
+  const metadata = { event: "marketing_lead_email", leadId: lead.id, source: lead.source, recipientSource, recipientCount: recipients.length };
+  if (!recipients.length) {
+    console.info({ ...metadata, result: "skipped", code: settings.marketingLeadEmailNotificationsEnabled ? "no_recipient" : "notifications_disabled" });
+    return;
+  }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
   const leadsUrl = siteUrl ? `${siteUrl}/leads` : null;
@@ -45,9 +52,10 @@ export async function notifyNewMarketingLead(lead: MarketingLead) {
   await Promise.all(recipients.map(async (to) => {
     try {
       const result = await sendResendEmail({ to, subject: `New ${sourceLabels[lead.source]} Request — ${lead.name.replace(/[\r\n]/g, " ")}`, text });
-      if (!result.ok) console.error("Marketing lead email delivery failed", result.code);
+      if (result.ok) console.info({ ...metadata, result: "accepted", resendId: result.id });
+      else console.error({ ...metadata, result: "failed", code: result.code });
     } catch {
-      console.error("Marketing lead email delivery failed");
+      console.error({ ...metadata, result: "failed", code: "unexpected_error" });
     }
   }));
 }
