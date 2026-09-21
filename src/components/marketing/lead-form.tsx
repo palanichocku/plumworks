@@ -1,6 +1,8 @@
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 import { submitContactLead, submitAppointmentLead, submitDropOffLead } from "@/app/(marketing)/lead-actions";
 
+import { leadContactMethodLabels } from "@/lib/marketing-lead-contact";
+
 const actions = { CONTACT: submitContactLead, APPOINTMENT: submitAppointmentLead, DROP_OFF: submitDropOffLead } as const;
 
 export function LeadForm({ source, sent = false, error = false }: { source: MarketingLeadSource; sent?: boolean; error?: boolean }) {
@@ -13,7 +15,11 @@ export function LeadForm({ source, sent = false, error = false }: { source: Mark
     <input name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
     <label className="text-sm font-bold text-slate-700">Name *<input name="name" required maxLength={120} className={input} /></label>
     <label className="text-sm font-bold text-slate-700">Phone *<input name="phone" type="tel" required maxLength={40} className={input} /></label>
-    <label className="text-sm font-bold text-slate-700 sm:col-span-2">Email <span className="font-normal text-slate-400">(optional)</span><input name="email" type="email" maxLength={200} className={input} /></label>
+    <label className="text-sm font-bold text-slate-700 sm:col-span-2">Email *<input name="email" type="email" required maxLength={200} className={input} /></label>
+    <fieldset className="sm:col-span-2">
+      <legend className="text-sm font-bold text-slate-700">Preferred contact method *</legend>
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">{Object.entries(leadContactMethodLabels).map(([method, label]) => <label key={method} className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="radio" name="preferredContactMethod" value={method} required className="h-4 w-4 accent-orange-500" />{label}</label>)}</div>
+    </fieldset>
     {(appointment || dropOff) && <>
       <label className="text-sm font-bold text-slate-700">Vehicle year *<input name="vehicleYear" required type="number" min="1900" max="2100" className={input} /></label>
       <label className="text-sm font-bold text-slate-700">Vehicle make *<input name="vehicleMake" required maxLength={80} className={input} /></label>

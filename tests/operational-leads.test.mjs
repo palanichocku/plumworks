@@ -15,12 +15,14 @@ async function load(path, dependencies = {}) {
   const loaded = { exports: {} };
   new Function("require", "module", "exports", outputText)((id) => {
     if (id === "server-only") return {};
+    if (id === "@/lib/marketing-lead-contact") return contactMethods;
     if (id === "react/jsx-runtime") return runtime;
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency: ${id}`);
     return dependencies[id];
   }, loaded, loaded.exports);
   return loaded.exports;
 }
+const contactMethods = await load("src/lib/marketing-lead-contact.ts");
 function nodes(tree) {
   if (!tree || typeof tree !== "object") return [];
   if (Array.isArray(tree)) return tree.flatMap(nodes);
@@ -221,7 +223,7 @@ test("Dashboard remains a NEW-lead summary and owner email points directly to Le
   assert.doesNotMatch(email, /Admin → Leads|\/admin\/leads/);
 });
 
-test("the shared card retains all lead sources, statuses, contact actions and scheduling/note fields", async () => {
+test("the shared card retains all lead sources, statuses, contact information and scheduling/note fields", async () => {
   const updateLeadStatus = () => {};
   const card = await load("src/components/marketing-lead-card.tsx", {
     "next/link": { default: "a" }, "@/generated/prisma/client": { MarketingLeadStatus: statuses },
@@ -235,8 +237,10 @@ test("the shared card retains all lead sources, statuses, contact actions and sc
     assert.ok(rendered.some((node) => node.type === "form" && node.props.action === updateLeadStatus));
     assert.deepEqual(rendered.filter((node) => node.type === "option").map((node) => node.props.value), Object.values(statuses));
     for (const name of ["id", "status", "scheduledDate", "scheduledTime", "internalNote"]) assert.ok(rendered.some((node) => node.props?.name === name));
-    assert.ok(rendered.some((node) => node.props?.href === "tel:5550100"));
-    assert.ok(rendered.some((node) => node.props?.href === "mailto:visitor@example.test"));
+    assert.ok(rendered.some((node) => node.props?.children === record.phone));
+    assert.ok(!rendered.some((node) => node.props?.href?.startsWith("tel:")));
+    assert.ok(rendered.some((node) => node.props?.children === record.email));
+    assert.ok(!rendered.some((node) => node.props?.href?.startsWith("mailto:")));
     assert.equal(rendered.find((node) => node.props?.name === "internalNote").props.defaultValue, "Confirm arrival");
     assert.ok(!nodes(card.MarketingLeadCard({ lead: record, notification: null, canManage: false })).some((node) => node.type === "form"));
   }
@@ -269,5 +273,33 @@ for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["
     assert.equal(rendered.find((node) => node.type === "read-control").props.notification, notification);
     assert.equal(record.status, "NEW");
     assert.equal(record.scheduledDate, null);
+  });
+}
+
+for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
+  test(`${source} browser form requires email and unselected contact method`, async () => {
+    const { LeadForm } = await load("src/components/marketing/lead-form.tsx", { "@/app/(marketing)/lead-actions": {} });
+    const rendered = nodes(LeadForm({ source }));
+    for (const name of ["name", "phone", "email"]) assert.equal(rendered.find((n) => n.props.name === name).props.required, true);
+    const radios = rendered.filter((n) => n.props.name === "preferredContactMethod");
+    assert.deepEqual(radios.map((n) => n.props.value), ["TEXT", "PHONE_CALL", "EMAIL"]);
+    for (const radio of radios) { assert.equal(radio.props.type, "radio"); assert.equal(radio.props.required, true); assert.ok(!radio.props.defaultChecked && !radio.props.checked); }
+  });
+}
+
+for (const method of [null, "TEXT", "PHONE_CALL", "EMAIL"]) {
+  test(`shared list/detail card presents preference ${method} without contact action buttons`, async () => {
+    const { MarketingLeadCard } = await load("src/components/marketing-lead-card.tsx", {
+      "next/link": { default: "a" }, "@/generated/prisma/client": { MarketingLeadStatus: statuses },
+      "@/app/(app)/leads/manage-actions": { updateLeadStatus() {} },
+      "@/lib/marketing-lead-context": { callClickMessage: "Call click" },
+      "@/components/lead-read-control": { LeadReadControl: "read-control" },
+    });
+    const rendered = nodes(MarketingLeadCard({ lead: { ...lead, createdAt: new Date(), preferredContactMethod: method, phone: "555-0100", email: "visitor@example.test" }, notification: null, canManage: true }));
+    assert.equal(rendered.some((n) => n.props.children === "Preferred contact"), method !== null);
+    if (method) assert.ok(rendered.some((n) => n.props.children === contactMethods.leadContactMethodLabels[method]));
+    assert.ok(!rendered.some((n) => /^(tel:|mailto:)/.test(n.props.href ?? "")));
+    assert.ok(rendered.some((n) => n.props.children === "555-0100"));
+    assert.ok(rendered.some((n) => n.props.children === "visitor@example.test"));
   });
 }

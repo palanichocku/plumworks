@@ -14,8 +14,9 @@ type NotificationContextValue = {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
   error: boolean;
-  busy: boolean;
-  viewLead: (item: Pick<Notification, "id" | "leadId" | "read">, navigate?: boolean) => Promise<boolean | undefined>;
+  markAllBusy: boolean;
+  pendingReadIds: ReadonlySet<string>;
+  viewLead: (item: Pick<Notification, "id" | "leadId" | "read">, navigate?: boolean) => Promise<boolean>;
   markAll: () => Promise<void>;
 };
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -31,36 +32,68 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
   const [state, setState] = useState<NotificationState | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [markAllBusy, setMarkAllBusy] = useState(false);
+  const [pendingReadIds, setPendingReadIds] = useState<ReadonlySet<string>>(new Set());
   const seen = useRef(new Set<string>());
   const inFlight = useRef(false);
-  const mutating = useRef(false);
+  const pendingReads = useRef(new Map<string, Promise<boolean>>());
+  const markingAll = useRef(false);
+  const requestNumber = useRef(0);
   const revision = useRef(0);
 
-  const viewLead = useCallback(async (item: Pick<Notification, "id" | "leadId" | "read">, navigate = true) => {
-    if (mutating.current) return;
-    mutating.current = true;
+  const withPendingReads = useCallback((next: NotificationState): NotificationState => {
+    const unreadPending = next.items.filter((item) => !item.read && pendingReads.current.has(item.id)).length;
+    return { ...next, unreadCount: Math.max(0, next.unreadCount - unreadPending),
+      items: next.items.map((item) => pendingReads.current.has(item.id) ? { ...item, read: true } : item),
+    };
+  }, []);
+
+  const reconcile = useCallback(async () => {
+    const startedAtRevision = revision.current;
+    const request = ++requestNumber.current;
+    try {
+      const next = await fetchLeadNotifications();
+      if (revision.current !== startedAtRevision || request !== requestNumber.current) return;
+      setState(withPendingReads(next));
+      setError(false);
+    } catch {
+      if (revision.current !== startedAtRevision || request !== requestNumber.current) return;
+      setState(null);
+      setError(true);
+    }
+  }, [withPendingReads]);
+
+  const viewLead = useCallback((item: Pick<Notification, "id" | "leadId" | "read">, navigate = true): Promise<boolean> => {
+    setOpen(false);
+    toast.dismiss(`lead-${item.id}`);
+    if (navigate) router.push(`/leads/${item.leadId}`);
+    // Repeated clicks still navigate; only the duplicate write is coalesced.
+    const pending = pendingReads.current.get(item.id);
+    if (pending) return pending;
     revision.current++;
-    setBusy(true);
     setState((current) => current ? { ...current,
       unreadCount: Math.max(0, current.unreadCount - ((current.items.find((row) => row.id === item.id)?.read ?? item.read) === false ? 1 : 0)),
       items: current.items.map((row) => row.id === item.id ? { ...row, read: true } : row),
     } : current);
-    try {
-      const { href } = await markLeadNotificationRead(item.id);
-      toast.dismiss(`lead-${item.id}`);
-      setOpen(false);
-      if (navigate) router.push(href);
-      return true;
-    } catch {
-      toast.error("Could not mark this alert read. Please try again.");
-      return false;
-    } finally {
-      try { setState(await fetchLeadNotifications()); } catch { setState(null); setError(true); }
-      mutating.current = false;
-      setBusy(false);
-    }
-  }, [router]);
+    const work = (async () => {
+      let saved = false;
+      try {
+        await markLeadNotificationRead(item.id);
+        saved = true;
+      } catch {
+        toast.error(navigate ? "Lead opened, but the notification could not be marked read." : "Could not mark this alert read. Please try again.");
+      } finally {
+        pendingReads.current.delete(item.id);
+        setPendingReadIds(new Set(pendingReads.current.keys()));
+        revision.current++;
+        await reconcile();
+      }
+      return saved;
+    })();
+    pendingReads.current.set(item.id, work);
+    setPendingReadIds(new Set(pendingReads.current.keys()));
+    return work;
+  }, [router, reconcile]);
 
   useEffect(() => {
     const storageKey = `plumworks-lead-toasts:${sessionKey}`;
@@ -70,15 +103,17 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
     } catch { /* Session memory still prevents repeated toasts when storage is unavailable. */ }
     let active = true;
     const refresh = async () => {
-      if (document.visibilityState !== "visible" || inFlight.current || mutating.current) return;
+      if (document.visibilityState !== "visible" || inFlight.current) return;
       inFlight.current = true;
       const startedAtRevision = revision.current;
+      const request = ++requestNumber.current;
       try {
         const next = await fetchLeadNotifications();
-        if (!active || revision.current !== startedAtRevision || document.visibilityState !== "visible") return;
-        setState(next);
+        if (!active || revision.current !== startedAtRevision || request !== requestNumber.current || document.visibilityState !== "visible") return;
+        const reconciled = withPendingReads(next);
+        setState(reconciled);
         setError(false);
-        const fresh = next.items.filter((item) => !item.read && !seen.current.has(item.id));
+        const fresh = reconciled.items.filter((item) => !item.read && !seen.current.has(item.id));
         for (const item of fresh) seen.current.add(item.id);
         try { sessionStorage.setItem(storageKey, JSON.stringify([...seen.current])); } catch { /* Keep the in-memory set. */ }
         for (const item of fresh.slice(0, 3)) {
@@ -90,7 +125,7 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
         }
         if (fresh.length > 3) toast(`${fresh.length - 3} more new lead alerts are in your notification center.`, { duration: 15_000 });
       } catch {
-        if (active) setError(true);
+        if (active && revision.current === startedAtRevision && request === requestNumber.current) setError(true);
       } finally { inFlight.current = false; }
     };
     void refresh();
@@ -105,27 +140,26 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
       document.removeEventListener("visibilitychange", onReturn);
       toast.dismiss();
     };
-  }, [sessionKey, viewLead]);
+  }, [sessionKey, viewLead, withPendingReads]);
 
   async function markAll() {
-    if (!state || mutating.current) return;
-    mutating.current = true;
+    if (!state || markingAll.current) return;
+    markingAll.current = true;
     revision.current++;
-    setBusy(true);
-    const snapshot = state;
-    setState({ ...state, unreadCount: 0, items: state.items.map((item) => ({ ...item, read: true })) });
+    setMarkAllBusy(true);
     try {
-      await markAllLeadNotificationsRead(snapshot.asOf);
+      await markAllLeadNotificationsRead(state.asOf);
       toast.dismiss();
-    } catch { setState(snapshot); toast.error("Could not mark alerts read. Please try again."); }
+    } catch { toast.error("Could not mark alerts read. Please try again."); }
     finally {
-      try { setState(await fetchLeadNotifications()); } catch { setState(null); setError(true); }
-      mutating.current = false;
-      setBusy(false);
+      markingAll.current = false;
+      setMarkAllBusy(false);
+      revision.current++;
+      await reconcile();
     }
   }
 
-  return <NotificationContext.Provider value={{ state, open, setOpen, error, busy, viewLead, markAll }}>
+  return <NotificationContext.Provider value={{ state, open, setOpen, error, markAllBusy, pendingReadIds, viewLead, markAll }}>
     <div className="print:hidden"><Toaster position="top-right" /></div>
     {children}
   </NotificationContext.Provider>;

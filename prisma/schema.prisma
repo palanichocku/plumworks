@@ -31,6 +31,12 @@ enum MarketingLeadSource {
   DROP_OFF
 }
 
+enum MarketingLeadContactMethod {
+  TEXT
+  PHONE_CALL
+  EMAIL
+}
+
 enum MarketingLeadStatus {
   NEW
   CONTACTED
@@ -212,6 +218,7 @@ model MarketingLead {
   name                String
   phone               String?
   email               String?
+  preferredContactMethod MarketingLeadContactMethod? @map("preferred_contact_method")
   vehicleYear         Int?                @map("vehicle_year")
   vehicleMake         String?             @map("vehicle_make")
   vehicleModel        String?             @map("vehicle_model")

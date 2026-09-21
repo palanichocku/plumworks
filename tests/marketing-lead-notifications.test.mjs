@@ -9,11 +9,13 @@ async function load(path, dependencies = {}, environment = {}, logger = { error(
   const loaded = { exports: {} };
   new Function("require", "module", "exports", "process", "console", outputText)((id) => {
     if (id === "server-only") return {};
+    if (id === "@/lib/marketing-lead-contact") return contactMethods;
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency ${id}`);
     return dependencies[id];
   }, loaded, loaded.exports, { env: environment }, logger);
   return loaded.exports;
 }
+const contactMethods = await load("src/lib/marketing-lead-contact.ts");
 const settings = await load("src/lib/marketing-lead-notification-settings.ts");
 const defaults = { marketingLeadEmailNotificationsEnabled: true, marketingLeadNotifyEmail1: null, marketingLeadNotifyEmail2: null };
 for (const [name, overrides, expected] of [
@@ -34,7 +36,7 @@ test("notification email validation normalizes and rejects invalid addresses", (
     assert.throws(() => settings.normalizeLeadNotificationEmail(invalid));
   }
 });
-const lead = { id: "10000000-0000-0000-0000-000000000001", shopId: "shop-a", source: "CONTACT", name: "Example Visitor", phone: "555-0100", email: "visitor@example.test", vehicleYear: 2021, vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", preferredDate: new Date("2026-10-01"), preferredTime: "10:00", message: "Please call me", status: "NEW" };
+const lead = { id: "10000000-0000-0000-0000-000000000001", shopId: "shop-a", source: "CONTACT", name: "Example Visitor", phone: "555-0100", email: "visitor@example.test", vehicleYear: 2021, vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", preferredDate: new Date("2026-10-01"), preferredTime: "10:00", preferredContactMethod: "TEXT", message: "Please call me", status: "NEW" };
 
 for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
   test(`${source} email includes complete content without internal identifiers`, async () => {
@@ -48,7 +50,7 @@ for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
     assert.equal(sent.length, 2);
     const label = { CONTACT: "Contact", APPOINTMENT: "Appointment", DROP_OFF: "Drop-Off" }[source];
     assert.equal(sent[0].subject, `New ${label} Request — Example Visitor`);
-    for (const value of [lead.name, lead.phone, lead.email, "2021 Example Sedan", lead.requestedService, "2026-10-01", "10:00", lead.message, `Submission source: ${label}`, "https://www.subbuscardoc.com/leads"]) assert.ok(sent[0].text.includes(value));
+    for (const value of [lead.name, lead.phone, lead.email, "2021 Example Sedan", lead.requestedService, "2026-10-01", "10:00", lead.message, `Submission source: ${label}`, "Preferred contact method: Text", "https://www.subbuscardoc.com/leads"]) assert.ok(sent[0].text.includes(value));
     assert.ok(!sent[0].text.includes(lead.id));
     assert.ok(!sent[0].text.includes(lead.shopId));
   });
@@ -194,7 +196,7 @@ test("Contact, Appointment, and Drop-Off forms keep validation, attribution and 
     await assert.rejects(actions[action](spam), { message: `redirect:${path}?sent=1` });
     assert.equal(submission.stored.leads.length, 0);
     const form = new FormData();
-    for (const [key, value] of Object.entries({ name: " Example Visitor ", phone: "555-0100", email: "Visitor@Example.test", vehicleYear: "2021", vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", message: "Please call me", preferredDate: "2026-10-01", preferredTime: "10:00" })) form.set(key, value);
+    for (const [key, value] of Object.entries({ name: " Example Visitor ", phone: "555-0100", email: "Visitor@Example.test", vehicleYear: "2021", vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", message: "Please call me", preferredDate: "2026-10-01", preferredTime: "10:00", preferredContactMethod: "TEXT" })) form.set(key, value);
     await assert.rejects(actions[action](form), { message: `redirect:${path}?sent=1` });
     assert.equal(submission.stored.leads.length, 1);
     assert.equal(submission.stored.leads[0].source, source);
@@ -304,7 +306,67 @@ for (const scenario of [
     });
     await notifier.notifyNewMarketingLead(lead);
     assert.equal(sends, scenario.result === "skipped" ? 0 : 1);
-    assert.deepEqual(logs, [{ event: "marketing_lead_email", leadId: lead.id, source: lead.source, recipientSource: scenario.source, recipientCount: sends, result: scenario.result, ...(scenario.code ? { code: scenario.code } : { resendId: "resend-safe-id" }) }]);
+    assert.deepEqual(logs, [{ event: "marketing_lead_email", leadId: lead.id, source: lead.source, recipientSource: scenario.source, recipientCount: sends, result: scenario.result, ...(sends ? { recipientIndex: 1 } : {}), ...(scenario.code ? { code: scenario.code } : { resendId: "resend-safe-id" }) }]);
     for (const sensitive of [lead.name, lead.phone, lead.email, lead.message, "owner@example.test", "fallback@example.test", "private-secret"]) assert.ok(!JSON.stringify(logs).includes(sensitive));
+  });
+}
+
+for (const [action, path] of [["submitContactLead", "/contact"], ["submitAppointmentLead", "/appointment"], ["submitDropOffLead", "/drop-off"]]) {
+  test(`${action} requires phone, valid email and an intentional contact preference; persists all choices`, async () => {
+    const saved = [];
+    const actions = await load("src/app/(marketing)/lead-actions.ts", {
+      "next/navigation": { redirect: (url) => { throw new Error(url); } },
+      "next/headers": { cookies: async () => ({ get: () => undefined }) },
+      "@/lib/prisma": { prisma: { shop: { findMany: async () => [{ id: "shop-a" }] } } },
+      "@/lib/marketing-attribution": await load("src/lib/marketing-attribution.ts"),
+      "@/lib/marketing-lead-submission": { storeMarketingLead: async (record) => saved.push(record) },
+    });
+    const valid = { name: "Example Visitor", phone: "555-0100", email: " Visitor@Example.test ", preferredContactMethod: "TEXT", vehicleYear: "2021", vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", preferredDate: "2026-10-01", message: "Please contact me" };
+    for (const overrides of [{ phone: "" }, { email: "" }, { email: "bad" }, { preferredContactMethod: "" }, { preferredContactMethod: "SMS" }, { preferredContactMethod: "__proto__" }]) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries({ ...valid, ...overrides })) form.set(key, value);
+      await assert.rejects(actions[action](form), { message: `${path}?error=1` });
+      assert.equal(saved.length, 0);
+    }
+    for (const method of ["TEXT", "PHONE_CALL", "EMAIL"]) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries({ ...valid, preferredContactMethod: method })) form.set(key, value);
+      await assert.rejects(actions[action](form), { message: `${path}?sent=1` });
+      assert.equal(saved.at(-1).preferredContactMethod, method);
+      assert.equal(saved.at(-1).email, "visitor@example.test");
+      assert.equal(saved.at(-1).preferredDate.toISOString(), "2026-10-01T00:00:00.000Z");
+    }
+  });
+}
+
+test("each database recipient gets an indexed result even when the first fails", async () => {
+  const sent = [], logs = [];
+  const notifier = await load("src/lib/marketing-lead-notifications.ts", {
+    "@/lib/prisma": { prisma: { shop: { findUniqueOrThrow: async () => ({ ...defaults, marketingLeadNotifyEmail1: "one@example.test", marketingLeadNotifyEmail2: "two@example.test" }) } } },
+    "@/lib/email/resend": { sendResendEmail: async ({ to }) => { sent.push(to); return to === "one@example.test" ? { ok: false, code: "request_rejected" } : { ok: true, id: "second-id" }; } },
+    "@/lib/marketing-lead-notification-settings": settings,
+  }, {}, { info: (record) => logs.push(record), error: (record) => logs.push(record) });
+  await notifier.notifyNewMarketingLead(lead);
+  assert.deepEqual(sent, ["one@example.test", "two@example.test"]);
+  assert.deepEqual(logs.map(({ recipientIndex, recipientCount, recipientSource, result }) => ({ recipientIndex, recipientCount, recipientSource, result })), [
+    { recipientIndex: 1, recipientCount: 2, recipientSource: "DATABASE", result: "failed" },
+    { recipientIndex: 2, recipientCount: 2, recipientSource: "DATABASE", result: "accepted" },
+  ]);
+  assert.equal(logs[0].code, "request_rejected");
+  assert.equal(logs[1].resendId, "second-id");
+  assert.ok(!JSON.stringify(logs).includes("@"));
+});
+
+for (const method of [null, "TEXT", "PHONE_CALL", "EMAIL"]) {
+  test(`owner email safely presents preference ${method}`, async () => {
+    const sent = [];
+    const notifier = await load("src/lib/marketing-lead-notifications.ts", {
+      "@/lib/prisma": { prisma: { shop: { findUniqueOrThrow: async () => ({ ...defaults, marketingLeadNotifyEmail1: "one@example.test" }) } } },
+      "@/lib/email/resend": { sendResendEmail: async (message) => { sent.push(message); return { ok: true, id: "email-id" }; } },
+      "@/lib/marketing-lead-notification-settings": settings,
+    });
+    await notifier.notifyNewMarketingLead({ ...lead, preferredContactMethod: method });
+    assert.ok(sent[0].text.includes(`Preferred contact method: ${method ? contactMethods.leadContactMethodLabels[method] : "Not specified"}`));
+    assert.ok(!sent[0].text.includes(lead.id));
   });
 }

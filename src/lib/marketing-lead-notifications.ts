@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { leadNotificationRecipients } from "@/lib/marketing-lead-notification-settings";
 import { sendResendEmail } from "@/lib/email/resend";
 
+import { leadContactMethodLabels } from "@/lib/marketing-lead-contact";
+
 const sourceLabels = { CONTACT: "Contact", APPOINTMENT: "Appointment", DROP_OFF: "Drop-Off" } as const;
 
 function value(value: string | number | null | undefined) {
@@ -40,6 +42,7 @@ export async function notifyNewMarketingLead(lead: MarketingLead) {
     `Name: ${lead.name}`,
     `Phone: ${value(lead.phone)}`,
     `Email: ${value(lead.email)}`,
+    `Preferred contact method: ${lead.preferredContactMethod ? leadContactMethodLabels[lead.preferredContactMethod] : "Not specified"}`,
     `Vehicle: ${vehicle}`,
     `Requested service: ${value(lead.requestedService)}`,
     `Preferred date: ${lead.preferredDate ? lead.preferredDate.toISOString().slice(0, 10) : "Not provided"}`,
@@ -49,13 +52,14 @@ export async function notifyNewMarketingLead(lead: MarketingLead) {
     leadsUrl ? `View Leads in PlumWorks: ${leadsUrl}` : "View Leads in PlumWorks.",
   ].join("\n");
 
-  await Promise.all(recipients.map(async (to) => {
+  await Promise.all(recipients.map(async (to, index) => {
+    const attempt = { ...metadata, recipientIndex: index + 1 };
     try {
       const result = await sendResendEmail({ to, subject: `New ${sourceLabels[lead.source]} Request — ${lead.name.replace(/[\r\n]/g, " ")}`, text });
-      if (result.ok) console.info({ ...metadata, result: "accepted", resendId: result.id });
-      else console.error({ ...metadata, result: "failed", code: result.code });
+      if (result.ok) console.info({ ...attempt, result: "accepted", resendId: result.id });
+      else console.error({ ...attempt, result: "failed", code: result.code });
     } catch {
-      console.error({ ...metadata, result: "failed", code: "unexpected_error" });
+      console.error({ ...attempt, result: "failed", code: "unexpected_error" });
     }
   }));
 }

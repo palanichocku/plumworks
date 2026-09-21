@@ -14,7 +14,7 @@ function age(createdAt: string) {
 }
 
 export function LeadNotificationCenter() {
-  const { state, open, setOpen, error, busy, viewLead, markAll } = useLeadNotifications();
+  const { state, open, setOpen, error, markAllBusy, viewLead, markAll } = useLeadNotifications();
   const panel = useRef<HTMLDivElement>(null);
   const bell = useRef<HTMLButtonElement>(null);
 
@@ -34,13 +34,13 @@ export function LeadNotificationCenter() {
       {error && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-amber-500" />}
     </button>
     {open && <section id="lead-notification-panel" aria-label="Lead notifications" className="fixed right-3 top-16 z-50 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-xl lg:absolute lg:right-0 lg:top-12">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="font-bold">Lead notifications</h2><button disabled={busy || !state?.unreadCount} onClick={() => void markAll()} className="text-xs font-semibold text-brand-primary disabled:text-slate-400">Mark all as read</button></div>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="font-bold">Lead notifications</h2><button disabled={markAllBusy || !state?.unreadCount} onClick={() => void markAll()} className="text-xs font-semibold text-brand-primary disabled:text-slate-400">Mark all as read</button></div>
       {error && <p role="status" className="bg-amber-50 p-3 text-sm text-amber-900">Notifications are temporarily unavailable. Retrying automatically.</p>}
       {!state && !error && <p className="p-5 text-sm text-slate-500">Loading notifications…</p>}
       {state && !state.enabled && <p className="p-5 text-sm text-slate-500">In-app lead notifications are turned off in Shop Settings.</p>}
       {state?.enabled && state.items.length === 0 && <p className="p-5 text-sm text-slate-500">No lead notifications yet.</p>}
       <ul className="max-h-[60vh] overflow-y-auto">{state?.items.map((item) => <li key={item.id} className="border-b border-slate-100 last:border-0">
-        <button disabled={busy} onClick={() => void viewLead(item)} className={`block w-full px-4 py-3 text-left hover:bg-slate-100 disabled:opacity-60 ${item.read ? "bg-white" : "bg-orange-50/60"}`}>
+        <button onClick={() => void viewLead(item)} className={`block w-full px-4 py-3 text-left hover:bg-slate-100 ${item.read ? "bg-white" : "bg-orange-50/60"}`}>
           <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold text-slate-600">{labels[item.source]}</span>{!item.read && <span className="text-xs font-bold text-orange-700">Unread</span>}</div>
           <p className="mt-1 font-semibold text-slate-950">{item.name}</p>{item.vehicle && <p className="mt-0.5 text-sm text-slate-600">{item.vehicle}</p>}
           <div className="mt-2 flex items-center justify-between text-xs text-slate-500"><time dateTime={item.createdAt}>{age(item.createdAt)}</time><span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">{item.status}</span></div>

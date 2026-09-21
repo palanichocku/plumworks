@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { storeMarketingLead } from "@/lib/marketing-lead-submission";
 import { leadAttributionData, marketingAttributionCookie } from "@/lib/marketing-attribution";
 
+import { parseLeadContactMethod } from "@/lib/marketing-lead-contact";
+
 function field(formData: FormData, name: string, max: number) {
   return String(formData.get(name) ?? "").trim().slice(0, max) || null;
 }
@@ -20,8 +22,9 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
   const vehicleModel = field(formData, "vehicleModel", 80);
   const requestedService = field(formData, "requestedService", 200);
   const message = field(formData, "message", 3000);
-  if (!name || !phone) redirect(`${destination}?error=1`);
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`${destination}?error=1`);
+  const preferredContactMethod = parseLeadContactMethod(formData.get("preferredContactMethod"));
+  if (!name || !phone || !email || !preferredContactMethod) redirect(`${destination}?error=1`);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`${destination}?error=1`);
   const rawYear = field(formData, "vehicleYear", 4);
   const year = rawYear ? Number(rawYear) : null;
   if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2100)) redirect(`${destination}?error=1`);
@@ -37,7 +40,7 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
     const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
     if (shops.length !== 1) redirect(`${destination}?error=1`);
     await storeMarketingLead({
-      shopId: shops[0].id, source, name, phone, email, vehicleYear: year,
+      shopId: shops[0].id, source, name, phone, email, preferredContactMethod, vehicleYear: year,
       vehicleMake, vehicleModel, requestedService, preferredDate, preferredTime, message,
       ...attribution,
     });
