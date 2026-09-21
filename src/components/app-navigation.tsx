@@ -42,10 +42,10 @@ const { terminology } = businessProfile;
 
 const navigation = [
   { href: "/repair-orders", label: terminology.workOrderPlural, icon: Wrench, module: "workOrders" },
-  { href: "/leads", label: "Leads", icon: Inbox, module: null },
   { href: "/invoices", label: "Invoices", icon: FileText, module: "invoices" },
   { href: "/customers", label: "Customers", icon: Users, module: "customers" },
   { href: "/vehicles", label: terminology.assetPlural, icon: Car, module: "assets" },
+  { href: "/leads", label: "Leads", icon: Inbox, module: null },
   { href: "/", label: "Website", icon: Globe, module: null },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: null },
   { href: "/reports", label: "Reports", icon: BarChart3, module: "reports" },

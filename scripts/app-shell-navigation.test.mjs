@@ -30,7 +30,7 @@ test("mobile navigation and permission filtering remain unchanged", async () => 
 test("desktop and mobile share the customer-requested navigation order", async () => {
   const source = await read("src/components/app-navigation.tsx");
   const orderedRoutes = [...source.matchAll(/\{ href: "([^"]+)", label: [^,]+, icon: \w+, module:/g)].map((match) => match[1]);
-  assert.deepEqual(orderedRoutes, ["/repair-orders", "/leads", "/invoices", "/customers", "/vehicles", "/", "/dashboard", "/reports", "/admin", "/help", "/accounts-receivable"]);
+  assert.deepEqual(orderedRoutes, ["/repair-orders", "/invoices", "/customers", "/vehicles", "/leads", "/", "/dashboard", "/reports", "/admin", "/help", "/accounts-receivable"]);
   const profile = getBusinessProfile();
   assert.equal(profile.terminology.workOrderPlural, "Repair Orders");
   assert.equal(profile.terminology.assetPlural, "Vehicles");
