@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ status?: string; lead?: string }> }) {
   const [{ user, membership }, query] = await Promise.all([requirePermission("view_marketing_leads"), searchParams]);
   if (!user) throw new Error("Sign in to view leads.");
-  const selected = Object.values(MarketingLeadStatus).includes(query.status as MarketingLeadStatus)
+  const selected = query.status === "ALL" ? undefined : Object.values(MarketingLeadStatus).includes(query.status as MarketingLeadStatus)
     ? query.status as MarketingLeadStatus
-    : undefined;
+    : MarketingLeadStatus.NEW;
   const [leads, newLeadCount] = await Promise.all([
     prisma.marketingLead.findMany({
       where: { shopId: membership.shopId, ...(query.lead && /^[0-9a-f-]{36}$/i.test(query.lead) ? { id: query.lead } : selected ? { status: selected } : {}) },
@@ -31,9 +31,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       <PageHeading eyebrow="Operations" title="Leads" description="Review public contact, appointment, and drop-off requests. Leads remain separate from customer and vehicle records." />
       <Link href="/leads?status=NEW" className="shrink-0 rounded-xl bg-orange-50 px-4 py-3 text-sm font-black text-orange-700">{newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"}</Link>
     </div>
-    <nav className="flex flex-wrap gap-2">
-      <Link href="/leads" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold">All</Link>
-      {Object.values(MarketingLeadStatus).map((status) => <Link key={status} href={`/leads?status=${status}`} className={`rounded-lg border px-3 py-2 text-sm font-bold ${selected === status ? "border-brand-primary bg-brand-primary text-white" : "border-slate-200 bg-white"}`}>{statusLabels[status]}</Link>)}
+    <nav aria-label="Lead status" className="flex flex-wrap gap-2">
+      {Object.values(MarketingLeadStatus).map((status) => <Link key={status} href={`/leads?status=${status}`} aria-current={selected === status ? "page" : undefined} className={`rounded-lg border px-3 py-2 text-sm font-bold ${selected === status ? "border-brand-primary bg-brand-primary text-white" : "border-slate-200 bg-white"}`}>{statusLabels[status]}</Link>)}
+      <Link href="/leads?status=ALL" aria-current={selected === undefined ? "page" : undefined} className={`rounded-lg border px-3 py-2 text-sm font-bold ${selected === undefined ? "border-brand-primary bg-brand-primary text-white" : "border-slate-200 bg-white"}`}>All</Link>
     </nav>
     <div className="space-y-4">
       {leads.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">No matching leads.</div>}

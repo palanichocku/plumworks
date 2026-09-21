@@ -77,7 +77,7 @@ test("legacy Admin bookmark redirects to operational Leads and preserves filters
 
 const lead = { id: "10000000-0000-0000-0000-000000000001", shopId: "shop-a", source: "APPOINTMENT", name: "Example Visitor", status: "NEW", scheduledDate: null, scheduledTime: null, internalNote: null, notification: { id: "alert-a", reads: [] } };
 
-test("STAFF operational list is tenant scoped, newest first, filtered, and uses the shared management card", async () => {
+async function renderLeads(query = {}, records = [lead]) {
   const calls = [];
   const p = await permissions(membership());
   const presenter = await load("src/lib/marketing-lead-read-presentation.ts");
@@ -87,11 +87,16 @@ test("STAFF operational list is tenant scoped, newest first, filtered, and uses 
     "@/lib/permissions": p, "@/lib/marketing-lead-read-presentation": presenter,
     "@/components/marketing-lead-card": { MarketingLeadCard: "lead-card" },
     "@/lib/prisma": { prisma: { marketingLead: {
-      findMany: async (query) => { calls.push(query); return [lead]; },
+      findMany: async (query) => { calls.push(query); return records.filter((record) => !query.where.status || record.status === query.where.status); },
       count: async ({ where }) => { assert.deepEqual(where, { shopId: "shop-a", status: "NEW" }); return 1; },
     } } },
   });
-  const tree = await page.default({ searchParams: Promise.resolve({ status: "NEW", shopId: "shop-b" }) });
+  const tree = await page.default({ searchParams: Promise.resolve(query) });
+  return { tree, calls };
+}
+
+test("STAFF operational list is tenant scoped, newest first, filtered, and uses the shared management card", async () => {
+  const { tree, calls } = await renderLeads({ status: "NEW", shopId: "shop-b" });
   assert.deepEqual(calls[0].where, { shopId: "shop-a", status: "NEW" });
   assert.deepEqual(calls[0].orderBy, [{ createdAt: "desc" }, { id: "desc" }]);
   assert.deepEqual(calls[0].include.notification.include.reads.where, { shopId: "shop-a", userId: "user-a" });
@@ -101,6 +106,63 @@ test("STAFF operational list is tenant scoped, newest first, filtered, and uses 
   assert.ok(nodes(tree).some((node) => node.props?.href === "/leads?status=NEW"));
   assert.ok(!nodes(tree).some((node) => node.props?.href?.startsWith("/admin")));
 });
+
+
+for (const query of [{}, { status: "NEW" }, { status: "invalid" }]) {
+  test(`Leads defaults safely to NEW and selects New for ${JSON.stringify(query)}`, async () => {
+    const { tree, calls } = await renderLeads(query);
+    assert.deepEqual(calls[0].where, { shopId: "shop-a", status: "NEW" });
+    const navigation = nodes(tree).find((node) => node.type === "nav" && node.props["aria-label"] === "Lead status");
+    const tabs = nodes(navigation).filter((node) => node.type === "a");
+    assert.deepEqual(tabs.map((tab) => tab.props.children), ["New", "Contacted", "Scheduled", "Converted", "Closed", "All"]);
+    assert.deepEqual(tabs.filter((tab) => tab.props["aria-current"] === "page").map((tab) => tab.props.children), ["New"]);
+    assert.match(tabs[0].props.className, /bg-brand-primary/);
+    assert.equal(tabs.at(-1).props.href, "/leads?status=ALL");
+  });
+}
+
+for (const status of Object.values(statuses)) {
+  test(`explicit ${status} filter still returns and selects that status`, async () => {
+    const records = Object.values(statuses).map((value) => ({ ...lead, id: value, status: value }));
+    const { tree, calls } = await renderLeads({ status }, records);
+    assert.equal(calls[0].where.status, status);
+    assert.deepEqual(nodes(tree).filter((node) => node.type === "lead-card").map((node) => node.props.lead.status), [status]);
+    const selected = nodes(tree).filter((node) => node.type === "a" && node.props["aria-current"] === "page");
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0].props.href, `/leads?status=${status}`);
+  });
+}
+
+test("ALL is selected last and returns every MarketingLead status", async () => {
+  const records = Object.values(statuses).map((status) => ({ ...lead, id: status, status }));
+  const { tree, calls } = await renderLeads({ status: "ALL" }, records);
+  assert.deepEqual(calls[0].where, { shopId: "shop-a" });
+  assert.deepEqual(nodes(tree).filter((node) => node.type === "lead-card").map((node) => node.props.lead.status), Object.values(statuses));
+  const navigation = nodes(tree).find((node) => node.type === "nav" && node.props["aria-label"] === "Lead status");
+  const tabs = nodes(navigation).filter((node) => node.type === "a");
+  assert.equal(tabs.at(-1).props.children, "All");
+  assert.equal(tabs.at(-1).props["aria-current"], "page");
+  assert.match(tabs.at(-1).props.className, /bg-brand-primary/);
+});
+
+for (const mobile of [false, true]) {
+  test(`${mobile ? "mobile" : "desktop"} primary Leads link resets prior filters to the default New view`, async () => {
+    for (const previousStatus of ["CONTACTED", "SCHEDULED", "CONVERTED", "CLOSED", "ALL"]) {
+      const navigation = await load("src/components/app-navigation.tsx", {
+        "next/link": { default: "a" }, "next/navigation": { usePathname: () => "/leads" },
+        "@/components/lead-notification-provider": { useLeadNotifications: () => ({ state: { unreadCount: 0 } }) },
+        "@/lib/business-profile": { getBusinessProfile: () => ({ terminology: { workOrderPlural: "Repair Orders", assetPlural: "Vehicles" }, modules: {} }) },
+      });
+      const tree = (mobile ? navigation.MobileNavigation : navigation.DesktopNavigation)({ canViewReports: false, canViewAdmin: false });
+      const link = nodes(tree).find((node) => node.type === "a" && node.props.href === "/leads");
+      assert.ok(link);
+      const destination = new URL(link.props.href, `https://www.subbuscardoc.com/leads?status=${previousStatus}`);
+      assert.equal(destination.search, "");
+      const result = await renderLeads(Object.fromEntries(destination.searchParams));
+      assert.equal(result.calls[0].where.status, "NEW");
+    }
+  });
+}
 
 test("lead detail uses the same management card without an Admin detour", async () => {
   const p = await permissions(membership());
