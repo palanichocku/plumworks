@@ -37,7 +37,7 @@ export default async function DashboardPage() {
   supporting: `${formatMoney(summary.monthlyInvoiceTotal)} billed`,
   href: "/invoices",
 },
-    { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Admin access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/admin/leads?status=NEW" },
+    { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Lead access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/leads?status=NEW" },
   ] as const;
   const overview = summary.businessOverview;
   const comparison = (value: number | null) => value === null

@@ -5,6 +5,8 @@ import matrix from "@/lib/permission-matrix.json";
 import { getCurrentMembership } from "@/lib/data/membership";
 
 export type Permission =
+  | "view_marketing_leads"
+  | "manage_marketing_leads"
   | "view_dashboard"
   | "view_search"
   | "view_reports"

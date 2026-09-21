@@ -47,6 +47,14 @@ for (const method of ["GET", "HEAD", "POST"]) {
   }
 }
 
+test("apex canonical redirect removes an upstream server port", async () => {
+  const response = await proxy(new NextRequest("http://localhost:3107/about?utm_source=test", {
+    headers: { host: "subbuscardoc.com" },
+  }));
+  assert.equal(response.status, 301);
+  assert.equal(response.headers.get("location"), "https://www.subbuscardoc.com/about?utm_source=test");
+});
+
 for (const host of ["subbuscardoc.com", "www.subbuscardoc.com"]) {
   for (const method of ["GET", "HEAD"]) {
     test(`${method} ${host} mapped legacy URL goes directly to final URL with existing query filtering`, async () => {

@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { MarketingLead } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { leadNotificationRecipients } from "@/lib/marketing-lead-notification-settings";
 import { sendResendEmail } from "@/lib/email/resend";
 
 const sourceLabels = { CONTACT: "Contact", APPOINTMENT: "Appointment", DROP_OFF: "Drop-Off" } as const;
@@ -14,14 +16,19 @@ async function sendEmail(to: string, subject: string, text: string) {
 }
 
 export async function notifyNewMarketingLead(lead: MarketingLead) {
-  const to = process.env.MARKETING_LEADS_NOTIFY_EMAIL?.trim();
-  if (!to) return;
+  const settings = await prisma.shop.findUniqueOrThrow({
+    where: { id: lead.shopId },
+    select: { marketingLeadEmailNotificationsEnabled: true, marketingLeadNotifyEmail1: true, marketingLeadNotifyEmail2: true },
+  });
+  const recipients = leadNotificationRecipients(settings, process.env.MARKETING_LEADS_NOTIFY_EMAIL);
+  if (!recipients.length) return;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
-  const adminUrl = siteUrl ? `${siteUrl}/admin/leads` : null;
+  const leadsUrl = siteUrl ? `${siteUrl}/leads` : null;
   const vehicle = [lead.vehicleYear, lead.vehicleMake, lead.vehicleModel].filter(Boolean).join(" ") || "Not provided";
   const text = [
-    `New ${sourceLabels[lead.source]} lead`,
+    `New ${sourceLabels[lead.source]} Request`,
+    `Submission source: ${sourceLabels[lead.source]}`,
     "",
     `Name: ${lead.name}`,
     `Phone: ${value(lead.phone)}`,
@@ -32,10 +39,17 @@ export async function notifyNewMarketingLead(lead: MarketingLead) {
     `Preferred time: ${value(lead.preferredTime)}`,
     `Message: ${value(lead.message)}`,
     "",
-    adminUrl ? `Check Admin → Leads: ${adminUrl}` : "Check Admin → Leads in PlumWorks.",
+    leadsUrl ? `View Leads in PlumWorks: ${leadsUrl}` : "View Leads in PlumWorks.",
   ].join("\n");
 
-  await sendEmail(to, `New ${sourceLabels[lead.source]} lead`, text);
+  await Promise.all(recipients.map(async (to) => {
+    try {
+      const result = await sendResendEmail({ to, subject: `New ${sourceLabels[lead.source]} Request — ${lead.name.replace(/[\r\n]/g, " ")}`, text });
+      if (!result.ok) console.error("Marketing lead email delivery failed", result.code);
+    } catch {
+      console.error("Marketing lead email delivery failed");
+    }
+  }));
 }
 
 export async function notifyScheduledMarketingLead(lead: MarketingLead) {

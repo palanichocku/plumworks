@@ -63,6 +63,10 @@ model Shop {
   shopSuppliesCap                       Decimal                @default(0) @map("shop_supplies_cap") @db.Decimal(12, 2)
   shopSuppliesTaxable                   Boolean                @default(true) @map("shop_supplies_taxable")
   auditLoggingEnabled                   Boolean                @default(false) @map("audit_logging_enabled")
+  marketingLeadInAppNotificationsEnabled Boolean                @default(true) @map("marketing_lead_in_app_notifications_enabled")
+  marketingLeadEmailNotificationsEnabled Boolean                @default(true) @map("marketing_lead_email_notifications_enabled")
+  marketingLeadNotifyEmail1              String?                @map("marketing_lead_notify_email_1")
+  marketingLeadNotifyEmail2              String?                @map("marketing_lead_notify_email_2")
   invoiceFooterMessage                  String?                @map("invoice_footer_message")
   warrantyText                          String?                @map("warranty_text")
   invoicePartsWarrantyText              String?                @map("invoice_parts_warranty_text")
@@ -101,6 +105,7 @@ model Shop {
   cannedServices                        CannedService[]
   auditLogs                             AuditLog[]
   staffInvites                          StaffInvite[]
+  marketingLeadNotifications            MarketingLeadNotification[]
   marketingLeads                        MarketingLead[]
   marketingSettings                     MarketingSetting?
   marketingPages                        MarketingPage[]
@@ -234,6 +239,9 @@ model MarketingLead {
   updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at")
   shop                Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
+  notification        MarketingLeadNotification?
+
+  @@unique([shopId, id])
   @@index([shopId, status, createdAt])
   @@index([shopId, attributionSource, createdAt])
   @@map("marketing_leads")
@@ -294,10 +302,40 @@ model StaffInvite {
   @@map("staff_invites")
 }
 
+model MarketingLeadNotification {
+  id              String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId          String                          @map("shop_id") @db.Uuid
+  marketingLeadId String                          @unique @map("marketing_lead_id") @db.Uuid
+  createdAt       DateTime                        @default(now()) @map("created_at")
+  shop            Shop                            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  marketingLead   MarketingLead                   @relation(fields: [shopId, marketingLeadId], references: [shopId, id], onDelete: Cascade)
+  reads           MarketingLeadNotificationRead[]
+
+  @@unique([shopId, id])
+  @@unique([shopId, marketingLeadId])
+  @@index([shopId, createdAt, id])
+  @@map("marketing_lead_notifications")
+}
+
+model MarketingLeadNotificationRead {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId         String                    @map("shop_id") @db.Uuid
+  notificationId String                    @map("notification_id") @db.Uuid
+  userId         String                    @map("user_id") @db.Uuid
+  readAt         DateTime                  @default(now()) @map("read_at")
+  notification   MarketingLeadNotification @relation(fields: [shopId, notificationId], references: [shopId, id], onDelete: Cascade)
+  membership     ShopMembership            @relation(fields: [shopId, userId], references: [shopId, userId], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([shopId, userId])
+  @@map("marketing_lead_notification_reads")
+}
+
 model ShopMembership {
   id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId    String             @map("shop_id") @db.Uuid
   userId    String             @map("user_id") @db.Uuid
+  marketingLeadNotificationReads MarketingLeadNotificationRead[]
   userEmail String?            @map("user_email")
   role      ShopMembershipRole @default(STAFF)
   createdAt DateTime           @default(now()) @map("created_at")

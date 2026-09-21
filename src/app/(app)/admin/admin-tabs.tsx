@@ -7,7 +7,6 @@ const tabs = [
   { name: "App Settings", href: "/admin/app-settings" },
   { name: "Shop Settings", href: "/admin/shop-settings" },
   { name: "Services", href: "/admin/services" },
-  { name: "Leads", href: "/admin/leads" },
   { name: "Staff", href: "/admin/staff" },
   { name: "Audit Log", href: "/admin/audit-log" },
   { name: "Data Tools", href: "/admin/data-tools" },

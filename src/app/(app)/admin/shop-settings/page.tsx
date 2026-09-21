@@ -1,3 +1,4 @@
+import { LeadNotificationSettingsForm } from "@/components/lead-notification-settings-form";
 import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
 import { hasPermission } from "@/lib/permissions";
@@ -24,6 +25,10 @@ export default async function ShopSettingsPage({
   const shop = await prisma.shop.findUnique({
     where: { id: membership.shopId },
     select: {
+      marketingLeadInAppNotificationsEnabled: true,
+      marketingLeadEmailNotificationsEnabled: true,
+      marketingLeadNotifyEmail1: true,
+      marketingLeadNotifyEmail2: true,
       defaultTaxRate: true,
       defaultLaborRate: true,
       partsTaxable: true,
@@ -58,6 +63,12 @@ export default async function ShopSettingsPage({
         description="Manage invoice defaults, global tax behavior, and shop document messaging templates."
       />
 
+      <LeadNotificationSettingsForm settings={{
+        marketingLeadInAppNotificationsEnabled: shop.marketingLeadInAppNotificationsEnabled,
+        marketingLeadEmailNotificationsEnabled: shop.marketingLeadEmailNotificationsEnabled,
+        marketingLeadNotifyEmail1: shop.marketingLeadNotifyEmail1,
+        marketingLeadNotifyEmail2: shop.marketingLeadNotifyEmail2,
+      }} />
       {/* Configuration Card Structure */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>

@@ -1,3 +1,5 @@
+import { LeadNotificationProvider } from "./lead-notification-provider";
+import { LeadNotificationCenter } from "./lead-notification-center";
 import Link from "next/link";
 import { DesktopNavigation, MobileNavigation } from "./app-navigation";
 import { signOut } from "@/app/(app)/actions";
@@ -9,20 +11,23 @@ const businessProfile = getBusinessProfile();
 export function AppShell({
   children,
   userEmail,
+  notificationSessionKey,
   shopName,
   canViewReports,
   canViewAdmin,
 }: {
   children: React.ReactNode;
   userEmail: string;
+  notificationSessionKey: string;
   shopName: string;
   canViewReports: boolean;
   canViewAdmin: boolean;
 }) {
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
+    <LeadNotificationProvider sessionKey={notificationSessionKey}>
     <div className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
-      <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:hidden">
+      <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:ml-64">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary text-xs font-black text-white shadow-sm">
@@ -30,16 +35,19 @@ export function AppShell({
             </span>
             <span className="text-base font-bold tracking-tight text-slate-900">{shopName}</span>
           </Link>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Sign out
-            </button>
-          </form>
+          <div className="flex items-center gap-3">
+            <LeadNotificationCenter />
+            <form action={signOut} className="lg:hidden">
+              <button
+                type="submit"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
-        <MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
+        <div className="lg:hidden"><MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} /></div>
       </header>
 
       <aside className="app-shell-chrome app-shell-sidebar fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r p-6 print:hidden lg:flex lg:flex-col">
@@ -99,5 +107,6 @@ export function AppShell({
         <footer className="border-t border-slate-200 px-5 py-4 text-center text-xs text-slate-400 print:hidden lg:hidden">{poweredByText}</footer>
       </main>
     </div>
+    </LeadNotificationProvider>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLeadNotifications } from "@/components/lead-notification-provider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
@@ -24,6 +25,7 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
+const Inbox = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M4 4h16v16H4zM4 14h5l1 3h4l1-3h5M8 8h8M8 11h5" /></Icon>;
 const Globe = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.25 2.46 3.5 5.67 3.5 9s-1.25 6.54-3.5 9c-2.25-2.46-3.5-5.67-3.5-9S9.75 5.46 12 3Z" /></Icon>;
 const LayoutDashboard = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></Icon>;
 const Users = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
@@ -40,6 +42,7 @@ const { terminology } = businessProfile;
 
 const navigation = [
   { href: "/repair-orders", label: terminology.workOrderPlural, icon: Wrench, module: "workOrders" },
+  { href: "/leads", label: "Leads", icon: Inbox, module: null },
   { href: "/invoices", label: "Invoices", icon: FileText, module: "invoices" },
   { href: "/customers", label: "Customers", icon: Users, module: "customers" },
   { href: "/vehicles", label: terminology.assetPlural, icon: Car, module: "assets" },
@@ -63,6 +66,8 @@ function NavigationLink({
   mobile?: boolean;
 }) {
   const pathname = usePathname();
+  const { state } = useLeadNotifications();
+  const unreadCount = href === "/leads" ? state?.unreadCount ?? 0 : 0;
   const isActive =
     pathname === href ||
     pathname.startsWith(`${href}/`) ||
@@ -98,6 +103,7 @@ function NavigationLink({
         </span>
       )}
       {label}
+      {unreadCount > 0 && <span aria-label={`${unreadCount} unread lead notifications`} className={`${mobile ? "ml-2 inline-flex" : "ml-auto inline-flex"} min-w-5 items-center justify-center rounded-full bg-orange-600 px-1.5 text-[11px] font-bold leading-5 text-white`}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
     </Link>
   );
 }

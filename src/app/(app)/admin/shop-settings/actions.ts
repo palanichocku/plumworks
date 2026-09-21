@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
+import { normalizeLeadNotificationEmail } from "@/lib/marketing-lead-notification-settings";
 import { prisma } from "@/lib/prisma";
 
 function optionalText(value: FormDataEntryValue | null) {
@@ -58,4 +59,29 @@ export async function updateInvoiceSettings(formData: FormData) {
   revalidatePath("/admin/shop-settings");
   revalidatePath("/repair-orders");
   redirect("/admin/shop-settings?saved=1");
+}
+
+export async function updateLeadNotificationSettings(_previous: { error?: string; saved?: boolean }, formData: FormData): Promise<{ error?: string; saved?: boolean }> {
+  const { user, membership } = await requirePermission("edit_shop_settings");
+  let emails;
+  try {
+    emails = {
+      marketingLeadNotifyEmail1: normalizeLeadNotificationEmail(formData.get("marketingLeadNotifyEmail1")),
+      marketingLeadNotifyEmail2: normalizeLeadNotificationEmail(formData.get("marketingLeadNotifyEmail2")),
+    };
+  } catch {
+    return { error: "Enter valid notification email addresses, or leave them blank to use the existing email fallback." };
+  }
+  const data = {
+    ...emails,
+    marketingLeadInAppNotificationsEnabled: formData.get("marketingLeadInAppNotificationsEnabled") === "on",
+    marketingLeadEmailNotificationsEnabled: formData.get("marketingLeadEmailNotificationsEnabled") === "on",
+  };
+  await prisma.$transaction(async (transaction) => {
+    await transaction.shop.update({ where: { id: membership.shopId }, data });
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId,
+      { source: "web", section: "lead_notifications" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Lead notification settings updated" }), { category: "governance" });
+  });
+  revalidatePath("/admin/shop-settings");
+  return { saved: true };
 }

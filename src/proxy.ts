@@ -18,6 +18,7 @@ export async function proxy(request: NextRequest) {
     const canonicalUrl = new URL(request.nextUrl.href);
     canonicalUrl.protocol = "https:";
     canonicalUrl.host = "www.subbuscardoc.com";
+    canonicalUrl.port = "";
     return NextResponse.redirect(canonicalUrl, 301);
   }
   if (request.method === "GET" || request.method === "HEAD") {
@@ -58,6 +59,7 @@ export const config = {
     "/services/:path*",
     "/invite",
     "/dashboard/:path*",
+    "/leads/:path*",
     "/customers/:path*",
     "/vehicles/:path*",
     "/repair-orders/:path*",

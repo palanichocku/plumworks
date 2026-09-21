@@ -63,11 +63,11 @@ test("open repair orders, customers, vehicles, and leads remain shop scoped", ()
 test("new leads exclude the existing synthetic call-click marker", () => {
   assert.match(leadContext, /Visitor clicked Call Now/);
   assert.match(data, /NOT: \{ source: "CONTACT", message: callClickMessage \}/);
-  assert.match(page, /\/admin\/leads\?status=NEW/);
+  assert.match(page, /\/leads\?status=NEW/);
 });
 
 test("card destinations remain existing routes and zero values remain renderable", () => {
-  for (const href of ["/repair-orders", "/customers", "/vehicles", "/invoices", "/admin/leads?status=NEW"]) assert.match(page, new RegExp(href.replace(/[/?]/g, "\\$&")));
+  for (const href of ["/repair-orders", "/customers", "/vehicles", "/invoices", "/leads?status=NEW"]) assert.match(page, new RegExp(href.replace(/[/?]/g, "\\$&")));
   assert.match(page, /summary\.monthlyInvoiceCount\.toLocaleString\(\)/);
   assert.match(formatters, /const source = value\?\.toString\(\)\.trim\(\) \?\? "0"/);
 });

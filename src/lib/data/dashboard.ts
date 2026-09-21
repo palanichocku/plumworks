@@ -21,7 +21,7 @@ export async function getDashboardSummary() {
   const currentMonth = currentUtcMonthRange(now);
   const overviewMonths = exclusiveMonthRanges(now);
 
-  const canViewAdmin = hasPermission(membership.role, "edit_shop_settings");
+  const canViewLeads = hasPermission(membership.role, "view_marketing_leads");
   const [openRepairOrders, customers, vehicles, monthlyInvoices, inProgressInvoices, closedInvoices, newLeadCount, currentSales, previousSales, customerActivity, agedOpenRepairOrders] = await Promise.all([
     prisma.repairOrder.count({ where: operationalRepairOrderWhere(shopId) }),
     prisma.customer.count({ where: { shopId, ...activeCustomerAvailability } }),
@@ -51,7 +51,7 @@ export async function getDashboardSummary() {
       take: 5,
       select: { id: true, repairOrderNumber: true, legacyRoNo: true, closedAt: true, total: true, customer: { select: { displayName: true } } },
     }),
-    canViewAdmin ? prisma.marketingLead.count({
+    canViewLeads ? prisma.marketingLead.count({
       where: { shopId, status: "NEW", NOT: { source: "CONTACT", message: callClickMessage } },
     }) : Promise.resolve(null),
     prisma.invoice.aggregate({

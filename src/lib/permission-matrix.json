@@ -1,17 +1,20 @@
 {
   "OWNER": [
+    "view_marketing_leads", "manage_marketing_leads",
     "view_dashboard", "view_search", "view_reports", "edit_customer_vehicle",
     "create_repair_order", "edit_draft_repair_order", "delete_draft_repair_order",
     "finalize_repair_order", "record_payment", "edit_shop_settings",
     "manage_canned_services", "view_audit_log", "manage_staff", "export_shop_data"
   ],
   "ADMIN": [
+    "view_marketing_leads", "manage_marketing_leads",
     "view_dashboard", "view_search", "view_reports", "edit_customer_vehicle",
     "create_repair_order", "edit_draft_repair_order", "delete_draft_repair_order",
     "finalize_repair_order", "record_payment", "edit_shop_settings",
     "manage_canned_services", "view_audit_log", "manage_staff", "export_shop_data"
   ],
   "STAFF": [
+    "view_marketing_leads", "manage_marketing_leads",
     "view_dashboard", "view_search", "edit_customer_vehicle",
     "create_repair_order", "edit_draft_repair_order", "finalize_repair_order",
     "record_payment"
