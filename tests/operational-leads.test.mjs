@@ -13,16 +13,22 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 async function load(path, dependencies = {}) {
   const { outputText } = ts.transpileModule(await read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
   const loaded = { exports: {} };
-  new Function("require", "module", "exports", outputText)((id) => {
+  new Function("require", "module", "exports", "console", outputText)((id) => {
+    if (id === "@/components/lead-management-form") return managementForm;
     if (id === "server-only") return {};
     if (id === "@/lib/marketing-lead-contact") return contactMethods;
     if (id === "react/jsx-runtime") return runtime;
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency: ${id}`);
     return dependencies[id];
-  }, loaded, loaded.exports);
+  }, loaded, loaded.exports, { info() {}, error() {} });
   return loaded.exports;
 }
 const contactMethods = await load("src/lib/marketing-lead-contact.ts");
+const managementForm = await load("src/components/lead-management-form.tsx", {
+  react: { useRef: () => ({ current: false }), useActionState: () => ["idle", () => {}, false] },
+  "react-hot-toast": { default: { success() {}, error() {} } },
+  "@/app/(app)/leads/manage-actions": { updateLeadStatus() {} },
+});
 function nodes(tree) {
   if (!tree || typeof tree !== "object") return [];
   if (Array.isArray(tree)) return tree.flatMap(nodes);
@@ -209,7 +215,7 @@ test("STAFF lead updates preserve scheduling email and never mutate notification
   assert.ok(revalidations.includes("/leads"));
   assert.ok(revalidations.includes(`/leads/${lead.id}`));
   form.set("id", "10000000-0000-0000-0000-000000000099");
-  await assert.rejects(actions.updateLeadStatus(form), /not found/);
+  await assert.rejects(actions.updateLeadStatus(form), /Could not save the lead/);
   assert.equal(scheduledEmails.length, 1);
 });
 
@@ -234,7 +240,7 @@ test("the shared card retains all lead sources, statuses, contact information an
   for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
     const record = { ...lead, source, phone: "555-0100", email: "visitor@example.test", vehicleYear: 2021, vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", message: "Please call", createdAt: new Date(), preferredDate: new Date("2026-10-01"), preferredTime: "10:00", scheduledDate: new Date("2026-10-02"), scheduledTime: "11:00", internalNote: "Confirm arrival" };
     const rendered = nodes(card.MarketingLeadCard({ lead: record, notification: { id: "alert-a", leadId: lead.id, read: false }, canManage: true }));
-    assert.ok(rendered.some((node) => node.type === "form" && node.props.action === updateLeadStatus));
+    assert.ok(rendered.some((node) => node.type === "form" && typeof node.props.action === "function"));
     assert.deepEqual(rendered.filter((node) => node.type === "option").map((node) => node.props.value), Object.values(statuses));
     for (const name of ["id", "status", "scheduledDate", "scheduledTime", "internalNote"]) assert.ok(rendered.some((node) => node.props?.name === name));
     assert.ok(rendered.some((node) => node.props?.children === record.phone));
