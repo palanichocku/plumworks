@@ -37,21 +37,28 @@ async function harness(storage = new Map()) {
       }
     },
   };
-  const router = { push: (path) => routes.push(path) };
+  const transportEvents = [];
+  const router = { push: (path) => { transportEvents.push({ type: "navigate", path }); routes.push(path); } };
   const toast = Object.assign((message) => toasts.push(message), { custom: (render, options) => toasts.push({ render, options }), dismiss() {}, error: (message) => toasts.push({ error: message }) });
   const jsx = (type, props) => ({ type, props });
   const actions = {
     fetchLeadNotifications: async () => { calls++; return structuredClone(next); },
-    markLeadNotificationRead: async (id) => { reads++; const target = next.items.find((item) => item.id === id); next = { ...next, unreadCount: Math.max(0, next.unreadCount - (target?.read === false ? 1 : 0)), items: next.items.map((item) => item.id === id ? { ...item, read: true } : item) }; return { href: `/leads/${target?.leadId}` }; },
+    persistRead: async (id) => { reads++; const target = next.items.find((item) => item.id === id); next = { ...next, unreadCount: Math.max(0, next.unreadCount - (target?.read === false ? 1 : 0)), items: next.items.map((item) => item.id === id ? { ...item, read: true } : item) }; return { href: `/leads/${target?.leadId}` }; },
     markAllLeadNotificationsRead: async (asOf) => { assert.equal(asOf, next.asOf); readAll++; next = { ...next, unreadCount: 0, items: next.items.map((item) => ({ ...item, read: true })) }; },
   };
   const dependencies = { "@/components/lead-notification-provider": { useLeadNotifications: () => context }, react, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/navigation": { useRouter: () => router, usePathname: () => "/customers" }, "react-hot-toast": { default: toast, Toaster() {} }, "@/app/(app)/leads/actions": actions };
   const source = await readFile(new URL("../src/components/lead-notification-provider.tsx", import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
   const loaded = { exports: {} };
-  new Function("require", "module", "exports", "window", "document", "sessionStorage", outputText)((id) => {
+  new Function("require", "module", "exports", "window", "document", "sessionStorage", "fetch", outputText)((id) => {
     assert.ok(dependencies[id], `Unknown dependency ${id}`); return dependencies[id];
-  }, loaded, loaded.exports, window, document, { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) });
+  }, loaded, loaded.exports, window, document, { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) }, async (url, options) => {
+    transportEvents.push({ type: "post", url, options });
+    assert.deepEqual(options, { method: "POST", cache: "no-store", keepalive: true, credentials: "same-origin" });
+    const id = decodeURIComponent(url.match(/^\/api\/lead-notifications\/(.+)\/read$/)[1]);
+    const result = await actions.persistRead(id);
+    return result instanceof Response ? result : new Response(null, { status: 204 });
+  });
   const centerSource = await readFile(new URL("../src/components/lead-notification-center.tsx", import.meta.url), "utf8");
   const centerCode = ts.transpileModule(centerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const center = { exports: {} };
@@ -71,7 +78,7 @@ async function harness(storage = new Map()) {
     return tree;
   };
   const flush = async () => { await new Promise((resolve) => setImmediate(resolve)); };
-  return { render, renderNavigation, flush, hooks, actions, context: () => context, document, listeners, timers, toasts, routes, storage, calls: () => calls, reads: () => reads, readAll: () => readAll, setNext: (state) => { next = state; }, next: () => structuredClone(next) };
+  return { render, renderNavigation, flush, hooks, actions, transportEvents, context: () => context, document, listeners, timers, toasts, routes, storage, calls: () => calls, reads: () => reads, readAll: () => readAll, setNext: (state) => { next = state; }, next: () => structuredClone(next) };
 }
 function elements(tree) {
   if (!tree || typeof tree !== "object") return [];
@@ -181,8 +188,8 @@ function clickAlert(h, name) {
 test("two bell alerts navigate and update shared badges immediately while independent reads remain pending", async () => {
   const h = await twoAlerts();
   const gates = { "alert-1": deferred(), "alert-2": deferred() };
-  const persist = h.actions.markLeadNotificationRead;
-  h.actions.markLeadNotificationRead = async (id) => { await gates[id].promise; return persist(id); };
+  const persist = h.actions.persistRead;
+  h.actions.persistRead = async (id) => { await gates[id].promise; return persist(id); };
   clickAlert(h, "Example Visitor");
   assert.deepEqual(h.routes, ["/leads/lead-1"]);
   assert.equal(h.context().state.unreadCount, 1);
@@ -210,8 +217,8 @@ test("two bell alerts navigate and update shared badges immediately while indepe
 test("failed read still opens the lead and reconciles only that unread item", async () => {
   const h = await twoAlerts();
   const failure = deferred();
-  const persist = h.actions.markLeadNotificationRead;
-  h.actions.markLeadNotificationRead = (id) => id === 'alert-1' ? failure.promise : persist(id);
+  const persist = h.actions.persistRead;
+  h.actions.persistRead = (id) => id === 'alert-1' ? failure.promise : persist(id);
   clickAlert(h, "Example Visitor");
   clickAlert(h, "Second Visitor");
   await h.flush();
@@ -226,8 +233,8 @@ test("failed read still opens the lead and reconciles only that unread item", as
 test("toast navigation is immediate and duplicate clicks coalesce only the pending write", async () => {
   const h = await twoAlerts();
   const gate = deferred(); let attempts = 0;
-  const persist = h.actions.markLeadNotificationRead;
-  h.actions.markLeadNotificationRead = async (id) => { attempts++; await gate.promise; return persist(id); };
+  const persist = h.actions.persistRead;
+  h.actions.persistRead = async (id) => { attempts++; await gate.promise; return persist(id); };
   const tree = h.toasts[0].render({ visible: true, id: 'toast' });
   const button = elements(tree).find((n) => n.type === 'button' && n.props.children === 'View Lead');
   button.props.onClick(); button.props.onClick();
@@ -240,8 +247,8 @@ test("toast navigation is immediate and duplicate clicks coalesce only the pendi
 test("Mark All and individual navigation remain independent in both directions", async () => {
   const h = await twoAlerts();
   const one = deferred(), all = deferred();
-  const persist = h.actions.markLeadNotificationRead, persistAll = h.actions.markAllLeadNotificationsRead;
-  h.actions.markLeadNotificationRead = async (id) => { await one.promise; return persist(id); };
+  const persist = h.actions.persistRead, persistAll = h.actions.markAllLeadNotificationsRead;
+  h.actions.persistRead = async (id) => { await one.promise; return persist(id); };
   h.actions.markAllLeadNotificationsRead = async (asOf) => { await all.promise; return persistAll(asOf); };
   clickAlert(h, 'Example Visitor');
   const markAll = h.context().markAll(); h.render();
@@ -275,7 +282,7 @@ test("a stalled post-read refresh cannot block another alert or overwrite a late
 test("read reconciliation failure shows unavailable state and recovers on focus", async () => {
   const h = await twoAlerts();
   const fetch = h.actions.fetchLeadNotifications;
-  h.actions.markLeadNotificationRead = async () => { throw new Error('read failed'); };
+  h.actions.persistRead = async () => { throw new Error('read failed'); };
   h.actions.fetchLeadNotifications = async () => { throw new Error('refresh failed'); };
   clickAlert(h, 'Example Visitor'); await h.flush(); h.render();
   assert.deepEqual(h.routes, ['/leads/lead-1']);
@@ -285,4 +292,29 @@ test("read reconciliation failure shows unavailable state and recovers on focus"
   h.listeners.get('focus')(); await h.flush(); h.render();
   assert.equal(h.context().state.unreadCount, 2);
   assert.equal(h.context().error, false);
+});
+
+
+test("POST starts before navigation and non-2xx reconciles the optimistic read", async () => {
+  const h = await twoAlerts();
+  h.actions.persistRead = async () => Response.json({ error: "denied" }, { status: 403 });
+  clickAlert(h, "Example Visitor");
+  assert.deepEqual(h.transportEvents.map((e) => e.type), ["post", "navigate"]);
+  await h.flush(); h.render();
+  assert.equal(h.context().state.unreadCount, 2);
+  assert.deepEqual(h.routes, ["/leads/lead-1"]);
+  assert.ok(h.toasts.some((t) => t.error === "Lead opened, but the notification could not be marked read."));
+});
+
+test("detail mark-as-read uses POST without navigation and reports failures", async () => {
+  const h = await twoAlerts();
+  assert.equal(await h.context().viewLead(h.next().items[0], false), true);
+  assert.deepEqual(h.routes, []);
+  assert.equal(h.transportEvents[0].type, "post");
+  h.render();
+  h.actions.persistRead = async () => new Response(null, { status: 500 });
+  assert.equal(await h.context().viewLead(h.next().items[1], false), false);
+  h.render();
+  assert.equal(h.context().state.unreadCount, 1);
+  assert.ok(h.toasts.some((t) => t.error === "Could not mark this alert read. Please try again."));
 });

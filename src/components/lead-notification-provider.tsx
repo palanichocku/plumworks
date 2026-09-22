@@ -3,7 +3,7 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { fetchLeadNotifications, markLeadNotificationRead, markAllLeadNotificationsRead } from "@/app/(app)/leads/actions";
+import { fetchLeadNotifications, markAllLeadNotificationsRead } from "@/app/(app)/leads/actions";
 
 type NotificationState = Awaited<ReturnType<typeof fetchLeadNotifications>>;
 type Notification = NotificationState["items"][number];
@@ -64,12 +64,14 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
   }, [withPendingReads]);
 
   const viewLead = useCallback((item: Pick<Notification, "id" | "leadId" | "read">, navigate = true): Promise<boolean> => {
-    setOpen(false);
-    toast.dismiss(`lead-${item.id}`);
-    if (navigate) router.push(`/leads/${item.leadId}`);
+    const openLead = () => {
+      setOpen(false);
+      toast.dismiss(`lead-${item.id}`);
+      if (navigate) router.push(`/leads/${item.leadId}`);
+    };
     // Repeated clicks still navigate; only the duplicate write is coalesced.
     const pending = pendingReads.current.get(item.id);
-    if (pending) return pending;
+    if (pending) { openLead(); return pending; }
     revision.current++;
     setState((current) => current ? { ...current,
       unreadCount: Math.max(0, current.unreadCount - ((current.items.find((row) => row.id === item.id)?.read ?? item.read) === false ? 1 : 0)),
@@ -78,7 +80,10 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
     const work = (async () => {
       let saved = false;
       try {
-        await markLeadNotificationRead(item.id);
+        const response = await fetch(`/api/lead-notifications/${encodeURIComponent(item.id)}/read`, {
+          method: "POST", cache: "no-store", keepalive: true, credentials: "same-origin",
+        });
+        if (!response.ok) throw new Error("Read persistence failed.");
         saved = true;
       } catch {
         toast.error(navigate ? "Lead opened, but the notification could not be marked read." : "Could not mark this alert read. Please try again.");
@@ -92,6 +97,7 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
     })();
     pendingReads.current.set(item.id, work);
     setPendingReadIds(new Set(pendingReads.current.keys()));
+    openLead();
     return work;
   }, [router, reconcile]);
 
