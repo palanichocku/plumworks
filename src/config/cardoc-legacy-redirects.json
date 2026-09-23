@@ -808,14 +808,6 @@
       "reason": "No collision-service claim; contact shop for guidance"
     },
     {
-      "source": "/thankyou.html",
-      "decision": "redirect",
-      "destination": "/contact",
-      "status": 301,
-      "category": "forms/contact",
-      "reason": "Legacy form completion page has no standalone replacement"
-    },
-    {
       "source": "/Troy.html",
       "decision": "redirect",
       "destination": "/contact",
