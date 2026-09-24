@@ -246,6 +246,8 @@ test("the shared card retains all lead sources, statuses, contact information an
     assert.ok(rendered.some((node) => node.props?.children === record.phone));
     assert.ok(!rendered.some((node) => node.props?.href?.startsWith("tel:")));
     assert.ok(rendered.some((node) => node.props?.children === record.email));
+    assert.ok(rendered.some((node) => node.props?.children === record.message), "historical messages still render in the shared list/detail card");
+    assert.ok(rendered.some((node) => node.props?.children === record.requestedService));
     assert.ok(!rendered.some((node) => node.props?.href?.startsWith("mailto:")));
     assert.equal(rendered.find((node) => node.props?.name === "internalNote").props.defaultValue, "Confirm arrival");
     assert.ok(!nodes(card.MarketingLeadCard({ lead: record, notification: null, canManage: false })).some((node) => node.type === "form"));
@@ -284,7 +286,11 @@ for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["
 
 for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
   test(`${source} browser form requires email and unselected contact method`, async () => {
-    const { LeadForm } = await load("src/components/marketing/lead-form.tsx", { "@/app/(marketing)/lead-actions": {} });
+    const { LeadForm } = await load("src/components/marketing/lead-form.tsx", { "@/app/(marketing)/lead-actions": {},
+      "@/lib/marketing-requested-services": await load("src/lib/marketing-requested-services.ts"),
+      "@/lib/public-lead-verification": { createFormStarted: () => "signed-test-token" },
+      "@/components/marketing/lead-verification": { LeadVerification: "verification" },
+    });
     const rendered = nodes(LeadForm({ source }));
     for (const name of ["name", "phone", "email"]) assert.equal(rendered.find((n) => n.props.name === name).props.required, true);
     const radios = rendered.filter((n) => n.props.name === "preferredContactMethod");

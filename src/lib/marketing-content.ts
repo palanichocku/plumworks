@@ -16,7 +16,7 @@ export const fallbackMarketingSettings = {
   serviceIntro: "Start with the concern you notice or the maintenance you know is due. The shop will help confirm the right next step.",
   aboutTitle: "Built around the relationship",
   aboutBody: "Repair decisions are easier when the conversation is clear. A local shop can understand the concern, inspect thoughtfully, and help drivers choose a practical path forward.",
-  contactIntro: "Call for the quickest conversation, or send a note and the shop can follow up.",
+  contactIntro: "Call for the quickest conversation, or select a service category and preferred contact method online. The shop will contact you to get the details.",
   reviewUrl: null as string | null,
 };
 

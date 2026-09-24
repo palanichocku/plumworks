@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
+import { leadLoader, testEnvironment, validForm } from "./helpers/public-lead-loader.mjs";
 
 async function load(path, dependencies = {}, environment = {}, logger = { error() {}, info() {} }) {
   const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -184,7 +185,10 @@ test("Contact, Appointment, and Drop-Off forms keep validation, attribution and 
     const submission = await submissionHarness({ emailFails: true });
     const actions = await load("src/app/(marketing)/lead-actions.ts", {
       "next/navigation": { redirect: (url) => { throw new Error(`redirect:${url}`); } },
-      "next/headers": { cookies: async () => ({ get: () => undefined }) },
+      "next/headers": { cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() },
+      "@/lib/public-lead-validation": leadLoader({}, testEnvironment)("@/lib/public-lead-validation"),
+      "@/lib/public-lead-verification": { validFormStarted: () => true, verifyLeadTurnstile: async () => true, publicLeadIp: () => "local-test" },
+      "@/lib/public-lead-admission": { publicLeadAdmission: () => async () => true },
       "@/lib/prisma": { prisma: { shop: { findMany: async () => [{ id: lead.shopId }] } } },
       "@/lib/marketing-lead-submission": submission,
       "@/lib/marketing-attribution": attribution,
@@ -195,8 +199,7 @@ test("Contact, Appointment, and Drop-Off forms keep validation, attribution and 
     const spam = new FormData(); spam.set("website", "bot");
     await assert.rejects(actions[action](spam), { message: `redirect:${path}?sent=1` });
     assert.equal(submission.stored.leads.length, 0);
-    const form = new FormData();
-    for (const [key, value] of Object.entries({ name: " Example Visitor ", phone: "555-0100", email: "Visitor@Example.test", vehicleYear: "2021", vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", message: "Please call me", preferredDate: "2026-10-01", preferredTime: "10:00", preferredContactMethod: "TEXT" })) form.set(key, value);
+    const form = validForm(source);
     await assert.rejects(actions[action](form), { message: `redirect:${path}?sent=1` });
     assert.equal(submission.stored.leads.length, 1);
     assert.equal(submission.stored.leads[0].source, source);
@@ -316,12 +319,16 @@ for (const [action, path] of [["submitContactLead", "/contact"], ["submitAppoint
     const saved = [];
     const actions = await load("src/app/(marketing)/lead-actions.ts", {
       "next/navigation": { redirect: (url) => { throw new Error(url); } },
-      "next/headers": { cookies: async () => ({ get: () => undefined }) },
+      "next/headers": { cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() },
+      "@/lib/public-lead-validation": leadLoader({}, testEnvironment)("@/lib/public-lead-validation"),
+      "@/lib/public-lead-verification": { validFormStarted: () => true, verifyLeadTurnstile: async () => true, publicLeadIp: () => "local-test" },
+      "@/lib/public-lead-admission": { publicLeadAdmission: () => async () => true },
       "@/lib/prisma": { prisma: { shop: { findMany: async () => [{ id: "shop-a" }] } } },
       "@/lib/marketing-attribution": await load("src/lib/marketing-attribution.ts"),
       "@/lib/marketing-lead-submission": { storeMarketingLead: async (record) => saved.push(record) },
     });
-    const valid = { name: "Example Visitor", phone: "555-0100", email: " Visitor@Example.test ", preferredContactMethod: "TEXT", vehicleYear: "2021", vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", preferredDate: "2026-10-01", message: "Please contact me" };
+    const source = { "/contact": "CONTACT", "/appointment": "APPOINTMENT", "/drop-off": "DROP_OFF" }[path];
+    const valid = Object.fromEntries(validForm(source));
     for (const overrides of [{ phone: "" }, { email: "" }, { email: "bad" }, { preferredContactMethod: "" }, { preferredContactMethod: "SMS" }, { preferredContactMethod: "__proto__" }]) {
       const form = new FormData();
       for (const [key, value] of Object.entries({ ...valid, ...overrides })) form.set(key, value);
@@ -334,7 +341,8 @@ for (const [action, path] of [["submitContactLead", "/contact"], ["submitAppoint
       await assert.rejects(actions[action](form), { message: `${path}?sent=1` });
       assert.equal(saved.at(-1).preferredContactMethod, method);
       assert.equal(saved.at(-1).email, "visitor@example.test");
-      assert.equal(saved.at(-1).preferredDate.toISOString(), "2026-10-01T00:00:00.000Z");
+      if (source !== "CONTACT") assert.equal(saved.at(-1).preferredDate.toISOString(), "2026-10-01T00:00:00.000Z");
+      assert.equal(saved.at(-1).message, null);
     }
   });
 }

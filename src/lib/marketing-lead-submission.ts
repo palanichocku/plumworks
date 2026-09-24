@@ -3,8 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyNewMarketingLead } from "@/lib/marketing-lead-notifications";
 
-export async function storeMarketingLead(data: Prisma.MarketingLeadUncheckedCreateInput) {
+export async function storeMarketingLead(data: Prisma.MarketingLeadUncheckedCreateInput, admit?: (transaction: Prisma.TransactionClient) => Promise<boolean>) {
   const lead = await prisma.$transaction(async (transaction) => {
+    if (admit && !await admit(transaction)) return null;
     const shop = await transaction.shop.findUniqueOrThrow({
       where: { id: data.shopId }, select: { marketingLeadInAppNotificationsEnabled: true },
     });
@@ -15,7 +16,8 @@ export async function storeMarketingLead(data: Prisma.MarketingLeadUncheckedCrea
       });
     }
     return created;
-  });
+  }, { isolationLevel: "ReadCommitted" });
+  if (!lead) return null;
   // The committed lead is authoritative, even if settings lookup or delivery fails.
   try { await notifyNewMarketingLead(lead); }
   catch { console.error("Marketing lead email notification failed"); }

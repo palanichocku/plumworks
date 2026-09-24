@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { leadLoader } from "./helpers/public-lead-loader.mjs";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const [deploymentSource, pageSource, contentSource, attributionSource, importerSource] = await Promise.all([
@@ -84,4 +85,30 @@ test("one generic semantic renderer preserves tracked conversion paths", () => {
   assert.match(contentSource, /decodeServiceDetail/);
   assert.match(importerSource, /encodeServiceContent\(item\.content/);
   assert.match(importerSource, /if \(dryRun\) \{ console\.log\("database writes performed: 0"\); \}/);
+});
+
+
+test("service CTAs follow the structured form contract even with old stored narrative copy", async () => {
+  const jsx = (type, props) => ({ type, props });
+  const nodes = tree => !tree || typeof tree !== "object" ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : typeof tree.type === "function" ? nodes(tree.type(tree.props)) : [tree, ...nodes(tree.props?.children)];
+  const service = structuredClone(services[0]);
+  service.content.cta.heading = "Describe your concern through the form";
+  service.content.cta.body = "Share the symptoms in the website message field";
+  const load = leadLoader({
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "next/link": { default: "a" }, "next/navigation": { notFound() { throw Error("not found"); } },
+    "@/components/marketing/attribution-link": { AttributionLink: "a" },
+    "@/components/marketing/tracked-call-link": { TrackedCallLink: "a" },
+    "@/lib/marketing-content": { getMarketingServices: async () => [service] },
+    "@/lib/marketing": { phoneHref: value => `tel:${value}` },
+    "@/lib/marketing-seo": { getPublicSeoShop: async () => ({ name: "Synthetic Shop", city: "Example City", phone: "2025550123" }), canonicalUrl: () => null, safeJsonLd: JSON.stringify },
+  });
+  const rendered = nodes(await load("@/app/(marketing)/services/[slug]/page").default({ params: Promise.resolve({ slug: service.slug }) }));
+  const text = rendered.flatMap(node => [node.props?.children].flat().filter(child => typeof child === "string")).join("\n");
+  assert.ok(!text.includes(service.content.cta.heading));
+  assert.ok(!text.includes(service.content.cta.body));
+  assert.ok(text.includes(load("@/lib/marketing-requested-services").serviceRequestCopy));
+  assert.ok(text.includes(service.content.helpful.paragraphs[0]), "educational diagnosis content is unchanged");
+  assert.ok(text.includes(service.content.expectations.intro), "verbal follow-up information is unchanged");
+  assert.ok(rendered.some(node => node.props?.href === "tel:2025550123"));
 });

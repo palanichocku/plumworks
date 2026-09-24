@@ -1,53 +1,36 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { storeMarketingLead } from "@/lib/marketing-lead-submission";
 import { leadAttributionData, marketingAttributionCookie } from "@/lib/marketing-attribution";
-
-import { parseLeadContactMethod } from "@/lib/marketing-lead-contact";
-
-function field(formData: FormData, name: string, max: number) {
-  return String(formData.get(name) ?? "").trim().slice(0, max) || null;
-}
+import { parsePublicLead } from "@/lib/public-lead-validation";
+import { publicLeadIp, validFormStarted, verifyLeadTurnstile } from "@/lib/public-lead-verification";
+import { publicLeadAdmission } from "@/lib/public-lead-admission";
 
 async function createLead(source: MarketingLeadSource, formData: FormData, destination: string) {
-  if (field(formData, "website", 200)) redirect(`${destination}?sent=1`);
-  const name = field(formData, "name", 120);
-  const phone = field(formData, "phone", 40);
-  const email = field(formData, "email", 200)?.toLowerCase() ?? null;
-  const vehicleMake = field(formData, "vehicleMake", 80);
-  const vehicleModel = field(formData, "vehicleModel", 80);
-  const requestedService = field(formData, "requestedService", 200);
-  const message = field(formData, "message", 3000);
-  const preferredContactMethod = parseLeadContactMethod(formData.get("preferredContactMethod"));
-  if (!name || !phone || !email || !preferredContactMethod) redirect(`${destination}?error=1`);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`${destination}?error=1`);
-  const rawYear = field(formData, "vehicleYear", 4);
-  const year = rawYear ? Number(rawYear) : null;
-  if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2100)) redirect(`${destination}?error=1`);
-  const rawDate = field(formData, "preferredDate", 10);
-  const preferredDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? new Date(`${rawDate}T00:00:00.000Z`) : null;
-  const preferredTime = field(formData, "preferredTime", 5);
-  if (preferredTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(preferredTime)) redirect(`${destination}?error=1`);
-  if (source === "CONTACT" && !message) redirect(`${destination}?error=1`);
-  if (source === "APPOINTMENT" && (!year || !vehicleMake || !vehicleModel || !preferredDate || !requestedService)) redirect(`${destination}?error=1`);
-  if (source === "DROP_OFF" && (!year || !vehicleMake || !vehicleModel || !requestedService)) redirect(`${destination}?error=1`);
+  // Match normal success even if a bot also filled retired/unknown fields.
+  if (formData.getAll("website").some((value) => typeof value === "string" && value.trim())) redirect(`${destination}?sent=1`);
+  let outcome = "sent=1";
   try {
-    const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, destination);
-    const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
-    if (shops.length !== 1) redirect(`${destination}?error=1`);
-    await storeMarketingLead({
-      shopId: shops[0].id, source, name, phone, email, preferredContactMethod, vehicleYear: year,
-      vehicleMake, vehicleModel, requestedService, preferredDate, preferredTime, message,
-      ...attribution,
-    });
+    const data = parsePublicLead(source, formData);
+    if (!validFormStarted(String(formData.get("formStarted") ?? ""), source)
+      || !await verifyLeadTurnstile(String(formData.get("cf-turnstile-response") ?? ""), source)) {
+      outcome = "error=verification";
+    } else {
+      const ip = publicLeadIp(await headers());
+      const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
+      if (shops.length !== 1) throw new Error("Shop unavailable");
+      const shopId = shops[0].id;
+      const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, destination);
+      await storeMarketingLead({ ...attribution, ...data, shopId }, publicLeadAdmission(shopId, data, ip));
+    }
   } catch {
-    redirect(`${destination}?error=1`);
+    outcome = "error=1";
   }
-  redirect(`${destination}?sent=1`);
+  redirect(`${destination}?${outcome}`);
 }
 
 export async function submitContactLead(formData: FormData) { return createLead("CONTACT", formData, "/contact"); }

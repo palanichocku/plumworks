@@ -112,6 +112,7 @@ model Shop {
   auditLogs                             AuditLog[]
   staffInvites                          StaffInvite[]
   marketingLeadNotifications            MarketingLeadNotification[]
+  publicLeadSubmissions                 PublicLeadSubmission[]
   marketingLeads                        MarketingLead[]
   marketingSettings                     MarketingSetting?
   marketingPages                        MarketingPage[]
@@ -918,4 +919,23 @@ model LegacyImportError {
   @@index([importRunId])
   @@index([shopId, legacySourceTable])
   @@map("legacy_import_errors")
+}
+
+// Short-lived admission records, separate from historical/customer lead data.
+model PublicLeadSubmission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  fingerprint String   @db.Char(64)
+  ipHash      String   @map("ip_hash") @db.Char(64)
+  emailHash   String   @map("email_hash") @db.Char(64)
+  phoneHash   String   @map("phone_hash") @db.Char(64)
+  createdAt   DateTime @default(now()) @map("created_at")
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, fingerprint, createdAt])
+  @@index([shopId, ipHash, createdAt])
+  @@index([shopId, emailHash, createdAt])
+  @@index([shopId, phoneHash, createdAt])
+  @@index([shopId, createdAt])
+  @@map("public_lead_submissions")
 }

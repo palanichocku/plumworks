@@ -24,8 +24,8 @@ test("homepage identity and copy remain database-backed and shop-generic", () =>
   assert.match(home, /getPublicShop\(\)/);
   assert.match(home, /getMarketingSettings\(\)/);
   assert.match(home, /settings\.headline/);
-  assert.match(home, /settings\.subheadline/);
-  assert.match(home, /settings\.serviceIntro/);
+  assert.match(home, /serviceRequestCopy/);
+  assert.doesNotMatch(home, /settings\.(?:subheadline|serviceIntro)/);
   assert.match(home, /settings\.aboutTitle/);
   assert.match(home, /settings\.aboutBody/);
   assert.match(home + shell, /shop\.name/);
@@ -55,8 +55,9 @@ test("homepage conversion actions preserve existing lead and call workflows", ()
   assert.match(call, /sendBeacon\("\/api\/marketing\/call-click"\)/);
   assert.match(home + shell, /href="\/appointment"/);
   assert.match(leadActions, /createLead\("APPOINTMENT", formData, "\/appointment"\)/);
-  assert.match(leadActions, /shopId: shops\[0\]\.id, source/);
-  assert.match(leadForm, /Submitting a request does not guarantee a time/);
+  assert.match(leadActions, /const shopId = shops\[0\]\.id/);
+  assert.match(leadActions, /parsePublicLead\(source, formData\)/);
+  assert.match(leadForm, /LeadVerification source=\{source\}/);
   assert.match(home, /Submitting a request does not confirm an appointment/);
 });
 
@@ -81,7 +82,7 @@ test("shared header, mobile navigation, location, and footer expose valid essent
 
 test("homepage includes the requested semantic sections and professional image fallback", () => {
   for (const heading of ["Core services", "Why choose this shop", "How requesting service works", "Customer reviews", "Current promotion", "Location and contact"]) assert.match(home, new RegExp(heading));
-  for (const step of ["Explain the concern", "Evaluate the vehicle", "Review the findings", "Discuss the options", "Approve the work"]) assert.match(home, new RegExp(step));
+  for (const step of ["Start a conversation", "Evaluate the vehicle", "Review the findings", "Discuss the options", "Approve the work"]) assert.match(home, new RegExp(step));
   assert.match(home, /background-image:linear-gradient/);
   assert.doesNotMatch(home, /images\.unsplash|pexels|subbuscardoc/i);
 });
@@ -105,4 +106,11 @@ test("empty optional pages suppress placeholders, use noindex, and keep useful a
   for (const destination of ["/appointment", "/services", "/"]) assert.match(emptyCollection, new RegExp(`href="${destination.replace("/", "\\/")}"`));
   assert.match(emptyCollection, /TrackedCallLink/);
   assert.doesNotMatch(coupons + reviews + photos, /Photo placeholder|Review placeholder|Ask About Current Offers/);
+});
+
+
+test("online intake copy no longer asks for narrative symptoms", () => {
+  assert.doesNotMatch(home, /Share the warning light|Share the symptoms|send a service request with the vehicle details and concern/);
+  assert.match(home, /Select a service category and preferred contact method/);
+  assert.match(home, /Call for the quickest conversation/);
 });

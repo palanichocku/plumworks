@@ -1,3 +1,4 @@
+import { serviceRequestCopy } from "@/lib/marketing-requested-services";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,8 +58,8 @@ function StructuredServicePage({ service, content, shop }: { service: { slug: st
 
       <aside className="rounded-3xl bg-slate-950 p-7 text-white lg:sticky lg:top-28">
         <p className="text-sm font-black uppercase tracking-widest text-orange-400">Talk with {shop.name}</p>
-        <h2 className="mt-4 text-2xl font-black">{content.cta.heading}</h2>
-        <p className="mt-4 text-sm leading-7 text-slate-300">{content.cta.body}</p>
+        <h2 className="mt-4 text-2xl font-black">Request {service.name}</h2>
+        <p className="mt-4 text-sm leading-7 text-slate-300">{serviceRequestCopy}</p>
         <AttributionLink href={`/appointment?service=${service.slug}`} className={`mt-7 block rounded-xl bg-orange-500 px-5 py-3.5 text-center font-black text-slate-950 hover:bg-orange-400 ${focusRing}`}>{content.cta.requestLabel}</AttributionLink>
         {shop.phone ? <TrackedCallLink href={phoneHref(shop.phone)} className={`mt-3 block rounded-xl border border-slate-700 px-5 py-3.5 text-center font-bold hover:border-slate-500 hover:bg-white/5 ${focusRing}`}>{content.cta.callLabel}</TrackedCallLink> : null}
       </aside>
