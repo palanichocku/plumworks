@@ -1,4 +1,5 @@
 import "server-only";
+import { operationalMarketingLeadWhere } from "@/lib/marketing-lead-query";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/permissions";
 import { getCurrentMembership } from "@/lib/data/membership";
@@ -70,7 +71,7 @@ export async function getOperationalLead(id: string) {
   if (!hasPermission(role, "view_marketing_leads")) throw new Error("You do not have permission to view leads.");
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { lead: null, role };
   const lead = await prisma.marketingLead.findFirst({
-    where: { id, shopId },
+    where: { ...operationalMarketingLeadWhere(shopId), id },
     include: { notification: { include: { reads: { where: { shopId, userId }, select: { readAt: true } } } } },
   });
   return { lead, role };

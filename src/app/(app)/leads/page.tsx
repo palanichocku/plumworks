@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, hasPermission } from "@/lib/permissions";
 import { MarketingLeadCard } from "@/components/marketing-lead-card";
 import { leadReadNotification } from "@/lib/marketing-lead-read-presentation";
+import { operationalMarketingLeadWhere } from "@/lib/marketing-lead-query";
 
 const statusLabels = { NEW: "New", CONTACTED: "Contacted", SCHEDULED: "Scheduled", CONVERTED: "Converted", CLOSED: "Closed" } as const;
 
@@ -16,14 +17,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const selected = query.status === "ALL" ? undefined : Object.values(MarketingLeadStatus).includes(query.status as MarketingLeadStatus)
     ? query.status as MarketingLeadStatus
     : MarketingLeadStatus.NEW;
+  const leadId = query.lead && /^[0-9a-f-]{36}$/i.test(query.lead) ? query.lead : undefined;
   const [leads, newLeadCount] = await Promise.all([
     prisma.marketingLead.findMany({
-      where: { shopId: membership.shopId, ...(query.lead && /^[0-9a-f-]{36}$/i.test(query.lead) ? { id: query.lead } : selected ? { status: selected } : {}) },
+      where: { ...operationalMarketingLeadWhere(membership.shopId, leadId ? undefined : selected), ...(leadId ? { id: leadId } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 100,
       include: { notification: { include: { reads: { where: { shopId: membership.shopId, userId: user.id }, select: { readAt: true } } } } },
     }),
-    prisma.marketingLead.count({ where: { shopId: membership.shopId, status: "NEW" } }),
+    prisma.marketingLead.count({ where: operationalMarketingLeadWhere(membership.shopId, "NEW") }),
   ]);
 
   return <div className="space-y-6">

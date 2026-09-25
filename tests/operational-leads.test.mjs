@@ -23,6 +23,7 @@ async function load(path, dependencies = {}) {
   }, loaded, loaded.exports, { info() {}, error() {} });
   return loaded.exports;
 }
+const leadQueries = await load("src/lib/marketing-lead-query.ts", { "@/lib/marketing-lead-context": { callClickMessage: "Visitor clicked Call Now" } });
 const contactMethods = await load("src/lib/marketing-lead-contact.ts");
 const managementForm = await load("src/components/lead-management-form.tsx", {
   react: { useRef: () => ({ current: false }), useActionState: () => ["idle", () => {}, false] },
@@ -90,13 +91,14 @@ async function renderLeads(query = {}, records = [lead]) {
   const p = await permissions(membership());
   const presenter = await load("src/lib/marketing-lead-read-presentation.ts");
   const page = await load("src/app/(app)/leads/page.tsx", {
+    "@/lib/marketing-lead-query": leadQueries,
     "next/link": { default: "a" }, "@/generated/prisma/client": { MarketingLeadStatus: statuses },
     "@/components/page-heading": { PageHeading: "heading" },
     "@/lib/permissions": p, "@/lib/marketing-lead-read-presentation": presenter,
     "@/components/marketing-lead-card": { MarketingLeadCard: "lead-card" },
     "@/lib/prisma": { prisma: { marketingLead: {
       findMany: async (query) => { calls.push(query); return records.filter((record) => !query.where.status || record.status === query.where.status); },
-      count: async ({ where }) => { assert.deepEqual(where, { shopId: "shop-a", status: "NEW" }); return 1; },
+      count: async ({ where }) => { assert.deepEqual(where, leadQueries.operationalMarketingLeadWhere("shop-a", "NEW")); return 1; },
     } } },
   });
   const tree = await page.default({ searchParams: Promise.resolve(query) });
@@ -105,7 +107,7 @@ async function renderLeads(query = {}, records = [lead]) {
 
 test("STAFF operational list is tenant scoped, newest first, filtered, and uses the shared management card", async () => {
   const { tree, calls } = await renderLeads({ status: "NEW", shopId: "shop-b" });
-  assert.deepEqual(calls[0].where, { shopId: "shop-a", status: "NEW" });
+  assert.deepEqual(calls[0].where, leadQueries.operationalMarketingLeadWhere("shop-a", "NEW"));
   assert.deepEqual(calls[0].orderBy, [{ createdAt: "desc" }, { id: "desc" }]);
   assert.deepEqual(calls[0].include.notification.include.reads.where, { shopId: "shop-a", userId: "user-a" });
   const card = nodes(tree).find((node) => node.type === "lead-card");
@@ -119,7 +121,7 @@ test("STAFF operational list is tenant scoped, newest first, filtered, and uses 
 for (const query of [{}, { status: "NEW" }, { status: "invalid" }]) {
   test(`Leads defaults safely to NEW and selects New for ${JSON.stringify(query)}`, async () => {
     const { tree, calls } = await renderLeads(query);
-    assert.deepEqual(calls[0].where, { shopId: "shop-a", status: "NEW" });
+    assert.deepEqual(calls[0].where, leadQueries.operationalMarketingLeadWhere("shop-a", "NEW"));
     const navigation = nodes(tree).find((node) => node.type === "nav" && node.props["aria-label"] === "Lead status");
     const tabs = nodes(navigation).filter((node) => node.type === "a");
     assert.deepEqual(tabs.map((tab) => tab.props.children), ["New", "Contacted", "Scheduled", "Converted", "Closed", "All"]);
@@ -144,7 +146,7 @@ for (const status of Object.values(statuses)) {
 test("ALL is selected last and returns every MarketingLead status", async () => {
   const records = Object.values(statuses).map((status) => ({ ...lead, id: status, status }));
   const { tree, calls } = await renderLeads({ status: "ALL" }, records);
-  assert.deepEqual(calls[0].where, { shopId: "shop-a" });
+  assert.deepEqual(calls[0].where, leadQueries.operationalMarketingLeadWhere("shop-a"));
   assert.deepEqual(nodes(tree).filter((node) => node.type === "lead-card").map((node) => node.props.lead.status), Object.values(statuses));
   const navigation = nodes(tree).find((node) => node.type === "nav" && node.props["aria-label"] === "Lead status");
   const tabs = nodes(navigation).filter((node) => node.type === "a");
@@ -223,7 +225,7 @@ test("Dashboard remains a NEW-lead summary and owner email points directly to Le
   const [dashboard, data, email] = await Promise.all([read("src/app/(app)/dashboard/page.tsx"), read("src/lib/data/dashboard.ts"), read("src/lib/marketing-lead-notifications.ts")]);
   assert.match(dashboard, /"\/leads\?status=NEW"/);
   assert.match(data, /hasPermission\(membership.role, "view_marketing_leads"\)/);
-  assert.match(data, /status: "NEW", NOT: \{ source: "CONTACT", message: callClickMessage \}/);
+  assert.match(data, /where: operationalMarketingLeadWhere\(shopId, "NEW"\)/);
   assert.match(email, /View Leads in PlumWorks/);
   assert.match(email, /`\$\{siteUrl\}\/leads`/);
   assert.doesNotMatch(email, /Admin → Leads|\/admin\/leads/);

@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 import { hasPermission } from "@/lib/permissions";
-import { callClickMessage } from "@/lib/marketing-lead-context";
+import { operationalMarketingLeadWhere } from "@/lib/marketing-lead-query";
 import { currentUtcMonthRange } from "@/lib/dashboard-summary";
 import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
 import { CLOSED_INVOICE_STATUS, OPEN_INVOICE_STATUS } from "@/lib/invoice-lifecycle";
@@ -52,7 +52,7 @@ export async function getDashboardSummary() {
       select: { id: true, repairOrderNumber: true, legacyRoNo: true, closedAt: true, total: true, customer: { select: { displayName: true } } },
     }),
     canViewLeads ? prisma.marketingLead.count({
-      where: { shopId, status: "NEW", NOT: { source: "CONTACT", message: callClickMessage } },
+      where: operationalMarketingLeadWhere(shopId, "NEW"),
     }) : Promise.resolve(null),
     prisma.invoice.aggregate({
       where: reportableSaleWhere(shopId, overviewMonths.current),

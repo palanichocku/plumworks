@@ -7,11 +7,11 @@ import { formatMoney } from "../src/lib/formatters.ts";
 import { getBusinessProfile } from "../src/lib/business-profile.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [page, data, formatters, leadContext] = await Promise.all([
+const [page, data, formatters, leadsPage] = await Promise.all([
   read("src/app/(app)/dashboard/page.tsx"),
   read("src/lib/data/dashboard.ts"),
   read("src/lib/formatters.ts"),
-  read("src/lib/marketing-lead-context.ts"),
+  read("src/app/(app)/leads/page.tsx"),
 ]);
 
 const lifecycle = await read("src/lib/invoice-lifecycle.ts");
@@ -57,12 +57,13 @@ test("open repair orders, customers, vehicles, and leads remain shop scoped", ()
   assert.match(data, /vehicle\.count\(\{ where: \{ shopId, \.\.\.activeVehicleAvailability \} \}/);
   assert.match(data, /import \{ activeCustomerAvailability, activeVehicleAvailability \}/);
   assert.match(data, /marketingLead\.count/);
-  assert.match(data, /where: \{ shopId, status: "NEW"/);
+  assert.match(data, /where: operationalMarketingLeadWhere\(shopId, "NEW"\)/);
 });
 
-test("new leads exclude the existing synthetic call-click marker", () => {
-  assert.match(leadContext, /Visitor clicked Call Now/);
-  assert.match(data, /NOT: \{ source: "CONTACT", message: callClickMessage \}/);
+test("Dashboard and Leads use the same canonical NEW lead predicate", () => {
+  assert.match(data, /where: operationalMarketingLeadWhere\(shopId, "NEW"\)/);
+  assert.match(leadsPage, /where: operationalMarketingLeadWhere\(membership\.shopId, "NEW"\)/);
+  assert.doesNotMatch(data, /message:|callClickMessage/);
   assert.match(page, /\/leads\?status=NEW/);
 });
 
