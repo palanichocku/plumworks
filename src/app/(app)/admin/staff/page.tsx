@@ -6,6 +6,7 @@ import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { changeMemberRole, createStaffInvite, removeMember, revokeStaffInvite } from "./actions";
+import { StaffInviteForm } from "./invite-form";
 
 export const dynamic = "force-dynamic";
 const roleOptions = ["OWNER", "ADMIN", "STAFF"] as const;
@@ -56,8 +57,6 @@ export default async function StaffPage() {
 
   const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-500 w-full";
   const selectClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs cursor-pointer";
-  const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs";
-
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Main Page Header */}
@@ -119,40 +118,14 @@ export default async function StaffPage() {
         <div>
           <h2 className="text-base font-bold text-slate-900">Invite new team member</h2>
           <div className="mt-1.5 space-y-1 text-sm font-medium text-slate-500">
-            <p>Invites create a pending association with this licensed shop.</p>
-            <p className="text-xs text-slate-400 font-normal">
-              Note: Automated transaction mail loops are deferred. An administrator must explicitly configure matching credentials inside Supabase Auth.
-            </p>
+            <p>Invited team members receive a secure email link to set their password and join this shop.</p>
           </div>
         </div>
         
-        <form action={createStaffInvite} className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 text-xs font-bold uppercase tracking-wider text-slate-500">
-            Email address
-            <input 
-              name="email" 
-              type="email" 
-              required 
-              maxLength={254} 
-              placeholder="mechanic@example.com"
-              className={inputClass} 
-            />
-          </label>
-          
-          <label className="w-full sm:w-48 text-xs font-bold uppercase tracking-wider text-slate-500">
-            Initial Role
-            <select name="role" defaultValue="STAFF" className={selectClass}>
-              {(membership.role === "OWNER" ? roleOptions : administrativeRoleOptions).map((role) => <option key={role} value={role}>{role}</option>)}
-            </select>
-          </label>
-          
-          <button 
-            type="submit" 
-            className="rounded-lg bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 whitespace-nowrap"
-          >
-            Create Invite
-          </button>
-        </form>
+        <StaffInviteForm
+          action={createStaffInvite}
+          roleOptions={[...(membership.role === "OWNER" ? roleOptions : administrativeRoleOptions)]}
+        />
       </section>
 
       {/* Pending Invites List Panel Card */}

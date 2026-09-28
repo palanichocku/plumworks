@@ -16,17 +16,18 @@ Client setup is parameterized and dry-run-first. It never changes a database unl
 
 1. Create a new Supabase organization/project named `plumworks-clientname` in the approved region with a unique generated database password. Use the same stable lowercase hyphenated client slug as Vercel.
 2. Enable the required backup/PITR tier and record retention before loading production data.
-3. In Auth URL Configuration, set the Site URL to the exact final production origin. Add the exact production `/auth/callback` recovery destination to the production redirect allowlist. Add localhost or Vercel staging/preview callback origins only to the matching non-production Supabase project.
+3. In Auth URL Configuration, set the Site URL to the exact final production origin. Add the exact production `/auth/callback` destination used by staff invitation and password recovery emails to the production redirect allowlist. Add localhost or Vercel staging/preview callback origins only to the matching non-production Supabase project.
 4. Obtain the pooled application connection, direct migration connection, project URL, and publishable/anon key from the project dashboard.
 5. Store credentials only in the approved password manager and deployment environment. Do not paste values into tickets, docs, logs, screenshots, or source control.
-6. Do not expose the service-role key to the browser. The current app does not require it at runtime.
+6. Configure the server-only Auth Admin key for staff invitations; never expose it to the browser. See the Vercel runtime variables below.
 
 ### Production Auth readiness
 
-- Disable public self-signup for a controlled staff deployment. Authentication alone never grants shop access; a current `ShopMembership` remains required.
-- Enable **Confirm Email**. Staff invitation acceptance requires the authenticated Supabase user to have `email_confirmed_at` and to match the pending invitation email.
+- Disable public self-signup. All staff Auth accounts must be created by an authorized PlumWorks OWNER/ADMIN invitation; do not enable an approved public signup path.
+- Enable **Confirm Email**. Staff invitation acceptance requires the authenticated Supabase user to have `email_confirmed_at` and to match the pending invitation email. Authentication alone never grants shop access; a current `ShopMembership` remains required.
 - Configure a production-capable custom SMTP provider and verify delivery to an owner-controlled mailbox. Supabase's default best-effort mail service is not an accepted production recovery channel.
-- Keep the Site URL and redirect allowlist explicit. Production recovery must return to `https://<production-origin>/auth/callback`, which exchanges the recovery code and permits only the internal `/update-password` destination. Do not use wildcard production redirects.
+- Keep the Site URL and redirect allowlist explicit. Invitations and recovery return to `https://<production-origin>/auth/callback`; the app permits only the fixed internal `/invite` and `/update-password` destinations. Do not use wildcard production redirects.
+- Customize the **Invite user** email template to send the recipient directly to `{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=invite`. The app verifies that invite token hash server-side and creates the cookie session before routing the recipient to `/invite`. Leave the password recovery template unchanged. The invite callback relies on the configured redirect allowlist.
 - Enable available Supabase security notifications for password and email changes. Record which notifications are enabled in the protected deployment record.
 - Before go-live, perform a recovery rehearsal with a designated non-production account: request recovery, verify delivery, complete the link, set a new password, sign in, and confirm the old password no longer works. Never use a fake or non-deliverable owner email in production.
 
@@ -48,6 +49,7 @@ Set these per Vercel environment without printing their values:
 | `DATABASE_URL` | Runtime; Production/Preview as applicable | Supabase pooled Postgres connection used by the app and maintenance scripts. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Runtime; matching project only | Supabase project API URL. Public by design, but still manage it per environment. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Runtime; matching project only | Supabase browser/Auth anon key. Never substitute the service-role key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only; matching project only | Supabase Auth Admin capability used by authorized server actions to send staff invitations. Never expose it to a browser bundle. |
 | `DIRECT_URL` | CI/operator migration and cutover environment; avoid runtime unless required | Direct Postgres connection for Prisma migrations and backup tooling. |
 | `NEXT_PUBLIC_SITE_URL` | Runtime; matching production origin | Canonical public website origin used for sitemap URLs. |
 | `PLUMWORKS_PUBLIC_HOURS` | Runtime; per client | Customer-facing shop hours shown on public marketing pages. |
@@ -67,7 +69,7 @@ Client setup accepts CLI parameters or these operator-only environment variables
 | `PLUMWORKS_SHOP_SLUG` | No | Validated operational slug used for the `plumworks-clientname` project convention; it is not persisted. |
 | `PLUMWORKS_INVOICE_FOOTER_MESSAGE` | No | Footer used only when the legacy company-settings utility is explicitly run. |
 
-`SUPABASE_SERVICE_ROLE_KEY` appears in `.env.example`, but no current runtime use was found. Leave it unset in Vercel unless a reviewed server-only feature requires it.
+`SUPABASE_SERVICE_ROLE_KEY` is used only by the server-only Auth Admin client for staff invitations. It must never be prefixed with `NEXT_PUBLIC_` or imported by client components. Store a separate matching key for each deployment environment.
 
 Marketing lead email notifications are optional. Scheduling confirmation email is attempted only when a lead has an email address and the Resend variables are configured; delivery failure never rolls back the saved lead or status update. SMS reminders and confirmations are a future enhancement and are not part of the current workflow.
 
@@ -128,10 +130,10 @@ After setup, verify there is exactly one shop and review its name, address, city
 
 ## 7. Create the owner user and membership
 
-1. Create the initial owner in the client Supabase dashboard under **Authentication → Users**, or have the owner complete the approved signup/login flow. Require the verified owner email and deliver credentials/reset instructions through an approved secure channel.
+1. Create the initial owner in the client Supabase dashboard under **Authentication → Users**. Public signup remains disabled; no public registration page or flow is available. Require the verified owner email and deliver recovery instructions through an approved secure channel.
 2. Run `client:setup` in dry-run mode with the same `--owner-email`. If no matching Auth user exists, the script performs no owner write and prints the next steps.
 3. After the Auth user exists, rerun the reviewed setup with `--confirm SETUP_PLUMWORKS_CLIENT`. The script creates the membership or promotes the matching membership to `OWNER` transactionally.
-4. Sign in as that owner. Create subsequent staff invitations through **Admin → Staff** and follow `docs/admin-staff-onboarding.md`.
+4. Sign in as that owner. Create subsequent staff invitations through **Admin → Staff** and follow `docs/admin-staff-onboarding.md`. The recipient receives a Supabase Auth invitation, sets their own password, then accepts the PlumWorks membership invitation.
 
 Setup never demotes or removes an owner, so it cannot bypass last-owner protection.
 
