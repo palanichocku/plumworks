@@ -24,11 +24,11 @@ test('files, duplicate fields, oversized bodies and invalid optional time reject
   form.set('name', 'x'.repeat(9000)); assert.throws(() => parsePublicLead('CONTACT', form));
   assert.throws(() => parsePublicLead('APPOINTMENT', validForm('APPOINTMENT', { preferredTime: '24:00' })));
 });
-test('signed 500ms completion check: missing, tampered, future, old and wrong form rejected', () => {
+test('signed three-second completion check: threshold passes; missing, tampered, future, too-fast, old and wrong form rejected', () => {
   const now = Date.now();
-  const token = verification.createFormStarted('CONTACT', now - 500);
+  const token = verification.createFormStarted('CONTACT', now - 3000);
   assert.equal(verification.validFormStarted(token, 'CONTACT', now), true);
-  for (const [value, source] of [['', 'CONTACT'], [token.replace('.CONTACT.', '.DROP_OFF.') + 'a', 'CONTACT'], [token, 'DROP_OFF'], [verification.createFormStarted('CONTACT', now - 499), 'CONTACT'], [verification.createFormStarted('CONTACT', now + 1000), 'CONTACT'], [verification.createFormStarted('CONTACT', now - 8 * 86400000), 'CONTACT']]) assert.equal(verification.validFormStarted(value, source, now), false);
+  for (const [value, source] of [['', 'CONTACT'], [token.replace('.CONTACT.', '.DROP_OFF.') + 'a', 'CONTACT'], [token, 'DROP_OFF'], [verification.createFormStarted('CONTACT', now - 2999), 'CONTACT'], [verification.createFormStarted('CONTACT', now + 1000), 'CONTACT'], [verification.createFormStarted('CONTACT', now - 8 * 86400000), 'CONTACT']]) assert.equal(verification.validFormStarted(value, source, now), false);
 });
 for (const scenario of [
   { label: 'success', result: { success: true, hostname: 'shop.example.test', action: 'CONTACT' }, expected: true },
@@ -108,6 +108,7 @@ for (const source of Object.keys(formSources)) test(`${source} legitimate action
   const lead = h.db.state.leads[0];
   assert.equal(lead.message, null); assert.equal(lead.email, 'visitor@example.test'); assert.equal(lead.phone, '2025550123');
   assert.equal(lead.requestedService, 'Brake Inspection / Service');
+  assert.equal(lead.vehicleYear, 2021); assert.equal(lead.vehicleMake, 'Example Motors'); assert.equal(lead.vehicleModel, 'Model 3 - S.E.');
   if (source !== 'CONTACT') assert.equal(lead.preferredDate.toISOString(), '2026-10-01T00:00:00.000Z');
 });
 for (const scenario of [
@@ -116,10 +117,22 @@ for (const scenario of [
   { label: 'failed token', turnstile: false }, { label: 'missing completion time', overrides: { formStarted: '' } },
   { label: 'message injection', overrides: { message: 'Never stored' } },
   { label: 'arbitrary service', overrides: { requestedService: 'Never stored' } },
+  { label: 'missing intent confirmation', overrides: { vehicleServiceIntent: undefined } },
+  { label: 'falsified intent confirmation', overrides: { vehicleServiceIntent: 'no' } },
+  { label: 'contact missing vehicle year', overrides: { vehicleYear: undefined } },
+  { label: 'contact missing vehicle make', overrides: { vehicleMake: undefined } },
+  { label: 'contact missing vehicle model', overrides: { vehicleModel: undefined } },
 ]) test(`blocked ${scenario.label} has zero lead, email, notification or admission effects on all endpoints`, async () => {
   const h = harness(scenario);
   for (const source of Object.keys(formSources)) assert.match(await h.submit(source, scenario.overrides), scenario.success ? /sent=1$/ : /error=/);
   assert.deepEqual(h.db.state, { leads: [], notifications: [], admissions: [] }); assert.equal(h.emails.length, 0);
+});
+test('submission below the signed three-second minimum creates no protected effects', async () => {
+  const h = harness();
+  const tooFast = load('@/lib/public-lead-verification').createFormStarted('CONTACT', Date.now() - 2999);
+  assert.match(await h.submit('CONTACT', { formStarted: tooFast }), /error=verification/);
+  assert.deepEqual(h.db.state, { leads: [], notifications: [], admissions: [] });
+  assert.equal(h.emails.length, 0);
 });
 for (const variation of [{}, { email: 'VISITOR@EXAMPLE.TEST' }, { phone: '+1 202.555.0123' }]) test(`duplicate returns success once: ${JSON.stringify(variation)}`, async () => {
   const h = harness(); await h.submit(); assert.equal(await h.submit('CONTACT', variation), '/contact?sent=1');
@@ -168,9 +181,40 @@ test('forms render canonical selects, no textareas; appointment offers drop-off;
     assert.ok(!rendered.some(n => n.type === 'textarea' || n.props?.name === 'message'));
     assert.match(tree.props.className, /sm:grid-cols-2/); assert.doesNotMatch(tree.props.className, /(?:^| )grid-cols-2/);
     assert.equal(rendered.some(n => n.props?.name === 'preferredDate'), source !== 'CONTACT');
+    for (const name of ['vehicleYear', 'vehicleMake', 'vehicleModel']) assert.equal(rendered.some(n => n.props?.name === name), true);
+    const fields = [...new Set(rendered.filter(n => n.props?.name).map(n => n.props.name))];
+    const contactOrder = ['name', 'phone', 'email', 'preferredContactMethod', 'requestedService', 'vehicleYear', 'vehicleMake', 'vehicleModel'];
+    if (source === 'CONTACT') assert.deepEqual(fields.filter(name => contactOrder.includes(name)), contactOrder);
   }
   const page = await readFile(new URL('../src/app/(marketing)/appointment/page.tsx', import.meta.url), 'utf8');
   assert.match(page, /href="\/drop-off"/); assert.match(page, /Plan a Vehicle Drop-Off/); assert.match(page, /approved instructions/);
+});
+
+for (const key of ['vehicleYear', 'vehicleMake', 'vehicleModel']) test(`Contact requires ${key}`, () => {
+  assert.throws(() => parsePublicLead('CONTACT', validForm('CONTACT', { [key]: undefined })));
+});
+test('Contact accepts structured vehicle details and does not persist intent as business data', () => {
+  const parsed = parsePublicLead('CONTACT', validForm('CONTACT'));
+  assert.equal(parsed.vehicleYear, 2021); assert.equal(parsed.vehicleMake, 'Example Motors'); assert.equal(parsed.vehicleModel, 'Model 3 - S.E.');
+  assert.equal(Object.hasOwn(parsed, 'vehicleServiceIntent'), false);
+});
+test('historical Contact lead without vehicle values still renders', async () => {
+  const jsx = (type, props) => ({ type, props });
+  const ui = leadLoader({
+    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/link': { default: 'link' },
+    '@/generated/prisma/client': { MarketingLeadStatus: { NEW: 'NEW' } },
+    '@/components/lead-management-form': { LeadManagementForm: 'management' },
+    '@/lib/marketing-lead-context': { callClickMessage: 'call click' },
+    '@/components/lead-read-control': { LeadReadControl: 'read-control' },
+    '@/lib/marketing-lead-contact': { leadContactMethodLabels: { TEXT: 'Text' } },
+  }, testEnvironment);
+  const tree = ui('@/components/marketing-lead-card').MarketingLeadCard({ lead: {
+    id: 'historical-contact', name: 'Synthetic Visitor', source: 'CONTACT', message: null, status: 'NEW',
+    phone: '2025550123', email: 'visitor@example.test', preferredContactMethod: 'TEXT', vehicleYear: null,
+    vehicleMake: null, vehicleModel: null, preferredDate: null, preferredTime: null, scheduledDate: null,
+    scheduledTime: null, requestedService: 'Brake Inspection / Service', createdAt: new Date('2025-01-01T00:00:00Z'), internalNote: null,
+  }, notification: null, canManage: false });
+  assert.equal(tree.type, 'article');
 });
 
 test('bounded indexed retention deletes at most 100 expired rows and preserves active windows', async () => {

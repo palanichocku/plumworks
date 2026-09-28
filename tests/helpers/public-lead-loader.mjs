@@ -29,8 +29,8 @@ export const testEnvironment = {
 export const formSources = { CONTACT: ['submitContactLead', '/contact'], APPOINTMENT: ['submitAppointmentLead', '/appointment'], DROP_OFF: ['submitDropOffLead', '/drop-off'] };
 export function validForm(source, overrides = {}, load = leadLoader({}, testEnvironment)) {
   const form = new FormData();
-  const values = { name: 'Example Visitor', phone: '(202) 555-0123', email: ' Visitor@Example.test ', preferredContactMethod: 'TEXT', requestedService: 'brakes', website: '', formStarted: load('@/lib/public-lead-verification').createFormStarted(source, Date.now() - 1000), 'cf-turnstile-response': 'XXXX.DUMMY.TOKEN.XXXX',
-    ...(source === 'CONTACT' ? {} : { vehicleYear: '2021', vehicleMake: 'Example Motors', vehicleModel: 'Model 3 - S.E.', preferredDate: '2026-10-01' }),
+  const values = { name: 'Example Visitor', phone: '(202) 555-0123', email: ' Visitor@Example.test ', preferredContactMethod: 'TEXT', requestedService: 'brakes', vehicleServiceIntent: 'yes', vehicleYear: '2021', vehicleMake: 'Example Motors', vehicleModel: 'Model 3 - S.E.', website: '', formStarted: load('@/lib/public-lead-verification').createFormStarted(source, Date.now() - 3500), 'cf-turnstile-response': 'XXXX.DUMMY.TOKEN.XXXX',
+    ...(source === 'CONTACT' ? {} : { preferredDate: '2026-10-01' }),
     ...(source === 'APPOINTMENT' ? { preferredTime: '10:30' } : {}), ...overrides };
   for (const [key, value] of Object.entries(values)) if (value !== undefined) form.set(key, value);
   return form;

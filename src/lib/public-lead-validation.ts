@@ -7,12 +7,12 @@ export function normalizeLeadText(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
-const commonFields = ["name", "phone", "email", "preferredContactMethod", "requestedService", "website", "formStarted", "cf-turnstile-response"];
+const commonFields = ["name", "phone", "email", "preferredContactMethod", "requestedService", "vehicleServiceIntent", "vehicleYear", "vehicleMake", "vehicleModel", "website", "formStarted", "cf-turnstile-response"];
 
 // Reject unknown fields (including every former message/concern/notes field),
 // repeated parameters, files, controls, and oversized bodies instead of truncating.
 export function validateLeadEnvelope(source: MarketingLeadSource, form: FormData) {
-  const allowed = new Set([...commonFields, ...(source === "CONTACT" ? [] : ["vehicleYear", "vehicleMake", "vehicleModel", "preferredDate"]), ...(source === "APPOINTMENT" ? ["preferredTime"] : [])]);
+  const allowed = new Set([...commonFields, ...(source === "CONTACT" ? [] : ["preferredDate"]), ...(source === "APPOINTMENT" ? ["preferredTime"] : [])]);
   const seen = new Set<string>();
   let bytes = 0;
   let fields = 0;
@@ -41,18 +41,19 @@ export function parsePublicLead(source: MarketingLeadSource, form: FormData, now
   const email = field("email", 200).toLowerCase();
   const preferredContactMethod = parseLeadContactMethod(field("preferredContactMethod", 20));
   const service = requestedServices.find(({ value }) => value === field("requestedService", 40));
-  if (!phone || phone.length !== 10 || !/^[^\s@<>(),;:\\"]+@[^\s@<>(),;:\\"]+\.[^\s@<>(),;:\\"]+$/.test(email) || !preferredContactMethod || !service) throw new Error("Invalid contact or service");
+  const vehicleServiceIntent = form.get("vehicleServiceIntent");
+  if (vehicleServiceIntent !== "yes" || !phone || phone.length !== 10 || !/^[^\s@<>(),;:\\"]+@[^\s@<>(),;:\\"]+\.[^\s@<>(),;:\\"]+$/.test(email) || !preferredContactMethod || !service) throw new Error("Invalid contact or service");
   let vehicleYear: number | null = null;
   let vehicleMake: string | null = null;
   let vehicleModel: string | null = null;
   let preferredDate: Date | null = null;
   let preferredTime: string | null = null;
+  const year = field("vehicleYear", 4);
+  vehicleYear = Number(year);
+  if (!/^\d{4}$/.test(year) || vehicleYear < 1900 || vehicleYear > now.getUTCFullYear() + 2) throw new Error("Invalid year");
+  vehicleMake = field("vehicleMake", 80);
+  vehicleModel = field("vehicleModel", 80);
   if (source !== "CONTACT") {
-    const year = field("vehicleYear", 4);
-    vehicleYear = Number(year);
-    if (!/^\d{4}$/.test(year) || vehicleYear < 1900 || vehicleYear > now.getUTCFullYear() + 2) throw new Error("Invalid year");
-    vehicleMake = field("vehicleMake", 80);
-    vehicleModel = field("vehicleModel", 80);
     const date = field("preferredDate", 10);
     preferredDate = new Date(`${date}T00:00:00.000Z`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(preferredDate.getTime()) || preferredDate.toISOString().slice(0, 10) !== date || date < `${now.getUTCFullYear() - 1}-01-01` || date > `${now.getUTCFullYear() + 2}-12-31`) throw new Error("Invalid date");

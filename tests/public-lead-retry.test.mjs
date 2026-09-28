@@ -2,63 +2,128 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { leadLoader, testEnvironment } from './helpers/public-lead-loader.mjs';
 
-// Focused component lifecycle test: retain the mounted widget while the form
-// transitions idle -> pending -> idle (e.g. a recoverable transport failure).
-// No browser, Cloudflare request or production key is used.
-test('mounted widget invalidates submitted token and resets on completion; expiration offers retry', () => {
-  const refs = [], states = [], dependencies = [], cleanups = [], effects = [];
-  let refIndex = 0, stateIndex = 0, effectIndex = 0, pending = false, resets = 0, options;
+function setup(source = 'CONTACT') {
+  const refs = [], states = [], callbacks = [], callbackDeps = [], cleanups = [], effects = [], effectDeps = [];
+  let refIndex = 0, stateIndex = 0, callbackIndex = 0, effectIndex = 0;
+  let options, executes = 0, resets = 0, submissions = 0;
   const listeners = new Map();
-  const form = { addEventListener: (event, fn) => listeners.set(event, fn), removeEventListener: event => listeners.delete(event) };
-  const element = { clientWidth: 240, closest: () => form };
+  const form = {
+    addEventListener() { listeners.set('submit', arguments[1]); },
+    removeEventListener() { listeners.delete('submit'); },
+    querySelector: () => ({ value: `CONTACT.${Date.now() - 5000}.synthetic.unsigned` }),
+    reportValidity: () => true,
+    requestSubmit: () => { submissions++; listeners.get('submit')?.({ preventDefault() {}, stopImmediatePropagation() {} }); },
+  };
+  const element = { clientWidth: 320, closest: () => form };
   const previous = globalThis.window;
   globalThis.window = {
     setTimeout: fn => { fn(); return 1; }, clearTimeout() {}, location: { reload() {} },
-    turnstile: { render: (_, value) => { options = value; return 'widget'; }, reset: id => { assert.equal(id, 'widget'); resets++; }, remove() {} },
+    turnstile: {
+      render: (_element, value) => { options = value; return 'widget'; },
+      execute: id => { assert.equal(id, 'widget'); executes++; },
+      reset: id => { assert.equal(id, 'widget'); resets++; },
+      remove() {},
+    },
   };
   const jsx = (type, props) => ({ type, props });
-  const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
-  let memoCallback;
   const load = leadLoader({
-    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/script': { default: 'script' }, 'react-dom': { useFormStatus: () => ({ pending }) },
+    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/script': { default: 'script' },
+    'react-dom': { useFormStatus: () => ({ pending: false }) },
     react: {
       useRef: initial => refs[refIndex++] ??= { current: initial },
-      useState: initial => { const i = stateIndex++; if (!(i in states)) states[i] = initial; return [states[i], value => { states[i] = value; }]; },
-      useCallback: fn => memoCallback ??= fn,
-      useEffect: (fn, deps) => { const i = effectIndex++; if (!dependencies[i] || deps.some((d, j) => d !== dependencies[i][j])) effects.push(() => { cleanups[i]?.(); cleanups[i] = fn(); dependencies[i] = deps; }); },
+      useState: initial => { const index = stateIndex++; if (!(index in states)) states[index] = initial; return [states[index], value => { states[index] = value; }]; },
+      useCallback: (fn, deps) => {
+        const index = callbackIndex++;
+        if (!callbackDeps[index] || deps.some((dep, i) => dep !== callbackDeps[index][i])) {
+          callbacks[index] = fn; callbackDeps[index] = deps;
+        }
+        return callbacks[index];
+      },
+      useEffect: (fn, deps) => {
+        const index = effectIndex++;
+        if (!effectDeps[index] || deps.some((dep, i) => dep !== effectDeps[index][i])) {
+          effects.push(() => { cleanups[index]?.(); cleanups[index] = fn(); effectDeps[index] = deps; });
+        }
+      },
     },
-  }, { ...testEnvironment, NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA' });
-  // Preserve callback identity just as useCallback does, so widget lifecycle
-  // does not rerun on every test render.
-  let callback;
-  const component = load('@/components/marketing/lead-verification');
+  }, { ...testEnvironment, NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'test-site-key' });
+  const component = load('@/components/marketing/lead-verification').LeadVerification;
+  const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
+  const textContent = tree => typeof tree === 'string' ? tree : Array.isArray(tree) ? tree.map(textContent).join(' ') : tree && typeof tree === 'object' ? textContent(tree.props?.children) : '';
+  const confirmationImmediatelyBeforeSubmit = tree => {
+    if (Array.isArray(tree)) {
+      const index = tree.findIndex(node => node?.type === 'label' && textContent(node).includes('I am contacting Car Doc about service for a vehicle.'));
+      if (index >= 0 && tree[index + 1]?.props?.type === 'submit') return true;
+      return tree.some(confirmationImmediatelyBeforeSubmit);
+    }
+    return tree && typeof tree === 'object' ? confirmationImmediatelyBeforeSubmit(tree.props?.children) : false;
+  };
   const render = () => {
-    refIndex = 0; stateIndex = 0; effectIndex = 0;
-    const result = component.LeadVerification({ source: 'CONTACT' });
+    refIndex = stateIndex = callbackIndex = effectIndex = 0;
+    const tree = component({ source });
     refs[0].current = element;
     for (const effect of effects.splice(0)) effect();
-    callback = options.callback;
-    return nodes(result);
+    return nodes(tree);
   };
+  const submit = () => listeners.get('submit')?.({ preventDefault() {}, stopImmediatePropagation() {} });
+  return {
+    render, submit, textContent, confirmationImmediatelyBeforeSubmit, get options() { return options; }, get executes() { return executes; }, get resets() { return resets; },
+    get submissions() { return submissions; }, form,
+    restore() { for (const cleanup of cleanups) cleanup?.(); if (previous === undefined) delete globalThis.window; else globalThis.window = previous; },
+  };
+}
+
+test('Turnstile waits for Submit, executes once, and only then submits through the existing form action', () => {
+  const h = setup();
   try {
-    render(); callback();
-    assert.equal(render().find(n => n.type === 'button' && !n.props.type).props.disabled, false);
-    listeners.get('submit')(); pending = true;
-    assert.equal(render().find(n => n.type === 'button' && !n.props.type).props.disabled, true);
-    pending = false;
-    assert.equal(render().find(n => n.type === 'button' && !n.props.type).props.disabled, true);
-    assert.equal(resets, 1);
-    options.callback();
-    assert.equal(render().find(n => n.type === 'button' && !n.props.type).props.disabled, false);
-    options['expired-callback']();
-    const expired = render();
-    const retry = expired.find(n => n.props?.children === 'Try verification again');
-    assert.ok(retry); retry.props.onClick(); assert.equal(resets, 2);
-    const honeypot = expired.find(n => n.props?.name === 'website');
-    assert.equal(honeypot.props.autoComplete, 'off'); assert.equal(honeypot.props.tabIndex, -1);
-    assert.ok(expired.some(n => n.props?.['aria-hidden'] === 'true' && n.props.className === 'hidden'));
-  } finally {
-    for (const cleanup of cleanups) cleanup?.();
-    if (previous === undefined) delete globalThis.window; else globalThis.window = previous;
-  }
+    const initial = h.render();
+    assert.equal(h.executes, 0, 'page load must not execute or consume a token');
+    assert.equal(h.submissions, 0);
+    assert.equal(h.options.execution, 'execute');
+    assert.equal(h.options.appearance, 'interaction-only');
+    assert.equal(h.options.action, 'CONTACT');
+    h.submit();
+    assert.equal(h.executes, 1, 'valid Submit initiates Turnstile');
+    h.submit();
+    assert.equal(h.executes, 1, 'rapid duplicate submit is ignored while verification is pending');
+    h.options.callback('synthetic-fresh-token');
+    assert.equal(h.submissions, 1, 'successful verification resubmits through the same server action');
+    h.submit();
+    assert.equal(h.executes, 1, 'submissions stay locked while the server action is pending');
+    assert.equal(h.submissions, 1);
+    assert.equal(initial.find(node => node.props?.name === 'website').props.tabIndex, -1);
+    assert.equal(initial.find(node => node.props?.type === 'checkbox' && node.props?.name === 'vehicleServiceIntent').props.required, true);
+    const renderedText = h.textContent(initial);
+    assert.ok(renderedText.includes('I am contacting Car Doc about service for a vehicle.'));
+    assert.ok(renderedText.includes('This form is for vehicle service requests only. Sales, marketing, and other solicitations will be discarded.'));
+    assert.equal(h.confirmationImmediatelyBeforeSubmit(initial[0]), true);
+  } finally { h.restore(); }
+});
+
+test('expired/failed Turnstile execution permits retry with a fresh execution', () => {
+  const h = setup();
+  try {
+    h.render();
+    h.submit();
+    assert.equal(h.executes, 1);
+    h.options['expired-callback']();
+    const failed = h.render();
+    const retry = failed.find(node => node.props?.children === 'Try verification again');
+    assert.ok(retry, 'failed verification exposes a retry action');
+    retry.props.onClick();
+    assert.equal(h.executes, 2);
+    assert.equal(h.resets, 2, 'both attempts start from a reset widget');
+    h.options.callback('another-fresh-token');
+    assert.equal(h.submissions, 1);
+  } finally { h.restore(); }
+});
+
+for (const source of ['CONTACT', 'APPOINTMENT', 'DROP_OFF']) test(`${source} form renders the required vehicle-service intent confirmation`, () => {
+  const h = setup(source);
+  try {
+    const rendered = h.render();
+    const confirmation = rendered.find(node => node.props?.name === 'vehicleServiceIntent');
+    assert.equal(confirmation?.props?.required, true);
+    assert.equal(confirmation?.props?.value, 'yes');
+  } finally { h.restore(); }
 });

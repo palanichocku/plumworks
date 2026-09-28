@@ -3,6 +3,8 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 
+export const MIN_FORM_COMPLETION_MS = 3000;
+
 export function leadProtectionHash(value: string) {
   const secret = process.env.LEAD_ABUSE_HASH_SECRET;
   if (!secret || secret.length < 32) throw new Error("Lead protection is not configured");
@@ -20,7 +22,7 @@ export function validFormStarted(token: string, source: MarketingLeadSource, now
   const parts = token.split(".");
   if (parts.length !== 4 || parts[0] !== source || !/^\d{13}$/.test(parts[1]) || !/^[a-f0-9]{64}$/.test(parts[3])) return false;
   const age = now - Number(parts[1]);
-  if (age < 500 || age > 7 * 24 * 60 * 60 * 1000) return false;
+  if (age < MIN_FORM_COMPLETION_MS || age > 7 * 24 * 60 * 60 * 1000) return false;
   try {
     return timingSafeEqual(Buffer.from(parts[3]), Buffer.from(leadProtectionHash(`form:${parts.slice(0, 3).join(".")}`)));
   } catch { return false; }
