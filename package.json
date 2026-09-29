@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate",
-    "dev": "next dev",
+    "dev": "node scripts/dev-database-command.mjs app",
+    "db:dev:status": "node scripts/dev-database-command.mjs status",
+    "db:dev:migrate": "node scripts/dev-database-command.mjs migrate",
+    "prisma:dev:generate": "node scripts/dev-database-command.mjs generate",
+    "client:dev:setup": "node scripts/dev-database-command.mjs setup",
     "build": "next build",
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs tests/marketing-photos.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
