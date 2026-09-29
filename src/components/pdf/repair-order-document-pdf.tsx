@@ -10,6 +10,8 @@ const styles = StyleSheet.create({
   right: { textAlign: "right" },
   muted: { color: "#444444" },
   estimateNotice: { marginTop: 7, padding: 5, border: "0.5pt solid #777777", textAlign: "center", fontSize: 8, fontWeight: 700 },
+  voidNotice: { marginTop: 7, marginBottom: 4, padding: 8, border: "2pt solid #991b1b", color: "#991b1b", textAlign: "center", fontSize: 13, fontWeight: 900 },
+  voidDetails: { fontSize: 8, marginTop: 3 },
   metaGrid: { flexDirection: "row", gap: 16, paddingVertical: 7, borderBottom: "0.5pt solid #777777" },
   metaColumn: { flexGrow: 1, flexBasis: 0 },
   section: { marginTop: 8 },
@@ -61,6 +63,7 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
           <Text style={styles.right}>{model.status.toUpperCase()}</Text>
         </View>
       </View>
+      {model.status === "void" ? <View style={styles.voidNotice}><Text>VOID — RETAINED FOR AUDIT HISTORY</Text><Text style={styles.voidDetails}>Reason: {model.voidReasonLabel ?? "Unspecified"}{model.voidedDate ? ` · Voided ${model.voidedDate}` : ""}</Text>{model.voidNote ? <Text style={styles.voidDetails}>{model.voidNote}</Text> : null}</View> : null}
       <Text style={styles.estimateNotice}>ESTIMATE ONLY — NOT A FINALIZED INVOICE</Text>
 
       <View style={styles.metaGrid}>

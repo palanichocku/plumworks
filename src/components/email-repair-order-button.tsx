@@ -34,15 +34,15 @@ export function EmailRepairOrderButton({ repairOrderId, defaultRecipient, status
 
   return <div className="flex min-w-0 flex-col items-end gap-1.5">
     <div className="flex flex-wrap items-center justify-end gap-3" data-repair-order-action-row>
-      <span className="w-fit rounded-full bg-brand-subtle px-3 py-1 text-xs font-bold uppercase text-brand-primary">{status}</span>
-      <button
+      <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold uppercase ${status === "void" ? "border border-red-300 bg-red-100 text-red-800" : "bg-brand-subtle text-brand-primary"}`}>{status}</span>
+      {status !== "void" ? <button
         ref={buttonRef}
         type="button"
         onClick={() => { setSuccess(null); setOpen(true); }}
         className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
       >
         Email
-      </button>
+      </button> : null}
       <Link href={printHref} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Print</Link>
     </div>
     {success ? <div aria-live="polite" aria-atomic="true" className="text-right">

@@ -32,7 +32,7 @@ try {
   if (orderChecks.some((check) => !check)) throw new Error("A listing order check failed.");
 
   const vehicle = await prisma.vehicle.findFirst({ where: { shopId }, orderBy: { createdAt: "asc" }, select: { id: true, customerId: true } });
-  if (!vehicle) throw new Error("No customer-owned vehicle is available for deletion verification.");
+  if (!vehicle) throw new Error("No customer-owned vehicle is available for void verification.");
   const [customersBefore, vehiclesBefore, importedOrdersBefore, finalizedInvoicesBefore] = await Promise.all([
     prisma.customer.count({ where: { shopId } }),
     prisma.vehicle.count({ where: { shopId } }),
@@ -46,28 +46,28 @@ try {
       data: {
         shopId, customerId: vehicle.customerId, vehicleId: vehicle.id,
         repairOrderNumber: shop.nextRepairOrderNumber - 1, status: "draft",
-        concern: "Draft deletion verification",
+        concern: "Draft void verification",
         parts: { create: { shopId, description: "Verification part", quantity: 1, unitPrice: 0, legacyLineKey: `web:${randomUUID()}` } },
         labor: { create: { shopId, description: "Verification labor", hours: 1, hourlyRate: 0, legacyLineKey: `web:${randomUUID()}` } },
       },
-      select: { id: true },
+      select: { id: true, repairOrderNumber: true },
     });
   });
 
-  const deleted = await prisma.$transaction(async (transaction) => {
+  const voided = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`SELECT id FROM repair_orders WHERE id = ${testOrder.id}::uuid AND shop_id = ${shopId}::uuid FOR UPDATE`;
     const eligible = await transaction.repairOrder.findFirst({ where: { id: testOrder.id, shopId, legacySourceTable: null, repairOrderNumber: { not: null }, status: { in: ["draft", "open"] }, invoices: { none: {} } }, select: { id: true } });
     if (!eligible) return 0;
-    await transaction.repairOrder.delete({ where: { id: eligible.id } });
+    await transaction.repairOrder.update({ where: { id: eligible.id }, data: { status: "void", voidedAt: new Date(), voidedByUserId: null, voidReason: "CREATED_IN_ERROR", voidNote: null } });
     return 1;
   });
 
-  const [customersAfter, vehiclesAfter, importedOrdersAfter, finalizedInvoicesAfter, testOrdersRemaining, testPartLines, testLaborLines] = await Promise.all([
+  const [customersAfter, vehiclesAfter, importedOrdersAfter, finalizedInvoicesAfter, retainedOrder, testPartLines, testLaborLines] = await Promise.all([
     prisma.customer.count({ where: { shopId } }),
     prisma.vehicle.count({ where: { shopId } }),
     prisma.repairOrder.count({ where: { shopId, legacySourceTable: { not: null } } }),
     prisma.invoice.count({ where: { shopId, status: { in: ["finalized", "paid"] } } }),
-    prisma.repairOrder.count({ where: { id: testOrder.id } }),
+    prisma.repairOrder.findUnique({ where: { id: testOrder.id }, select: { status: true, repairOrderNumber: true } }),
     prisma.repairOrderPart.count({ where: { repairOrderId: testOrder.id } }),
     prisma.repairOrderLabor.count({ where: { repairOrderId: testOrder.id } }),
   ]);
@@ -75,18 +75,19 @@ try {
   const vehicleUnchanged = vehiclesBefore === vehiclesAfter;
   const importedUnchanged = importedOrdersBefore === importedOrdersAfter;
   const finalizedUnchanged = finalizedInvoicesBefore === finalizedInvoicesAfter;
-  if (deleted !== 1 || testOrdersRemaining || testPartLines || testLaborLines || !customerUnchanged || !vehicleUnchanged || !importedUnchanged || !finalizedUnchanged) throw new Error("Draft deletion verification failed.");
+  if (voided !== 1 || retainedOrder?.status !== "void" || retainedOrder.repairOrderNumber !== testOrder.repairOrderNumber || testPartLines !== 1 || testLaborLines !== 1 || !customerUnchanged || !vehicleUnchanged || !importedUnchanged || !finalizedUnchanged) throw new Error("Draft void verification failed.");
 
   console.log(`invoices listing order valid: ${orderChecks[0] ? 1 : 0}`);
   console.log(`customers listing order valid: ${orderChecks[1] ? 1 : 0}`);
   console.log(`repair orders listing order valid: ${orderChecks[2] ? 1 : 0}`);
   console.log(`AR listing order valid: ${orderChecks[3] ? 1 : 0}`);
-  console.log(`draft repair order deletions succeeded: ${deleted}`);
+  console.log(`draft repair order voids succeeded: ${voided}`);
+  console.log(`voided repair order retained with its original number: ${retainedOrder?.repairOrderNumber === testOrder.repairOrderNumber ? 1 : 0}`);
   console.log(`customer count unchanged: ${customerUnchanged ? 1 : 0}`);
   console.log(`vehicle count unchanged: ${vehicleUnchanged ? 1 : 0}`);
   console.log(`imported open orders unchanged: ${importedUnchanged ? 1 : 0}`);
   console.log(`finalized invoices unchanged: ${finalizedUnchanged ? 1 : 0}`);
-  console.log(`draft child lines remaining: ${testPartLines + testLaborLines}`);
+  console.log(`draft child lines preserved: ${testPartLines + testLaborLines}`);
 } finally {
   await prisma.$disconnect();
 }

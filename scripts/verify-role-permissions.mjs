@@ -4,7 +4,7 @@ const matrix = JSON.parse(await readFile("src/lib/permission-matrix.json", "utf8
 const roles = ["OWNER", "ADMIN", "STAFF"];
 const permissions = [
   "view_dashboard", "view_search", "view_reports", "edit_customer_vehicle",
-  "create_repair_order", "edit_draft_repair_order", "delete_draft_repair_order",
+  "create_repair_order", "edit_draft_repair_order", "void_repair_order",
   "finalize_repair_order", "record_payment", "edit_shop_settings",
   "manage_canned_services", "view_audit_log", "manage_staff",
 ];
@@ -13,7 +13,7 @@ const staffOperational = [
   "edit_draft_repair_order", "finalize_repair_order", "record_payment",
 ];
 const staffRestricted = [
-  "view_reports", "delete_draft_repair_order", "edit_shop_settings",
+  "view_reports", "void_repair_order", "edit_shop_settings",
   "manage_canned_services", "view_audit_log", "manage_staff",
 ];
 

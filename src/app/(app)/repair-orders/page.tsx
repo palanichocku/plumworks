@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
 import { getOpenOrdersForCurrentShop } from "@/lib/data/open-orders";
 import { formatDate, formatMoney } from "@/lib/formatters";
-import { DeleteRepairOrderButton } from "@/components/delete-repair-order-button";
+import { VoidRepairOrderButton } from "@/components/void-repair-order-button";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 
@@ -17,7 +17,7 @@ export default async function RepairOrdersPage() {
     getOpenOrdersForCurrentShop(),
     getCurrentMembership()
   ]);
-  const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
+  const canVoid = Boolean(membership && hasPermission(membership.role, "void_repair_order"));
 
   const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
 
@@ -115,9 +115,9 @@ export default async function RepairOrdersPage() {
 
                       {/* Structural Row Trailing Context Button Elements */}
                       <td className="w-14 px-2 py-3.5 text-right whitespace-nowrap">
-                        {canDelete ? (
+                        {canVoid && order.repairOrderNumber !== null ? (
                           <div className="inline-block opacity-60 group-hover:opacity-100 transition-opacity">
-                            <DeleteRepairOrderButton repairOrderId={order.id} compact />
+                            <VoidRepairOrderButton repairOrderId={order.id} repairOrderNumber={String(order.repairOrderNumber)} compact />
                           </div>
                         ) : null}
                       </td>

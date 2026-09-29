@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { formatDate, formatMoney } from "@/lib/formatters";
+import { repairOrderVoidReasonLabel } from "@/lib/repair-order-void";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -13,6 +14,9 @@ const repairOrderDocumentSelect = {
   status: true,
   openedAt: true,
   closedAt: true,
+  voidedAt: true,
+  voidReason: true,
+  voidNote: true,
   odometer: true,
   customerComplaint: true,
   recommendation: true,
@@ -58,6 +62,9 @@ function mapRepairOrderDocument(order: RepairOrderDocumentRecord) {
     status: order.status,
     openedDate: formatDate(order.openedAt),
     closedDate: order.closedAt ? formatDate(order.closedAt) : null,
+    voidedDate: order.voidedAt ? formatDate(order.voidedAt) : null,
+    voidReasonLabel: order.status === "void" ? repairOrderVoidReasonLabel(order.voidReason) : null,
+    voidNote: order.status === "void" ? order.voidNote : null,
     shop: order.shop,
     customer: {
       id: order.customer.id,
@@ -106,7 +113,7 @@ export async function getRepairOrderDocumentForShop(repairOrderId: string, shopI
       id: repairOrderId,
       shopId,
       legacySourceTable: null,
-      status: { in: ["draft", "open", "finalized", "invoiced"] },
+      status: { in: ["draft", "open", "finalized", "invoiced", "void"] },
     },
     select: repairOrderDocumentSelect,
   });

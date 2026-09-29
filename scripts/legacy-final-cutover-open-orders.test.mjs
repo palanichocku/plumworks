@@ -187,12 +187,12 @@ test("generic open-order transform remains legacy while confirmed cutover explic
 });
 
 test("operational routes accept source-null cutoff ROs and Invoice creation stays native", async () => {
-  const [predicate, dashboard, openOrders, search, detail, parts, labor, complimentary, finalize, deletion, history, reports] = await Promise.all([
+  const [predicate, dashboard, openOrders, search, detail, parts, labor, complimentary, finalize, voidAction, history, reports] = await Promise.all([
     read("src/lib/repair-order-lifecycle.ts"), read("src/lib/data/dashboard.ts"),
     read("src/lib/data/open-orders.ts"), read("src/app/(app)/search/page.tsx"),
     read("src/app/(app)/repair-orders/[id]/page.tsx"), read("src/app/(app)/repair-orders/part-actions.ts"),
     read("src/app/(app)/repair-orders/labor-actions.ts"), read("src/app/(app)/repair-orders/complimentary-service-actions.ts"),
-    read("src/app/(app)/repair-orders/finalize-actions.ts"), read("src/app/(app)/repair-orders/delete-actions.ts"),
+    read("src/app/(app)/repair-orders/finalize-actions.ts"), read("src/app/(app)/repair-orders/void-actions.ts"),
     read("src/lib/data/repair-order-history.ts"),
     read("src/lib/reportable-sales.ts"),
   ]);
@@ -204,8 +204,8 @@ test("operational routes accept source-null cutoff ROs and Invoice creation stay
   assert.match(finalize, /status: "open"/);
   assert.match(finalize, /repairOrderId: order\.id/);
   assert.doesNotMatch(finalize, /legacySourceTable:\s*order\./);
-  assert.match(deletion, /requirePermission\("delete_draft_repair_order"\)/);
-  assert.match(deletion, /source: order\.legacyRoNo \? "final_cutover" : "web"/);
+  assert.match(voidAction, /requirePermission\("void_repair_order"\)/);
+  assert.match(voidAction, /legacySourceTable/);
   assert.match(history, /invoices: \{ none: \{\} \}/);
   assert.match(reports, /legacySourceTable: null[\s\S]*status: "closed"[\s\S]*closedAt/);
 });

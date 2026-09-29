@@ -15,6 +15,7 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
   if (!user || !membership) return { status: "error", message: "You do not have permission to email this Repair Order." };
   const model = await getRepairOrderDocumentForShop(repairOrderId, membership.shopId);
   if (!model) return { status: "error", message: "Repair Order not found for this shop." };
+  if (model.status === "void") return { status: "error", message: "Voided Repair Orders cannot be emailed." };
 
   const result = await deliverRepairOrderEmail(model, recipient);
   return result.ok

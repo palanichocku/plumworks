@@ -448,6 +448,10 @@ model RepairOrder {
   status                         String             @default("draft")
   openedAt                       DateTime           @default(now()) @map("opened_at")
   closedAt                       DateTime?          @map("closed_at")
+  voidedAt                       DateTime?          @map("voided_at")
+  voidedByUserId                 String?            @map("voided_by_user_id") @db.Uuid
+  voidReason                     String?            @map("void_reason")
+  voidNote                       String?            @map("void_note") @db.Text
   odometer                       Int?
   concern                        String?
   notes                          String?

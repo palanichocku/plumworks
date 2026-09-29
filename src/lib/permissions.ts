@@ -13,7 +13,7 @@ export type Permission =
   | "edit_customer_vehicle"
   | "create_repair_order"
   | "edit_draft_repair_order"
-  | "delete_draft_repair_order"
+  | "void_repair_order"
   | "finalize_repair_order"
   | "record_payment"
   | "edit_shop_settings"

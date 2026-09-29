@@ -6,7 +6,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("RO document projection uses only current RepairOrder.odometer", async () => {
   const model = await read("src/lib/repair-order-document.ts");
-  assert.match(model, /closedAt: true,\s*odometer: true/);
+  assert.match(model, /closedAt: true,[\s\S]*?odometer: true/);
   assert.match(model, /odometer: order\.odometer/);
   const vehicleSelect = model.slice(model.indexOf("vehicle: { select:"), model.indexOf("parts: { orderBy:"));
   assert.doesNotMatch(vehicleSelect, /odometer/);

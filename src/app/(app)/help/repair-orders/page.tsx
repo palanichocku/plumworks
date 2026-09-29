@@ -25,7 +25,9 @@ export default function RepairOrdersHelpPage() {
             B --> C["Add parts and labor"]
             C --> D["Print estimate"]
             D --> E["Finalized invoice"]
-            E --> F["Read-only history"]`} 
+            E --> F["Read-only history"]
+            A --> G["Void · retained for audit"]
+            B --> G`}
         />
       </div>
 
@@ -37,7 +39,7 @@ export default function RepairOrdersHelpPage() {
         />
         <HelpCard 
           title="Actions" 
-          description="Create, add parts and labor, use services, print, delete eligible drafts, and finalize." 
+          description="Create, add parts and labor, use services, print, void mistaken orders, and finalize."
         />
         <HelpCard 
           title="Result" 
@@ -51,7 +53,7 @@ export default function RepairOrdersHelpPage() {
           <HelpList items={[
             "Web-created draft/open repair orders can be edited freely.",
             "Imported legacy open orders remain locked as read-only.",
-            "Draft deletion removes the order framework but safely keeps the linked customer and vehicle intact.",
+            "A numbered Draft or Open Repair Order created in error can be voided; its number, lines, totals, customer, and vehicle are preserved for audit history.",
             "Finalization cannot be repeated or undone, and explicitly requires a valid customer, vehicle, and repair-order number."
           ]} />
         </HelpSection>

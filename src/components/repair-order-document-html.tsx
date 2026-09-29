@@ -21,6 +21,7 @@ export function RepairOrderDocumentHTML({ model }: { model: RepairOrderDocumentM
       <div className="invoice-document-title"><p>REPAIR ORDER ESTIMATE</p><span>No. {model.repairOrderNumber}</span><span>Opened {model.openedDate}</span>{model.closedDate && <span>Closed {model.closedDate}</span>}<span>{model.status.toUpperCase()}</span></div>
     </header>
 
+    {model.status === "void" ? <section className="mb-4 rounded-lg border-4 border-red-800 bg-red-50 p-3 text-center text-red-900"><h2 className="text-xl font-black tracking-wide">VOID — RETAINED FOR AUDIT HISTORY</h2><p className="mt-1 text-sm font-semibold">Reason: {model.voidReasonLabel ?? "Unspecified"}{model.voidedDate ? ` · Voided ${model.voidedDate}` : ""}</p>{model.voidNote ? <p className="mt-1 whitespace-pre-wrap text-sm">{model.voidNote}</p> : null}</section> : null}
     <p className="repair-order-estimate-notice">ESTIMATE ONLY — NOT A FINALIZED INVOICE</p>
 
     <section className="invoice-document-meta repair-order-document-meta">

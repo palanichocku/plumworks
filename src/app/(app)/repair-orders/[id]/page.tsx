@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getRepairOrderInternalNotesForCurrentShop, getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
 import { formatDate, formatMoney } from "@/lib/formatters";
-import { DeleteRepairOrderButton } from "@/components/delete-repair-order-button";
+import { VoidRepairOrderButton } from "@/components/void-repair-order-button";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
@@ -17,6 +17,7 @@ import { RepairOrderAssignmentActions } from "@/components/repair-order-assignme
 import { RepairOrderMileageField } from "@/components/repair-order-mileage-field";
 import { getLastRecordedMileageForVehicle } from "@/lib/data/vehicle-mileage";
 import { RepairOrderHistoryButton } from "@/components/repair-order-history-button";
+import { repairOrderVoidReasonLabel } from "@/lib/repair-order-void";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -29,8 +30,8 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const lastMileage = membership ? await getLastRecordedMileageForVehicle(membership.shopId, order.vehicle.id) : null;
   const editable = order.status === "draft" || order.status === "open";
   const invoice = order.invoices[0];
-  const canDelete = Boolean(membership && hasPermission(membership.role, "delete_draft_repair_order"));
-  const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
+  const canVoid = Boolean(membership && hasPermission(membership.role, "void_repair_order") && editable && order.repairOrderNumber !== null && !invoice);
+  const canEditNotes = Boolean(order.status !== "void" && membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
   const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
@@ -42,10 +43,10 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Repair Order / Estimate</p>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1></div>
-          <div className="flex flex-wrap items-start gap-3"><EmailRepairOrderButton repairOrderId={order.id} defaultRecipient={normalizeEmailRecipient(order.customer.email ?? "") ?? ""} status={order.status} printHref={`/repair-orders/${order.id}/print`} />{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : editable && canDelete ? <DeleteRepairOrderButton repairOrderId={order.id} /> : null}</div>
+          <div className="flex flex-wrap items-start gap-3"><EmailRepairOrderButton repairOrderId={order.id} defaultRecipient={normalizeEmailRecipient(order.customer.email ?? "") ?? ""} status={order.status} printHref={`/repair-orders/${order.id}/print`} />{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : canVoid ? <VoidRepairOrderButton repairOrderId={order.id} repairOrderNumber={String(order.repairOrderNumber)} /> : null}</div>
         </div>
         <p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>
-        {!editable && <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p>}
+        {order.status === "void" ? <section className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"><h2 className="font-bold">This repair order was voided and is retained for audit history.</h2><dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]"><dt className="font-semibold">Void reason</dt><dd>{repairOrderVoidReasonLabel(order.voidReason)}</dd>{order.voidNote ? <><dt className="font-semibold">Explanation</dt><dd className="whitespace-pre-wrap">{order.voidNote}</dd></> : null}<dt className="font-semibold">Voided</dt><dd>{formatDate(order.voidedAt)}</dd></dl></section> : !editable ? <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p> : null}
       </header>
 
       {editable ? <EditableRepairOrderWorkspace
@@ -62,7 +63,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}
         totals={<TotalsSection order={order} />}
-        notes={<p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}
+        notes={order.status === "void" ? null : <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}
       />}
     </div>
   );
