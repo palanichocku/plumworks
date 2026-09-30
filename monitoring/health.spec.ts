@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { measuredCheck, summarize, type Check } from "../src/lib/monitoring/report";
+import { loginWithRetry, type LoginResult } from "./login";
 
 const output = "artifacts/monitoring/result.json";
 const pages = [
@@ -69,17 +70,21 @@ test("read-only production health smoke", async ({ page, request }) => {
 
     for (const [name, path, group] of pages.slice(0, 4)) await visit(name, path, group);
 
-    await record("Login", "app", async () => {
-      const email = process.env.MONITOR_USER_EMAIL;
-      const password = process.env.MONITOR_USER_PASSWORD;
-      if (!email || !password) throw new Error("Missing credentials");
-      await page.goto("/login", { waitUntil: "domcontentloaded" });
-      await page.locator('input[name="email"]').fill(email);
-      await page.locator('input[name="password"]').fill(password);
-      await page.getByRole("button", { name: "Sign in" }).click();
-      await page.waitForURL("**/dashboard", { timeout: 30000 });
-      await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    });
+    pageError = false;
+    consoleError = false;
+    const loginStart = performance.now();
+    const email = process.env.MONITOR_USER_EMAIL;
+    const password = process.env.MONITOR_USER_PASSWORD;
+    const login: LoginResult = email && password
+      ? await loginWithRetry(page, email, password)
+      : { pass: false, error: "Login credentials rejected" };
+    const loginCheck = measuredCheck("Login", "app", login.pass, performance.now() - loginStart);
+    if (login.pass) {
+      loginCheck.warning = [loginCheck.warning, login.retried && "Login succeeded after one retry", pageError && "Browser page error observed", consoleError && "Browser console error observed"].filter(Boolean).join("; ") || undefined;
+    } else {
+      loginCheck.error = login.error;
+    }
+    checks.push(loginCheck);
 
     if (checks.find((check) => check.name === "Login")?.pass) {
       for (const [name, path, group] of pages.slice(4)) await visit(name, path, group);
