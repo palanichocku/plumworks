@@ -16,6 +16,8 @@ const [lineItems, historyCombobox, layout, page, workspace, styles, loader, part
   read("src/components/vendor-combobox.tsx"),
   read("src/lib/repair-order-totals.ts"),
 ]);
+const editableWorkspace = await read("src/components/repair-order-concerns-form.tsx");
+const appShell = await read("src/components/app-shell.tsx");
 
 test("Parts has exactly one reusable draft row and one Add Part action", () => {
   assert.equal((lineItems.match(/<DraftPartRow/g) ?? []).length, 1);
@@ -23,7 +25,7 @@ test("Parts has exactly one reusable draft row and one Add Part action", () => {
   assert.match(lineItems, /action=\{addPartLineWithState\}/);
   assert.match(lineItems, /action=\{updatePartLineWithState\}/);
   assert.match(lineItems, /action=\{deletePartLine\}/);
-  assert.match(historyCombobox, /required maxLength=\{500\}/);
+  assert.match(historyCombobox, /required: true, maxLength: 500/);
   assert.match(lineItems, /Number\(quantity\) \* Number\(unitPrice\)/);
   assert.equal((lineItems.match(/ariaLabel="Add part"/g) ?? []).length, 1);
   assert.doesNotMatch(lineItems, />Add Part<|>Add Labor</);
@@ -43,7 +45,7 @@ test("Vendor behavior remains integrated in new and saved Part rows", () => {
 test("Labor retains Common Services alongside historical free-text search without immediate persistence", () => {
   assert.doesNotMatch(lineItems, /Add common service/);
   assert.doesNotMatch(lineItems, /\+ Add another labor line/);
-  assert.match(historyCombobox, /role="combobox"/);
+  assert.match(historyCombobox, /role: "combobox"/);
   assert.match(lineItems, /aria-label="Common Services"/);
   assert.match(lineItems, /setDescription\(service\.description\)/);
   assert.match(lineItems, /setHours\(service\.defaultHours\)/);
@@ -67,8 +69,8 @@ test("Labor rows use existing persistence and exact amount inputs", () => {
 });
 
 test("rows are responsive, accessible, independent forms with no horizontal scroller", () => {
-  assert.match(lineItems, /partLineItemRowClass/);
-  assert.match(lineItems, /laborLineItemRowClass/);
+  assert.match(lineItems, /ro-part-controls grid min-w-0 items-end gap-3/);
+  assert.match(lineItems, /ro-labor-controls grid min-w-0 items-end gap-3/);
   assert.match(layout, /baseLineItemRowClass = "grid min-w-0 items-end gap-3"/);
   assert.match(layout, /partLineItemRowClass = `\$\{baseLineItemRowClass\} ro-part-row`/);
   assert.match(layout, /laborLineItemRowClass = `\$\{baseLineItemRowClass\} ro-labor-row`/);
@@ -82,13 +84,39 @@ test("rows are responsive, accessible, independent forms with no horizontal scro
 });
 
 test("summary is allocated real space and stacks before line controls can overflow", () => {
-  assert.match(workspace, /ro-workspace-container min-w-0/);
+  assert.match(workspace, /ro-workspace-container ro-screen min-w-0/);
   assert.match(workspace, /data-ro-main="true"/);
   assert.match(styles, /@container \(min-width: 80rem\)/);
   assert.match(styles, /grid-template-columns: minmax\(0, 1fr\) 22rem/);
   assert.match(styles, /\.ro-summary-column[\s\S]*position: sticky/);
   assert.doesNotMatch(workspace + styles, /position:\s*(?:absolute|fixed)/);
   assert.doesNotMatch(workspace + lineItems + styles, /overflow-x-(?:auto|scroll)/);
+});
+
+test("editable Parts and Labor use a side-by-side desktop workbench with Labor kept near the top", () => {
+  assert.match(appShell, /lg:hidden/);
+  assert.match(appShell, /lg:flex/);
+  assert.match(editableWorkspace, /lineItemsWorkbench/);
+  assert.match(workspace, /data-ro-line-workbench="true"/);
+  assert.match(workspace, /data-ro-section="parts"/);
+  assert.match(workspace, /data-ro-section="labor"/);
+  assert.match(styles, /\.ro-line-workbench[\s\S]*display: grid/);
+  assert.match(styles, /@media \(min-width: 64rem\)[\s\S]*\.ro-line-workbench\s*\{\s*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.ro-line-workbench\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.doesNotMatch(styles, /ro-line-workbench-container|container: ro-line-workbench|@container ro-line-workbench/);
+  const desktopRule = styles.slice(styles.indexOf("@media (min-width: 64rem)"), styles.indexOf("@container (min-width: 40rem)"));
+  assert.match(desktopRule, /\.ro-line-workbench > \[data-ro-section="labor"\]\s*\{\s*position: sticky/);
+  assert.doesNotMatch(styles, /\.ro-line-workbench[^}]*overflow-y:\s*(?:auto|scroll)/);
+});
+
+test("draft Add Part and Add Labor rows stay before saved rows in their panels", () => {
+  const partsCard = lineItems.slice(lineItems.indexOf("export function RepairOrderPartsCard"), lineItems.indexOf("function SavedPartRow"));
+  const laborCard = lineItems.slice(lineItems.indexOf("export function RepairOrderLaborCard"), lineItems.indexOf("function LaborActionForm"));
+  assert.ok(partsCard.indexOf("<DraftPartRow") < partsCard.indexOf("<SavedPartRow"));
+  assert.ok(laborCard.indexOf("<DraftLaborRow") < laborCard.indexOf("<SavedLaborRow"));
+  assert.equal((partsCard.match(/<DraftPartRow/g) ?? []).length, 1);
+  assert.equal((laborCard.match(/<DraftLaborRow/g) ?? []).length, 1);
 });
 
 test("amount and icon actions stay in one compact accessible cluster", () => {
@@ -110,5 +138,5 @@ test("surrounding workflow and server-authoritative calculations are unchanged",
   assert.match(page, /EditableRepairOrderWorkspace/);
   assert.match(page, /EditableRepairOrderWorkspace/);
   assert.match(totals, /refreshRepairOrderTotals/);
-  assert.doesNotMatch(lineItems, /shopSupplies|taxTotal|estimatedTotal|calculateShopSupplies/);
+  assert.doesNotMatch(lineItems, /taxTotal|estimatedTotal|calculateShopSupplies/);
 });

@@ -25,10 +25,10 @@ function SavedDeleteButton({ action, label }: { action: (formData: FormData) => 
 
 export function RepairOrderPartsCard({ repairOrderId, total, lines, vendors, editable }: { repairOrderId: string; total: string; lines: PartLine[]; vendors: VendorOption[]; editable: boolean }) {
   const [draftVersion, setDraftVersion] = useState(0);
-  return <fieldset disabled={!editable} className="ro-line-card ro-surface min-w-0 space-y-5 rounded-2xl border border-slate-300 bg-white p-6 shadow-sm disabled:bg-slate-50 disabled:opacity-75">
+  return <fieldset disabled={!editable} className="ro-line-card ro-surface min-w-0 space-y-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm sm:p-6 disabled:bg-slate-50 disabled:opacity-75">
     <div className="flex items-center justify-between gap-4"><div><h2 className="ro-section-heading">Parts</h2><p className="mt-1 text-sm text-slate-700">Amount is calculated from quantity × unit price.</p></div><p className="font-semibold text-slate-950">{money(Number(total))}</p></div>
-    {lines.length > 0 && <div className="space-y-3">{lines.map((line) => <SavedPartRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} />)}</div>}
     {editable && <div className="border-t border-slate-200 pt-4"><DraftPartRow key={draftVersion} repairOrderId={repairOrderId} vendors={vendors} onReset={() => setDraftVersion((version) => version + 1)} /></div>}
+    {lines.length > 0 && <div className="space-y-3">{lines.map((line) => <SavedPartRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} />)}</div>}
   </fieldset>;
 }
 
@@ -51,7 +51,16 @@ function DraftPartRow({ repairOrderId, vendors, onReset }: { repairOrderId: stri
 
 export function RepairOrderLaborCard({ repairOrderId, total, lines, complimentaryLines, services, defaultRate, editable }: { repairOrderId: string; total: string; lines: LaborLine[]; complimentaryLines: Array<Pick<LaborLine, "id" | "description">>; services: CommonService[]; defaultRate: string; editable: boolean }) {
   const [draftVersion, setDraftVersion] = useState(0); const [complimentaryDraftVersion, setComplimentaryDraftVersion] = useState(0);
-  return <fieldset disabled={!editable} className="ro-line-card ro-surface min-w-0 space-y-5 rounded-2xl border border-slate-300 bg-white p-6 shadow-sm disabled:bg-slate-50 disabled:opacity-75"><div className="flex items-center justify-between gap-4"><div><h2 className="ro-section-heading">Labor</h2><p className="mt-1 text-sm text-slate-700">Search Common Services or enter a custom description. Amount is hours × rate.</p></div><p className="font-semibold text-slate-950">{money(Number(total))}</p></div>{lines.length > 0 && <div className="space-y-3">{lines.map((line) => <SavedLaborRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} />)}</div>}{editable && <div className="border-t border-slate-300 pt-4"><DraftLaborRow key={draftVersion} repairOrderId={repairOrderId} services={services} defaultRate={defaultRate} onReset={() => setDraftVersion((version) => version + 1)} /></div>}<div className="border-t border-slate-300 pt-5"><h3 className="ro-section-heading">Complimentary Services</h3><p className="mt-1 text-sm text-slate-700">Record services provided at no charge.</p>{complimentaryLines.length > 0 && <div className="mt-4 space-y-3">{complimentaryLines.map((line) => <SavedComplimentaryRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} />)}</div>}{editable && <div className="mt-4"><DraftComplimentaryRow key={complimentaryDraftVersion} repairOrderId={repairOrderId} services={services} onReset={() => setComplimentaryDraftVersion((version) => version + 1)} /></div>}</div></fieldset>;
+  return <fieldset disabled={!editable} className="ro-line-card ro-surface min-w-0 space-y-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm sm:p-6 disabled:bg-slate-50 disabled:opacity-75">
+    <div className="flex items-center justify-between gap-4"><div><h2 className="ro-section-heading">Labor</h2><p className="mt-1 text-sm text-slate-700">Search Common Services or enter a custom description. Amount is hours × rate.</p></div><p className="font-semibold text-slate-950">{money(Number(total))}</p></div>
+    {editable && <div className="border-b border-slate-300 pb-4"><DraftLaborRow key={draftVersion} repairOrderId={repairOrderId} services={services} defaultRate={defaultRate} onReset={() => setDraftVersion((version) => version + 1)} /></div>}
+    {lines.length > 0 && <div className="space-y-3">{lines.map((line) => <SavedLaborRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} />)}</div>}
+    <div className="border-t border-slate-300 pt-5">
+      <h3 className="ro-section-heading">Complimentary Services</h3><p className="mt-1 text-sm text-slate-700">Record services provided at no charge.</p>
+      {complimentaryLines.length > 0 && <div className="mt-4 space-y-3">{complimentaryLines.map((line) => <SavedComplimentaryRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} />)}</div>}
+      {editable && <div className="mt-4"><DraftComplimentaryRow key={complimentaryDraftVersion} repairOrderId={repairOrderId} services={services} onReset={() => setComplimentaryDraftVersion((version) => version + 1)} /></div>}
+    </div>
+  </fieldset>;
 }
 
 function LaborActionForm({ action, children, onSuccess }: { action: (state: LaborActionState, formData: FormData) => Promise<LaborActionState>; children: React.ReactNode; onSuccess?: () => void }) {

@@ -52,6 +52,26 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.ro-line-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  align-items: start;
+  gap: 1.5rem;
+}
+
+@media (min-width: 64rem) {
+  .ro-line-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .ro-line-workbench > [data-ro-section="labor"] {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+}
+
 @container (min-width: 40rem) {
   .ro-part-controls,
   .ro-labor-controls {
