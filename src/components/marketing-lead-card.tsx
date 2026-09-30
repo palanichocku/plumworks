@@ -17,7 +17,7 @@ function requestedTimeLabel(time: string | null) {
 
 export function MarketingLeadCard({ lead, notification, canManage }: { lead: MarketingLead; notification: LeadReadNotification | null; canManage: boolean }) {
   return <article id={`lead-${lead.id}`} className="scroll-mt-24 target:ring-2 target:ring-orange-400 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <LeadReadControl notification={notification} />
+        <LeadReadControl notification={canManage ? notification : null} />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black"><Link href={`/leads/${lead.id}`}>{lead.name}</Link></h2><span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-black text-orange-700">{lead.source === "CONTACT" && lead.message === callClickMessage ? "Call click" : sourceLabels[lead.source]}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${lead.status === "NEW" ? "bg-orange-100 text-orange-800" : "bg-slate-100"}`}>{statusLabels[lead.status]}</span></div>

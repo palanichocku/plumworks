@@ -18,5 +18,6 @@
     "view_dashboard", "view_search", "edit_customer_vehicle",
     "create_repair_order", "edit_draft_repair_order", "finalize_repair_order",
     "record_payment"
-  ]
+  ],
+  "MONITOR": ["view_dashboard", "view_marketing_leads"]
 }

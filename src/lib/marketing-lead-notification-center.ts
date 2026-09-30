@@ -40,7 +40,8 @@ export async function getLeadNotificationState() {
 }
 
 export async function readLeadNotification(id: string) {
-  const { shopId, userId } = await requireLeadMembership();
+  const { shopId, userId, role } = await requireLeadMembership();
+  if (!hasPermission(role, "manage_marketing_leads")) throw new Error("You do not have permission to manage leads.");
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("Notification not found.");
   return prisma.$transaction(async (transaction) => {
     const notification = await transaction.marketingLeadNotification.findFirst({ where: { id, shopId }, select: { id: true, marketingLeadId: true } });
@@ -53,7 +54,8 @@ export async function readLeadNotification(id: string) {
 }
 
 export async function readAllLeadNotifications(asOf: string) {
-  const { shopId, userId } = await requireLeadMembership();
+  const { shopId, userId, role } = await requireLeadMembership();
+  if (!hasPermission(role, "manage_marketing_leads")) throw new Error("You do not have permission to manage leads.");
   const cutoff = new Date(asOf);
   if (!Number.isFinite(cutoff.getTime()) || cutoff > new Date()) throw new Error("Invalid notification timestamp.");
   await prisma.$transaction(async (transaction) => {

@@ -15,6 +15,7 @@ export function AppShell({
   shopName,
   canViewReports,
   canViewAdmin,
+  canManageLeads,
 }: {
   children: React.ReactNode;
   userEmail: string;
@@ -22,10 +23,11 @@ export function AppShell({
   shopName: string;
   canViewReports: boolean;
   canViewAdmin: boolean;
+  canManageLeads: boolean;
 }) {
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
-    <LeadNotificationProvider sessionKey={notificationSessionKey}>
+    <LeadNotificationProvider sessionKey={notificationSessionKey} enabled={canManageLeads}>
     <div className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
       <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:ml-64">
         <div className="flex h-16 items-center justify-between px-5">
@@ -36,7 +38,7 @@ export function AppShell({
             <span className="text-base font-bold tracking-tight text-slate-900">{shopName}</span>
           </Link>
           <div className="flex items-center gap-3">
-            <LeadNotificationCenter />
+            {canManageLeads ? <LeadNotificationCenter /> : null}
             <form action={signOut} className="lg:hidden">
               <button
                 type="submit"

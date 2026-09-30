@@ -1,0 +1,52 @@
+name: Car Doc production health
+
+on:
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONITOR_BASE_URL: ${{ secrets.MONITOR_BASE_URL }}
+      MONITOR_HEALTH_TOKEN: ${{ secrets.MONITOR_HEALTH_TOKEN }}
+      MONITOR_USER_EMAIL: ${{ secrets.MONITOR_USER_EMAIL }}
+      MONITOR_USER_PASSWORD: ${{ secrets.MONITOR_USER_PASSWORD }}
+      MONITOR_REPORT_EMAIL: ${{ secrets.MONITOR_REPORT_EMAIL }}
+      MONITOR_HEARTBEAT_URL: ${{ secrets.MONITOR_HEARTBEAT_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      TRANSACTIONAL_EMAIL_FROM: ${{ secrets.TRANSACTIONAL_EMAIL_FROM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run read-only monitoring
+        id: smoke
+        continue-on-error: true
+        run: npm run monitor:smoke
+      - name: Email report and set health outcome
+        if: always()
+        run: npm run monitor:report -- --send
+      - name: Upload sanitized metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardoc-monitoring-result
+          path: artifacts/monitoring/result.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload Playwright diagnostics on failure
+        if: always() && steps.smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardoc-monitoring-playwright-failure
+          path: artifacts/monitoring/playwright/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Confirm smoke command succeeded
+        if: always() && steps.smoke.outcome == 'failure'
+        run: exit 1

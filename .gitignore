@@ -51,3 +51,4 @@ config_report_files.txt
 /content/clients/
 # Volatile, timestamped public-site benchmark evidence
 /artifacts/website-benchmark/
+/artifacts/monitoring/

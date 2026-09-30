@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendStaffAuthInvitation } from "@/lib/auth/staff-invitation";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const roles = new Set(Object.values(ShopMembershipRole));
+const roles = new Set<ShopMembershipRole>(["OWNER", "ADMIN", "STAFF"]);
 
 export type StaffInviteActionState = { status: "idle" | "success" | "error"; message?: string };
 
@@ -28,6 +28,7 @@ export async function changeMemberRole(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const target = await transaction.shopMembership.findFirst({ where: { id: membershipId, shopId: membership.shopId }, select: { id: true, role: true } });
     if (!target) throw new Error("Staff member was not found.");
+    if (target.role === "MONITOR") throw new Error("Monitoring accounts are managed outside staff roles.");
     const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
     assertRoleChangeAllowed({ actingRole: membership.role, targetRole: target.role, requestedRole: role, ownerCount: owners });
     await transaction.shopMembership.update({ where: { id: target.id }, data: { role } });
@@ -44,6 +45,7 @@ export async function removeMember(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const target = await transaction.shopMembership.findFirst({ where: { id: membershipId, shopId: membership.shopId }, select: { id: true, role: true } });
     if (!target) return;
+    if (target.role === "MONITOR") throw new Error("Monitoring accounts are managed outside staff roles.");
     const owners = await transaction.shopMembership.count({ where: { shopId: membership.shopId, role: "OWNER" } });
     assertMemberRemovalAllowed({ actingRole: membership.role, targetRole: target.role, ownerCount: owners });
     await transaction.shopMembership.delete({ where: { id: target.id } });

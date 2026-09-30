@@ -18,6 +18,7 @@ export default async function RepairOrdersPage() {
     getCurrentMembership()
   ]);
   const canVoid = Boolean(membership && hasPermission(membership.role, "void_repair_order"));
+  const canCreate = Boolean(membership && hasPermission(membership.role, "create_repair_order"));
 
   const thClass = "px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 select-none";
 
@@ -30,12 +31,12 @@ export default async function RepairOrdersPage() {
           title="Repair Orders" 
           description="Active garage floor repair orders and drafts that have not been finalized as invoices." 
         />
-        <Link 
+        {canCreate ? <Link
           href="/repair-orders/new" 
           className="self-start sm:self-auto rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20"
         >
           New Repair Order
-        </Link>
+        </Link> : null}
       </div>
 
       {/* Main Stream Display Logic */}

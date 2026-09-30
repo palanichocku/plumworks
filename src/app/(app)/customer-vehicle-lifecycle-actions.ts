@@ -10,7 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 async function lifecycleAccess(ownerOnly = false) {
   const access = await getCurrentMembership();
-  if (!access.membership || (ownerOnly ? access.membership.role !== "OWNER" : access.membership.role === "STAFF")) throw new Error("You do not have permission to perform this action.");
+  if (!access.membership || (ownerOnly ? access.membership.role !== "OWNER" : !["OWNER", "ADMIN"].includes(access.membership.role))) throw new Error("You do not have permission to perform this action.");
   return access.membership;
 }
 

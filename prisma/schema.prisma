@@ -16,6 +16,7 @@ enum ShopMembershipRole {
   OWNER
   ADMIN
   STAFF
+  MONITOR
 }
 
 enum PaymentPayerType {

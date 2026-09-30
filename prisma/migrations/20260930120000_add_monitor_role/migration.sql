@@ -1,0 +1,1 @@
+ALTER TYPE "ShopMembershipRole" ADD VALUE IF NOT EXISTS 'MONITOR';

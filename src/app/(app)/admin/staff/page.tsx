@@ -90,7 +90,13 @@ export default async function StaffPage() {
                 </p>
               </div>
               
-              {membership.role !== "OWNER" && member.role === "OWNER" ? (
+              {member.role === "MONITOR" ? (
+                <div className="sm:col-span-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Workspace Role</p>
+                  <p className="mt-1.5 text-sm font-semibold text-slate-900">MONITOR</p>
+                  <p className="mt-1 text-xs text-slate-500">Internal monitoring account, managed outside staff invitations.</p>
+                </div>
+              ) : membership.role !== "OWNER" && member.role === "OWNER" ? (
                 <div className="sm:col-span-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Workspace Role</p>
                   <p className="mt-1.5 text-sm font-semibold text-slate-900">OWNER</p>

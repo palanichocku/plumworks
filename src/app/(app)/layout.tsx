@@ -40,5 +40,5 @@ export default async function WorkspaceLayout({
     redirect("/invite");
   }
 
-  return <AppShell notificationSessionKey={`${membership.shopId}:${user.id}`} shopName={membership.shop.name} userEmail={user.email ?? "Signed-in user"} canViewReports={hasPermission(membership.role, "view_reports")} canViewAdmin={hasPermission(membership.role, "edit_shop_settings")}>{children}</AppShell>;
+  return <AppShell notificationSessionKey={`${membership.shopId}:${user.id}`} shopName={membership.shop.name} userEmail={user.email ?? "Signed-in user"} canViewReports={hasPermission(membership.role, "view_reports")} canViewAdmin={hasPermission(membership.role, "edit_shop_settings")} canManageLeads={hasPermission(membership.role, "manage_marketing_leads")}>{children}</AppShell>;
 }

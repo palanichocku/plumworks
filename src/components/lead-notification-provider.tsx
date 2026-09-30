@@ -27,7 +27,7 @@ export function useLeadNotifications() {
   return context;
 }
 
-export function LeadNotificationProvider({ sessionKey, children }: { sessionKey: string; children: ReactNode }) {
+export function LeadNotificationProvider({ sessionKey, enabled, children }: { sessionKey: string; enabled: boolean; children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<NotificationState | null>(null);
   const [open, setOpen] = useState(false);
@@ -102,6 +102,7 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
   }, [router, reconcile]);
 
   useEffect(() => {
+    if (!enabled) return;
     const storageKey = `plumworks-lead-toasts:${sessionKey}`;
     try {
       const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) || "[]");
@@ -146,7 +147,7 @@ export function LeadNotificationProvider({ sessionKey, children }: { sessionKey:
       document.removeEventListener("visibilitychange", onReturn);
       toast.dismiss();
     };
-  }, [sessionKey, viewLead, withPendingReads]);
+  }, [enabled, sessionKey, viewLead, withPendingReads]);
 
   async function markAll() {
     if (!state || markingAll.current) return;

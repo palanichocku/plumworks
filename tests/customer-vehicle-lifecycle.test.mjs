@@ -38,7 +38,7 @@ test("standalone creation reuses authorization and detects archived VIN conflict
 test("lifecycle mutations are tenant scoped, role restricted, and recompute blockers", async () => {
   const actions = await read("src/app/(app)/customer-vehicle-lifecycle-actions.ts");
   assert.match(actions, /membership\.role !== "OWNER"/);
-  assert.match(actions, /membership\.role === "STAFF"/);
+  assert.match(actions, /\["OWNER", "ADMIN"\]\.includes\(access\.membership\.role\)/);
   assert.match(actions, /shopId: membership\.shopId/g);
   assert.match(actions, /isolationLevel: "Serializable"/);
   assert.match(actions, /confirmation.*"DELETE"/);

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
+import { hasPermission } from "@/lib/permissions";
 
 export function normalizeShopSearch(search: string) {
   const query = search.trim().replaceAll(/\s+/g, " ");
@@ -25,7 +26,7 @@ export function normalizeShopSearch(search: string) {
 export async function searchCurrentShop(search: string) {
   const { membership } = await getCurrentMembership();
   const { query, tokens, numericRo, roText } = normalizeShopSearch(search);
-  if (!membership || !query) {
+  if (!membership || !hasPermission(membership.role, "view_search") || !query) {
     return { customers: [], vehicles: [], repairOrders: [], invoices: [] };
   }
   const shopId = membership.shopId;

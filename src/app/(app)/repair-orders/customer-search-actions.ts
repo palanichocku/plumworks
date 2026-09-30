@@ -7,6 +7,7 @@ import {
   REPAIR_ORDER_CUSTOMER_SEARCH_LIMIT,
 } from "@/lib/repair-order-customer-search";
 import { getLastRecordedMileageForVehicles } from "@/lib/data/vehicle-mileage";
+import { hasPermission } from "@/lib/permissions";
 
 export type RepairOrderCustomerSearchResult = {
   id: string;
@@ -33,7 +34,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
   const query = normalizeRepairOrderCustomerQuery(value);
   if (!query) return [];
   const { membership } = await getCurrentMembership();
-  if (!membership) return [];
+  if (!membership || !hasPermission(membership.role, "view_search")) return [];
 
   const customers = await prisma.customer.findMany({
     where: {

@@ -10,6 +10,14 @@
     "prisma:dev:generate": "node scripts/dev-database-command.mjs generate",
     "client:dev:setup": "node scripts/dev-database-command.mjs setup",
     "build": "next build",
+    "monitor:smoke": "playwright test --config=playwright.monitor.config.ts",
+    "monitor:report": "node scripts/monitor-report.ts",
+    "monitor:dev:smoke": "node scripts/dev-monitor-command.mjs smoke",
+    "monitor:dev:report": "node scripts/dev-monitor-command.mjs report",
+    "monitor:dev:send": "node scripts/dev-monitor-command.mjs send",
+    "monitor:dev:setup": "node scripts/setup-dev-plumservice.mjs",
+    "monitor:prod:setup": "node scripts/setup-prod-plumservice.mjs",
+    "test:monitoring": "node --test tests/monitoring.test.mjs",
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs tests/marketing-photos.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
     "website:legacy:inventory": "node scripts/legacy-url-inventory.mjs --origin https://www.subbuscardoc.com --output /private/tmp/cardoc-legacy-url-inventory.json --cap 300 --delay-ms 100",
@@ -68,6 +76,7 @@
     "resend": "^6.18.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",

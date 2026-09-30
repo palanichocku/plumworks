@@ -138,7 +138,8 @@ async function centerHarness() {
   };
   prisma.$transaction = async (work) => typeof work === "function" ? work(prisma) : Promise.all(work);
   const center = await load("src/lib/marketing-lead-notification-center.ts", {
-    "@/lib/permissions": { hasPermission: (role, permission) => ["OWNER", "ADMIN", "STAFF"].includes(role) && permission === "view_marketing_leads" },
+    "@/lib/permissions": { hasPermission: (role, permission) => ["OWNER", "ADMIN", "STAFF"].includes(role) ? ["view_marketing_leads", "manage_marketing_leads"].includes(permission) : role === "MONITOR" && permission === "view_marketing_leads" },
+    "@/lib/marketing-lead-query": { operationalMarketingLeadWhere: (shopId) => ({ shopId }) },
     "@/lib/prisma": { prisma }, "@/lib/data/membership": { getCurrentMembership: async () => access },
   });
   return { ...center, rows, reads, setAccess: (next) => { access = next; } };
@@ -157,6 +158,15 @@ test("read state belongs to each user, remains idempotent, and never changes lea
   assert.equal((await center.getLeadNotificationState()).unreadCount, 0);
   assert.equal(center.reads.length, 2);
   assert.deepEqual(center.rows, before);
+});
+test("MONITOR may view lead notifications but cannot write read markers", async () => {
+  const center = await centerHarness();
+  center.setAccess({ user: { id: "monitor" }, membership: { shopId: "shop-a", role: "MONITOR" } });
+  assert.equal((await center.getLeadNotificationState()).unreadCount, 1);
+  assert.equal((await center.getOperationalLead(lead.id)).lead?.id, lead.id);
+  await assert.rejects(center.readLeadNotification(center.rows[0].id), /permission/);
+  await assert.rejects(center.readAllLeadNotifications(new Date().toISOString()), /permission/);
+  assert.equal(center.reads.length, 0);
 });
 test("foreign-shop notifications and guessed lead IDs are inaccessible", async () => {
   const center = await centerHarness();

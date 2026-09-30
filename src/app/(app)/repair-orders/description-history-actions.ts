@@ -2,6 +2,7 @@
 
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/permissions";
 import {
   HISTORICAL_DESCRIPTION_MIN_CHARS,
   HISTORICAL_DESCRIPTION_SOURCE_LIMIT,
@@ -15,7 +16,7 @@ export async function searchHistoricalDescriptions(kind: HistoricalDescriptionKi
   const query = normalizeHistoricalDescription(value);
   if (query.length < HISTORICAL_DESCRIPTION_MIN_CHARS) return [];
   const { user, membership } = await getCurrentMembership();
-  if (!user || !membership) throw new Error("Authentication required");
+  if (!user || !membership || !hasPermission(membership.role, "edit_draft_repair_order")) throw new Error("You do not have permission to search descriptions.");
   const words = query.split(" ");
   const descriptionWhere = { AND: words.map((word) => ({ description: { contains: word, mode: "insensitive" as const } })) };
   const select = { description: true, updatedAt: true } as const;

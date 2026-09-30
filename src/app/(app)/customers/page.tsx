@@ -3,6 +3,8 @@ import { Pagination, parsePage } from "@/components/pagination";
 import { PageHeading } from "@/components/page-heading";
 import { getCustomersForCurrentShop } from "@/lib/data/customers";
 import { parseLifecycleFilter } from "@/lib/customer-vehicle-lifecycle";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
 
 type CustomersResult = Awaited<ReturnType<typeof getCustomersForCurrentShop>>;
 type CustomerListItem = CustomersResult["customers"][number];
@@ -19,6 +21,8 @@ export default async function CustomersPage({
   const search = q?.trim() ?? "";
   const lifecycle = parseLifecycleFilter(status);
   const { customers, hasNext } = await getCustomersForCurrentShop(search, page, lifecycle);
+  const { membership } = await getCurrentMembership();
+  const canEdit = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle"));
 
   // Upgraded header styling for better contrast and visual weight
   const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
@@ -34,7 +38,7 @@ export default async function CustomersPage({
         <nav aria-label="Customer status" className="flex rounded-lg border border-slate-200 bg-white p-1">
           {(["active", "archived", "all"] as const).map((value) => <Link key={value} href={`/customers?status=${value}${search ? `&q=${encodeURIComponent(search)}` : ""}`} className={`rounded-md px-3 py-1.5 text-sm font-semibold capitalize ${lifecycle === value ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{value}</Link>)}
         </nav>
-        <Link href="/customers/new" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ New Customer</Link>
+        {canEdit ? <Link href="/customers/new" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ New Customer</Link> : null}
       </div>
 
       <form
