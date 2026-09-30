@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { formatReport, measuredCheck, summarize, type MonitoringResult } from "../src/lib/monitoring/report.ts";
 import { sendResendEmail } from "../src/lib/email/resend-core.ts";
+import { deliverMonitoringHeartbeat, shouldSendHeartbeat } from "./monitor-heartbeat.ts";
 
 async function main() {
   let result: MonitoringResult;
@@ -27,11 +28,9 @@ async function main() {
       } else console.log("Monitoring email accepted by Resend.");
     }
   }
-  if (result.overall === "HEALTHY" && process.exitCode !== 1 && process.env.MONITOR_HEARTBEAT_URL) {
-    try {
-      const response = await fetch(process.env.MONITOR_HEARTBEAT_URL, { method: "GET", signal: AbortSignal.timeout(10000) });
-      if (!response.ok) console.warn("Monitoring heartbeat delivery failed.");
-    } catch { console.warn("Monitoring heartbeat delivery failed."); }
+  const heartbeatUrl = process.env.MONITOR_HEARTBEAT_URL;
+  if (shouldSendHeartbeat(result.overall, process.exitCode, heartbeatUrl) && heartbeatUrl) {
+    await deliverMonitoringHeartbeat(heartbeatUrl);
   }
   if (result.overall === "FAILED") process.exitCode = 1;
 }
