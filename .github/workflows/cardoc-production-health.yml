@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - name: Run read-only monitoring
         id: smoke
