@@ -3,6 +3,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import { leadProtectionHash } from "@/lib/public-lead-verification";
 import { normalizeLeadText, type PublicLeadData } from "@/lib/public-lead-validation";
 
+export type LeadAdmissionThreshold = "ip" | "email" | "phone";
+export class LeadAdmissionThresholdError extends Error {
+  constructor(readonly threshold: LeadAdmissionThreshold) { super("Submission unavailable"); }
+}
+
 export function publicLeadFingerprint(shopId: string, data: PublicLeadData) {
   return leadProtectionHash(JSON.stringify([
     "submission-v1", shopId, data.source, data.email.toLowerCase(), data.phone,
@@ -38,7 +43,9 @@ export function publicLeadAdmission(shopId: string, data: PublicLeadData, ip: st
     const ipCount = await table.count({ where: { shopId, ipHash, createdAt: { gt: new Date(now.getTime() - 10 * 60 * 1000) } } });
     const emailCount = await table.count({ where: { shopId, emailHash, createdAt: { gt: cutoff } } });
     const phoneCount = await table.count({ where: { shopId, phoneHash, createdAt: { gt: cutoff } } });
-    if (ipCount >= 5 || emailCount >= 3 || phoneCount >= 3) throw new Error("Submission unavailable");
+    if (ipCount >= 5) throw new LeadAdmissionThresholdError("ip");
+    if (emailCount >= 3) throw new LeadAdmissionThresholdError("email");
+    if (phoneCount >= 3) throw new LeadAdmissionThresholdError("phone");
     await table.create({ data: { shopId, fingerprint, ipHash, emailHash, phoneHash, createdAt: now } });
     return true;
   };

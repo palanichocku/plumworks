@@ -15,7 +15,7 @@ export function leadLoader(overrides = {}, environment = {}, extra = {}) {
     catch { source = readFileSync(`${stem.pathname}.tsx`, 'utf8'); }
     const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
     const loaded = { exports: {} };
-    new Function('require', 'module', 'exports', 'process', 'fetch', 'console', outputText)(load, loaded, loaded.exports, { env: environment }, extra.fetch ?? (() => { throw Error('Network forbidden in test'); }), { error() {}, info() {} });
+    new Function('require', 'module', 'exports', 'process', 'fetch', 'console', outputText)(load, loaded, loaded.exports, { env: environment }, extra.fetch ?? (() => { throw Error('Network forbidden in test'); }), extra.console ?? { error() {}, info() {} });
     cache.set(path, loaded.exports);
     return loaded.exports;
   }

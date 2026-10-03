@@ -53,6 +53,7 @@ export function parsePublicLead(source: MarketingLeadSource, form: FormData, now
   if (!/^\d{4}$/.test(year) || vehicleYear < 1900 || vehicleYear > now.getUTCFullYear() + 2) throw new Error("Invalid year");
   vehicleMake = field("vehicleMake", 80);
   vehicleModel = field("vehicleModel", 80);
+  if (!/[\p{L}\p{N}]/u.test(vehicleMake) || !/[\p{L}\p{N}]/u.test(vehicleModel)) throw new Error("Invalid vehicle");
   if (source !== "CONTACT") {
     const date = field("preferredDate", 10);
     preferredDate = new Date(`${date}T00:00:00.000Z`);

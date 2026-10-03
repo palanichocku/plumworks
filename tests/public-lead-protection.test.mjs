@@ -18,6 +18,14 @@ for (const overrides of [{ requestedService: 'Sell you marketing' }, { requested
 for (const overrides of [{ vehicleYear: '20211' }, { vehicleYear: '1899' }, { vehicleYear: '2999' }, { vehicleYear: '2e03' }, { vehicleMake: '' }, { vehicleModel: 'a'.repeat(81) }, { preferredDate: '' }, { preferredDate: '2026-02-30' }, { preferredDate: 'invalid' }, { preferredDate: '2026-13-01' }]) test(`vehicle/date validation ${JSON.stringify(overrides)}`, () => {
   for (const source of ['APPOINTMENT', 'DROP_OFF']) assert.throws(() => parsePublicLead(source, validForm(source, overrides)));
 });
+for (const field of ['vehicleMake', 'vehicleModel']) {
+  for (const value of ['.', '-', '--', '...', '___', '!!!', '   ']) test(`reject punctuation-only ${field}: ${JSON.stringify(value)}`, () => {
+    for (const source of Object.keys(formSources)) assert.throws(() => parsePublicLead(source, validForm(source, { [field]: value })));
+  });
+  for (const value of ['BMW', 'Ford', 'F-150', 'CX-5', '500', 'C-HR', 'FJ Cruiser', '4Runner', 'E-350', 'MX-5 Miata', '911', 'Model 3', 'トヨタ', '٣']) test(`accept vehicle ${field}: ${value}`, () => {
+    for (const source of Object.keys(formSources)) assert.equal(parsePublicLead(source, validForm(source, { [field]: `  ${value}  ` }))[field], value);
+  });
+}
 test('files, duplicate fields, oversized bodies and invalid optional time rejected', () => {
   const form = validForm('CONTACT'); form.append('name', 'second'); assert.throws(() => parsePublicLead('CONTACT', form));
   form.set('name', new Blob(['file'])); assert.throws(() => parsePublicLead('CONTACT', form));
@@ -31,13 +39,15 @@ test('signed three-second completion check: threshold passes; missing, tampered,
   for (const [value, source] of [['', 'CONTACT'], [token.replace('.CONTACT.', '.DROP_OFF.') + 'a', 'CONTACT'], [token, 'DROP_OFF'], [verification.createFormStarted('CONTACT', now - 2999), 'CONTACT'], [verification.createFormStarted('CONTACT', now + 1000), 'CONTACT'], [verification.createFormStarted('CONTACT', now - 8 * 86400000), 'CONTACT']]) assert.equal(verification.validFormStarted(value, source, now), false);
 });
 for (const scenario of [
-  { label: 'success', result: { success: true, hostname: 'shop.example.test', action: 'CONTACT' }, expected: true },
-  { label: 'invalid', result: { success: false } },
-  { label: 'expired/duplicate', result: { success: false, 'error-codes': ['timeout-or-duplicate'] } },
-  { label: 'wrong hostname', result: { success: true, hostname: 'attacker.example', action: 'CONTACT' } },
-  { label: 'wrong action', result: { success: true, hostname: 'shop.example.test', action: 'DROP_OFF' } },
-  { label: 'missing', token: '' }, { label: 'too long', token: 'x'.repeat(2049) },
-  { label: 'network failure', throws: true }, { label: 'HTTP failure', http: false }, { label: 'malformed JSON', malformed: true },
+  { label: 'success', result: { success: true, hostname: 'shop.example.test', action: 'CONTACT' }, expected: { valid: true, reason: 'none', requestCompleted: true, success: true, hostnameMatched: true, actionMatched: true } },
+  { label: 'invalid', result: { success: false }, expected: { reason: 'verification_failed', requestCompleted: true } },
+  { label: 'expired/duplicate', result: { success: false, 'error-codes': ['timeout-or-duplicate'] }, expected: { reason: 'verification_failed', requestCompleted: true } },
+  { label: 'wrong hostname', result: { success: true, hostname: 'attacker.example', action: 'CONTACT' }, expected: { reason: 'hostname_mismatch', requestCompleted: true, success: true, hostnameMatched: false, actionMatched: true } },
+  { label: 'wrong action', result: { success: true, hostname: 'shop.example.test', action: 'DROP_OFF' }, expected: { reason: 'action_mismatch', requestCompleted: true, success: true, hostnameMatched: true, actionMatched: false } },
+  { label: 'missing', token: '', expected: { reason: 'missing_token' } }, { label: 'too long', token: 'x'.repeat(2049), expected: { reason: 'invalid_token' } },
+  { label: 'malformed token', token: 'bad\ntoken', expected: { reason: 'invalid_token' } },
+  { label: 'network failure', throws: true, expected: { reason: 'unavailable' } }, { label: 'timeout', timeout: true, expected: { reason: 'timeout' } },
+  { label: 'HTTP failure', http: false, expected: { reason: 'http_error', requestCompleted: true } }, { label: 'malformed JSON', malformed: true, expected: { reason: 'invalid_response', requestCompleted: true } },
 ]) test(`Turnstile ${scenario.label}`, async () => {
   let requests = 0;
   const loaded = leadLoader({}, testEnvironment, { fetch: async (url, options) => {
@@ -45,22 +55,54 @@ for (const scenario of [
     assert.equal(JSON.parse(options.body).secret, testEnvironment.TURNSTILE_SECRET_KEY);
     assert.equal(options.cache, 'no-store'); assert.ok(options.signal);
     if (scenario.throws) throw Error('unavailable');
+    if (scenario.timeout) throw new DOMException('timed out', 'TimeoutError');
     return { ok: scenario.http ?? true, json: async () => { if (scenario.malformed) throw Error('json'); return scenario.result; } };
   } })('@/lib/public-lead-verification');
-  assert.equal(await loaded.verifyLeadTurnstile(scenario.token ?? 'XXXX.DUMMY.TOKEN.XXXX', 'CONTACT'), scenario.expected ?? false);
+  const result = await loaded.verifyLeadTurnstile(scenario.token ?? 'XXXX.DUMMY.TOKEN.XXXX', 'CONTACT');
+  assert.deepEqual({ ...result, ...scenario.expected }, result);
+  assert.equal(result.valid, scenario.expected?.valid ?? false);
   if (scenario.token !== undefined) assert.equal(requests, 0);
 });
 test('missing secrets fail closed and only Vercel IP header is trusted', async () => {
   const loaded = leadLoader({}, {})('@/lib/public-lead-verification');
-  assert.equal(await loaded.verifyLeadTurnstile('token', 'CONTACT'), false);
+  assert.equal((await loaded.verifyLeadTurnstile('token', 'CONTACT')).reason, 'missing_config');
   assert.equal(loaded.createFormStarted('CONTACT'), '');
   const vercel = leadLoader({}, { ...testEnvironment, VERCEL: '1' })('@/lib/public-lead-verification');
   assert.throws(() => vercel.publicLeadIp(new Headers({ 'x-forwarded-for': '192.0.2.1' })));
   assert.equal(vercel.publicLeadIp(new Headers({ 'x-vercel-forwarded-for': '192.0.2.1', 'cf-connecting-ip': 'spoofed' })), '192.0.2.1');
   assert.equal(vercel.publicLeadIp(new Headers({ 'x-vercel-forwarded-for': '2001:0db8:0:0:0:0:0:1' })), '[2001:db8::1]');
 });
+test('missing Turnstile hostname allowlist fails closed', async () => {
+  const verify = leadLoader({}, { TURNSTILE_SECRET_KEY: testEnvironment.TURNSTILE_SECRET_KEY })('@/lib/public-lead-verification');
+  assert.equal((await verify.verifyLeadTurnstile('token', 'CONTACT')).reason, 'missing_config');
+});
+test('blocked-domain configuration uses exact domains and descendants after whitespace/case normalization', () => {
+  const { isBlockedLeadEmailDomain: blocked } = load('@/lib/public-lead-blocked-domains');
+  const config = '  EXAMPLE-SPAMMER.test, , GeTdAnDyNoW.test  ';
+  assert.equal(blocked('user@getdandynow.test', config), true);
+  assert.equal(blocked('user@mail.getdandynow.test', config), true);
+  assert.equal(blocked('user@notgetdandynow.test', config), false);
+  assert.equal(blocked('user@example-spammer.test', config), true);
+  for (const empty of [undefined, '', '  , , ']) assert.equal(blocked('user@getdandynow.test', empty), false);
+});
+test('blocked domains canonicalize trailing DNS dots on both sides without suffix overblocking', () => {
+  const { isBlockedLeadEmailDomain: blocked } = load('@/lib/public-lead-blocked-domains');
+  const blockedAddresses = [
+    'user@getdandynow.com', 'user@getdandynow.com.', 'user@mail.getdandynow.com',
+    'user@mail.getdandynow.com.', 'user@getdandynow.com..', 'user@MAIL.GETDANDYNOW.COM.',
+  ];
+  const allowedAddresses = [
+    'user@notgetdandynow.com', 'user@getdandynow.com.example.com',
+    'user@getdandynow.com.example.com.', 'user@dandynow.com',
+  ];
+  for (const config of ['getdandynow.com', 'GETDANDYNOW.COM', 'getdandynow.com.', ' getdandynow.com. ', ' , GETDANDYNOW.COM., getdandynow.com, , ']) {
+    for (const email of blockedAddresses) assert.equal(blocked(email, config), true, `${email} with ${config}`);
+    for (const email of allowedAddresses) assert.equal(blocked(email, config), false, `${email} with ${config}`);
+  }
+  assert.equal(blocked('user@getdandynow.com', ' , . , .. , '), false);
+});
 
-function memoryDb() {
+function memoryDb({ admissionFails = false, storageFails = false, notificationFails = false } = {}) {
   const state = { leads: [], notifications: [], admissions: [] }; let tail = Promise.resolve(); let now = new Date();
   const matches = (row, where) => Object.entries(where).every(([key, value]) => key === 'id' && value.in ? value.in.includes(row.id) : key === 'createdAt' ? (value.gt ? row[key] > value.gt : row[key] <= value.lte) : row[key] === value);
   return { state, advance: (ms) => { now = new Date(now.getTime() + ms); }, shop: { findMany: async () => [{ id: 'shop-a' }] },
@@ -73,12 +115,12 @@ function memoryDb() {
             findMany: async ({ where, take }) => staged.admissions.filter(r => matches(r, where)).sort((a, b) => a.createdAt - b.createdAt).slice(0, take),
             deleteMany: async ({ where }) => { staged.admissions = staged.admissions.filter(r => !matches(r, where)); },
             findFirst: async ({ where }) => staged.admissions.find(r => matches(r, where)),
-            count: async ({ where }) => staged.admissions.filter(r => matches(r, where)).length,
+            count: async ({ where }) => { if (admissionFails) throw Error('private admission detail'); return staged.admissions.filter(r => matches(r, where)).length; },
             create: async ({ data }) => { staged.admissions.push({ id: `admission-${staged.admissions.length}`, ...data }); },
           },
           shop: { findUniqueOrThrow: async () => ({ marketingLeadInAppNotificationsEnabled: true }) },
-          marketingLead: { create: async ({ data }) => { const lead = { id: `lead-${staged.leads.length}`, ...data }; staged.leads.push(lead); return lead; } },
-          marketingLeadNotification: { create: async ({ data }) => { staged.notifications.push(data); } },
+          marketingLead: { create: async ({ data }) => { if (storageFails) throw Error('private storage detail'); const lead = { id: `lead-${staged.leads.length}`, ...data }; staged.leads.push(lead); return lead; } },
+          marketingLeadNotification: { create: async ({ data }) => { if (notificationFails) throw Error('private notification detail'); staged.notifications.push(data); } },
         });
         Object.assign(state, staged); return result;
       });
@@ -86,16 +128,18 @@ function memoryDb() {
     },
   };
 }
-function harness({ turnstile = true, db = memoryDb() } = {}) {
+function harness({ turnstile = true, db = memoryDb(), environment = testEnvironment, attributionFails = false } = {}) {
   const emails = [];
+  const logs = [];
   const loader = leadLoader({
     '@/lib/prisma': { prisma: db },
     '@/lib/marketing-lead-notifications': { notifyNewMarketingLead: async lead => emails.push(lead) },
     'next/navigation': { redirect: url => { throw Error(url); } },
     'next/headers': { cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() },
-  }, testEnvironment, { fetch: async () => ({ ok: true, json: async () => ({ success: turnstile, hostname: 'shop.example.test', action: harness.source }) }) });
+    ...(attributionFails ? { '@/lib/marketing-attribution': { marketingAttributionCookie: 'synthetic-cookie', leadAttributionData: () => { throw Error('private attribution detail'); } } } : {}),
+  }, environment, { fetch: async () => ({ ok: true, json: async () => ({ success: turnstile, hostname: 'shop.example.test', action: harness.source }) }), console: { info: (...args) => logs.push(args), error() {} } });
   const actions = loader('@/app/(marketing)/lead-actions');
-  return { db, emails, async submit(source = 'CONTACT', overrides = {}) {
+  return { db, emails, logs, async submit(source = 'CONTACT', overrides = {}) {
     harness.source = source;
     const [action] = formSources[source];
     try { await actions[action](validForm(source, overrides, loader)); } catch (e) { return e.message; }
@@ -110,6 +154,64 @@ for (const source of Object.keys(formSources)) test(`${source} legitimate action
   assert.equal(lead.requestedService, 'Brake Inspection / Service');
   assert.equal(lead.vehicleYear, 2021); assert.equal(lead.vehicleMake, 'Example Motors'); assert.equal(lead.vehicleModel, 'Model 3 - S.E.');
   if (source !== 'CONTACT') assert.equal(lead.preferredDate.toISOString(), '2026-10-01T00:00:00.000Z');
+});
+test('blocked exact and subdomain return ordinary success with zero effects and categorical logs', async () => {
+  const h = harness({ environment: { ...testEnvironment, PUBLIC_LEAD_BLOCKED_EMAIL_DOMAINS: '  BLOCKED.test  ' } });
+  for (const email of ['user@blocked.test', 'user@blocked.test.', 'user@mail.blocked.test', 'user@mail.blocked.test.', 'user@blocked.test..']) {
+    assert.equal(await h.submit('CONTACT', { email }), '/contact?sent=1');
+    assert.deepEqual(h.logs.at(-1)[1], {
+      source: 'CONTACT', submissionPath: '/contact', outcome: 'rejected', stage: 'blocked_domain', reason: 'blocked_domain',
+      turnstile: { valid: true, requestCompleted: true, success: true, hostnameMatched: true, actionMatched: true, reason: 'none' },
+      formStartValid: true, honeypotTriggered: false, validationPassed: true, blockedDomainMatched: true, admission: null,
+    });
+  }
+  assert.deepEqual(h.db.state, { leads: [], notifications: [], admissions: [] });
+  assert.equal(h.emails.length, 0);
+  assert.equal(await h.submit('CONTACT', { email: 'user@notblocked.test' }), '/contact?sent=1');
+  assert.equal(h.db.state.leads.length, 1); assert.equal(h.emails.length, 1);
+  assert.equal(h.logs.at(-1)[1].blockedDomainMatched, false);
+});
+test('unexpected failures report attribution, admission, or storage stage without private details', async () => {
+  for (const [options, stage] of [
+    [{ attributionFails: true }, 'attribution'],
+    [{ db: memoryDb({ admissionFails: true }) }, 'admission'],
+    [{ db: memoryDb({ storageFails: true }) }, 'storage'],
+    [{ db: memoryDb({ notificationFails: true }) }, 'storage'],
+  ]) {
+    const h = harness(options);
+    assert.equal(await h.submit(), '/contact?error=1');
+    assert.equal(h.logs.length, 1);
+    assert.equal(h.logs[0][0], 'public_lead_protection');
+    assert.equal(h.logs[0][1].stage, stage);
+    assert.equal(h.logs[0][1].outcome, 'rejected');
+    assert.equal(h.logs[0][1].reason, 'unavailable');
+    assert.deepEqual(h.db.state, { leads: [], notifications: [], admissions: [] });
+    assert.equal(h.emails.length, 0);
+    for (const sensitive of ['private attribution detail', 'private admission detail', 'private storage detail', 'private notification detail', 'visitor@example.test', '2025550123']) assert.equal(JSON.stringify(h.logs[0][1]).includes(sensitive), false);
+  }
+});
+test('missing and empty domain configuration allow valid submissions', async () => {
+  for (const value of [undefined, '', ' , ']) {
+    const h = harness({ environment: { ...testEnvironment, PUBLIC_LEAD_BLOCKED_EMAIL_DOMAINS: value } });
+    assert.equal(await h.submit(), '/contact?sent=1');
+    assert.equal(h.db.state.leads.length, 1);
+  }
+});
+test('structured event allowlists metadata and omits customer and request secrets', async () => {
+  const h = harness();
+  await h.submit('CONTACT', { name: 'Sensitive Synthetic Name', email: 'sensitive@example.test', phone: '2025550198', vehicleMake: 'Private Make', vehicleModel: 'Private Model', 'cf-turnstile-response': 'private-token' });
+  assert.equal(h.logs.length, 1);
+  assert.equal(h.logs[0][0], 'public_lead_protection');
+  const payload = JSON.stringify(h.logs[0][1]);
+  for (const secret of ['Sensitive Synthetic Name', 'sensitive@example.test', '2025550198', 'Private Make', 'Private Model', 'private-token', testEnvironment.TURNSTILE_SECRET_KEY, testEnvironment.LEAD_ABUSE_HASH_SECRET]) assert.equal(payload.includes(secret), false);
+  assert.equal(h.logs[0][1].outcome, 'accepted');
+});
+test('structured logger discards extra sensitive properties even if supplied at runtime', () => {
+  const logs = [];
+  const log = leadLoader({}, testEnvironment, { console: { info: (...args) => logs.push(args) } })('@/lib/public-lead-observability').logLeadProtection;
+  log({ source: 'CONTACT', submissionPath: '/contact', outcome: 'rejected', stage: 'validation', reason: 'invalid_input', turnstile: null, formStartValid: null, honeypotTriggered: false, validationPassed: false, blockedDomainMatched: null, admission: null, email: 'secret@example.test', token: 'private-token', headers: { authorization: 'secret-authorization' } });
+  assert.equal(logs[0][0], 'public_lead_protection');
+  for (const value of ['secret@example.test', 'private-token', 'secret-authorization']) assert.equal(JSON.stringify(logs[0][1]).includes(value), false);
 });
 for (const scenario of [
   { label: 'honeypot', overrides: { website: 'https://bot.example' }, success: true },
@@ -160,8 +262,17 @@ for (const dimension of ['email', 'phone', 'ip']) test(`persistent rolling ${dim
     assert.match(await h.submit('CONTACT', overrides), i < limit ? /sent=1$/ : /error=1$/);
   }
   assert.equal(h.db.state.leads.length, limit); assert.equal(h.db.state.notifications.length, limit); assert.equal(h.emails.length, limit);
+  assert.equal(h.logs.at(-1)[1].stage, 'admission');
+  assert.equal(h.logs.at(-1)[1].admission, `${dimension}_threshold`);
+  assert.equal(h.logs.at(-1)[1].reason, `${dimension}_threshold`);
   h.db.advance((dimension === 'ip' ? 10 : 30) * 60000 + 1);
   assert.match(await h.submit('CONTACT', { requestedService: 'other' }), /sent=1$/);
+});
+test('duplicate admission is classified without another lead', async () => {
+  const h = harness(); await h.submit(); await h.submit();
+  assert.equal(h.logs.at(-1)[1].outcome, 'duplicate');
+  assert.equal(h.logs.at(-1)[1].admission, 'duplicate');
+  assert.equal(h.db.state.leads.length, 1);
 });
 test('duplicate window expires after 30 minutes and old hashes are pruned', async () => {
   const h = harness(); await h.submit(); h.db.advance(30 * 60000 + 1); await h.submit();
@@ -244,6 +355,6 @@ test('unverified repeated victim identifiers cannot reserve or exhaust their quo
 test('hostname allowlist never implicitly admits localhost, previews or suffix matches', async () => {
   for (const hostname of ['localhost', '127.0.0.1', 'preview.vercel.app', 'shop.example.test.attacker.test']) {
     const verify = leadLoader({}, testEnvironment, { fetch: async () => ({ ok: true, json: async () => ({ success: true, hostname, action: 'CONTACT' }) }) })('@/lib/public-lead-verification');
-    assert.equal(await verify.verifyLeadTurnstile('XXXX.DUMMY.TOKEN.XXXX', 'CONTACT'), false);
+    assert.equal((await verify.verifyLeadTurnstile('XXXX.DUMMY.TOKEN.XXXX', 'CONTACT')).valid, false);
   }
 });

@@ -36,18 +36,41 @@ export function publicLeadIp(headers: Pick<Headers, "get">) {
   return isIP(ip) === 6 ? new URL(`http://[${ip}]`).hostname : ip;
 }
 
-export async function verifyLeadTurnstile(token: string, source: MarketingLeadSource) {
+export type LeadTurnstileReason = "none" | "missing_config" | "missing_token" | "invalid_token" | "http_error" | "timeout" | "unavailable" | "invalid_response" | "verification_failed" | "hostname_mismatch" | "action_mismatch";
+
+export type LeadTurnstileResult = {
+  valid: boolean; requestCompleted: boolean; success: boolean;
+  hostnameMatched: boolean; actionMatched: boolean; reason: LeadTurnstileReason;
+};
+
+export async function verifyLeadTurnstile(token: string, source: MarketingLeadSource): Promise<LeadTurnstileResult> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   const hosts = process.env.TURNSTILE_ALLOWED_HOSTNAMES?.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
-  if (!secret || !hosts?.length || !token || token.length > 2048) return false;
+  const failed = (reason: LeadTurnstileReason, requestCompleted = false, success = false, hostnameMatched = false, actionMatched = false): LeadTurnstileResult =>
+    ({ valid: false, requestCompleted, success, hostnameMatched, actionMatched, reason });
+  if (!secret || !hosts?.length) return failed("missing_config");
+  if (!token) return failed("missing_token");
+  if (token.length > 2048 || /\s|[\u0000-\u001f\u007f]/u.test(token)) return failed("invalid_token");
   try {
     const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ secret, response: token }),
       cache: "no-store", signal: AbortSignal.timeout(8000),
     });
-    if (!response.ok) return false;
-    const result = await response.json();
-    return result?.success === true && typeof result.hostname === "string" && hosts.includes(result.hostname.toLowerCase()) && result.action === source;
-  } catch { return false; }
+    if (!response.ok) return failed("http_error", true);
+    let result: unknown;
+    try { result = await response.json(); }
+    catch { return failed("invalid_response", true); }
+    if (!result || typeof result !== "object") return failed("invalid_response", true);
+    const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
+    const success = value.success === true;
+    const hostnameMatched = typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
+    const actionMatched = value.action === source;
+    if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
+    if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
+    if (!actionMatched) return failed("action_mismatch", true, true, true, false);
+    return { valid: true, requestCompleted: true, success: true, hostnameMatched: true, actionMatched: true, reason: "none" };
+  } catch (error) {
+    return failed(error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError") ? "timeout" : "unavailable");
+  }
 }
