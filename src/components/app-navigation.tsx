@@ -3,7 +3,8 @@
 import { useLeadNotifications } from "@/components/lead-notification-provider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType, SVGProps } from "react";
+import { useState, type ComponentType, type SVGProps } from "react";
+import { createPortal } from "react-dom";
 import { getBusinessProfile, type ModuleRegistry } from "@/lib/business-profile";
 
 type NavigationIcon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -68,16 +69,29 @@ function NavigationLink({
   const pathname = usePathname();
   const { state } = useLeadNotifications();
   const unreadCount = href === "/leads" ? state?.unreadCount ?? 0 : 0;
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null);
+  const tooltipId = `sidebar-tooltip-${href.replaceAll("/", "-")}`;
+
+  function showTooltip(link: HTMLAnchorElement) {
+    if (mobile || link.closest("#app-shell")?.getAttribute("data-sidebar-collapsed") !== "true") return;
+    const bounds = link.getBoundingClientRect();
+    setTooltipPosition({ left: bounds.right + 8, top: bounds.top + bounds.height / 2 });
+  }
   const isActive =
     pathname === href ||
     pathname.startsWith(`${href}/`) ||
     (href === "/repair-orders" && pathname.startsWith("/open-orders/"));
 
   return (
+    <>
     <Link
       href={href}
-      title={!mobile ? label : undefined}
       aria-current={isActive ? "page" : undefined}
+      aria-describedby={tooltipPosition ? tooltipId : undefined}
+      onMouseEnter={(event) => showTooltip(event.currentTarget)}
+      onMouseLeave={() => setTooltipPosition(null)}
+      onFocus={(event) => showTooltip(event.currentTarget)}
+      onBlur={() => setTooltipPosition(null)}
       className={
         mobile
           ? `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -106,6 +120,18 @@ function NavigationLink({
       {mobile ? label : <span className="desktop-nav-label">{label}</span>}
       {unreadCount > 0 && <span aria-label={`${unreadCount} unread lead notifications`} className={`${mobile ? "ml-2 inline-flex" : "desktop-nav-badge ml-auto inline-flex"} min-w-5 items-center justify-center rounded-full bg-orange-600 px-1.5 text-[11px] font-bold leading-5 text-white`}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
     </Link>
+    {tooltipPosition && createPortal(
+      <span
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none fixed z-[100] -translate-y-1/2 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg"
+        style={tooltipPosition}
+      >
+        {label}
+      </span>,
+      document.body
+    )}
+    </>
   );
 }
 
