@@ -15,7 +15,9 @@ jobs:
           node-version: '20'
           cache: npm
       - name: Install dependencies
-        run: npm install
+        env:
+          DIRECT_URL: postgresql://test:test@localhost:5432/test
+        run: npm ci
       - name: Lint changed files
         run: npx eslint src/components/app-shell.tsx src/components/app-navigation.tsx src/components/sidebar-controls.tsx
       - name: Type check
