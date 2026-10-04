@@ -1,50 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const storageKey = "plumworks:sidebar-collapsed";
-const searchEvent = "plumworks:open-sidebar-search";
+const changeEvent = "plumworks:sidebar-change";
+let fallbackCollapsed = false;
 
-function applyCollapsed(collapsed: boolean) {
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(storageKey) === "true";
+  } catch {
+    return fallbackCollapsed;
+  }
+}
+
+function subscribe(listener: () => void) {
+  window.addEventListener("storage", listener);
+  window.addEventListener(changeEvent, listener);
+  return () => {
+    window.removeEventListener("storage", listener);
+    window.removeEventListener(changeEvent, listener);
+  };
+}
+
+function saveCollapsed(collapsed: boolean) {
+  fallbackCollapsed = collapsed;
   document.getElementById("app-shell")?.setAttribute("data-sidebar-collapsed", String(collapsed));
   try {
     window.localStorage.setItem(storageKey, String(collapsed));
   } catch {
     // The control still works when browser storage is unavailable.
   }
+  window.dispatchEvent(new Event(changeEvent));
 }
 
 export function SidebarToggle() {
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey) === "true";
-      setCollapsed(saved);
-      document.getElementById("app-shell")?.setAttribute("data-sidebar-collapsed", String(saved));
-    } catch {
-      // Keep the expanded default when browser storage is unavailable.
-    }
-
-    const openSearch = () => {
-      setCollapsed(false);
-      applyCollapsed(false);
-      window.requestAnimationFrame(() => document.getElementById("sidebar-shop-search")?.focus());
-    };
-    window.addEventListener(searchEvent, openSearch);
-    return () => window.removeEventListener(searchEvent, openSearch);
-  }, []);
-
-  const toggle = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    applyCollapsed(next);
-  };
+    document.getElementById("app-shell")?.setAttribute("data-sidebar-collapsed", String(collapsed));
+  }, [collapsed]);
 
   return (
     <button
       type="button"
-      onClick={toggle}
+      onClick={() => saveCollapsed(!collapsed)}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-expanded={!collapsed}
       aria-controls="desktop-sidebar-navigation"
@@ -67,7 +67,10 @@ export function SidebarSearchButton() {
       className="sidebar-collapsed-only mt-5 h-10 w-full items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
       aria-label="Expand sidebar and search shop records"
       title="Search shop records"
-      onClick={() => window.dispatchEvent(new Event(searchEvent))}
+      onClick={() => {
+        saveCollapsed(false);
+        window.requestAnimationFrame(() => document.getElementById("sidebar-shop-search")?.focus());
+      }}
     >
       <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <circle cx="11" cy="11" r="7" />
