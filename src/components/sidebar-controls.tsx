@@ -4,11 +4,11 @@ import { useEffect, useSyncExternalStore } from "react";
 
 const storageKey = "plumworks:sidebar-collapsed";
 const changeEvent = "plumworks:sidebar-change";
-let fallbackCollapsed = false;
+let fallbackCollapsed = true;
 
 function readCollapsed() {
   try {
-    return window.localStorage.getItem(storageKey) === "true";
+    return window.localStorage.getItem(storageKey) !== "false";
   } catch {
     return fallbackCollapsed;
   }
@@ -35,7 +35,7 @@ function saveCollapsed(collapsed: boolean) {
 }
 
 export function SidebarToggle() {
-  const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
+  const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => true);
 
   useEffect(() => {
     document.getElementById("app-shell")?.setAttribute("data-sidebar-collapsed", String(collapsed));

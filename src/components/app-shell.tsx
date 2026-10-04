@@ -29,7 +29,7 @@ export function AppShell({
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
     <LeadNotificationProvider sessionKey={notificationSessionKey} enabled={canManageLeads}>
-    <div id="app-shell" className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
+    <div id="app-shell" data-sidebar-collapsed="true" className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
       <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:ml-64 app-shell-header">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
