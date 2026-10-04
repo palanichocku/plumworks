@@ -1,5 +1,6 @@
 import { LeadNotificationProvider } from "./lead-notification-provider";
 import { LeadNotificationCenter } from "./lead-notification-center";
+import { SidebarSearchButton, SidebarToggle } from "./sidebar-controls";
 import Link from "next/link";
 import { DesktopNavigation, MobileNavigation } from "./app-navigation";
 import { signOut } from "@/app/(app)/actions";
@@ -28,8 +29,8 @@ export function AppShell({
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   return (
     <LeadNotificationProvider sessionKey={notificationSessionKey} enabled={canManageLeads}>
-    <div className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
-      <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:ml-64">
+    <div id="app-shell" className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
+      <header className="app-shell-chrome sticky top-0 z-20 border-b shadow-sm print:hidden lg:ml-64 app-shell-header">
         <div className="flex h-16 items-center justify-between px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary text-xs font-black text-white shadow-sm">
@@ -53,17 +54,21 @@ export function AppShell({
       </header>
 
       <aside className="app-shell-chrome app-shell-sidebar fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r p-6 print:hidden lg:flex lg:flex-col">
-        <Link href="/dashboard" className="group flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 flex-col items-start gap-3">
+        <Link href="/dashboard" title={shopName} className="group flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-sm font-black text-white shadow-md shadow-brand-primary/20 transition-transform group-hover:scale-[1.02]">
             {shopInitials}
           </span>
-          <div>
+          <div className="sidebar-expanded-only min-w-0">
             <span className="block text-base font-extrabold tracking-tight text-slate-900 leading-tight">{shopName}</span>
             <span className="block text-[11px] font-medium text-slate-400 mt-0.5 tracking-wide uppercase">{businessProfile.terminology.businessWorkspace}</span>
           </div>
         </Link>
+        <SidebarToggle />
+        </div>
 
-        <form action="/search" className="relative mt-6 shrink-0">
+        <SidebarSearchButton />
+        <form action="/search" className="sidebar-expanded-only relative mt-6 shrink-0">
           <label htmlFor="sidebar-shop-search" className="sr-only">Search shop records</label>
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -81,9 +86,9 @@ export function AppShell({
 
         <DesktopNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
 
-        <div className="mt-4 shrink-0 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+        <div className="sidebar-account mt-4 shrink-0 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
           <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="sidebar-expanded-only flex items-center gap-2.5 min-w-0">
               <div className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse shrink-0" />
               <p className="truncate text-xs font-semibold text-slate-800" title={userEmail}>
                 {userEmail}
@@ -92,18 +97,21 @@ export function AppShell({
             <form action={signOut} className="shrink-0">
               <button
                 type="submit"
-                className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                className="sidebar-signout text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                title="Sign out"
+                aria-label="Sign out"
               >
-                Sign out
+                <span className="sidebar-expanded-only">Sign out</span>
+                <svg className="sidebar-collapsed-only h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m4 14 5-5-5-5m5 5H9" /></svg>
               </button>
             </form>
           </div>
-          <p className="mt-3 border-t border-slate-200 pt-3 text-center text-[10px] font-medium uppercase tracking-wider text-slate-400">{poweredByText}</p>
+          <p className="sidebar-expanded-only mt-3 border-t border-slate-200 pt-3 text-center text-[10px] font-medium uppercase tracking-wider text-slate-400">{poweredByText}</p>
         </div>
       </aside>
 
-      <main className="print:pl-0 lg:pl-64">
-        <div className="mx-auto max-w-7xl px-4 py-6 print:max-w-none print:p-0 sm:px-6 lg:px-8 lg:py-8">
+      <main className="app-shell-main print:pl-0 lg:pl-64">
+        <div className="app-shell-content mx-auto max-w-7xl px-4 py-6 print:max-w-none print:p-0 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
         <footer className="border-t border-slate-200 px-5 py-4 text-center text-xs text-slate-400 print:hidden lg:hidden">{poweredByText}</footer>
