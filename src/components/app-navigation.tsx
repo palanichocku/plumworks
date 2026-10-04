@@ -76,6 +76,7 @@ function NavigationLink({
   return (
     <Link
       href={href}
+      title={!mobile ? label : undefined}
       aria-current={isActive ? "page" : undefined}
       className={
         mobile
@@ -102,8 +103,8 @@ function NavigationLink({
           <NavigationIcon className="h-4 w-4" />
         </span>
       )}
-      {label}
-      {unreadCount > 0 && <span aria-label={`${unreadCount} unread lead notifications`} className={`${mobile ? "ml-2 inline-flex" : "ml-auto inline-flex"} min-w-5 items-center justify-center rounded-full bg-orange-600 px-1.5 text-[11px] font-bold leading-5 text-white`}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
+      {mobile ? label : <span className="desktop-nav-label">{label}</span>}
+      {unreadCount > 0 && <span aria-label={`${unreadCount} unread lead notifications`} className={`${mobile ? "ml-2 inline-flex" : "desktop-nav-badge ml-auto inline-flex"} min-w-5 items-center justify-center rounded-full bg-orange-600 px-1.5 text-[11px] font-bold leading-5 text-white`}>{unreadCount > 99 ? "99+" : unreadCount}</span>}
     </Link>
   );
 }
@@ -114,7 +115,7 @@ function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
 
 export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {
   return (
-    <nav className="-mr-2 mt-8 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-2" aria-label="Primary navigation">
+    <nav id="desktop-sidebar-navigation" className="desktop-navigation -mr-2 mt-8 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-2" aria-label="Primary navigation">
       {allowedNavigation(canViewReports, canViewAdmin).map((item) => (
         <NavigationLink key={item.href} {...item} />
       ))}
