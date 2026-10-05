@@ -73,11 +73,11 @@ test("reviews remain genuine-data-only and approved photos make the gallery visi
   assert.match(loader, /fallbackTestimonials[\s\S]*rating: null/);
   assert.doesNotMatch(reviews, /rating \?\? 5/);
   assert.match(reviews, /item\.rating \?/);
-  assert.match(reviews, /index: hasTestimonials/);
+  assert.match(reviews, /index: hasReviews/);
   assert.match(photos, /index: hasPhotos/);
-  assert.match(layout, /testimonials\.some[\s\S]*\? \["Reviews", "\/reviews"\] : null/);
+  assert.match(layout, /reviewLinks\.google \|\| reviewLinks\.facebook/);
   assert.match(layout, /gallery\.some[\s\S]*\? \["Photos", "\/photos"\] : null/);
-  assert.match(sitemap, /if \(testimonials\.some/);
+  assert.match(sitemap, /reviewLinks\.google \|\| reviewLinks\.facebook/);
   assert.match(sitemap, /if \(gallery\.some/);
   assert.doesNotMatch(deploymentSource, /AggregateRating|"@type"\s*:\s*"Review"/);
   assert.doesNotMatch(seo, /AggregateRating|"@type"\s*:\s*"Review"/);

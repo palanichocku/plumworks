@@ -5,6 +5,7 @@ import { AttributionLink } from "@/components/marketing/attribution-link";
 import { OwnerPortrait } from "@/components/marketing/owner-portrait";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
+import { getReviewLinks } from "@/lib/marketing-review-links";
 import { getMarketingAboutOwner, getMarketingCoupons, getMarketingMedia, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
 import { autoRepairJsonLd, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd } from "@/lib/marketing-seo";
 
@@ -19,6 +20,7 @@ export default async function MarketingHome() {
   const [shop, seoShop, settings, owner, services, coupons, testimonials, media] = await Promise.all([
     getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingMedia(),
   ]);
+  const reviewLinks = getReviewLinks(shop, settings.reviewUrl);
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
   const featuredServices = services.filter((service) => service.name.trim() && service.summary.trim()).slice(0, 6);
@@ -51,6 +53,8 @@ export default async function MarketingHome() {
         <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
       </div>
     </section>
+
+    {reviewLinks.google || reviewLinks.facebook ? <section aria-label="Customer reviews" className="border-b border-slate-200 bg-orange-50"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"><div><p className="font-black text-slate-950">See what customers say about {seoShop.name}</p><p className="text-sm text-slate-600">Read customer feedback on Google and Facebook.</p></div><div className="flex flex-wrap gap-3"><AttributionLink href="/reviews" className={`rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Customer Reviews</AttributionLink>{reviewLinks.google ? <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}>Google Reviews ↗</a> : null}{reviewLinks.facebook ? <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" className={`rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}>Facebook ↗</a> : null}</div></div></section> : null}
 
     {primaryMedia ? <section className="bg-white"><div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-8"><div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-100 shadow-sm"><Image src={primaryMedia.imageUrl} alt={primaryMedia.alt} fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover" style={{ objectPosition: primaryMedia.objectPosition ?? "center" }} /></div><div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Inside the business</p>{primaryMedia.heading ? <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{primaryMedia.heading}</h2> : null}{primaryMedia.body ? <p className="mt-5 text-lg leading-8 text-slate-600">{primaryMedia.body}</p> : null}</div></div></section> : null}
 
