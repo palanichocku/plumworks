@@ -11,8 +11,9 @@ function approvedTestimonials<T extends { id: string }>(items: T[]) { return ite
 export async function generateMetadata(): Promise<Metadata> {
   const [testimonials, shop, settings] = await Promise.all([getMarketingTestimonials(), getPublicSeoShop(), getMarketingSettings()]);
   const links = getReviewLinks(shop, settings.reviewUrl);
-  const hasReviews = approvedTestimonials(testimonials).length > 0 || Boolean(links.google || links.facebook);
-  return marketingMetadata({ title: localTitle("Customer Reviews", shop), description: hasReviews ? `Find customer feedback about ${shop.name} on Google and Facebook.` : `Read approved customer feedback about ${shop.name}.`, path: "/reviews", siteName: shop.name, index: hasReviews });
+  const hasProfiles = Boolean(links.google || links.facebook);
+  const hasReviews = approvedTestimonials(testimonials).length > 0 || hasProfiles;
+  return marketingMetadata({ title: localTitle("Customer Reviews", shop), description: hasProfiles ? `Find customer feedback about ${shop.name} on Google and Facebook.` : `Read approved customer feedback about ${shop.name}.`, path: "/reviews", siteName: shop.name, index: hasReviews });
 }
 
 export default async function ReviewsPage() {
