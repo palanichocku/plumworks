@@ -2,9 +2,6 @@ name: Car Doc production health
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 5 * * *'
-      timezone: 'America/Detroit'
 
 jobs:
   health:
