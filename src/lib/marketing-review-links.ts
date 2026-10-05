@@ -25,5 +25,5 @@ export function getReviewLinks(shop: PublicShop, configuredGoogleReviewUrl?: str
   if (!isCarDoc(shop)) return { google: null, facebook: null, leaveGoogle: null };
   const query = encodeURIComponent(`${shop.name} ${shopAddress(shop)}`);
   const google = `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${CAR_DOC_PLACE_ID}`;
-  return { google, facebook: CAR_DOC_FACEBOOK, leaveGoogle: trustedGoogleReviewUrl(configuredGoogleReviewUrl) ?? google };
+  return { google, facebook: CAR_DOC_FACEBOOK, leaveGoogle: trustedGoogleReviewUrl(configuredGoogleReviewUrl ?? process.env.PLUMWORKS_GOOGLE_REVIEW_URL) ?? google };
 }
