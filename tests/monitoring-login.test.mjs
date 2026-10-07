@@ -7,7 +7,7 @@ const email = "monitor@example.invalid";
 const password = "private-password";
 const options = { outcomeTimeoutMs: 5, retryDelayMs: 0, pollIntervalMs: 1 };
 
-function fakeLoginPage(outcomes) {
+function fakeLoginPage(outcomes, { authDelayMs = 0, dashboardDelayMs = 0 } = {}) {
   let attempt = -1;
   let clicked = false;
   const visits = [];
@@ -24,12 +24,13 @@ function fakeLoginPage(outcomes) {
     getByRole: (role, args) => {
       if (role === "button") return { click: async () => {
         clicked = true;
+        if (authDelayMs) await new Promise((resolve) => setTimeout(resolve, authDelayMs));
         if (outcomes[attempt] === "success" || outcomes[attempt] === "dashboard-no-heading") {
           for (const listener of listeners) listener({ url: () => "https://example.invalid/auth/v1/token?grant_type=password", request: () => ({ method: () => "POST" }) });
         }
         if (outcomes[attempt] === "exception") throw new Error(`raw Supabase error token=${password} authorization=${email}`);
       } };
-      if (role === "heading") return { isVisible: async () => clicked && outcomes[attempt] === "success" && args.name === "Dashboard" };
+      if (role === "heading") return { isVisible: async () => { if (dashboardDelayMs) await new Promise((resolve) => setTimeout(resolve, dashboardDelayMs)); return clicked && outcomes[attempt] === "success" && args.name === "Dashboard"; } };
       if (role === "alert") return { filter: ({ hasText }) => ({ isVisible: async () => clicked && (
         outcomes[attempt] === "credentials" && hasText === "Invalid email or password." ||
         outcomes[attempt] === "service" && hasText === "Unable to sign in right now. Please try again."
@@ -97,19 +98,19 @@ test("serialized diagnostics exclude credentials, tokens, and raw browser errors
 });
 
 test("phase timings distinguish auth response from dashboard readiness without exposing request details", async () => {
-  const page = fakeLoginPage(["success"]);
+  const page = fakeLoginPage(["success"], { authDelayMs: 12, dashboardDelayMs: 12 });
   const attempts = [];
   const login = await loginWithRetry(page, email, password, { ...options, onAttempt: (timing) => attempts.push(timing) });
   assert.equal(login.pass, true);
   assert.equal(attempts.length, 1);
   assert.equal(attempts[0].attempt, 1);
   assert.equal(attempts[0].outcome, "success");
-  assert.ok(attempts[0].submitToAuthMs !== null);
-  assert.ok(attempts[0].authToOutcomeMs !== null);
+  assert.ok(attempts[0].submitToAuthMs >= 10);
+  assert.ok(attempts[0].authToOutcomeMs >= 10);
   assert.ok(attempts[0].pageReadyMs >= 0);
   const check = { ...measuredCheck("Login", "app", true, 30), detail: `Attempt ${attempts[0].attempt}: submit-to-auth-response ${attempts[0].submitToAuthMs} ms` };
   const report = summarize("2026-01-01T00:00:00.000Z", "2026-01-01T00:00:01.000Z", [measuredCheck("Homepage", "website", true, 1), measuredCheck("Database", "database", true, 1), check]);
   assert.equal(report.overall, "HEALTHY");
   assert.match(formatReport(report).text, /submit-to-auth-response/);
-  assert.doesNotMatch(JSON.stringify(attempts) + formatReport(report).text, /monitor@example\\.invalid|private-password|example\\.invalid|token\\?grant_type/);
+  assert.doesNotMatch(JSON.stringify(attempts) + formatReport(report).text, /monitor@example\.invalid|private-password|example\.invalid|token\?grant_type/);
 });
