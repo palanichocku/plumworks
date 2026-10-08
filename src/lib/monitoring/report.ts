@@ -1,4 +1,4 @@
-export type Check = { name: string; group: "website" | "app" | "database"; pass: boolean; elapsedMs: number; warning?: string; error?: string };
+export type Check = { name: string; group: "website" | "app" | "database"; pass: boolean; elapsedMs: number; warning?: string; error?: string; detail?: string };
 export type MonitoringResult = { startedAt: string; endedAt: string; totalMs: number; overall: "HEALTHY" | "WARNING" | "FAILED"; website: "OK" | "FAILED"; app: "OK" | "FAILED"; database: "OK" | "FAILED"; checks: Check[] };
 
 export const thresholdsMs: Record<string, number> = {
@@ -38,7 +38,7 @@ export function formatReport(result: MonitoringResult, label: "Production" | "DE
     `Car Doc ${label} Health — ${date}`, "", `Overall Status: ${result.overall}`, "",
     `Car Doc Website status: ${result.website}`, `PlumWorks App status: ${result.app}`, `Database status: ${result.database}`, "",
     `Functional tests: ${passed}/${result.checks.length} passed`, "", "Response times:",
-    ...result.checks.map((check) => `${check.name}: ${check.elapsedMs} ms`), "", "Issues / Warnings:",
+    ...result.checks.flatMap((check) => [`${check.name}: ${check.elapsedMs} ms`, ...(check.detail ? [`  ${check.detail}`] : [])]), "", "Issues / Warnings:",
     ...(issues.length ? issues.map((item) => `- ${item}`) : ["None"]),
   ];
   const text = lines.join("\n");

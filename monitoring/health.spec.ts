@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { measuredCheck, summarize, type Check } from "../src/lib/monitoring/report";
-import { loginWithRetry, type LoginResult } from "./login";
+import { loginWithRetry, type LoginResult, type LoginAttemptTiming } from "./login";
 
 const output = "artifacts/monitoring/result.json";
 const pages = [
@@ -75,10 +75,14 @@ test("read-only production health smoke", async ({ page, request }) => {
     const loginStart = performance.now();
     const email = process.env.MONITOR_USER_EMAIL;
     const password = process.env.MONITOR_USER_PASSWORD;
+    const loginAttempts: LoginAttemptTiming[] = [];
     const login: LoginResult = email && password
-      ? await loginWithRetry(page, email, password)
+      ? await loginWithRetry(page, email, password, { onAttempt: (timing) => loginAttempts.push(timing) })
       : { pass: false, error: "Login credentials rejected" };
     const loginCheck = measuredCheck("Login", "app", login.pass, performance.now() - loginStart);
+    loginCheck.detail = loginAttempts.map(({ attempt, outcome, pageReadyMs, submitToAuthMs, authToOutcomeMs, submitToOutcomeMs }) =>
+      `Attempt ${attempt} (${outcome}): page ${pageReadyMs === null ? "n/a" : Math.round(pageReadyMs) + " ms"}, submit-to-auth-response ${submitToAuthMs === null ? "n/a" : submitToAuthMs + " ms"}, auth-to-outcome ${authToOutcomeMs === null ? "n/a" : authToOutcomeMs + " ms"}, submit-to-outcome ${submitToOutcomeMs === null ? "n/a" : submitToOutcomeMs + " ms"}`
+    ).join("; ") || undefined;
     if (login.pass) {
       loginCheck.warning = [loginCheck.warning, login.retried && "Login succeeded after one retry", pageError && "Browser page error observed", consoleError && "Browser console error observed"].filter(Boolean).join("; ") || undefined;
     } else {
