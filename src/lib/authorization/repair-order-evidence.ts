@@ -136,17 +136,15 @@ async function ensureCurrentRevision(shopId: string, repairOrderId: string) {
   });
 }
 
-export async function getRepairOrderAuthorizationSummary(repairOrderId: string): Promise<RepairOrderAuthorizationSummary | null> {
-  const { membership } = await getCurrentMembership();
-  if (!membership) return null;
-  const current = await loadRepairOrderSnapshot(membership.shopId, repairOrderId);
+export async function getRepairOrderAuthorizationSummaryForShop(shopId: string, repairOrderId: string): Promise<RepairOrderAuthorizationSummary | null> {
+  const current = await loadRepairOrderSnapshot(shopId, repairOrderId);
   if (!current) return null;
 
   const approved = await prisma.$queryRaw<ApprovalRow[]>`
     SELECT dr.revision, ae.occurred_at AS "occurredAt", ae.authorizer_name AS "authorizerName"
     FROM document_revisions dr
     JOIN authorization_events ae ON ae.document_revision_id = dr.id AND ae.shop_id = dr.shop_id
-    WHERE dr.shop_id = ${membership.shopId}::uuid
+    WHERE dr.shop_id = ${shopId}::uuid
       AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
       AND dr.document_id = ${repairOrderId}::uuid
       AND dr.snapshot_sha256 = ${current.hash}
@@ -158,6 +156,11 @@ export async function getRepairOrderAuthorizationSummary(repairOrderId: string):
   return approved[0]
     ? { status: "AUTHORIZED", currentSnapshotSha256: current.hash, approvedRevision: approved[0].revision, approvedAt: approved[0].occurredAt, authorizerName: approved[0].authorizerName }
     : { status: "NOT_AUTHORIZED", currentSnapshotSha256: current.hash, approvedRevision: null, approvedAt: null, authorizerName: null };
+}
+
+export async function getRepairOrderAuthorizationSummary(repairOrderId: string): Promise<RepairOrderAuthorizationSummary | null> {
+  const { membership } = await getCurrentMembership();
+  return membership ? getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId) : null;
 }
 
 export async function getRepairOrderAuthorizationHistory(repairOrderId: string): Promise<AuthorizationHistoryItem[]> {
