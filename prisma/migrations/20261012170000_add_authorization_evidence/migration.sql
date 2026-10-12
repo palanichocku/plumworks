@@ -50,6 +50,7 @@ CREATE TABLE "authorization_events" (
   "method" "AuthorizationMethod" NOT NULL,
   "decision" "AuthorizationDecision" NOT NULL,
   "authorizer_name" TEXT NOT NULL,
+  "authorizer_relationship" TEXT,
   "amount_authorized" DECIMAL(12,2),
   "total_discussed" DECIMAL(12,2),
   "notes" TEXT,
