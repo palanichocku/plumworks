@@ -40,6 +40,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const canEditNotes = Boolean(order.status !== "void" && membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
   const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
+  const canOverrideAuthorization = Boolean(membership && (membership.role === "OWNER" || membership.role === "ADMIN"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
   return (
@@ -72,6 +73,8 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
+        authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
+        canOverrideAuthorization={canOverrideAuthorization}
         overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
