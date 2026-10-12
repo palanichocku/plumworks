@@ -4,11 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry, writeAuditEntry } from "@/lib/audit";
+import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { calculateEditableInvoiceTotals } from "@/lib/invoice-lifecycle";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AUTHORIZATION_REQUIRED_MESSAGE = "Customer authorization is required before creating the Invoice.";
+
+class InvoiceAuthorizationError extends Error {}
 
 export type CreateInvoiceState = { status: "idle" | "error"; message?: string };
 
@@ -17,16 +21,31 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
 
   try {
     const repairOrderId = String(formData.get("repairOrderId") ?? "");
+    const authorizationOverrideReason = String(formData.get("authorizationOverrideReason") ?? "").trim();
     if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
     const { user, membership } = await requirePermission("finalize_repair_order");
 
+    const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
+    if (!authorization) throw new InvoiceAuthorizationError("Authorization status could not be verified for this Repair Order.");
+
+    const authorizationOverride = authorization.status !== "AUTHORIZED";
+    if (authorizationOverride) {
+      if (!authorizationOverrideReason) throw new InvoiceAuthorizationError(AUTHORIZATION_REQUIRED_MESSAGE);
+      if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+        throw new InvoiceAuthorizationError("Only an Owner or Admin can override the customer authorization requirement.");
+      }
+      if (authorizationOverrideReason.length < 10 || authorizationOverrideReason.length > 500) {
+        throw new InvoiceAuthorizationError("Enter an override reason between 10 and 500 characters.");
+      }
+    }
+
     invoice = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
-      SELECT id FROM repair_orders
-      WHERE id = ${repairOrderId}::uuid
-        AND shop_id = ${membership.shopId}::uuid
-      FOR UPDATE
-    `;
+        SELECT id FROM repair_orders
+        WHERE id = ${repairOrderId}::uuid
+          AND shop_id = ${membership.shopId}::uuid
+        FOR UPDATE
+      `;
 
       const existingInvoice = await transaction.invoice.findFirst({
         where: { repairOrderId, shopId: membership.shopId },
@@ -34,145 +53,177 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
       });
       if (existingInvoice) return existingInvoice;
 
-    const order = await transaction.repairOrder.findFirst({
-      where: {
-        id: repairOrderId,
-        shopId: membership.shopId,
-        legacySourceTable: null,
-        repairOrderNumber: { not: null },
-        status: { in: ["draft", "open"] },
-      },
-      select: {
-        id: true,
-        shopId: true,
-        customerId: true,
-        vehicleId: true,
-        repairOrderNumber: true,
-        odometer: true,
-        customerComplaint: true,
-        recommendation: true,
-        shopSuppliesAmount: true,
-        shopSuppliesEnabledSnapshot: true,
-        shopSuppliesRateSnapshot: true,
-        shopSuppliesCapSnapshot: true,
-        shopSuppliesTaxableSnapshot: true,
-        shopSuppliesEligibleLaborTotal: true,
-        shopSuppliesCalculatedAmount: true,
-        shopSuppliesOverrideAmount: true,
-        shopSuppliesOverrideReason: true,
-        shopSuppliesOverriddenByUserId: true,
-        shopSuppliesOverriddenAt: true,
-        shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true, invoicePartsWarrantyText: true, invoiceAuthorizationText: true, invoiceCertificationText: true, repairFacilityRegistrationNumber: true, defaultAuthorizedRepresentative: true, defaultInvoiceTechnicianName: true, defaultInvoiceTechnicianLicenseNumber: true } },
-        customer: { select: { displayName: true, phone: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
-        vehicle: { select: { year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true } },
-        parts: { orderBy: { createdAt: "asc" }, select: { description: true, partNumber: true, quantity: true, unitPrice: true, vendorNameSnapshot: true, legacyLineKey: true } },
-        labor: { orderBy: { createdAt: "asc" }, select: { description: true, hours: true, hourlyRate: true, complimentary: true, shopSuppliesEligible: true, legacyLineKey: true } },
-      },
-    });
-    if (!order || order.repairOrderNumber === null) {
-      throw new Error("Repair order cannot be converted to an invoice.");
-    }
-
-    const zero = new Prisma.Decimal(0);
-    const totals = calculateEditableInvoiceTotals({
-      parts: order.parts,
-      labor: order.labor.filter((line) => !line.complimentary),
-      shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,
-      shopSuppliesRate: order.shopSuppliesRateSnapshot,
-      shopSuppliesCap: order.shopSuppliesCapSnapshot,
-      taxRate: order.shop.defaultTaxRate,
-      partsTaxable: order.shop.partsTaxable,
-      laborTaxable: order.shop.laborTaxable,
-      shopSuppliesTaxable: order.shopSuppliesTaxableSnapshot,
-    });
-    const { partsTotal, laborTotal, subtotal, taxTotal, total } = totals;
-    const now = new Date();
-
-    const createdInvoice = await transaction.invoice.create({
-      data: {
-        shopId: order.shopId,
-        repairOrderId: order.id,
-        repairOrderNumber: order.repairOrderNumber,
-        customerId: order.customerId,
-        vehicleId: order.vehicleId,
-        status: "open",
-        invoiceDate: now,
-        odometer: order.odometer,
-        partsTotal,
-        laborTotal,
-        subtotal,
-        discountAmount: zero,
-        taxTotal,
-        total,
-        paidTotal: zero,
-        customerComplaint: order.customerComplaint,
-        recommendation: order.recommendation,
-        shopSuppliesAmount: totals.shopSuppliesAmount,
-        shopSuppliesEnabledSnapshot: order.shopSuppliesEnabledSnapshot,
-        shopSuppliesRateSnapshot: order.shopSuppliesRateSnapshot,
-        shopSuppliesCapSnapshot: order.shopSuppliesCapSnapshot,
-        shopSuppliesTaxableSnapshot: order.shopSuppliesTaxableSnapshot,
-        shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
-        shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
-        shopSuppliesWasOverridden: order.shopSuppliesOverrideAmount !== null,
-        shopSuppliesOverrideReason: order.shopSuppliesOverrideReason,
-        shopSuppliesOverriddenByUserId: order.shopSuppliesOverriddenByUserId,
-        shopSuppliesOverriddenAt: order.shopSuppliesOverriddenAt,
-        shopSnapshot: order.shop,
-        customerSnapshot: order.customer,
-        vehicleSnapshot: order.vehicle,
-        parts: {
-          create: order.parts.map((line) => ({
-            shopId: order.shopId,
-            description: line.description,
-            partNumber: line.partNumber,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            vendorNameSnapshot: line.vendorNameSnapshot,
-            legacyLineKey: line.legacyLineKey,
-          })),
+      const order = await transaction.repairOrder.findFirst({
+        where: {
+          id: repairOrderId,
+          shopId: membership.shopId,
+          legacySourceTable: null,
+          repairOrderNumber: { not: null },
+          status: { in: ["draft", "open"] },
         },
-        labor: {
-          create: order.labor.map((line) => ({
-            shopId: order.shopId,
-            description: line.description,
-            hours: line.hours,
-            hourlyRate: line.hourlyRate,
-            complimentary: line.complimentary,
-            shopSuppliesEligible: line.shopSuppliesEligible,
-            legacyLineKey: line.legacyLineKey,
-          })),
+        select: {
+          id: true,
+          shopId: true,
+          customerId: true,
+          vehicleId: true,
+          repairOrderNumber: true,
+          odometer: true,
+          customerComplaint: true,
+          recommendation: true,
+          shopSuppliesAmount: true,
+          shopSuppliesEnabledSnapshot: true,
+          shopSuppliesRateSnapshot: true,
+          shopSuppliesCapSnapshot: true,
+          shopSuppliesTaxableSnapshot: true,
+          shopSuppliesEligibleLaborTotal: true,
+          shopSuppliesCalculatedAmount: true,
+          shopSuppliesOverrideAmount: true,
+          shopSuppliesOverrideReason: true,
+          shopSuppliesOverriddenByUserId: true,
+          shopSuppliesOverriddenAt: true,
+          shop: { select: { name: true, addressLine1: true, city: true, state: true, postalCode: true, phone: true, defaultTaxRate: true, partsTaxable: true, laborTaxable: true, invoiceFooterMessage: true, warrantyText: true, invoicePartsWarrantyText: true, invoiceAuthorizationText: true, invoiceCertificationText: true, repairFacilityRegistrationNumber: true, defaultAuthorizedRepresentative: true, defaultInvoiceTechnicianName: true, defaultInvoiceTechnicianLicenseNumber: true } },
+          customer: { select: { displayName: true, phone: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true } },
+          vehicle: { select: { year: true, make: true, model: true, engine: true, vin: true, licensePlate: true, odometer: true } },
+          parts: { orderBy: { createdAt: "asc" }, select: { description: true, partNumber: true, quantity: true, unitPrice: true, vendorNameSnapshot: true, legacyLineKey: true } },
+          labor: { orderBy: { createdAt: "asc" }, select: { description: true, hours: true, hourlyRate: true, complimentary: true, shopSuppliesEligible: true, legacyLineKey: true } },
         },
-        accountsReceivable: {
-          create: {
-            shopId: order.shopId,
-            customerId: order.customerId,
-            balance: total,
-            status: total.greaterThan(0) ? "open" : "paid",
+      });
+      if (!order || order.repairOrderNumber === null) {
+        throw new Error("Repair order cannot be converted to an invoice.");
+      }
+
+      const zero = new Prisma.Decimal(0);
+      const totals = calculateEditableInvoiceTotals({
+        parts: order.parts,
+        labor: order.labor.filter((line) => !line.complimentary),
+        shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,
+        shopSuppliesRate: order.shopSuppliesRateSnapshot,
+        shopSuppliesCap: order.shopSuppliesCapSnapshot,
+        taxRate: order.shop.defaultTaxRate,
+        partsTaxable: order.shop.partsTaxable,
+        laborTaxable: order.shop.laborTaxable,
+        shopSuppliesTaxable: order.shopSuppliesTaxableSnapshot,
+      });
+      const { partsTotal, laborTotal, subtotal, taxTotal, total } = totals;
+      const now = new Date();
+
+      const createdInvoice = await transaction.invoice.create({
+        data: {
+          shopId: order.shopId,
+          repairOrderId: order.id,
+          repairOrderNumber: order.repairOrderNumber,
+          customerId: order.customerId,
+          vehicleId: order.vehicleId,
+          status: "open",
+          invoiceDate: now,
+          odometer: order.odometer,
+          partsTotal,
+          laborTotal,
+          subtotal,
+          discountAmount: zero,
+          taxTotal,
+          total,
+          paidTotal: zero,
+          customerComplaint: order.customerComplaint,
+          recommendation: order.recommendation,
+          shopSuppliesAmount: totals.shopSuppliesAmount,
+          shopSuppliesEnabledSnapshot: order.shopSuppliesEnabledSnapshot,
+          shopSuppliesRateSnapshot: order.shopSuppliesRateSnapshot,
+          shopSuppliesCapSnapshot: order.shopSuppliesCapSnapshot,
+          shopSuppliesTaxableSnapshot: order.shopSuppliesTaxableSnapshot,
+          shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+          shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
+          shopSuppliesWasOverridden: order.shopSuppliesOverrideAmount !== null,
+          shopSuppliesOverrideReason: order.shopSuppliesOverrideReason,
+          shopSuppliesOverriddenByUserId: order.shopSuppliesOverriddenByUserId,
+          shopSuppliesOverriddenAt: order.shopSuppliesOverriddenAt,
+          shopSnapshot: order.shop,
+          customerSnapshot: order.customer,
+          vehicleSnapshot: order.vehicle,
+          parts: {
+            create: order.parts.map((line) => ({
+              shopId: order.shopId,
+              description: line.description,
+              partNumber: line.partNumber,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              vendorNameSnapshot: line.vendorNameSnapshot,
+              legacyLineKey: line.legacyLineKey,
+            })),
+          },
+          labor: {
+            create: order.labor.map((line) => ({
+              shopId: order.shopId,
+              description: line.description,
+              hours: line.hours,
+              hourlyRate: line.hourlyRate,
+              complimentary: line.complimentary,
+              shopSuppliesEligible: line.shopSuppliesEligible,
+              legacyLineKey: line.legacyLineKey,
+            })),
+          },
+          accountsReceivable: {
+            create: {
+              shopId: order.shopId,
+              customerId: order.customerId,
+              balance: total,
+              status: total.greaterThan(0) ? "open" : "paid",
+            },
           },
         },
-      },
-      select: { id: true },
-    });
+        select: { id: true },
+      });
 
-    await transaction.repairOrder.update({
-      where: { id: order.id },
-      data: {
-        status: "invoiced",
-        closedAt: now,
-        partsTotal,
-        laborTotal,
-        taxTotal,
-        estimatedTotal: total,
-        shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
-        shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
-        shopSuppliesAmount: totals.shopSuppliesAmount,
-      },
-    });
-    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "invoice_created", "repair_order", order.id, { invoiceId: createdInvoice.id }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${order.repairOrderNumber}`, entityHref: `/invoices/${createdInvoice.id}`, contextSummary: "Invoice created from repair order" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
+      await transaction.repairOrder.update({
+        where: { id: order.id },
+        data: {
+          status: "invoiced",
+          closedAt: now,
+          partsTotal,
+          laborTotal,
+          taxTotal,
+          estimatedTotal: total,
+          shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+          shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
+          shopSuppliesAmount: totals.shopSuppliesAmount,
+        },
+      });
+
+      await writeAuditEntry(
+        transaction,
+        auditEntry(
+          membership.shopId,
+          user?.id,
+          authorizationOverride ? "invoice_created_authorization_override" : "invoice_created",
+          "repair_order",
+          order.id,
+          {
+            invoiceId: createdInvoice.id,
+            authorizationStatus: authorization.status,
+            authorizationSnapshotSha256: authorization.currentSnapshotSha256,
+            authorizationApprovedRevision: authorization.approvedRevision,
+            authorizationOverride,
+            authorizationOverrideReason: authorizationOverride ? authorizationOverrideReason : null,
+          },
+          {
+            actorEmail: user?.email,
+            actorRole: membership.role,
+            entityLabel: `RO #${order.repairOrderNumber}`,
+            entityHref: `/invoices/${createdInvoice.id}`,
+            contextSummary: authorizationOverride
+              ? "Invoice created with Owner/Admin authorization override"
+              : "Invoice created from authorized repair order",
+          },
+        ),
+        { category: "operational", enabled: membership.shop.auditLoggingEnabled },
+      );
+
       return createdInvoice;
     }, { isolationLevel: "Serializable" });
-  } catch {
+  } catch (error) {
+    if (error instanceof InvoiceAuthorizationError) {
+      return { status: "error", message: error.message };
+    }
     return { status: "error", message: "The Invoice could not be created. Please review the Repair Order and try again." };
   }
 
