@@ -25,20 +25,6 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
     if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
     const { user, membership } = await requirePermission("finalize_repair_order");
 
-    const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
-    if (!authorization) throw new InvoiceAuthorizationError("Authorization status could not be verified for this Repair Order.");
-
-    const authorizationOverride = authorization.status !== "AUTHORIZED";
-    if (authorizationOverride) {
-      if (!authorizationOverrideReason) throw new InvoiceAuthorizationError(AUTHORIZATION_REQUIRED_MESSAGE);
-      if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-        throw new InvoiceAuthorizationError("Only an Owner or Admin can override the customer authorization requirement.");
-      }
-      if (authorizationOverrideReason.length < 10 || authorizationOverrideReason.length > 500) {
-        throw new InvoiceAuthorizationError("Enter an override reason between 10 and 500 characters.");
-      }
-    }
-
     invoice = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
         SELECT id FROM repair_orders
@@ -52,6 +38,20 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
         select: { id: true },
       });
       if (existingInvoice) return existingInvoice;
+
+      const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
+      if (!authorization) throw new InvoiceAuthorizationError("Authorization status could not be verified for this Repair Order.");
+
+      const authorizationOverride = authorization.status !== "AUTHORIZED";
+      if (authorizationOverride) {
+        if (!authorizationOverrideReason) throw new InvoiceAuthorizationError(AUTHORIZATION_REQUIRED_MESSAGE);
+        if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+          throw new InvoiceAuthorizationError("Only an Owner or Admin can override the customer authorization requirement.");
+        }
+        if (authorizationOverrideReason.length < 10 || authorizationOverrideReason.length > 500) {
+          throw new InvoiceAuthorizationError("Enter an override reason between 10 and 500 characters.");
+        }
+      }
 
       const order = await transaction.repairOrder.findFirst({
         where: {
@@ -215,7 +215,9 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
               : "Invoice created from authorized repair order",
           },
         ),
-        { category: "operational", enabled: membership.shop.auditLoggingEnabled },
+        authorizationOverride
+          ? { category: "governance" }
+          : { category: "operational", enabled: membership.shop.auditLoggingEnabled },
       );
 
       return createdInvoice;
