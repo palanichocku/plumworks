@@ -6,6 +6,7 @@ export type AuthorizationRequestStatus = "PENDING" | "APPROVED" | "DECLINED" | "
 export type VerbalAuthorizationInput = {
   repairOrderId: string;
   authorizerName: string;
+  authorizerRelationship?: string;
   amountAuthorized: string;
   totalDiscussed: string;
   notes?: string;
@@ -17,10 +18,19 @@ export type AuthorizationHistoryItem = {
   method: AuthorizationMethod;
   decision: AuthorizationDecision;
   authorizerName: string;
+  authorizerRelationship: string | null;
   amountAuthorized: string | null;
   totalDiscussed: string | null;
   notes: string | null;
   staffUserEmail: string | null;
   occurredAt: Date;
   snapshotSha256: string;
+};
+
+export type RepairOrderAuthorizationSummary = {
+  status: "NOT_AUTHORIZED" | "AUTHORIZED";
+  currentSnapshotSha256: string;
+  approvedRevision: number | null;
+  approvedAt: Date | null;
+  authorizerName: string | null;
 };
