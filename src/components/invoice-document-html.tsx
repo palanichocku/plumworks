@@ -9,6 +9,14 @@ function Detail({ label, value }: { label: string; value: string | number | null
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
+function SignedBlock({ label, signerName, signedAt, signatureData }: { label: string; signerName: string; signedAt: string; signatureData: string }) {
+  return <section style={{ marginTop: "12px" }}>
+    <p style={{ margin: 0, fontWeight: 700 }}>{label}</p>
+    <img src={signatureData} alt={`${signerName} signature`} style={{ display: "block", width: "220px", maxWidth: "100%", height: "72px", objectFit: "contain", objectPosition: "left center", marginTop: "4px" }} />
+    <p style={{ margin: "3px 0 0" }}>{signerName} · Signed {signedAt}</p>
+  </section>;
+}
+
 export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) {
   const shopLocality = locality(model.shop.city, model.shop.state, model.shop.postalCode);
   const customerLocality = locality(model.customer.city, model.customer.state, model.customer.postalCode);
@@ -42,8 +50,14 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
         {model.shop.partsWarrantyText && <Legal title="Parts Warranty" text={model.shop.partsWarrantyText} />}
         {model.shop.authorizationText && <Legal title="Customer Authorization" text={model.shop.authorizationText} />}
         {model.shop.certificationText && <Legal title="Certification" text={model.shop.certificationText} />}
-        <p className="invoice-document-signature">Customer signature / date</p>
-        <p className="invoice-document-signature">Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</p>
+        {model.deliverySignatures ? <>
+          <SignedBlock label="Customer signature" signerName={model.deliverySignatures.customer.signerName} signedAt={model.deliverySignatures.customer.signedAt} signatureData={model.deliverySignatures.customer.signatureData} />
+          <SignedBlock label="Shop representative signature" signerName={model.deliverySignatures.shopRepresentative.signerName} signedAt={model.deliverySignatures.shopRepresentative.signedAt} signatureData={model.deliverySignatures.shopRepresentative.signatureData} />
+          <p style={{ marginTop: "8px", fontSize: "10px" }}>Signed invoice revision {model.deliverySignatures.revision} · Evidence Integrity ID {model.deliverySignatures.snapshotSha256}</p>
+        </> : <>
+          <p className="invoice-document-signature">Customer signature / date</p>
+          <p className="invoice-document-signature">Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</p>
+        </>}
       </div>
       <div className="invoice-document-totals"><h2>Totals</h2><dl><Detail label="Parts" value={model.totals.parts} /><Detail label="Labor" value={model.totals.labor} /><Detail label="Shop supplies" value={model.totals.shopSupplies} /><Detail label="Subtotal before tax" value={model.totals.displaySubtotalBeforeTax} />{model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <Detail label="Discount" value={model.totals.discount} /> : null}{model.legacyCharges.map((charge) => <Detail key={charge.label} label={charge.label} value={charge.amount} />)}<Detail label="Tax" value={model.totals.tax} /><div className="invoice-document-grand-total"><dt>Total</dt><dd>{model.totals.total}</dd></div><Detail label="Amount paid" value={model.totals.amountPaid} /><Detail label="Balance due" value={model.totals.balanceDue} /><Detail label="Payment status" value={model.totals.paymentStatus} /></dl>{model.paymentMethods.length > 0 && <p>Payments: {model.paymentMethods.map((payment) => `${payment.method} ${payment.amount}`).join("; ")}</p>}</div>
     </section>

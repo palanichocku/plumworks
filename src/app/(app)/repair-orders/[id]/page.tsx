@@ -18,6 +18,8 @@ import { RepairOrderMileageField } from "@/components/repair-order-mileage-field
 import { getLastRecordedMileageForVehicle } from "@/lib/data/vehicle-mileage";
 import { RepairOrderHistoryButton } from "@/components/repair-order-history-button";
 import { repairOrderVoidReasonLabel } from "@/lib/repair-order-void";
+import { RepairOrderAuthorizationPanel } from "@/components/repair-order-authorization-panel";
+import { getRepairOrderAuthorizationHistory, getRepairOrderAuthorizationSummary } from "@/lib/authorization/repair-order-evidence";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 
@@ -27,13 +29,18 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const [order, internalNotes, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getRepairOrderInternalNotesForCurrentShop(id), getCurrentMembership()]);
   if (!order || !internalNotes || internalNotes.vehicle.customerId !== internalNotes.customer.id) notFound();
-  const lastMileage = membership ? await getLastRecordedMileageForVehicle(membership.shopId, order.vehicle.id) : null;
+  const [lastMileage, authorizationSummary, authorizationHistory] = await Promise.all([
+    membership ? getLastRecordedMileageForVehicle(membership.shopId, order.vehicle.id) : null,
+    getRepairOrderAuthorizationSummary(id),
+    getRepairOrderAuthorizationHistory(id),
+  ]);
   const editable = order.status === "draft" || order.status === "open";
   const invoice = order.invoices[0];
   const canVoid = Boolean(membership && hasPermission(membership.role, "void_repair_order") && editable && order.repairOrderNumber !== null && !invoice);
   const canEditNotes = Boolean(order.status !== "void" && membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
   const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
+  const canOverrideAuthorization = Boolean(membership && (membership.role === "OWNER" || membership.role === "ADMIN"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
 
   return (
@@ -49,10 +56,25 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         {order.status === "void" ? <section className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"><h2 className="font-bold">This repair order was voided and is retained for audit history.</h2><dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]"><dt className="font-semibold">Void reason</dt><dd>{repairOrderVoidReasonLabel(order.voidReason)}</dd>{order.voidNote ? <><dt className="font-semibold">Explanation</dt><dd className="whitespace-pre-wrap">{order.voidNote}</dd></> : null}<dt className="font-semibold">Voided</dt><dd>{formatDate(order.voidedAt)}</dd></dl></section> : !editable ? <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p> : null}
       </header>
 
+      {authorizationSummary ? <RepairOrderAuthorizationPanel
+        repairOrderId={order.id}
+        estimatedTotal={Number(order.estimatedTotal).toFixed(2)}
+        editable={editable && !invoice}
+        summary={{
+          status: authorizationSummary.status,
+          approvedRevision: authorizationSummary.approvedRevision,
+          approvedAt: authorizationSummary.approvedAt?.toISOString() ?? null,
+          authorizerName: authorizationSummary.authorizerName,
+        }}
+        history={authorizationHistory.map((item) => ({ ...item, occurredAt: item.occurredAt.toISOString() }))}
+      /> : null}
+
       {editable ? <EditableRepairOrderWorkspace
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
+        authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
+        canOverrideAuthorization={canOverrideAuthorization}
         overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}

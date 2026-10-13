@@ -86,6 +86,7 @@ export async function getInvoiceForCurrentShop(id: string) {
     where: { id, shopId: membership.shopId },
     select: {
       id: true,
+      repairOrderId: true,
       legacyRoNo: true,
       repairOrderNumber: true,
       legacySourceTable: true,

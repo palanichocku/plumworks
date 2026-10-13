@@ -7,15 +7,16 @@ import { sendGmailMessage } from "@/lib/email/gmail";
 import { sendPdfDocumentEmail } from "@/lib/email/document-email";
 import { repairOrderEmailMessage } from "@/lib/email/repair-order-email-core";
 
-export async function deliverRepairOrderEmail(model: RepairOrderDocumentModel, recipient: string, dependencies: {
+export async function deliverRepairOrderEmail(model: RepairOrderDocumentModel, recipient: string, options: {
+  authorizationUrl?: string;
   renderPdf?: (model: RepairOrderDocumentModel) => Promise<Buffer>;
   sendEmail?: typeof sendGmailMessage;
 } = {}) {
   let pdf: Buffer;
   try {
-    pdf = await (dependencies.renderPdf ?? (async (document) => Buffer.from(await renderToBuffer(<RepairOrderDocumentPDF model={document} />))))(model);
+    pdf = await (options.renderPdf ?? (async (document) => Buffer.from(await renderToBuffer(<RepairOrderDocumentPDF model={document} />))))(model);
   } catch {
     return { ok: false as const, message: "The Repair Order PDF could not be generated. Please try again." };
   }
-  return sendPdfDocumentEmail({ message: repairOrderEmailMessage(model, recipient), attachmentFilename: model.filename, pdfBuffer: pdf }, dependencies.sendEmail);
+  return sendPdfDocumentEmail({ message: repairOrderEmailMessage(model, recipient, options.authorizationUrl), attachmentFilename: model.filename, pdfBuffer: pdf }, options.sendEmail);
 }

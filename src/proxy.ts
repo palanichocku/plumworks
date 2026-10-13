@@ -9,6 +9,10 @@ function isPublicMarketingPath(pathname: string) {
   return publicMarketingPaths.has(pathname) || pathname.startsWith("/services/");
 }
 
+function isPublicAuthorizationPath(pathname: string) {
+  return pathname.startsWith("/authorize/repair-order/");
+}
+
 export async function proxy(request: NextRequest) {
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
@@ -24,6 +28,7 @@ export async function proxy(request: NextRequest) {
   if (request.method === "GET" || request.method === "HEAD") {
     if (/(?:\.html|\.php|\/defaults\/files\/DrivabilityForm\.pdf)$/i.test(request.nextUrl.pathname)) return NextResponse.next();
   }
+  if (isPublicAuthorizationPath(request.nextUrl.pathname)) return NextResponse.next();
   if (isPublicMarketingPath(request.nextUrl.pathname)) {
     const response = NextResponse.next();
     const existing = request.cookies.get(marketingAttributionCookie)?.value;
@@ -57,6 +62,7 @@ export const config = {
     "/privacy",
     "/reviews",
     "/services/:path*",
+    "/authorize/repair-order/:path*",
     "/invite",
     "/dashboard/:path*",
     "/leads/:path*",
