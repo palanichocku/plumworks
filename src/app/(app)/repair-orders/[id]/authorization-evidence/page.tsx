@@ -16,6 +16,10 @@ function methodLabel(method: string) {
   return method;
 }
 
+function compactHash(value: string) {
+  return value.length <= 24 ? value : `${value.slice(0, 12)}…${value.slice(-12)}`;
+}
+
 export default async function AuthorizationEvidencePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const report = await getRepairOrderAuthorizationEvidence(id);
@@ -27,7 +31,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
         <Link href={`/repair-orders/${id}`} className="text-sm font-semibold text-brand-primary print:hidden">← Repair Order</Link>
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Authorization Evidence</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-950">RO #{report.order.repairOrderNumber ?? "—"}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">Audit record of customer authorization decisions. Each event is tied to the immutable Repair Order revision and SHA-256 snapshot that existed when the decision was recorded.</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">Audit record of customer authorization decisions. Each event is tied to the exact Repair Order revision that existed when the decision was recorded.</p>
       </div>
       <AuthorizationEvidencePrintButton />
     </header>
@@ -46,8 +50,10 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
             <p className="mt-2 text-sm text-slate-600">Recorded {record.occurredAt.toLocaleString()}</p>
           </div>
           <div className="max-w-md text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Snapshot SHA-256</p>
-            <p className="mt-1 break-all font-mono text-[11px] text-slate-700">{record.snapshotSha256}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence Integrity ID</p>
+            <p className="mt-1 font-mono text-xs font-semibold text-slate-800" title={record.snapshotSha256}>{compactHash(record.snapshotSha256)}</p>
+            <p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">Cryptographic fingerprint of the exact Repair Order revision approved or declined. Any change to that revision produces a different fingerprint.</p>
+            <details className="mt-1 print:block"><summary className="cursor-pointer text-xs font-semibold text-brand-primary print:hidden">Show full hash</summary><p className="mt-1 break-all font-mono text-[10px] text-slate-500">{record.snapshotSha256}</p></details>
           </div>
         </div>
 
@@ -70,6 +76,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
             <h2 className="text-base font-bold text-slate-950">Request / electronic evidence</h2>
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-slate-500">Recipient email</dt><dd className="break-all">{record.recipientEmail ?? "Not applicable"}</dd>
+              <dt className="text-slate-500">Email subject</dt><dd>{record.method === "EMAIL_LINK" ? (record.emailSubject ?? "Not recorded for this earlier request") : "Not applicable"}</dd>
               <dt className="text-slate-500">Request status</dt><dd>{record.requestStatus ?? "Not applicable"}</dd>
               <dt className="text-slate-500">Sent</dt><dd>{record.sentAt?.toLocaleString() ?? "Not applicable"}</dd>
               <dt className="text-slate-500">Decision time</dt><dd>{record.decidedAt?.toLocaleString() ?? record.occurredAt.toLocaleString()}</dd>
@@ -113,7 +120,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
     })}
 
     <footer className="border-t border-slate-200 pt-4 text-xs text-slate-500">
-      This report is generated from immutable authorization events and Repair Order revision snapshots stored by PlumWorks. The SHA-256 value identifies the exact snapshot associated with each authorization decision.
+      This report is generated from immutable authorization events and Repair Order revision snapshots stored by PlumWorks. The Evidence Integrity ID is the SHA-256 cryptographic fingerprint of the exact snapshot associated with each authorization decision.
     </footer>
   </div>;
 }
