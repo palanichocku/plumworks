@@ -30,8 +30,9 @@ function SignaturePad({
   const lastPoint = useRef<Point | null>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const currentCanvas = canvasRef.current;
+    if (!currentCanvas) return;
+    const canvas: HTMLCanvasElement = currentCanvas;
 
     function configureCanvas() {
       const rect = canvas.getBoundingClientRect();
