@@ -1,7 +1,7 @@
 "use server";
 
 import { getCurrentMembership } from "@/lib/data/membership";
-import { getInvoiceDocumentForShop } from "@/lib/invoice-document";
+import { getInvoiceDocumentForCurrentShop } from "@/lib/invoice-document";
 import { deliverInvoiceEmail } from "@/lib/email/invoice-email";
 import { normalizeEmailRecipient, type InvoiceEmailState } from "@/lib/email/invoice-email-core";
 import { hasPermission } from "@/lib/permissions";
@@ -14,7 +14,7 @@ export async function sendInvoiceEmailAction(_state: InvoiceEmailState, formData
   const { user, membership } = await getCurrentMembership();
   if (!user || !membership) return { status: "error", message: "You do not have permission to email this Invoice." };
   if (!hasPermission(membership.role, "edit_draft_repair_order")) return { status: "error", message: "You do not have permission to email this Invoice." };
-  const model = await getInvoiceDocumentForShop(invoiceId, membership.shopId);
+  const model = await getInvoiceDocumentForCurrentShop(invoiceId);
   if (!model) return { status: "error", message: "Invoice not found for this shop." };
 
   const result = await deliverInvoiceEmail(model, recipient);
