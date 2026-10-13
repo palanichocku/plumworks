@@ -6,8 +6,26 @@ import { getCurrentMembership } from "@/lib/data/membership";
 import { formatDate, formatLaborDescription, formatMoney } from "@/lib/formatters";
 import { snapshotNumber, snapshotString } from "@/lib/invoice-snapshots";
 import { invoicePaymentSummary, paymentMethodLabel, paymentStatusLabel } from "@/lib/invoice-payments";
+import { getInvoiceDeliverySignatureEvidence } from "@/lib/authorization/invoice-signature-evidence";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type InvoiceDeliverySignatures = {
+  revision: number;
+  snapshotSha256: string;
+  customer: {
+    signerName: string;
+    signedAt: string;
+    signatureData: string;
+    signatureSha256: string;
+  };
+  shopRepresentative: {
+    signerName: string;
+    signedAt: string;
+    signatureData: string;
+    signatureSha256: string;
+  };
+} | null;
 
 const invoiceDocumentSelect = {
   id: true, repairOrderNumber: true, legacyRoNo: true, legacySourceTable: true,
@@ -137,7 +155,43 @@ function mapInvoiceDocument(invoice: InvoiceDocumentRecord) {
       amountPaid: formatMoney(invoice.paidTotal), balanceDue: formatMoney(balance), paymentStatus: invoice.status === "void" ? "VOID" : paymentStatusLabel(paymentSummary.status),
     },
     paymentMethods: [...paymentTotals.entries()].map(([method, amount]) => ({ method, amount: formatMoney(amount) })),
+    deliverySignatures: null as InvoiceDeliverySignatures,
   };
+}
+
+function signatureTimestamp(date: Date) {
+  return `${date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "")} UTC`;
+}
+
+async function currentDeliverySignatures(invoiceId: string): Promise<InvoiceDeliverySignatures> {
+  const evidence = await getInvoiceDeliverySignatureEvidence(invoiceId);
+  if (!evidence?.currentComplete || !evidence.currentSnapshotSha256) return null;
+
+  const currentRows = evidence.signatures.filter((row) => row.snapshotSha256 === evidence.currentSnapshotSha256);
+  const sessionIds = Array.from(new Set(currentRows.map((row) => row.sessionId)));
+  for (const sessionId of sessionIds) {
+    const rows = currentRows.filter((row) => row.sessionId === sessionId);
+    const customer = rows.find((row) => row.role === "CUSTOMER");
+    const shopRepresentative = rows.find((row) => row.role === "SHOP_REPRESENTATIVE");
+    if (!customer || !shopRepresentative) continue;
+    return {
+      revision: customer.revision,
+      snapshotSha256: customer.snapshotSha256,
+      customer: {
+        signerName: customer.signerName,
+        signedAt: signatureTimestamp(customer.occurredAt),
+        signatureData: customer.signatureData,
+        signatureSha256: customer.signatureSha256,
+      },
+      shopRepresentative: {
+        signerName: shopRepresentative.signerName,
+        signedAt: signatureTimestamp(shopRepresentative.occurredAt),
+        signatureData: shopRepresentative.signatureData,
+        signatureSha256: shopRepresentative.signatureSha256,
+      },
+    };
+  }
+  return null;
 }
 
 export async function getInvoiceDocumentForShop(invoiceId: string, shopId: string) {
@@ -149,5 +203,7 @@ export async function getInvoiceDocumentForShop(invoiceId: string, shopId: strin
 export async function getInvoiceDocumentForCurrentShop(invoiceId: string) {
   const { user, membership } = await getCurrentMembership();
   if (!user || !membership) return null;
-  return getInvoiceDocumentForShop(invoiceId, membership.shopId);
+  const model = await getInvoiceDocumentForShop(invoiceId, membership.shopId);
+  if (!model) return null;
+  return { ...model, deliverySignatures: await currentDeliverySignatures(invoiceId) };
 }
