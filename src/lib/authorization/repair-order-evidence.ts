@@ -98,7 +98,7 @@ type RevisionRow = { id: string; revision: number; snapshotSha256: string };
 type ApprovalRow = { revision: number; occurredAt: Date; authorizerName: string };
 type HistoryRow = AuthorizationHistoryItem;
 
-async function ensureCurrentRevision(shopId: string, repairOrderId: string) {
+export async function ensureCurrentRepairOrderRevision(shopId: string, repairOrderId: string) {
   const current = await loadRepairOrderSnapshot(shopId, repairOrderId);
   if (!current) return null;
 
@@ -201,7 +201,7 @@ export async function recordVerbalRepairOrderAuthorization(input: VerbalAuthoriz
   if (notes && notes.length > 1000) throw new Error("Notes must be 1,000 characters or fewer.");
   const amountAuthorized = decimalInput(input.amountAuthorized, "Amount authorized");
   const totalDiscussed = decimalInput(input.totalDiscussed, "Total discussed");
-  const revision = await ensureCurrentRevision(membership.shopId, input.repairOrderId);
+  const revision = await ensureCurrentRepairOrderRevision(membership.shopId, input.repairOrderId);
   if (!revision) throw new Error("Repair order was not found or cannot be authorized.");
 
   const inserted = await prisma.$queryRaw<Array<{ id: string; occurredAt: Date }>>`
