@@ -69,6 +69,7 @@ export default async function InvoiceDetailPage({
           <p className="mt-2 text-sm text-slate-600">{formatDate(invoice.invoiceDate)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {invoice.repairOrderId ? <Link href={`/repair-orders/${invoice.repairOrderId}/authorization-evidence`} className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Authorization Evidence</Link> : null}
           {canVoid ? <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={String(invoice.repairOrderNumber)} originalTotal={formatMoney(invoice.total)} /> : null}
           {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-brand-primary/30 px-4 py-2.5 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Edit Invoice</Link> : null}
           <EmailInvoiceButton
