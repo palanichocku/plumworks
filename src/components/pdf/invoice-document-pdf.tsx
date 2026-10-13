@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { InvoiceDocumentModel } from "@/lib/invoice-document";
 
 const styles = StyleSheet.create({
@@ -30,6 +30,11 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   grandTotal: { borderTop: "1pt solid #000000", marginTop: 2, paddingTop: 4, fontSize: 10 },
   signature: { marginTop: 12, borderTop: "0.5pt solid #000000", paddingTop: 2 },
+  signedBlock: { marginTop: 10 },
+  signedLabel: { fontSize: 8, fontWeight: 700 },
+  signedImage: { width: 150, height: 48, objectFit: "contain", objectPosition: "left center", marginTop: 2 },
+  signedMeta: { fontSize: 7.5, marginTop: 2 },
+  evidence: { fontSize: 6.5, marginTop: 5, color: "#444444" },
   footer: { marginTop: 10, paddingTop: 5, borderTop: "0.5pt solid #777777", textAlign: "center", fontSize: 7.5 },
   voidBanner: { border: "3pt solid #991b1b", color: "#991b1b", padding: 8, marginBottom: 10, textAlign: "center", fontSize: 22, fontWeight: 700, letterSpacing: 4 },
 });
@@ -41,6 +46,14 @@ function locality(city: string | null, state: string | null, postalCode: string 
 function Value({ label, value }: { label: string; value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === "") return null;
   return <Text><Text style={styles.muted}>{label}: </Text>{String(value)}</Text>;
+}
+
+function SignedBlock({ label, signerName, signedAt, signatureData }: { label: string; signerName: string; signedAt: string; signatureData: string }) {
+  return <View style={styles.signedBlock} wrap={false}>
+    <Text style={styles.signedLabel}>{label}</Text>
+    <Image src={signatureData} style={styles.signedImage} />
+    <Text style={styles.signedMeta}>{signerName} · Signed {signedAt}</Text>
+  </View>;
 }
 
 export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
@@ -118,8 +131,14 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           {model.shop.partsWarrantyText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>PARTS WARRANTY</Text><Text>{model.shop.partsWarrantyText}</Text></View> : null}
           {model.shop.authorizationText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>CUSTOMER AUTHORIZATION</Text><Text>{model.shop.authorizationText}</Text></View> : null}
           {model.shop.certificationText ? <View style={styles.legalBlock}><Text style={styles.sectionTitle}>CERTIFICATION</Text><Text>{model.shop.certificationText}</Text></View> : null}
-          <Text style={styles.signature}>Customer signature / date</Text>
-          <Text style={styles.signature}>Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</Text>
+          {model.deliverySignatures ? <>
+            <SignedBlock label="Customer signature" signerName={model.deliverySignatures.customer.signerName} signedAt={model.deliverySignatures.customer.signedAt} signatureData={model.deliverySignatures.customer.signatureData} />
+            <SignedBlock label="Shop representative signature" signerName={model.deliverySignatures.shopRepresentative.signerName} signedAt={model.deliverySignatures.shopRepresentative.signedAt} signatureData={model.deliverySignatures.shopRepresentative.signatureData} />
+            <Text style={styles.evidence}>Signed invoice revision {model.deliverySignatures.revision} · Evidence Integrity ID {model.deliverySignatures.snapshotSha256}</Text>
+          </> : <>
+            <Text style={styles.signature}>Customer signature / date</Text>
+            <Text style={styles.signature}>Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</Text>
+          </>}
         </View>
         <View style={styles.totals} wrap={false}>
           <Text style={styles.sectionTitle}>TOTALS</Text>
