@@ -14,6 +14,8 @@ import {
 
 const initial: InvoiceSignatureActionState = { status: "idle" };
 
+type Point = { x: number; y: number };
+
 function SignaturePad({
   label,
   value,
@@ -25,14 +27,13 @@ function SignaturePad({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
-  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const lastPoint = useRef<Point | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    function resize() {
-      if (!canvas) return;
+    function configureCanvas() {
       const rect = canvas.getBoundingClientRect();
       const ratio = Math.max(1, window.devicePixelRatio || 1);
       const width = Math.max(1, Math.round(rect.width * ratio));
@@ -55,30 +56,97 @@ function SignaturePad({
       }
     }
 
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [value]);
+    function touchPoint(touch: Touch): Point {
+      const rect = canvas.getBoundingClientRect();
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
 
-  function point(event: React.PointerEvent<HTMLCanvasElement>) {
+    function drawDot(point: Point) {
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.beginPath();
+      context.arc(point.x, point.y, 1.25, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    function drawLine(from: Point, to: Point) {
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.beginPath();
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
+      context.stroke();
+    }
+
+    function handleTouchStart(event: TouchEvent) {
+      if (!event.touches.length) return;
+      event.preventDefault();
+      const next = touchPoint(event.touches[0]);
+      drawing.current = true;
+      lastPoint.current = next;
+      drawDot(next);
+    }
+
+    function handleTouchMove(event: TouchEvent) {
+      if (!drawing.current || !lastPoint.current || !event.touches.length) return;
+      event.preventDefault();
+      const next = touchPoint(event.touches[0]);
+      drawLine(lastPoint.current, next);
+      lastPoint.current = next;
+    }
+
+    function handleTouchEnd(event: TouchEvent) {
+      if (!drawing.current) return;
+      event.preventDefault();
+      drawing.current = false;
+      lastPoint.current = null;
+      onChange(canvas.toDataURL("image/png"));
+    }
+
+    configureCanvas();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(configureCanvas) : null;
+    observer?.observe(canvas);
+    window.addEventListener("resize", configureCanvas);
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd, { passive: false });
+    canvas.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", configureCanvas);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
+      canvas.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, [onChange, value]);
+
+  function pointerPoint(event: React.PointerEvent<HTMLCanvasElement>): Point {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
 
   function pointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (event.pointerType === "touch") return;
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
     drawing.current = true;
-    lastPoint.current = point(event);
+    const next = pointerPoint(event);
+    lastPoint.current = next;
+    const context = event.currentTarget.getContext("2d");
+    if (context) {
+      context.beginPath();
+      context.arc(next.x, next.y, 1.25, 0, Math.PI * 2);
+      context.fill();
+    }
   }
 
   function pointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current || !lastPoint.current) return;
+    if (event.pointerType === "touch" || !drawing.current || !lastPoint.current) return;
     event.preventDefault();
     const context = event.currentTarget.getContext("2d");
     if (!context) return;
-    const next = point(event);
+    const next = pointerPoint(event);
     context.beginPath();
     context.moveTo(lastPoint.current.x, lastPoint.current.y);
     context.lineTo(next.x, next.y);
@@ -86,8 +154,8 @@ function SignaturePad({
     lastPoint.current = next;
   }
 
-  function finish(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return;
+  function finishPointer(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (event.pointerType === "touch" || !drawing.current) return;
     event.preventDefault();
     drawing.current = false;
     lastPoint.current = null;
@@ -97,7 +165,14 @@ function SignaturePad({
   function clear() {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
-    if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas && context) {
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+    }
+    drawing.current = false;
+    lastPoint.current = null;
     onChange("");
   }
 
@@ -114,9 +189,11 @@ function SignaturePad({
         aria-label={label}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
-        onPointerUp={finish}
-        onPointerCancel={finish}
-        className="mt-2 h-52 w-full touch-none rounded-xl border-2 border-slate-300 bg-white"
+        onPointerUp={finishPointer}
+        onPointerCancel={finishPointer}
+        onPointerLeave={finishPointer}
+        className="mt-2 h-52 w-full rounded-xl border-2 border-slate-300 bg-white"
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       />
       <p className="mt-1 text-xs text-slate-500">Sign inside the box using a finger, stylus, or mouse.</p>
     </div>
