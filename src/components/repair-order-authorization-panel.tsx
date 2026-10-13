@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
@@ -68,6 +69,7 @@ export function RepairOrderAuthorizationPanel({
         {summary.status === "AUTHORIZED" && summary.approvedAt ? <p className="mt-2 text-sm text-slate-600">Approved by {summary.authorizerName ?? "customer"} on {new Date(summary.approvedAt).toLocaleString()}.</p> : <p className="mt-2 text-sm text-slate-600">No approval exists for the current RO revision.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
+        {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className="rounded-lg border border-brand-primary/30 px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Authorization Evidence</Link> : null}
         <button type="button" onClick={() => setShowHistory((value) => !value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{showHistory ? "Hide History" : "Authorization History"}</button>
         {editable ? <button type="button" onClick={() => { setState(initial); setOpen(true); }} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary">Record Verbal Authorization</button> : null}
       </div>
