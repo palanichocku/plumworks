@@ -14,6 +14,8 @@ import { invoicePaymentSummary, paymentMethodLabel, paymentPayerLabel, paymentSt
 import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
+import { InvoiceDeliverySignaturePanel } from "@/components/invoice-delivery-signature-panel";
+import { getInvoiceDeliverySignatureEvidence } from "@/lib/authorization/invoice-signature-evidence";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -32,7 +34,12 @@ export default async function InvoiceDetailPage({
   searchParams: Promise<{ payment?: string }>;
 }) {
   const { id } = await params;
-  const [invoice, query, { membership }] = await Promise.all([getInvoiceForCurrentShop(id), searchParams, getCurrentMembership()]);
+  const [invoice, query, { membership }, signatureEvidence] = await Promise.all([
+    getInvoiceForCurrentShop(id),
+    searchParams,
+    getCurrentMembership(),
+    getInvoiceDeliverySignatureEvidence(id),
+  ]);
 
   if (!invoice) notFound();
 
@@ -129,6 +136,27 @@ export default async function InvoiceDetailPage({
           {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open while {formatMoney(receivable.balance)} remains unpaid.</p> : null}
         </article>
       </section>
+
+      {signatureEvidence && invoice.legacySourceTable === null && !voided ? <InvoiceDeliverySignaturePanel
+        invoiceId={invoice.id}
+        invoiceNumber={`RO #${invoice.repairOrderNumber ?? "—"}`}
+        vehicleLabel={vehicle ?? "Vehicle not linked"}
+        totalLabel={formatMoney(invoice.total)}
+        defaultCustomerName={invoice.customer.displayName}
+        currentComplete={signatureEvidence.currentComplete}
+        signatures={signatureEvidence.signatures.map((row) => ({
+          eventId: row.eventId,
+          sessionId: row.sessionId,
+          role: row.role,
+          signerName: row.signerName,
+          occurredAt: row.occurredAt.toISOString(),
+          staffUserEmail: row.staffUserEmail,
+          signatureData: row.signatureData,
+          signatureSha256: row.signatureSha256,
+          revision: row.revision,
+          snapshotSha256: row.snapshotSha256,
+        }))}
+      /> : null}
 
       {(invoice.customerComplaint || invoice.recommendation) ? <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold text-slate-950">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{invoice.customerComplaint ? <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{invoice.customerComplaint}</p></div> : null}{invoice.recommendation ? <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{invoice.recommendation}</p></div> : null}</div></section> : null}
 
