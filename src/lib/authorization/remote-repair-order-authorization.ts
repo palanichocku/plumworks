@@ -119,10 +119,12 @@ export async function createRepairOrderEmailAuthorizationRequest(input: {
   return { requestId: inserted.id, token, expiresAt, revision: revision.revision, snapshotSha256: revision.snapshotSha256 };
 }
 
-export async function markRepairOrderAuthorizationRequestSent(requestId: string) {
+export async function markRepairOrderAuthorizationRequestSent(requestId: string, emailSubject: string) {
+  const safeSubject = emailSubject.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
   await prisma.$executeRaw`
     UPDATE authorization_requests
-    SET sent_at = CURRENT_TIMESTAMP
+    SET sent_at = CURRENT_TIMESTAMP,
+        email_subject = ${safeSubject || null}
     WHERE id = ${requestId}::uuid
       AND status = 'PENDING'::"AuthorizationRequestStatus"
   `;
