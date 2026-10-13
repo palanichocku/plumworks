@@ -5,7 +5,7 @@ import { getCurrentMembership } from "@/lib/data/membership";
 import { getRepairOrderDocumentForShop } from "@/lib/repair-order-document";
 import { deliverRepairOrderEmail } from "@/lib/email/repair-order-email";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
-import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
+import { repairOrderEmailMessage, type RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { hasPermission } from "@/lib/permissions";
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
 import {
@@ -49,12 +49,13 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
     request = await createRepairOrderEmailAuthorizationRequest({ shopId: membership.shopId, repairOrderId, recipientEmail: recipient });
     const origin = await authorizationOrigin();
     const authorizationUrl = `${origin}/authorize/repair-order/${encodeURIComponent(request.token)}`;
+    const approvalMessage = repairOrderEmailMessage(model, recipient, authorizationUrl);
     const result = await deliverRepairOrderEmail(model, recipient, { authorizationUrl });
     if (!result.ok) {
       await revokeRepairOrderAuthorizationRequest(request.requestId);
       return { status: "error", message: result.message };
     }
-    await markRepairOrderAuthorizationRequestSent(request.requestId);
+    await markRepairOrderAuthorizationRequestSent(request.requestId, approvalMessage.subject);
     return { status: "success", message: "Repair Order emailed with a secure customer approval link." };
   } catch {
     if (request) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
