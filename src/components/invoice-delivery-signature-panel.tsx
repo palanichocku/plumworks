@@ -9,7 +9,7 @@ import {
 import {
   CUSTOMER_DELIVERY_ACKNOWLEDGEMENT_TEXT,
   SHOP_DELIVERY_ACKNOWLEDGEMENT_TEXT,
-} from "@/lib/authorization/invoice-signature-evidence";
+} from "@/lib/authorization/invoice-signature-copy";
 
 const initial: InvoiceSignatureActionState = { status: "idle" };
 
