@@ -36,6 +36,7 @@ export type AuthorizationEvidenceRecord = {
   requestId: string | null;
   recipientName: string | null;
   recipientEmail: string | null;
+  emailSubject: string | null;
   requestStatus: string | null;
   sentAt: Date | null;
   expiresAt: Date | null;
@@ -75,6 +76,7 @@ export async function getRepairOrderAuthorizationEvidence(repairOrderId: string)
       ar.id AS "requestId",
       ar.recipient_name AS "recipientName",
       ar.recipient_email AS "recipientEmail",
+      ar.email_subject AS "emailSubject",
       ar.status::text AS "requestStatus",
       ar.sent_at AS "sentAt",
       ar.expires_at AS "expiresAt",
