@@ -4,6 +4,16 @@ import { readFile } from "node:fs/promises";
 export const PUBLIC_BACKUP_FORMAT_VERSION = 2;
 export const PUBLIC_BACKUP_TYPE = "plumworks-public-schema-custom-dump";
 
+// These application tables are intentionally managed by SQL migrations rather
+// than Prisma models. They are still first-class public-schema data and must be
+// covered by backup inventory, row counts, RLS checks, privileges, and restore.
+export const MIGRATION_MANAGED_PUBLIC_TABLES = [
+  "authorization_events",
+  "authorization_requests",
+  "document_revisions",
+  "signature_evidence",
+];
+
 export function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -24,7 +34,7 @@ export function expectedPublicTablesFromPrisma(schemaText) {
     if (!mapped) throw new Error("Every persisted Prisma model must declare @@map for backup inventory validation.");
     tables.push(mapped);
   }
-  return [...new Set(["_prisma_migrations", ...tables])].sort();
+  return [...new Set(["_prisma_migrations", ...tables, ...MIGRATION_MANAGED_PUBLIC_TABLES])].sort();
 }
 
 export function parseArchiveList(text) {
