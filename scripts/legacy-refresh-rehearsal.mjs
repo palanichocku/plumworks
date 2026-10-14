@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
+import { migrationManagedOperationalCounts } from "./lib/legacy-cutover-reset.mjs";
 import { parseLegacyRefreshRehearsalArguments, runLegacyRefreshRehearsal } from "./lib/legacy-refresh-rehearsal.mjs";
 
 const COUNT_MODELS = Object.freeze([
@@ -23,9 +24,16 @@ async function main() {
   try {
     const databaseState = async () => {
       const shopId = await resolveSingleShopId(prisma);
-      const counts = Object.fromEntries(await Promise.all(COUNT_MODELS.map(async ([label, model]) => [label, await prisma[model].count({
-        where: model === "auditLog" ? { shopId, entityType: { in: OPERATIONAL_AUDIT_TYPES } } : { shopId },
-      })])));
+      const [prismaCounts, evidenceCounts] = await Promise.all([
+        Promise.all(COUNT_MODELS.map(async ([label, model]) => [label, await prisma[model].count({
+          where: model === "auditLog" ? { shopId, entityType: { in: OPERATIONAL_AUDIT_TYPES } } : { shopId },
+        })])),
+        migrationManagedOperationalCounts(prisma, shopId),
+      ]);
+      const counts = {
+        ...Object.fromEntries(prismaCounts),
+        ...evidenceCounts,
+      };
       const appliedMigrations = await prisma.$queryRaw(Prisma.sql`
         SELECT migration_name FROM "_prisma_migrations"
         WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
