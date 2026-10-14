@@ -45,7 +45,7 @@ test("complimentary lines are excluded from Repair Order and editable Invoice to
 });
 
 test("finalization preserves the explicit complimentary identity", () => {
-  assert.match(finalize, /select: \{ description: true, hours: true, hourlyRate: true, complimentary: true, legacyLineKey: true \}/);
+  assert.match(finalize, /select: \{ description: true, hours: true, hourlyRate: true, complimentary: true, shopSuppliesEligible: true, legacyLineKey: true \}/);
   assert.match(finalize, /complimentary: line\.complimentary/);
 });
 

@@ -4,7 +4,21 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { assertSafeDestination, runSnapshotIntake } from "../legacy-snapshot-intake.mjs";
 import { loadAndValidateRecoveryApprovalV4 } from "./legacy-customer-recovery-proposal.mjs";
+import { validateSnapshotManifestForRecovery } from "./legacy-recovery-upgrade.mjs";
 import { resolveLegacySource } from "./legacy-source.mjs";
+
+const CUTOVER_SOURCE_FILES = Object.freeze([
+  "Cust.DBF",
+  "vehicles.DBF",
+  "FINAL.DBF",
+  "laborfinal.DBF",
+  "laborfinal.FPT",
+  "ar.DBF",
+  "orders.DBF",
+  "LABORorder.DBF",
+  "finalsold.DBF",
+  "finalsold.FPT",
+]);
 
 export const REHEARSAL_STAGES = Object.freeze([
   "source-validation", "recovery-manifest-validation", "customer-vehicle-staging-projection",
@@ -14,7 +28,11 @@ export const REHEARSAL_STAGES = Object.freeze([
   "payment-projection", "open-repair-order-projection", "final-verification",
 ]);
 const VALUE_ARGUMENTS = ["--zip", "--snapshot-date", "--customer-recovery-manifest", "--customer-recovery-proposal", "--workspace"];
-const OPTIONAL_VALUE_ARGUMENTS = ["--final-cutover-adjudication", "--final-cutover-active-ro-resolution"];
+const OPTIONAL_VALUE_ARGUMENTS = [
+  "--final-cutover-adjudication",
+  "--final-cutover-active-ro-resolution",
+  "--reuse-snapshot-manifest",
+];
 const REQUIRED_CURRENT_MIGRATIONS = Object.freeze([
   "20260804120000_add_marketing_lead_attribution",
   "20260804150000_add_invoice_odometer",
@@ -66,6 +84,7 @@ export function parseLegacyRefreshRehearsalArguments(args) {
   }
   const seed = args.includes("--seed");
   if (Number(seed) + Number(Boolean(values["--zip"])) !== 1) throw new Error("Exactly one of --seed or --zip is required.");
+  if (seed && values["--reuse-snapshot-manifest"]) throw new Error("--reuse-snapshot-manifest may only be used with --zip.");
   const snapshotDate = values["--snapshot-date"];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate) || new Date(`${snapshotDate}T00:00:00.000Z`).toISOString().slice(0, 10) !== snapshotDate) {
     throw new Error("--snapshot-date must be a valid YYYY-MM-DD date.");
@@ -75,6 +94,7 @@ export function parseLegacyRefreshRehearsalArguments(args) {
     recoveryManifest: values["--customer-recovery-manifest"], recoveryProposal: values["--customer-recovery-proposal"], workspace: values["--workspace"],
     adjudicationManifest: values["--final-cutover-adjudication"],
     activeRoResolution: values["--final-cutover-active-ro-resolution"],
+    reuseSnapshotManifest: values["--reuse-snapshot-manifest"],
     keepSnapshot: args.includes("--keep-snapshot"),
   };
 }
@@ -246,18 +266,53 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       const data = await readFile(supplied);
       zip = { path: supplied, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex"), temporary: false };
     }
-    failedStage = "snapshot-intake";
-    const snapshot = await (dependencies.intake ?? runSnapshotIntake)({ zip: zip.path, snapshotDate: options.snapshotDate, destination: directories.snapshots, dryRun: false }, { repositoryRoot });
-    snapshotPath = snapshot.finalPath;
-    const source = await (dependencies.sourceResolver ?? resolveLegacySource)({ args: ["--source", snapshot.dataDirectory], requiredFiles: snapshot.manifest.requiredFileValidation.required, repositoryRoot });
+    let snapshot;
+    let snapshotManifestPath;
+    let source;
+    if (options.reuseSnapshotManifest) {
+      failedStage = "existing-snapshot-validation";
+      const validated = await (dependencies.snapshotValidator ?? validateSnapshotManifestForRecovery)({
+        manifestPath: options.reuseSnapshotManifest,
+        repositoryRoot,
+      });
+      if (validated.manifest.snapshotDate !== options.snapshotDate) {
+        throw new Error("Reused snapshot date does not match --snapshot-date.");
+      }
+      if (validated.manifest.zipSha256 !== zip.sha256) {
+        throw new Error("Reused snapshot ZIP SHA-256 does not match the supplied --zip.");
+      }
+      snapshot = {
+        finalPath: validated.snapshotRoot,
+        dataDirectory: validated.source.path,
+        manifest: validated.manifest,
+        reused: true,
+      };
+      snapshotManifestPath = resolve(options.reuseSnapshotManifest);
+      source = validated.source;
+    } else {
+      failedStage = "snapshot-intake";
+      snapshot = await (dependencies.intake ?? runSnapshotIntake)({
+        zip: zip.path,
+        snapshotDate: options.snapshotDate,
+        destination: directories.snapshots,
+        dryRun: false,
+      }, { repositoryRoot });
+      snapshotPath = snapshot.finalPath;
+      snapshotManifestPath = join(snapshot.finalPath, "manifest.json");
+      source = await (dependencies.sourceResolver ?? resolveLegacySource)({
+        args: ["--source", snapshot.dataDirectory],
+        requiredFiles: snapshot.manifest.requiredFileValidation.required,
+        repositoryRoot,
+      });
+    }
     failedStage = "recovery-manifest-validation";
     const before = await databaseState();
     const loadedApproval = dependencies.manifestLoader
-      ? await dependencies.manifestLoader({ path: options.recoveryManifest, proposalPath: options.recoveryProposal, snapshotManifestPath: join(snapshot.finalPath, "manifest.json"), shopId: before.shopId, repositoryRoot })
+      ? await dependencies.manifestLoader({ path: options.recoveryManifest, proposalPath: options.recoveryProposal, snapshotManifestPath, shopId: before.shopId, repositoryRoot })
       : await loadAndValidateRecoveryApprovalV4({
         approvalPath: options.recoveryManifest,
         proposalPath: options.recoveryProposal,
-        snapshotManifestPath: join(snapshot.finalPath, "manifest.json"),
+        snapshotManifestPath,
         shopId: before.shopId,
         repositoryRoot,
       });
@@ -276,13 +331,27 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
       proposalPath: options.recoveryProposal,
       adjudicationManifestPath: options.adjudicationManifest,
       activeRoResolutionPath: options.activeRoResolution,
-      snapshotManifestPath: join(snapshot.finalPath, "manifest.json"),
+      snapshotManifestPath,
       reportDirectory: directories.reports,
     }), { cwd: repositoryRoot, label: "legacy cutover dry run" });
     const cutover = dependencies.cutoverReport ? await dependencies.cutoverReport(directories.reports) : await oneJson(directories.reports);
+
+    const cutoverScopedSource = dependencies.cutoverSourceResolver
+      ? await dependencies.cutoverSourceResolver({
+          sourcePath: source.path,
+          repositoryRoot,
+          requiredFiles: CUTOVER_SOURCE_FILES,
+        })
+      : await resolveLegacySource({
+          args: ["--source", source.path],
+          requiredFiles: CUTOVER_SOURCE_FILES,
+          repositoryRoot,
+        });
+
     failedStage = "stage-and-reconciliation-validation";
     const stageOrder = validateRehearsalCutoverReport(cutover.value, {
-      sourceFingerprint: source.fingerprint, sourcePath: source.path,
+      sourceFingerprint: cutoverScopedSource.fingerprint,
+      sourcePath: source.path,
       adjudicationProvided: Boolean(options.adjudicationManifest),
       activeRoResolutionProvided: Boolean(options.activeRoResolution),
     });
@@ -310,9 +379,12 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const report = sanitizeRehearsalReport({
       formatVersion: 1, status: "PASS", sourceMode: options.mode,
       sourceSnapshotDate: authoritativeSourceSnapshotDate, rehearsalExecutionDate: startedAt.slice(0, 10),
-      rehearsalStartedAt: startedAt, rehearsalFinishedAt: now().toISOString(), temporaryIntakeDate: options.snapshotDate,
+      rehearsalStartedAt: startedAt, rehearsalFinishedAt: now().toISOString(),
+      temporaryIntakeDate: options.reuseSnapshotManifest ? null : options.snapshotDate,
       git: { head: git.head, dirtyFileCount: git.status.length }, zip: { bytes: zip.bytes, sha256: zip.sha256 },
-      immutableSnapshotPath: options.keepSnapshot ? snapshot.finalPath : null, sourceFingerprint: source.fingerprint,
+      immutableSnapshotPath: options.reuseSnapshotManifest || options.keepSnapshot ? snapshot.finalPath : null,
+      reusedSnapshotManifest: options.reuseSnapshotManifest ? snapshotManifestPath : null,
+      sourceFingerprint: source.fingerprint,
       recoveryManifest: { valid: true, path: loadedManifest.path }, stageOrder,
       schemaReadiness: { ...schemaReadiness, schemaValidationPassed: true, clientGenerationPassed: true },
       acceptance: cutover.value.acceptance,
@@ -328,10 +400,24 @@ export async function runLegacyRefreshRehearsal(options, dependencies = {}) {
     const markdownPath = join(directories.reports, "legacy-refresh-rehearsal.md");
     await writeFile(jsonPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     await writeFile(markdownPath, markdownReport(report), { flag: "wx", mode: 0o600 });
-    if (!options.keepSnapshot) { await rm(snapshot.finalPath, { recursive: true, force: true }); snapshotPath = null; }
+    if (!options.reuseSnapshotManifest && !options.keepSnapshot) {
+      await rm(snapshot.finalPath, { recursive: true, force: true });
+      snapshotPath = null;
+    }
     return { report, jsonPath, markdownPath, snapshotPath, runDirectory };
   } catch (error) {
-    const failure = { formatVersion: 1, status: "FAIL", sourceMode: options.mode, rehearsalExecutionDate: startedAt.slice(0, 10), rehearsalStartedAt: startedAt, rehearsalFinishedAt: now().toISOString(), temporaryIntakeDate: options.snapshotDate, failedStage, rootCause: safeMessage(error), warnings: [] };
+    const failure = {
+      formatVersion: 1,
+      status: "FAIL",
+      sourceMode: options.mode,
+      rehearsalExecutionDate: startedAt.slice(0, 10),
+      rehearsalStartedAt: startedAt,
+      rehearsalFinishedAt: now().toISOString(),
+      temporaryIntakeDate: options.reuseSnapshotManifest ? null : options.snapshotDate,
+      failedStage,
+      rootCause: safeMessage(error),
+      warnings: [],
+    };
     const jsonPath = join(directories.reports, "legacy-refresh-rehearsal.json");
     const markdownPath = join(directories.reports, "legacy-refresh-rehearsal.md");
     await writeFile(jsonPath, `${JSON.stringify(failure, null, 2)}\n`, { mode: 0o600 });

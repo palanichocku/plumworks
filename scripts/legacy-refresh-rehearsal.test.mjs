@@ -33,13 +33,13 @@ function recoveryManifest(overrides = {}) {
   };
 }
 
-function cutoverSummary(overrides = {}) {
+function cutoverSummary(overrides = {}, sourceFingerprint = fingerprint) {
   const importRunId = "22222222-2222-4222-8222-222222222222";
   const customerImportRunId = "33333333-3333-4333-8333-333333333333";
   return {
     status: "PASS", stages: REHEARSAL_STAGES.map((name) => ({
       name, status: "passed",
-      ...(["source-validation", "recovery-manifest-validation"].includes(name) ? { sourceFingerprint: fingerprint } : {}),
+      ...(["source-validation", "recovery-manifest-validation"].includes(name) ? { sourceFingerprint } : {}),
       ...(["invoice-labor-ar-staging-projection", "invoice-ar-transformation-projection", "payment-projection"].includes(name) ? { importRunId } : {}),
       ...(["customer-vehicle-staging-projection", "customer-vehicle-transformation-projection", "customer-recovery-projection"].includes(name) ? { importRunId: customerImportRunId } : {}),
       ...(["customer-recovery-projection", "invoice-labor-ar-staging-projection", "invoice-ar-transformation-projection", "payment-projection"].includes(name) ? { recoveryFingerprint: fingerprint } : {}),
@@ -75,6 +75,7 @@ async function harness(mode = "zip", overrides = {}) {
       return { finalPath, dataDirectory, manifest: { requiredFileValidation: { required: ["Cust.DBF"] } } };
     },
     sourceResolver: async () => ({ path: "/snapshot/data", fingerprint, actualFiles: { "Cust.DBF": "Cust.DBF" } }),
+    cutoverSourceResolver: async () => ({ path: "/snapshot/data", fingerprint }),
     manifestLoader: async ({ path }) => ({ path, manifest: recoveryManifest() }),
     databaseState: async () => { countCalls += 1; return { shopId, counts: { customers: 10, payments: 20 } }; },
     schemaReadiness: async () => ({ migrationDirectoriesFound: 3, expectedLatestMigration: "latest", requiresMigrateDeploy: false, migrationsAppliedByRehearsal: 0 }),
@@ -91,6 +92,21 @@ test("arguments require one source mode and reject missing, duplicate, unknown, 
   const common = ["--snapshot-date", "2026-07-31", "--customer-recovery-manifest", "/safe/recovery.json", "--customer-recovery-proposal", "/safe/proposal.json", "--workspace", "/safe/work"];
   assert.equal(parseLegacyRefreshRehearsalArguments(["--seed", ...common]).mode, "seed");
   assert.equal(parseLegacyRefreshRehearsalArguments(["--zip", "/safe/shopman32.zip", ...common]).mode, "zip");
+  const reused = parseLegacyRefreshRehearsalArguments([
+    "--zip", "/safe/shopman32.zip",
+    "--reuse-snapshot-manifest", "/safe/snapshot/manifest.json",
+    ...common,
+  ]);
+  assert.equal(reused.mode, "zip");
+  assert.equal(reused.reuseSnapshotManifest, "/safe/snapshot/manifest.json");
+  assert.throws(
+    () => parseLegacyRefreshRehearsalArguments([
+      "--seed",
+      "--reuse-snapshot-manifest", "/safe/snapshot/manifest.json",
+      ...common,
+    ]),
+    /may only be used with --zip/
+  );
   assert.throws(() => parseLegacyRefreshRehearsalArguments(common), /Exactly one/);
   assert.throws(() => parseLegacyRefreshRehearsalArguments(["--seed", "--zip", "x", ...common]), /Exactly one/);
   assert.throws(() => parseLegacyRefreshRehearsalArguments(["--seed", ...common, "--workspace", "again"]), /exactly once/);
@@ -139,6 +155,111 @@ test("invalid authoritative source snapshot dates fail clearly", async () => {
   const item = await harness("zip", { manifestLoader: async ({ path }) => ({ path, manifest: recoveryManifest({ snapshotBinding: { snapshotDate: "2026-02-30" } }) }) });
   try { await assert.rejects(runLegacyRefreshRehearsal(item.options, item.dependencies), /snapshotBinding\.snapshotDate must be a valid/); }
   finally { await rm(item.root, { recursive: true, force: true }); }
+});
+
+test("reused immutable snapshot preserves exact manifest binding and bypasses re-intake", async () => {
+  const item = await harness("zip");
+  const reusedRoot = join(item.root, "approved-snapshot");
+  const reusedManifest = join(reusedRoot, "manifest.json");
+  const reusedSourcePath = join(reusedRoot, "Shopman32", "data");
+  await mkdir(reusedSourcePath, { recursive: true });
+  await writeFile(reusedManifest, "{}");
+
+  const zipBytes = await readFile(item.options.zip);
+  const zipSha256 = (await import("node:crypto"))
+    .createHash("sha256")
+    .update(zipBytes)
+    .digest("hex");
+
+  item.options.reuseSnapshotManifest = reusedManifest;
+
+  let intakeCalls = 0;
+  let approvalSnapshotManifestPath = null;
+
+  item.dependencies.intake = async () => {
+    intakeCalls += 1;
+    throw new Error("snapshot intake must not run when reusing an immutable snapshot");
+  };
+
+  item.dependencies.snapshotValidator = async ({ manifestPath }) => {
+    assert.equal(manifestPath, reusedManifest);
+    return {
+      manifest: {
+        snapshotDate: item.options.snapshotDate,
+        zipSha256,
+        requiredFileValidation: { required: ["Cust.DBF"] },
+      },
+      snapshotRoot: reusedRoot,
+      sourceFingerprint: fingerprint,
+      source: {
+        path: reusedSourcePath,
+        fingerprint,
+        actualFiles: { "Cust.DBF": "Cust.DBF" },
+      },
+    };
+  };
+
+  item.dependencies.manifestLoader = async ({ path, snapshotManifestPath }) => {
+    approvalSnapshotManifestPath = snapshotManifestPath;
+    return { path, manifest: recoveryManifest() };
+  };
+
+  item.dependencies.cutoverReport = async () => ({
+    path: "cutover.json",
+    value: cutoverSummary({ source: { path: reusedSourcePath, expectedCleanCounts: {}, reconciliation: {} } }),
+  });
+
+  try {
+    const result = await runLegacyRefreshRehearsal(item.options, item.dependencies);
+    assert.equal(intakeCalls, 0);
+    assert.equal(approvalSnapshotManifestPath, reusedManifest);
+    assert.equal(result.report.reusedSnapshotManifest, reusedManifest);
+    assert.equal(result.report.immutableSnapshotPath, reusedRoot);
+    assert.equal(result.report.temporaryIntakeDate, null);
+    assert.equal((await stat(reusedRoot)).isDirectory(), true);
+    assert.ok(item.state().cutoverArgs.includes(reusedManifest));
+  } finally {
+    await rm(item.root, { recursive: true, force: true });
+  }
+});
+
+test("reused snapshot rejects ZIP hash or snapshot-date drift before approval validation", async () => {
+  for (const mismatch of ["zip", "date"]) {
+    const item = await harness("zip");
+    const reusedRoot = join(item.root, `approved-snapshot-${mismatch}`);
+    const reusedManifest = join(reusedRoot, "manifest.json");
+    await mkdir(reusedRoot, { recursive: true });
+    await writeFile(reusedManifest, "{}");
+    item.options.reuseSnapshotManifest = reusedManifest;
+
+    let approvalCalls = 0;
+    item.dependencies.snapshotValidator = async () => ({
+      manifest: {
+        snapshotDate: mismatch === "date" ? "2026-07-30" : item.options.snapshotDate,
+        zipSha256: mismatch === "zip" ? "f".repeat(64) : (await import("node:crypto"))
+          .createHash("sha256")
+          .update(await readFile(item.options.zip))
+          .digest("hex"),
+      },
+      snapshotRoot: reusedRoot,
+      source: { path: join(reusedRoot, "data"), fingerprint },
+    });
+    item.dependencies.manifestLoader = async () => {
+      approvalCalls += 1;
+      return { path: item.options.recoveryManifest, manifest: recoveryManifest() };
+    };
+
+    try {
+      await assert.rejects(
+        runLegacyRefreshRehearsal(item.options, item.dependencies),
+        mismatch === "zip" ? /ZIP SHA-256 does not match/ : /snapshot date does not match/
+      );
+      assert.equal(approvalCalls, 0);
+      assert.equal((await stat(reusedRoot)).isDirectory(), true);
+    } finally {
+      await rm(item.root, { recursive: true, force: true });
+    }
+  }
 });
 
 test("--keep-snapshot retains the immutable accepted snapshot", async () => {
@@ -261,4 +382,77 @@ test("rehearsal report contains every current acceptance section", async () => {
     const markdown = await readFile(result.markdownPath, "utf8");
     for (const title of ["Mileage coverage", "Vendor/source coverage", "Complimentary-service compatibility", "Operational Repair Order eligibility", "Unified-history readiness", "Recovery-backfill zero-delta status", "Schema/migration readiness", "Existing financial reconciliation summary"]) assert.match(markdown, new RegExp(title));
   } finally { await rm(item.root, { recursive: true, force: true }); }
+});
+
+test("rehearsal compares cutover stages against the broader cutover source fingerprint", async () => {
+  const recoveryFingerprint = fingerprint;
+  const cutoverFingerprint = "c".repeat(64);
+  const item = await harness("zip", {
+    sourceResolver: async () => ({
+      path: "/snapshot/data",
+      fingerprint: recoveryFingerprint,
+      actualFiles: { "Cust.DBF": "Cust.DBF" },
+    }),
+    cutoverSourceResolver: async ({ sourcePath, requiredFiles }) => {
+      assert.equal(sourcePath, "/snapshot/data");
+      assert.deepEqual(requiredFiles, [
+        "Cust.DBF",
+        "vehicles.DBF",
+        "FINAL.DBF",
+        "laborfinal.DBF",
+        "laborfinal.FPT",
+        "ar.DBF",
+        "orders.DBF",
+        "LABORorder.DBF",
+        "finalsold.DBF",
+        "finalsold.FPT",
+      ]);
+      return {
+        path: sourcePath,
+        fingerprint: cutoverFingerprint,
+      };
+    },
+    cutoverReport: async () => ({
+      path: "cutover.json",
+      value: cutoverSummary({}, cutoverFingerprint),
+    }),
+  });
+
+  try {
+    assert.notEqual(recoveryFingerprint, cutoverFingerprint);
+
+    const result = await runLegacyRefreshRehearsal(
+      item.options,
+      item.dependencies,
+    );
+
+    assert.equal(result.report.status, "PASS");
+  } finally {
+    await rm(item.root, { recursive: true, force: true });
+  }
+});
+
+test("rehearsal still rejects actual cutover-scope fingerprint drift", async () => {
+  const expectedCutoverFingerprint = "c".repeat(64);
+  const reportedCutoverFingerprint = "d".repeat(64);
+
+  const item = await harness("zip", {
+    cutoverSourceResolver: async ({ sourcePath }) => ({
+      path: sourcePath,
+      fingerprint: expectedCutoverFingerprint,
+    }),
+    cutoverReport: async () => ({
+      path: "cutover.json",
+      value: cutoverSummary({}, reportedCutoverFingerprint),
+    }),
+  });
+
+  try {
+    await assert.rejects(
+      runLegacyRefreshRehearsal(item.options, item.dependencies),
+      /Cutover source fingerprint continuity validation failed/,
+    );
+  } finally {
+    await rm(item.root, { recursive: true, force: true });
+  }
 });
