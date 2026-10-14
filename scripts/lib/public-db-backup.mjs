@@ -34,7 +34,7 @@ export function expectedPublicTablesFromPrisma(schemaText) {
     if (!mapped) throw new Error("Every persisted Prisma model must declare @@map for backup inventory validation.");
     tables.push(mapped);
   }
-  return [...new Set(["_prisma_migrations", ...tables, ...MIGRATION_MANAGED_PUBLIC_TABLES])].sort();
+  return [...new Set(["_prisma_migrations", ...tables])].sort();
 }
 
 export function parseArchiveList(text) {
@@ -196,5 +196,6 @@ export function requireVerifiedBackupGate(gate, { databaseFingerprint, shopId })
 }
 
 export async function loadExpectedPublicTables(schemaPath) {
-  return expectedPublicTablesFromPrisma(await readFile(schemaPath, "utf8"));
+  const prismaTables = expectedPublicTablesFromPrisma(await readFile(schemaPath, "utf8"));
+  return [...new Set([...prismaTables, ...MIGRATION_MANAGED_PUBLIC_TABLES])].sort();
 }
