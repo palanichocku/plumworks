@@ -5,11 +5,13 @@ import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
+import { customerVehicleEditReturnPath } from "@/lib/customer-vehicle-edit-return";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function updateVehicle(formData: FormData) {
   const vehicleId = String(formData.get("vehicleId") ?? "");
+  const returnTo = customerVehicleEditReturnPath(formData.get("returnTo"));
   const year = Number(formData.get("year"));
   const make = String(formData.get("make") ?? "").trim();
   const model = String(formData.get("model") ?? "").trim();
@@ -34,5 +36,5 @@ export async function updateVehicle(formData: FormData) {
     if (result.count !== 1) throw new Error("Vehicle was not found.");
     await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "vehicle_updated", "vehicle", vehicleId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: [year, make, model].join(" "), entityHref: `/vehicles/${vehicleId}`, contextSummary: "Vehicle record updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
   });
-  redirect(`/vehicles/${vehicleId}`);
+  redirect(returnTo ?? `/vehicles/${vehicleId}`);
 }
