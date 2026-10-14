@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getRepairOrderInternalNotesForCurrentShop, getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
+import { getCustomerForEdit } from "@/lib/data/customers";
+import { getVehicleForEdit } from "@/lib/data/vehicles";
 import { formatDate, formatMoney } from "@/lib/formatters";
 import { VoidRepairOrderButton } from "@/components/void-repair-order-button";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
@@ -12,7 +14,6 @@ import { EmailRepairOrderButton } from "@/components/email-repair-order-button";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
 import { canEditInternalNotes } from "@/lib/internal-notes";
-import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
 import { RepairOrderAssignmentActions } from "@/components/repair-order-assignment-dialog";
 import { RepairOrderMileageField } from "@/components/repair-order-mileage-field";
 import { getLastRecordedMileageForVehicle } from "@/lib/data/vehicle-mileage";
@@ -20,8 +21,15 @@ import { RepairOrderHistoryButton } from "@/components/repair-order-history-butt
 import { repairOrderVoidReasonLabel } from "@/lib/repair-order-void";
 import { RepairOrderAuthorizationPanel } from "@/components/repair-order-authorization-panel";
 import { getRepairOrderAuthorizationHistory, getRepairOrderAuthorizationSummary } from "@/lib/authorization/repair-order-evidence";
+import { EditRecordDialog } from "@/components/edit-record-dialog";
+import { CustomerEditForm } from "@/components/customer-edit-form";
+import { VehicleEditForm } from "@/components/vehicle-edit-form";
+import { updateCustomer } from "@/app/(app)/customers/edit-actions";
+import { updateVehicle } from "@/app/(app)/vehicles/edit-actions";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
+type CustomerEditRecord = NonNullable<Awaited<ReturnType<typeof getCustomerForEdit>>>;
+type VehicleEditRecord = NonNullable<Awaited<ReturnType<typeof getVehicleForEdit>>>;
 
 export const dynamic = "force-dynamic";
 
@@ -29,16 +37,18 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const [order, internalNotes, { membership }] = await Promise.all([getWebRepairOrderForCurrentShop(id), getRepairOrderInternalNotesForCurrentShop(id), getCurrentMembership()]);
   if (!order || !internalNotes || internalNotes.vehicle.customerId !== internalNotes.customer.id) notFound();
-  const [lastMileage, authorizationSummary, authorizationHistory] = await Promise.all([
+  const editable = order.status === "draft" || order.status === "open";
+  const invoice = order.invoices[0];
+  const canEditCustomerVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
+  const [lastMileage, authorizationSummary, authorizationHistory, customerForEdit, vehicleForEdit] = await Promise.all([
     membership ? getLastRecordedMileageForVehicle(membership.shopId, order.vehicle.id) : null,
     getRepairOrderAuthorizationSummary(id),
     getRepairOrderAuthorizationHistory(id),
+    canEditCustomerVehicle ? getCustomerForEdit(order.customer.id) : null,
+    canEditCustomerVehicle ? getVehicleForEdit(order.vehicle.id) : null,
   ]);
-  const editable = order.status === "draft" || order.status === "open";
-  const invoice = order.invoices[0];
   const canVoid = Boolean(membership && hasPermission(membership.role, "void_repair_order") && editable && order.repairOrderNumber !== null && !invoice);
   const canEditNotes = Boolean(order.status !== "void" && membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
-  const canEditVehicle = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && editable && !invoice);
   const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
   const canOverrideAuthorization = Boolean(membership && (membership.role === "OWNER" || membership.role === "ADMIN"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
@@ -75,12 +85,12 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         recommendation={order.recommendation}
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={canEditVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
       /> : <RepairOrderWorkspace
-        overview={<><OrderOverview order={order} vehicle={vehicle} canEditVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
         concerns={<ConcernsSection order={order} />}
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}
@@ -91,20 +101,20 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   );
 }
 
-function OrderOverview({ order, vehicle, canEditVehicle, canCorrectAssignment, lastMileage }: { order: RepairOrder; vehicle: string; canEditVehicle: boolean; canCorrectAssignment: boolean; lastMileage: { mileage: number; recordedAt: Date } | null }) {
+function OrderOverview({ order, vehicle, customerForEdit, vehicleForEdit, canEditCustomerVehicle, canCorrectAssignment, lastMileage }: { order: RepairOrder; vehicle: string; customerForEdit: CustomerEditRecord | null; vehicleForEdit: VehicleEditRecord | null; canEditCustomerVehicle: boolean; canCorrectAssignment: boolean; lastMileage: { mileage: number; recordedAt: Date } | null }) {
   const locality = [order.customer.city, order.customer.state, order.customer.postalCode].filter(Boolean).join(", ");
   const assignment = { customerId: order.customer.id, customerName: order.customer.displayName, vehicleId: order.vehicle.id, vehicleName: vehicle || "Vehicle details unavailable" };
+  const returnTo = `/repair-orders/${order.id}`;
   return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2><div className="flex flex-wrap items-center justify-end gap-2"><RepairOrderHistoryButton customerId={order.customer.id} vehicleId={order.vehicle.id} vehicleLabel={vehicle || "Vehicle details unavailable"} currentRepairOrderId={order.id} />{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2><div className="flex flex-wrap items-center justify-end gap-2"><RepairOrderHistoryButton customerId={order.customer.id} vehicleId={order.vehicle.id} vehicleLabel={vehicle || "Vehicle details unavailable"} currentRepairOrderId={order.id} />{canEditCustomerVehicle && customerForEdit ? <EditRecordDialog triggerLabel="Edit Customer" title="Edit customer" description="Update this customer's master record without leaving the Repair Order."><CustomerEditForm customer={customerForEdit} action={updateCustomer} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div></div>
       <Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link>
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Vehicle</h2>{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Vehicle</h2><div className="flex flex-wrap items-center justify-end gap-2">{canEditCustomerVehicle && vehicleForEdit ? <EditRecordDialog triggerLabel="Edit Vehicle" title="Edit vehicle" description="Update this vehicle's master record. Current mileage for this service visit remains recorded separately on the Repair Order."><VehicleEditForm vehicle={vehicleForEdit} action={updateVehicle} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /> : null}</div></div>
       <Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link>
-      <div className="mt-3"><VehicleLicensePlateField vehicleId={order.vehicle.id} licensePlate={order.vehicle.licensePlate} context="repair-order" contextId={order.id} editable={canEditVehicle} /></div>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{lastMileage ? `${lastMileage.mileage.toLocaleString()} · ${formatDate(lastMileage.recordedAt)}` : "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">License plate</dt><dd className="text-slate-800">{order.vehicle.licensePlate ?? "Not recorded"}</dd><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{lastMileage ? `${lastMileage.mileage.toLocaleString()} · ${formatDate(lastMileage.recordedAt)}` : "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
       {canCorrectAssignment ? <RepairOrderMileageField repairOrderId={order.id} mileage={order.odometer} /> : <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-sm"><dt className="text-slate-500">Current mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? "Not recorded"}</dd></dl>}
     </section>
   </div>;
