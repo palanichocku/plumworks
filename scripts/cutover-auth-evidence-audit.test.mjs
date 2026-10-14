@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   expectedPublicTablesFromPrisma,
+  loadExpectedPublicTables,
   MIGRATION_MANAGED_PUBLIC_TABLES,
 } from "./lib/public-db-backup.mjs";
 import {
@@ -17,10 +21,17 @@ const evidenceTables = [
   "signature_evidence",
 ];
 
-test("backup inventory includes migration-managed authorization evidence tables", () => {
+test("backup inventory adds migration-managed authorization evidence after Prisma parsing", async () => {
   assert.deepEqual([...MIGRATION_MANAGED_PUBLIC_TABLES].sort(), evidenceTables);
-  const tables = expectedPublicTablesFromPrisma('model Shop {\n id String @id\n @@map("shops")\n}');
-  assert.deepEqual(tables, ["_prisma_migrations", ...evidenceTables, "shops"].sort());
+  const schema = 'model Shop {\n id String @id\n @@map("shops")\n}';
+  assert.deepEqual(expectedPublicTablesFromPrisma(schema), ["_prisma_migrations", "shops"]);
+  const directory = await mkdtemp(join(tmpdir(), "cutover-auth-evidence-"));
+  const schemaPath = join(directory, "schema.prisma");
+  await writeFile(schemaPath, schema);
+  assert.deepEqual(
+    await loadExpectedPublicTables(schemaPath),
+    ["_prisma_migrations", ...evidenceTables, "shops"].sort(),
+  );
 });
 
 test("cutover reset declares authorization evidence in FK-safe deletion order", () => {
