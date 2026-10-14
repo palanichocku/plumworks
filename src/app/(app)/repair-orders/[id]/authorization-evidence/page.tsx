@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AuthorizationEvidenceBackButton } from "@/components/authorization-evidence-back-button";
 import { AuthorizationEvidencePrintButton } from "@/components/authorization-evidence-print-button";
 import { getRepairOrderAuthorizationEvidence } from "@/lib/authorization/authorization-report";
 
@@ -28,7 +28,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
   return <div className="space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <Link href={`/repair-orders/${id}`} className="text-sm font-semibold text-brand-primary print:hidden">← Repair Order</Link>
+        <AuthorizationEvidenceBackButton fallbackHref={`/repair-orders/${id}`} />
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Authorization Evidence</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-950">RO #{report.order.repairOrderNumber ?? "—"}</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">Audit record of customer authorization decisions. Each event is tied to the exact Repair Order revision that existed when the decision was recorded.</p>
