@@ -51,6 +51,24 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
       .ro-summary-stack > * + * {
         border-top: 1px solid #e2e8f0 !important;
       }
+      @container (min-width: 80rem) {
+        .ro-workspace-grid > [data-ro-section="overview"] {
+          grid-column: 1 !important;
+          grid-row: 1 !important;
+        }
+        .ro-workspace-grid > [data-ro-main="true"] {
+          grid-column: 1 !important;
+          grid-row: 2 !important;
+        }
+        .ro-summary-column {
+          position: sticky !important;
+          top: 1.5rem !important;
+          grid-column: 2 !important;
+          grid-row: 1 / span 2 !important;
+          width: 100% !important;
+          margin-top: 0 !important;
+        }
+      }
       @media (min-width: 64rem) {
         .ro-line-items-surface [data-ro-section="parts"] {
           border-right: 1px solid #cbd5e1;
