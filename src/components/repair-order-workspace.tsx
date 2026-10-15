@@ -19,7 +19,7 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
         padding: 0;
         box-shadow: none;
       }
-      .ro-workspace-container [data-ro-section="overview"] > section:first-child .ro-section-heading + div button {
+      .ro-workspace-container [data-ro-section="overview"] > section:first-child .ro-section-heading + div > button {
         border: 0 !important;
         background: transparent !important;
         box-shadow: none !important;
