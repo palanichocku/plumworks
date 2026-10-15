@@ -23,12 +23,14 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type DictationTarget = "concern" | "recommendation";
 
 function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
+  const [concernText, setConcernText] = useState(customerComplaint ?? "");
   const [recommendationText, setRecommendationText] = useState(recommendation ?? "");
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [speechListening, setSpeechListening] = useState(false);
-  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [speechListening, setSpeechListening] = useState<DictationTarget | null>(null);
+  const [speechError, setSpeechError] = useState<{ target: DictationTarget; message: string } | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
@@ -40,7 +42,7 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
     return () => recognitionRef.current?.stop();
   }, []);
 
-  function startVoiceDictation() {
+  function startVoiceDictation(target: DictationTarget) {
     const speechWindow = window as typeof window & {
       SpeechRecognition?: SpeechRecognitionConstructor;
       webkitSpeechRecognition?: SpeechRecognitionConstructor;
@@ -56,27 +58,34 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
-      setRecommendationText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+      if (target === "concern") {
+        setConcernText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+      } else {
+        setRecommendationText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+      }
       onChange();
     };
     recognition.onerror = (event) => {
-      setSpeechError(event.error === "not-allowed" ? "Microphone access was not allowed." : "Voice dictation could not start. You can keep typing instead.");
-      setSpeechListening(false);
+      setSpeechError({
+        target,
+        message: event.error === "not-allowed" ? "Microphone access was not allowed." : "Voice dictation could not start. You can keep typing instead.",
+      });
+      setSpeechListening(null);
     };
     recognition.onend = () => {
-      setSpeechListening(false);
+      setSpeechListening(null);
       recognitionRef.current = null;
     };
 
     recognitionRef.current = recognition;
     setSpeechError(null);
-    setSpeechListening(true);
+    setSpeechListening(target);
     try {
       recognition.start();
     } catch {
-      setSpeechListening(false);
+      setSpeechListening(null);
       recognitionRef.current = null;
-      setSpeechError("Voice dictation could not start. You can keep typing instead.");
+      setSpeechError({ target, message: "Voice dictation could not start. You can keep typing instead." });
     }
   }
 
@@ -86,25 +95,28 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
 
   return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
-    <input type="hidden" name="customerComplaint" value={customerComplaint ?? ""} />
     <div className="grid gap-4 lg:grid-cols-2">
       <section aria-labelledby="check-in-concern-label">
-        <h3 id="check-in-concern-label" className="text-sm font-semibold text-slate-700">Check-in concern</h3>
-        <div className="mt-1.5 min-h-20 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-800">
-          {customerComplaint?.trim() ? customerComplaint : <span className="text-slate-400">No customer concern was recorded at check-in.</span>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label id="check-in-concern-label" htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Check-in concern</label>
+          {speechSupported ? <button type="button" onClick={speechListening === "concern" ? stopVoiceDictation : () => startVoiceDictation("concern")} disabled={speechListening !== null && speechListening !== "concern"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "concern"}>
+            <span aria-hidden="true">🎤</span>{speechListening === "concern" ? "Stop listening" : "Speak"}
+          </button> : null}
         </div>
-        <p className="mt-1.5 text-xs text-slate-500">Captured during vehicle check-in.</p>
+        <textarea id="customerComplaint" name="customerComplaint" rows={3} value={concernText} onChange={(event) => setConcernText(event.target.value)} className={textareaClass} placeholder="Add or update the customer's concern." />
+        <p className="mt-1.5 text-xs text-slate-500">Originally captured during vehicle check-in. New typing or dictation is added to the same concern.</p>
+        {speechError?.target === "concern" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
       </section>
       <section aria-labelledby="shop-recommendation-label">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label id="shop-recommendation-label" htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation</label>
-          {speechSupported ? <button type="button" onClick={speechListening ? stopVoiceDictation : startVoiceDictation} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle" aria-pressed={speechListening}>
-            <span aria-hidden="true">🎤</span>{speechListening ? "Stop listening" : "Speak"}
+          {speechSupported ? <button type="button" onClick={speechListening === "recommendation" ? stopVoiceDictation : () => startVoiceDictation("recommendation")} disabled={speechListening !== null && speechListening !== "recommendation"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "recommendation"}>
+            <span aria-hidden="true">🎤</span>{speechListening === "recommendation" ? "Stop listening" : "Speak"}
           </button> : null}
         </div>
         <textarea id="recommendation" name="recommendation" rows={3} value={recommendationText} onChange={(event) => setRecommendationText(event.target.value)} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
         {speechSupported ? <p className="mt-1.5 text-xs text-slate-500">Voice dictation is optional and uses your browser's built-in speech recognition when available.</p> : null}
-        {speechError ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError}</p> : null}
+        {speechError?.target === "recommendation" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
       </section>
     </div>
   </form>;
