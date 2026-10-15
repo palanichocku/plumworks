@@ -15,6 +15,7 @@ export type RepairOrderCustomerSearchResult = {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  matchedVehicleId?: string | null;
   vehicles: Array<{
     id: string;
     year: number | null;
@@ -45,6 +46,7 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
         { phone: { contains: query } },
         { phone2: { contains: query } },
         { email: { contains: query, mode: "insensitive" } },
+        { vehicles: { some: { archivedAt: null, licensePlate: { contains: query, mode: "insensitive" } } } },
       ],
     },
     orderBy: [{ updatedAt: "desc" }, { displayName: "asc" }, { id: "desc" }],
@@ -63,9 +65,14 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
     },
   });
   const mileageByVehicle = await getLastRecordedMileageForVehicles(membership.shopId, customers.flatMap(({ vehicles }) => vehicles.map(({ id }) => id)));
-  return customers.map((customer) => ({ ...customer, vehicles: customer.vehicles.map((vehicle) => ({
-    ...vehicle,
-    lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null,
-    lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null,
-  })) }));
+  const normalizedPlateQuery = query.toLowerCase();
+  return customers.map((customer) => ({
+    ...customer,
+    matchedVehicleId: customer.vehicles.find((vehicle) => vehicle.licensePlate?.toLowerCase().includes(normalizedPlateQuery))?.id ?? null,
+    vehicles: customer.vehicles.map((vehicle) => ({
+      ...vehicle,
+      lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null,
+      lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null,
+    })),
+  }));
 }
