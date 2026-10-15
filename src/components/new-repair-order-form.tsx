@@ -253,28 +253,16 @@ export function NewRepairOrderForm({
         </div>
       </section>
 
-      <div className="min-w-0 space-y-4 border-t border-slate-100 pt-6" data-ro-section="actions">
-        {customerMode === "new" && (
-          <div className="flex gap-3 rounded-xl bg-brand-subtle p-4 text-sm text-brand-primary">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-primary/30 text-xs font-bold text-brand-primary">i</span>
-            <p className="font-medium">System Constraint: Creating a brand new customer requires capturing initial vehicle information context sequentially.</p>
-          </div>
-        )}
-        
-        <div className="flex min-w-0 flex-col gap-4 overflow-hidden rounded-xl bg-slate-50 p-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <p className="min-w-0 flex-1 basis-80 text-xs text-slate-500">
-            Drafting does not lock order sequence counters or affect live inventory items. Parts configuration interfaces activate once the workspace profile passes draft validation stages.
-          </p>
-          <div className="flex min-w-0 w-full flex-col-reverse gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-            <Link href="/repair-orders" className="inline-flex w-full min-w-0 items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white sm:w-auto">Cancel</Link>
-            <FormSubmitButton 
-              pendingLabel="Saving..." 
-              disabled={(customerMode === "existing" && !selectedCustomer) || (vehicleMode === "existing" && !vehicleId)}
-              className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
-            >
-              Save Draft
-            </FormSubmitButton>
-          </div>
+      <div className="min-w-0 border-t border-slate-100 pt-6" data-ro-section="actions">
+        <div className="flex min-w-0 w-full flex-col-reverse gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+          <Link href="/repair-orders" className="inline-flex w-full min-w-0 items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white sm:w-auto">Cancel</Link>
+          <FormSubmitButton 
+            pendingLabel="Saving..." 
+            disabled={(customerMode === "existing" && !selectedCustomer) || (vehicleMode === "existing" && !vehicleId)}
+            className="inline-flex w-full min-w-0 max-w-full items-center justify-center whitespace-normal rounded-lg bg-brand-primary px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white shadow-sm transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
+          >
+            Save Draft
+          </FormSubmitButton>
         </div>
       </div>
     </form>
