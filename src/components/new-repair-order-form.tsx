@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createRepairOrder } from "@/app/(app)/repair-orders/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -9,6 +9,19 @@ import { RepairOrderCustomerCombobox } from "@/components/repair-order-customer-
 import type { RepairOrderCustomerSearchResult } from "@/app/(app)/repair-orders/customer-search-actions";
 
 type VehicleSuggestion = { make: string | null; model: string | null };
+type SpeechRecognitionResultEventLike = { results: ArrayLike<{ 0: { transcript: string } }> };
+type SpeechRecognitionErrorEventLike = { error?: string };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 function cleanSuggestion(value: string) {
   return value.trim().replace(/\s+/g, " ").toUpperCase();
@@ -34,8 +47,22 @@ export function NewRepairOrderForm({
     initialVehicleId || initialCustomer?.vehicles.length ? "existing" : "new",
   );
   const [newVehicleMake, setNewVehicleMake] = useState("");
+  const [customerComplaint, setCustomerComplaint] = useState("");
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechListening, setSpeechListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const vehicles = selectedCustomer?.vehicles ?? [];
   const selectedVehicle = vehicleMode === "existing" ? vehicles.find((vehicle) => vehicle.id === vehicleId) ?? null : null;
+
+  useEffect(() => {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    setSpeechSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
+    return () => recognitionRef.current?.stop();
+  }, []);
 
   const makeSuggestions = useMemo(
     () => Array.from(new Set(vehicleSuggestions.flatMap(({ make }) => make ? [cleanSuggestion(make)] : []))).sort(),
@@ -73,6 +100,49 @@ export function NewRepairOrderForm({
     setSelectedCustomer(null);
     setVehicleId("");
     setVehicleMode("new");
+  }
+
+  function startVoiceDictation() {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    recognitionRef.current?.stop();
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (!transcript) return;
+      setCustomerComplaint((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+    };
+    recognition.onerror = (event) => {
+      setSpeechError(event.error === "not-allowed" ? "Microphone access was not allowed." : "Voice dictation could not start. You can keep typing instead.");
+      setSpeechListening(false);
+    };
+    recognition.onend = () => {
+      setSpeechListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    setSpeechError(null);
+    setSpeechListening(true);
+    try {
+      recognition.start();
+    } catch {
+      setSpeechListening(false);
+      recognitionRef.current = null;
+      setSpeechError("Voice dictation could not start. You can keep typing instead.");
+    }
+  }
+
+  function stopVoiceDictation() {
+    recognitionRef.current?.stop();
   }
 
   const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 transition-all duration-150 placeholder:text-slate-400 focus:border-brand-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
@@ -210,9 +280,33 @@ export function NewRepairOrderForm({
       </section>
 
       <section className={sectionClass} aria-labelledby="check-in-concern-title">
-        <h2 id="check-in-concern-title" className="text-base font-bold text-slate-900">Customer concern</h2>
-        <p className="mt-1 text-sm text-slate-500">Capture why the vehicle is here. Inspection findings and shop recommendations are added on the repair order.</p>
-        <textarea name="customerComplaint" rows={4} placeholder="What did the customer ask us to check or repair?" className={`${inputClass} mt-4`} />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="check-in-concern-title" className="text-base font-bold text-slate-900">Customer concern</h2>
+            <p className="mt-1 text-sm text-slate-500">Capture why the vehicle is here. Inspection findings and shop recommendations are added on the repair order.</p>
+          </div>
+          {speechSupported ? (
+            <button
+              type="button"
+              onClick={speechListening ? stopVoiceDictation : startVoiceDictation}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition ${speechListening ? "border-red-300 bg-red-50 text-red-700" : "border-slate-300 bg-white text-brand-primary hover:border-brand-primary hover:bg-brand-subtle"}`}
+              aria-pressed={speechListening}
+            >
+              <span aria-hidden="true">🎤</span>
+              {speechListening ? "Stop listening" : "Speak"}
+            </button>
+          ) : null}
+        </div>
+        {speechSupported ? <p className="mt-2 text-xs text-slate-400">Voice dictation is optional and uses the browser's built-in speech recognition when available. You can always type instead.</p> : null}
+        {speechError ? <p role="status" className="mt-2 text-sm text-amber-700">{speechError}</p> : null}
+        <textarea
+          name="customerComplaint"
+          rows={4}
+          value={customerComplaint}
+          onChange={(event) => setCustomerComplaint(event.target.value)}
+          placeholder="What did the customer ask us to check or repair?"
+          className={`${inputClass} mt-4`}
+        />
       </section>
 
       <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
