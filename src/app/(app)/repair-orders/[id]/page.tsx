@@ -9,7 +9,7 @@ import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { EditableRepairOrderWorkspace } from "@/components/repair-order-concerns-form";
-import { RepairOrderLaborCard, RepairOrderPartsCard } from "@/components/repair-order-line-items";
+import { RepairOrderUnifiedLineItems } from "@/components/repair-order-unified-line-items";
 import { EmailRepairOrderButton } from "@/components/email-repair-order-button";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
@@ -92,15 +92,15 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
-        parts={<PartsSection order={order} editable />}
-        labor={<LaborSection order={order} editable />}
+        parts={<LineItemsSection order={order} editable />}
+        labor={null}
         totals={<TotalsSection order={order} />}
         notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}
       /> : <RepairOrderWorkspace
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} />}
         concerns={<ConcernsSection order={order} />}
-        parts={<PartsSection order={order} editable={false} />}
-        labor={<LaborSection order={order} editable={false} />}
+        parts={<LineItemsSection order={order} editable={false} />}
+        labor={null}
         totals={<TotalsSection order={order} />}
         notes={<><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />{order.status === "void" ? null : <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}</>}
       />}
@@ -139,14 +139,21 @@ function ConcernsSection({ order }: { order: RepairOrder }) {
   return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="ro-section-heading">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{order.customerComplaint && <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.customerComplaint}</p></div>}{order.recommendation && <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.recommendation}</p></div>}</div></section>;
 }
 
-function PartsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
-  return <RepairOrderPartsCard repairOrderId={order.id} total={order.partsTotal.toString()} lines={order.parts.map((line) => ({ ...line, quantity: line.quantity.toString(), unitPrice: line.unitPrice.toString() }))} vendors={order.shop.vendors} editable={editable} />;
-}
-
-function LaborSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
+function LineItemsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
   const ordinaryLabor = order.labor.filter((line) => !line.complimentary);
   const complimentaryLabor = order.labor.filter((line) => line.complimentary);
-  return <RepairOrderLaborCard repairOrderId={order.id} total={order.laborTotal.toString()} lines={ordinaryLabor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))} complimentaryLines={complimentaryLabor.map(({ id, description }) => ({ id, description }))} services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))} defaultRate={order.shop.defaultLaborRate.toString()} editable={editable} />;
+  return <RepairOrderUnifiedLineItems
+    repairOrderId={order.id}
+    partsTotal={order.partsTotal.toString()}
+    laborTotal={order.laborTotal.toString()}
+    parts={order.parts.map((line) => ({ ...line, quantity: line.quantity.toString(), unitPrice: line.unitPrice.toString() }))}
+    labor={ordinaryLabor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))}
+    complimentary={complimentaryLabor.map(({ id, description }) => ({ id, description }))}
+    vendors={order.shop.vendors}
+    services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))}
+    defaultRate={order.shop.defaultLaborRate.toString()}
+    editable={editable}
+  />;
 }
 
 function TotalsSection({ order }: { order: RepairOrder }) {
