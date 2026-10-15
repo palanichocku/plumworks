@@ -12,13 +12,6 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
 }) {
   return <div className="ro-workspace-container ro-screen min-w-0 space-y-5 rounded-3xl border border-slate-300 bg-slate-100/80 p-3 sm:p-5" data-repair-order-layout="split">
     <style>{`
-      .ro-workspace-container [data-ro-section="overview"] > section:first-child .ro-section-heading {
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        padding: 0;
-        box-shadow: none;
-      }
       .ro-workspace-container [data-ro-section="overview"] > section:first-child .ro-section-heading + div > button {
         border: 0 !important;
         background: transparent !important;
