@@ -40,6 +40,17 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
       .ro-line-items-surface [data-ro-section="labor"] {
         padding: 1rem;
       }
+      .ro-summary-stack > * {
+        margin: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+      }
+      .ro-summary-stack > * + * {
+        border-top: 1px solid #e2e8f0 !important;
+      }
       @media (min-width: 64rem) {
         .ro-line-items-surface [data-ro-section="parts"] {
           border-right: 1px solid #cbd5e1;
@@ -69,7 +80,9 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
         </>}
         <div data-ro-section="notes">{notes}</div>
       </div>
-      <aside className="ro-summary-column w-full min-w-0 space-y-4 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:self-start" data-ro-section="totals">{totals}{actions}</aside>
+      <aside className="ro-summary-column w-full min-w-0 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:self-start" data-ro-section="totals">
+        {actions ? <div className="ro-summary-stack overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">{totals}{actions}</div> : totals}
+      </aside>
     </div>
   </div>;
 }
