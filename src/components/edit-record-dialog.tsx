@@ -7,11 +7,13 @@ export function EditRecordDialog({
   title,
   description,
   children,
+  triggerClassName,
 }: {
   triggerLabel: string;
   title: string;
   description: string;
   children: ReactNode;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -19,7 +21,7 @@ export function EditRecordDialog({
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-primary hover:text-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
+      className={triggerClassName ?? "shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-primary hover:text-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"}
     >
       {triggerLabel}
     </button>
