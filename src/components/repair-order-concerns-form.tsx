@@ -13,9 +13,16 @@ const textareaClass = "mt-1.5 min-h-20 w-full rounded-lg border border-slate-300
 function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
   return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
+    <input type="hidden" name="customerComplaint" value={customerComplaint ?? ""} />
     <div className="grid gap-4 lg:grid-cols-2">
-      <label htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Customer concern<textarea id="customerComplaint" name="customerComplaint" rows={3} defaultValue={customerComplaint ?? ""} className={textareaClass} /></label>
-      <label htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation<textarea id="recommendation" name="recommendation" rows={3} defaultValue={recommendation ?? ""} className={textareaClass} /></label>
+      <section aria-labelledby="check-in-concern-label">
+        <h3 id="check-in-concern-label" className="text-sm font-semibold text-slate-700">Check-in concern</h3>
+        <div className="mt-1.5 min-h-20 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-800">
+          {customerComplaint?.trim() ? customerComplaint : <span className="text-slate-400">No customer concern was recorded at check-in.</span>}
+        </div>
+        <p className="mt-1.5 text-xs text-slate-500">Captured during vehicle check-in.</p>
+      </section>
+      <label htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation<textarea id="recommendation" name="recommendation" rows={3} defaultValue={recommendation ?? ""} className={textareaClass} placeholder="Add findings and recommended work after inspection." /></label>
     </div>
   </form>;
 }
