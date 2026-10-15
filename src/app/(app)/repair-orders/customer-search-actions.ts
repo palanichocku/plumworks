@@ -64,15 +64,24 @@ export async function searchRepairOrderCustomers(value: string): Promise<RepairO
       },
     },
   });
+
   const mileageByVehicle = await getLastRecordedMileageForVehicles(membership.shopId, customers.flatMap(({ vehicles }) => vehicles.map(({ id }) => id)));
   const normalizedPlateQuery = query.toLowerCase();
-  return customers.map((customer) => ({
-    ...customer,
-    matchedVehicleId: customer.vehicles.find((vehicle) => vehicle.licensePlate?.toLowerCase().includes(normalizedPlateQuery))?.id ?? null,
-    vehicles: customer.vehicles.map((vehicle) => ({
-      ...vehicle,
-      lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null,
-      lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null,
-    })),
-  }));
+
+  return customers.map((customer) => {
+    const matchedVehicle = customer.vehicles.find((vehicle) => vehicle.licensePlate?.toLowerCase().includes(normalizedPlateQuery)) ?? null;
+    const orderedVehicles = matchedVehicle
+      ? [matchedVehicle, ...customer.vehicles.filter((vehicle) => vehicle.id !== matchedVehicle.id)]
+      : customer.vehicles;
+
+    return {
+      ...customer,
+      matchedVehicleId: matchedVehicle?.id ?? null,
+      vehicles: orderedVehicles.map((vehicle) => ({
+        ...vehicle,
+        lastRecordedMileage: mileageByVehicle.get(vehicle.id)?.mileage ?? null,
+        lastRecordedMileageAt: mileageByVehicle.get(vehicle.id)?.recordedAt ?? null,
+      })),
+    };
+  });
 }
