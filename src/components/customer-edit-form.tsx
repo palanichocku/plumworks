@@ -33,9 +33,6 @@ export function CustomerEditForm({
   return <form id={formId} action={action} className={embedded ? "grid gap-5 sm:grid-cols-2" : "mt-8 grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-2"}>
     <input type="hidden" name="customerId" value={customer.id} />
     {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
-    {embedded ? <div className="flex justify-end border-b border-slate-200 pb-4 sm:col-span-2">
-      <button type="submit" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm">Save customer</button>
-    </div> : null}
     <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Display name<input name="displayName" required maxLength={200} defaultValue={customer.displayName} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">Primary phone<CustomerPhoneInput maxLength={40} defaultValue={customer.phone} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">Additional phone (optional)<CustomerPhoneInput name="phone2" maxLength={40} defaultValue={customer.phone2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
