@@ -10,8 +10,8 @@ export default async function NewRepairOrderPage({ searchParams }: { searchParam
   const invalidPrefill = Boolean((params.customerId || params.vehicleId) && !prefill);
   return (
     <>
-      <PageHeading eyebrow="Repair orders" title="New Repair Order" description="Select an existing customer or add a new customer with a new vehicle." />
-      {(params.error || invalidPrefill) && <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The customer or vehicle information was invalid. Please review the form and try again.</p>}
+      <PageHeading eyebrow="Repair orders" title="Vehicle Check-In" description="Identify the customer and vehicle, record mileage, and capture why the vehicle is here. Build the estimate after check-in." />
+      {(params.error || invalidPrefill) && <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The customer or vehicle information was invalid. Please review the check-in and try again.</p>}
       <NewRepairOrderForm {...options} initialCustomer={prefill?.customer ?? null} initialVehicleId={prefill?.vehicleId ?? null} />
     </>
   );
