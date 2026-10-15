@@ -39,7 +39,7 @@ export function CustomerEditForm({
     <label className="text-sm font-semibold text-slate-700">City<input name="city" maxLength={100} defaultValue={customer.city ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">State<input name="state" maxLength={30} defaultValue={customer.state ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">Postal code<input name="postalCode" maxLength={20} defaultValue={customer.postalCode ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
-    <div className="flex items-end gap-3 sm:col-span-2">
+    <div className={embedded ? "sticky bottom-0 z-10 -mx-1 flex items-center gap-3 border-t border-slate-200 bg-white px-1 pt-4 pb-1 sm:col-span-2" : "flex items-end gap-3 sm:col-span-2"}>
       <button type="submit" className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Save customer</button>
       {cancelHref ? <Link href={cancelHref} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</Link> : null}
     </div>
