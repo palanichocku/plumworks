@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
@@ -48,6 +48,22 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const authorized = summary.status === "AUTHORIZED";
+  const waitingForEmailApproval = emailState.status === "success" && !authorized;
+
+  useEffect(() => {
+    if (!waitingForEmailApproval) return;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+
+    const interval = window.setInterval(refreshIfVisible, 10000);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
+  }, [router, waitingForEmailApproval]);
 
   function submit(formData: FormData) {
     if (submitting.current) return;
@@ -72,6 +88,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
           <span className={authorized ? "text-emerald-800" : "text-amber-900"}>· {authorized && summary.approvedAt ? `Approved by ${summary.authorizerName ?? "customer"} on ${new Date(summary.approvedAt).toLocaleString()}` : "No approval exists for the current revision"}</span>
         </div>
         {emailState.status !== "idle" ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{emailState.message}</p> : null}
+        {waitingForEmailApproval ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer approval · this page updates automatically.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className="px-1.5 py-2 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-brand-primary">Evidence</Link> : null}
