@@ -33,8 +33,8 @@ type VehicleEditRecord = NonNullable<Awaited<ReturnType<typeof getVehicleForEdit
 
 export const dynamic = "force-dynamic";
 
-const overviewActionClass = "shrink-0 px-1 py-2 text-sm font-semibold text-brand-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30";
-const changeActionWrapperClass = "[&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!px-1 [&>button]:!py-2 [&>button]:!text-[0px] [&>button]:!text-brand-primary [&>button]:!shadow-none [&>button:hover]:!bg-transparent [&>button:hover]:!text-brand-primary [&>button]:after:text-sm [&>button]:after:font-semibold [&>button]:after:content-['Change']";
+const overviewActionClass = "shrink-0 px-1 py-2 text-sm font-semibold text-brand-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30";
+const changeActionWrapperClass = "[&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!px-1 [&>button]:!py-2 [&>button]:!text-[0px] [&>button]:!text-brand-primary [&>button]:!shadow-none [&>button]:!underline [&>button]:!underline-offset-4 [&>button:hover]:!bg-transparent [&>button:hover]:!text-brand-primary [&>button]:after:text-sm [&>button]:after:font-semibold [&>button]:after:underline [&>button]:after:underline-offset-4 [&>button]:after:content-['Change']";
 
 export default async function RepairOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -91,17 +91,18 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         recommendation={order.recommendation}
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
-        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
         parts={<PartsSection order={order} editable />}
         labor={<LaborSection order={order} editable />}
         totals={<TotalsSection order={order} />}
+        notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}
       /> : <RepairOrderWorkspace
-        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} />}
         concerns={<ConcernsSection order={order} />}
         parts={<PartsSection order={order} editable={false} />}
         labor={<LaborSection order={order} editable={false} />}
         totals={<TotalsSection order={order} />}
-        notes={order.status === "void" ? null : <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}
+        notes={<><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />{order.status === "void" ? null : <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}</>}
       />}
     </div>
   );
