@@ -140,8 +140,12 @@ export function NewRepairOrderForm({
             <h2 id="check-in-vehicle-title" className="text-base font-bold text-slate-900">Vehicle</h2>
             <p className="mt-1 text-sm text-slate-500">Choose the vehicle being checked in.</p>
           </div>
-          {customerMode === "existing" && selectedCustomer && vehicleMode === "new" && vehicles.length ? (
-            <button type="button" onClick={() => { setVehicleMode("existing"); setVehicleId(vehicles[0]?.id ?? ""); }} className="text-sm font-semibold text-brand-primary underline underline-offset-4">Choose saved vehicle</button>
+          {customerMode === "existing" && selectedCustomer ? (
+            vehicleMode === "existing" ? (
+              <button type="button" onClick={() => { setVehicleMode("new"); setVehicleId(""); }} className="text-sm font-semibold text-brand-primary underline underline-offset-4">+ New vehicle</button>
+            ) : vehicles.length ? (
+              <button type="button" onClick={() => { setVehicleMode("existing"); setVehicleId(vehicles[0]?.id ?? ""); }} className="text-sm font-semibold text-brand-primary underline underline-offset-4">Choose saved vehicle</button>
+            ) : null
           ) : null}
         </div>
 
@@ -150,7 +154,7 @@ export function NewRepairOrderForm({
         ) : null}
 
         {customerMode === "existing" && selectedCustomer && vehicleMode === "existing" ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {vehicles.map((vehicle) => {
               const description = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable";
               const selected = vehicle.id === vehicleId;
@@ -159,15 +163,14 @@ export function NewRepairOrderForm({
                   key={vehicle.id}
                   type="button"
                   onClick={() => { setVehicleId(vehicle.id); setVehicleMode("existing"); }}
-                  className={`min-h-24 rounded-xl border p-4 text-left transition ${selected ? "border-brand-primary bg-brand-subtle ring-2 ring-brand-primary/15" : "border-slate-200 bg-white hover:border-brand-primary/50 hover:bg-slate-50"}`}
+                  className={`rounded-lg border px-3 py-2.5 text-left transition ${selected ? "border-brand-primary bg-brand-subtle ring-2 ring-brand-primary/15" : "border-slate-200 bg-white hover:border-brand-primary/50 hover:bg-slate-50"}`}
                 >
-                  <span className="block font-semibold text-slate-900">{description}</span>
-                  <span className="mt-1 block text-sm text-slate-500">{vehicle.licensePlate || "No plate recorded"}</span>
-                  <span className="mt-2 block text-xs text-slate-500">Last mileage: {vehicle.lastRecordedMileage === null ? "Not recorded" : vehicle.lastRecordedMileage.toLocaleString()}</span>
+                  <span className="block text-sm font-semibold leading-5 text-slate-900">{description}</span>
+                  <span className="block text-xs leading-5 text-slate-500">{vehicle.licensePlate || "No plate recorded"}</span>
+                  <span className="block text-xs leading-5 text-slate-400">Last mileage: {vehicle.lastRecordedMileage === null ? "Not recorded" : vehicle.lastRecordedMileage.toLocaleString()}</span>
                 </button>
               );
             })}
-            <button type="button" onClick={() => { setVehicleMode("new"); setVehicleId(""); }} className="min-h-24 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-left font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle">+ Add a vehicle</button>
             <input type="hidden" name="vehicleId" value={vehicleId} />
           </div>
         ) : null}
