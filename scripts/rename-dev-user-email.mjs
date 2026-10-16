@@ -81,19 +81,20 @@ async function main() {
     });
 
     if (memberships.length !== 1) {
-      fail(`Expected exactly one DEV shop membership for ${fromEmail}, found ${memberships.length}.`);
+      fail(`Expected exactly one DEV shop membership for Auth user ${oldUser.id}, found ${memberships.length}.`);
     }
 
     const membership = memberships[0];
-    if (membership.userEmail.toLowerCase() !== fromEmail) {
-      fail(`Membership email mismatch. Auth has ${fromEmail}, membership has ${membership.userEmail}.`);
-    }
+    const membershipEmail = membership.userEmail.toLowerCase();
 
     console.log('\nTarget: DEV');
     console.log(`Supabase project: ${projectRef}`);
     console.log(`Shop: ${membership.shop.name}`);
     console.log(`Role: ${membership.role}`);
-    console.log(`Current email: ${fromEmail}`);
+    console.log(`Auth email: ${fromEmail}`);
+    if (membershipEmail !== fromEmail) {
+      console.log(`Membership email: ${membership.userEmail} (will be synchronized)`);
+    }
     console.log(`New email: ${toEmail}`);
 
     const { error: authUpdateError } = await supabase.auth.admin.updateUserById(oldUser.id, {
@@ -116,6 +117,9 @@ async function main() {
     }
 
     console.log(`\nSUCCESS: DEV user email changed from ${fromEmail} to ${toEmail}.`);
+    if (membershipEmail !== fromEmail) {
+      console.log(`Membership email synchronized from ${membership.userEmail} to ${toEmail}.`);
+    }
     console.log(`Shop: ${membership.shop.name}`);
     console.log(`Role: ${membership.role}`);
     console.log('Auth user ID was preserved.');
