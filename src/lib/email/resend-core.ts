@@ -1,3 +1,5 @@
+import { applyDevEmailSafety } from "@/lib/email/dev-email-safety";
+
 export type ResendAttachment = { filename: string; content: string };
 export type ResendSendResult =
   | { ok: true; id: string }
@@ -24,12 +26,25 @@ export async function sendResendEmail({
   const from = dependencies.from ?? process.env.TRANSACTIONAL_EMAIL_FROM?.trim();
   if (!apiKey || !from) return { ok: false, code: "missing_configuration", message: "Email delivery is not configured." };
 
+  const safety = applyDevEmailSafety({ to, subject, text, html, attachments });
+  if (!safety.ok) {
+    return { ok: false, code: "missing_configuration", message: safety.message };
+  }
+
+  const safeMessage = safety.message;
   let response: Response;
   try {
     response = await (dependencies.fetchImpl ?? fetch)("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, text, ...(html ? { html } : {}), ...(attachments?.length ? { attachments } : {}) }),
+      body: JSON.stringify({
+        from,
+        to: [safeMessage.to],
+        subject: safeMessage.subject,
+        text: safeMessage.text,
+        ...(safeMessage.html ? { html: safeMessage.html } : {}),
+        ...(safeMessage.attachments?.length ? { attachments: safeMessage.attachments } : {}),
+      }),
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
