@@ -19,6 +19,7 @@
     "monitor:prod:setup": "node scripts/setup-prod-plumservice.mjs",
     "password:dev": "node --env-file=.env.development.local scripts/reset-user-password.mjs --target dev",
     "password:prod": "node --env-file=.env.local scripts/reset-user-password.mjs --target prod",
+    "user:dev:create": "node --env-file=.env.development.local scripts/create-dev-user.mjs",
     "test:monitoring": "node --test tests/monitoring.test.mjs",
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs tests/marketing-review-links.test.mjs tests/marketing-photos.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
