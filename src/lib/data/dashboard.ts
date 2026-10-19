@@ -22,7 +22,7 @@ export async function getDashboardSummary() {
   const overviewMonths = exclusiveMonthRanges(now);
 
   const canViewLeads = hasPermission(membership.role, "view_marketing_leads");
-  const [openRepairOrders, customers, vehicles, monthlyInvoices, inProgressInvoices, closedInvoices, newLeadCount, currentSales, previousSales, customerActivity, agedOpenRepairOrders] = await Promise.all([
+  const [openRepairOrders, customers, vehicles, monthlyInvoices, inProgressInvoices, closedInvoices, newLeadCount, currentSales, previousSales, customerActivity, agedOpenRepairOrders, websiteLeadsThisMonth, websiteConvertedThisMonth, websiteCustomersThisMonth, websiteBilledThisMonth, websitePaidThisMonth] = await Promise.all([
     prisma.repairOrder.count({ where: operationalRepairOrderWhere(shopId) }),
     prisma.customer.count({ where: { shopId, ...activeCustomerAvailability } }),
     prisma.vehicle.count({ where: { shopId, ...activeVehicleAvailability } }),
@@ -68,12 +68,41 @@ export async function getDashboardSummary() {
     prisma.repairOrder.count({
       where: { ...operationalRepairOrderWhere(shopId), openedAt: { lt: agedRepairOrderCutoff(now) } },
     }),
+    canViewLeads ? prisma.marketingLead.count({
+      where: { shopId, createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+    }) : Promise.resolve(null),
+    canViewLeads ? prisma.marketingLead.count({
+      where: { shopId, status: "CONVERTED", createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+    }) : Promise.resolve(null),
+    prisma.customer.count({
+      where: { shopId, acquisitionSource: "WEB", createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+    }),
+    prisma.invoice.aggregate({
+      where: {
+        shopId,
+        status: { not: "void" },
+        invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive },
+        customer: { acquisitionSource: "WEB" },
+      },
+      _sum: { total: true },
+    }),
+    prisma.payment.aggregate({
+      where: {
+        shopId,
+        paidAt: { gte: currentMonth.start, lt: currentMonth.endExclusive },
+        invoice: { customer: { acquisitionSource: "WEB" } },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const currentSalesTotal = currentSales._sum.total ?? new Prisma.Decimal(0);
   const previousSalesTotal = previousSales._sum.total ?? new Prisma.Decimal(0);
   const currentAverage = averageInvoice(currentSales._sum.total, currentSales._count._all);
   const previousAverage = averageInvoice(previousSales._sum.total, previousSales._count._all);
+  const websiteConversionRate = websiteLeadsThisMonth && websiteConvertedThisMonth !== null
+    ? Math.round((websiteConvertedThisMonth / websiteLeadsThisMonth) * 1000) / 10
+    : 0;
 
   return {
     openRepairOrders,
@@ -96,6 +125,15 @@ export async function getDashboardSummary() {
       customersServiced: customerActivity.customersServiced,
       returningCustomerRate: customerActivity.returningCustomerRate,
       agedOpenRepairOrders,
+    },
+    websitePerformance: {
+      canViewLeads,
+      leadsThisMonth: websiteLeadsThisMonth,
+      convertedThisMonth: websiteConvertedThisMonth,
+      conversionRate: websiteConversionRate,
+      newWebCustomersThisMonth: websiteCustomersThisMonth,
+      billedThisMonth: websiteBilledThisMonth._sum.total ?? new Prisma.Decimal(0),
+      paidThisMonth: websitePaidThisMonth._sum.amount ?? new Prisma.Decimal(0),
     },
   };
 }
