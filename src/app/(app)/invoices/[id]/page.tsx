@@ -16,6 +16,7 @@ import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { InvoiceDeliverySignaturePanel } from "@/components/invoice-delivery-signature-panel";
 import { getInvoiceDeliverySignatureEvidence } from "@/lib/authorization/invoice-signature-evidence";
+import { snapshotString } from "@/lib/invoice-snapshots";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -54,6 +55,9 @@ export default async function InvoiceDetailPage({
   const displaySubtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
   const open = isEditableOpenInvoice(invoice);
   const voided = invoice.status === "void";
+  const laborWarrantyText = snapshotString(invoice.shopSnapshot, "warrantyText", invoice.shop.warrantyText);
+  const authorizationText = snapshotString(invoice.shopSnapshot, "invoiceAuthorizationText", invoice.shop.invoiceAuthorizationText);
+  const certificationText = snapshotString(invoice.shopSnapshot, "invoiceCertificationText", invoice.shop.invoiceCertificationText);
   const canVoid = Boolean(membership && hasPermission(membership.role, "finalize_repair_order") && invoice.legacySourceTable === null && invoice.status === "open" && invoice.payments.length === 0);
   const canRecordPayment =
     invoice.legacySourceTable === null &&
@@ -136,6 +140,15 @@ export default async function InvoiceDetailPage({
           {open && receivable?.balance.greaterThan(0) ? <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice remains open while {formatMoney(receivable.balance)} remains unpaid.</p> : null}
         </article>
       </section>
+
+      {(laborWarrantyText || authorizationText || certificationText) ? <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">Invoice Terms &amp; Certification</h2>
+        <div className="mt-5 space-y-5">
+          {laborWarrantyText ? <LegalSection title="Labor Warranty" text={laborWarrantyText} /> : null}
+          {authorizationText ? <LegalSection title="Customer Authorization" text={authorizationText} /> : null}
+          {certificationText ? <LegalSection title="Certification" text={certificationText} /> : null}
+        </div>
+      </section> : null}
 
       {signatureEvidence && invoice.legacySourceTable === null && !voided ? <InvoiceDeliverySignaturePanel
         invoiceId={invoice.id}
@@ -226,6 +239,13 @@ export default async function InvoiceDetailPage({
       </LineSection>}
     </>
   );
+}
+
+function LegalSection({ title, text }: { title: string; text: string }) {
+  return <div>
+    <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{text}</p>
+  </div>;
 }
 
 function LineSection({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
