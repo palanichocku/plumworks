@@ -40,6 +40,7 @@ export default async function DashboardPage() {
     { label: "New Leads", value: summary.newLeadCount === null ? "—" : String(summary.newLeadCount), supporting: summary.newLeadCount === null ? "Lead access required" : "Awaiting review", href: summary.newLeadCount === null ? null : "/leads?status=NEW" },
   ] as const;
   const overview = summary.businessOverview;
+  const website = summary.websitePerformance;
   const comparison = (value: number | null) => value === null
     ? "No prior-month comparison"
     : `${value >= 0 ? "+" : ""}${value.toFixed(1)}% vs last month`;
@@ -76,7 +77,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* Dynamic Header Frame */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <PageHeading eyebrow="Overview" title="Dashboard" description="Current shop activity and customer workflow at a glance." />
         <div className="shrink-0 md:text-right">
@@ -87,7 +87,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* --- METRIC CARD GRID ARCHITECTURE --- */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((card) => {
           const content = <>
@@ -120,7 +119,39 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* --- MAIN OPERATIONAL ACTIVITY LAYOUT --- */}
+      <section className="space-y-4" aria-labelledby="website-performance-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-brand-primary">Marketing attribution</p>
+            <h2 id="website-performance-heading" className="mt-1 text-xl font-black tracking-tight text-slate-950">Website Performance</h2>
+            <p className="mt-1 text-sm text-slate-500">This month · Web-origin customers are attributed through their linked website lead.</p>
+          </div>
+          {website.canViewLeads ? <Link href="/leads" className="text-sm font-bold text-brand-primary">View leads →</Link> : null}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Website Leads</p>
+            <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{website.leadsThisMonth === null ? "—" : website.leadsThisMonth}</p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">Received this month</p>
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Converted</p>
+            <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{website.convertedThisMonth === null ? "—" : website.convertedThisMonth}</p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">{website.leadsThisMonth === null ? "Lead access required" : `${website.conversionRate.toFixed(1)}% of this month's leads`}</p>
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">New Web Customers</p>
+            <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{website.newWebCustomersThisMonth}</p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">Customers acquired from the website</p>
+          </article>
+          <article className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">Website Revenue</p>
+            <p className="mt-4 text-3xl font-black tracking-tight text-emerald-800">{formatMoney(website.paidThisMonth)}</p>
+            <p className="mt-2 text-xs font-semibold text-emerald-700">Paid · {formatMoney(website.billedThisMonth)} billed</p>
+          </article>
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-2">
         <ActivityCard title="Invoices in Progress" href="/invoices" emptyMessage="No invoices are currently in progress.">
           {summary.inProgressInvoices.map((invoice) => {
@@ -159,14 +190,11 @@ export default async function DashboardPage() {
   );
 }
 
-// Upgraded inner component to match the table headers
 function ActivityCard({ title, href, emptyMessage, children }: { title: string; href: string; emptyMessage: string; children: React.ReactNode }) {
-  // Safely extract valid children to ensure empty states render correctly
   const items = React.Children.toArray(children).filter(Boolean);
   
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      {/* Header mimics the new table header rows (border-b-2, bg-slate-100/80) */}
       <header className="flex items-center justify-between border-b-2 border-slate-200 bg-slate-100/80 px-5 py-4">
         <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-700">{title}</h2>
         <Link 
