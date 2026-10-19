@@ -164,11 +164,20 @@ export async function createRepairOrder(formData: FormData) {
       select: { id: true },
     });
     await refreshRepairOrderTotals(transaction, membership.shopId, created.id);
+    await transaction.$executeRaw`
+      UPDATE marketing_leads
+      SET status = 'CONVERTED', converted_at = COALESCE(converted_at, NOW())
+      WHERE shop_id = ${membership.shopId}::uuid
+        AND customer_id = ${customerId}::uuid
+        AND status IN ('NEW', 'CONTACTED', 'SCHEDULED')
+    `;
     await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "repair_order_created", "repair_order", created.id, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: `RO #${repairOrderNumber}`, entityHref: `/repair-orders/${created.id}`, contextSummary: "Repair order created" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
     return created;
   }, { isolationLevel: "Serializable" });
 
   revalidatePath("/repair-orders");
+  revalidatePath("/leads");
+  revalidatePath("/dashboard");
   redirect(`/repair-orders/${repairOrder.id}`);
 }
 
