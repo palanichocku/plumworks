@@ -49,7 +49,7 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
     <div className="divide-y divide-slate-200">
       {parts.map((line) => <PartSavedRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} editable={editable} />)}
       {labor.map((line) => <LaborSavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} />)}
-      {complimentary.map((line) => <ComplimentarySavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} />)}
+      {complimentary.map((line) => <ComplimentarySavedRow key={line.id} repairOrderId={repairOrderId} line={line} editable={editable} />)}
       {!parts.length && !labor.length && !complimentary.length ? <p className="px-4 py-5 text-sm text-slate-500 sm:px-5">No line items yet.</p> : null}
     </div>
     {editable ? <div className="border-t border-slate-300 bg-slate-50/70 px-4 py-4 sm:px-5"><DraftLineItem key={draftKey} repairOrderId={repairOrderId} vendors={vendors} services={services} defaultRate={defaultRate} onSaved={() => setDraftKey((key) => key + 1)} /></div> : null}
@@ -120,24 +120,63 @@ function LaborSavedRow({ repairOrderId, line, services, editable }: { repairOrde
   return <DisplayRow type="labor" description={line.description} secondary={line.shopSuppliesEligible ? "Shop supplies" : "—"} qty={line.hours} rate={money(Number(line.hourlyRate))} amount={money(Number(line.hours) * Number(line.hourlyRate))} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteLaborLine} deleteLabel="labor" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
 }
 
+function LaborPresetPicker({ services, selectedId, modified, onSelect, onClear }: { services: CommonService[]; selectedId: string | null; modified: boolean; onSelect: (service: CommonService) => void; onClear: () => void }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const quick = services.slice(0, 3);
+  const remaining = Math.max(0, services.length - quick.length);
+  const selected = selectedId ? services.find((service) => service.id === selectedId) ?? null : null;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery ? services.filter((service) => service.name.toLowerCase().includes(normalizedQuery) || service.description.toLowerCase().includes(normalizedQuery)) : services;
+
+  if (!services.length) return null;
+  return <div className="mb-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-600">Common services</span>
+        {quick.map((service) => <button key={service.id} type="button" onClick={() => { onSelect(service); setMoreOpen(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${selectedId === service.id ? "border-brand-primary bg-brand-primary text-white" : "border-slate-300 bg-white text-slate-700 hover:border-brand-primary/50 hover:text-brand-primary"}`}>{service.name}</button>)}
+        {remaining > 0 ? <button type="button" onClick={() => setMoreOpen((open) => !open)} className="rounded-full border border-dashed border-slate-400 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-brand-primary hover:text-brand-primary">More services ({remaining})</button> : null}
+      </div>
+      {selected ? <div className="text-xs text-slate-500">From preset: <span className="font-semibold text-slate-700">{selected.name}</span>{modified ? <span className="font-semibold text-amber-700"> · Modified</span> : null} <button type="button" onClick={onClear} className="ml-1 font-semibold text-brand-primary underline underline-offset-2">Clear preset</button></div> : null}
+    </div>
+    {moreOpen ? <div className="mt-2 max-w-2xl rounded-xl border border-slate-300 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-2">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search common services…" className={`${inputClass} flex-1`} autoFocus />
+        <button type="button" onClick={() => { setMoreOpen(false); setQuery(""); }} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+      </div>
+      <div className="mt-2 max-h-52 overflow-y-auto">
+        {filtered.length ? filtered.map((service) => <button key={service.id} type="button" onClick={() => { onSelect(service); setMoreOpen(false); setQuery(""); }} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50">
+          <span className="block text-sm font-semibold text-slate-800">{service.name}</span>
+          <span className="mt-0.5 block text-xs text-slate-500">{service.defaultHours} hrs · {money(Number(service.defaultLaborRate))}{service.shopSuppliesEligible ? " · Shop supplies" : ""}</span>
+        </button>) : <p className="px-3 py-3 text-sm text-slate-500">No matching services.</p>}
+      </div>
+    </div> : null}
+  </div>;
+}
+
 function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderId: string; line: LaborLine; services: CommonService[]; onClose: () => void }) {
   const [description, setDescription] = useState(line.description);
   const [hours, setHours] = useState(line.hours);
   const [rate, setRate] = useState(line.hourlyRate);
   const [eligible, setEligible] = useState(line.shopSuppliesEligible);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [state, action, pending] = useActionState(updateLaborLineWithState, idleLabor);
   useEffect(() => { if (state.status === "success") onClose(); }, [state.status, onClose]);
-  function chooseService(id: string) {
-    const service = services.find((item) => item.id === id);
-    if (!service) return;
-    setDescription(service.description); setHours(service.defaultHours); setRate(service.defaultLaborRate); setEligible(service.shopSuppliesEligible);
+  const selectedPreset = selectedPresetId ? services.find((service) => service.id === selectedPresetId) ?? null : null;
+  const presetModified = selectedPreset ? description !== selectedPreset.description || hours !== selectedPreset.defaultHours || rate !== selectedPreset.defaultLaborRate || eligible !== selectedPreset.shopSuppliesEligible : false;
+  function chooseService(service: CommonService) {
+    setSelectedPresetId(service.id);
+    setDescription(service.description);
+    setHours(service.defaultHours);
+    setRate(service.defaultLaborRate);
+    setEligible(service.shopSuppliesEligible);
   }
   return <form action={action} className="bg-emerald-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
-    <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
+    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={() => setSelectedPresetId(null)} />
+    <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="labor" /></div>
       <HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
-      <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom labor</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
       <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <div className="self-center text-right font-semibold">{money(Number(hours) * Number(rate))}</div>
@@ -148,23 +187,21 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
   </form>;
 }
 
-function ComplimentarySavedRow({ repairOrderId, line, services, editable }: { repairOrderId: string; line: Pick<LaborLine, "id" | "description">; services: CommonService[]; editable: boolean }) {
+function ComplimentarySavedRow({ repairOrderId, line, editable }: { repairOrderId: string; line: Pick<LaborLine, "id" | "description">; editable: boolean }) {
   const [editing, setEditing] = useState(false);
-  if (editing && editable) return <ComplimentaryEditRow repairOrderId={repairOrderId} line={line} services={services} onClose={() => setEditing(false)} />;
+  if (editing && editable) return <ComplimentaryEditRow repairOrderId={repairOrderId} line={line} onClose={() => setEditing(false)} />;
   return <DisplayRow type="complimentary" description={line.description} secondary="No charge" qty="—" rate="—" amount={money(0)} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteComplimentaryService} deleteLabel="complimentary service" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
 }
 
-function ComplimentaryEditRow({ repairOrderId, line, services, onClose }: { repairOrderId: string; line: Pick<LaborLine, "id" | "description">; services: CommonService[]; onClose: () => void }) {
+function ComplimentaryEditRow({ repairOrderId, line, onClose }: { repairOrderId: string; line: Pick<LaborLine, "id" | "description">; onClose: () => void }) {
   const [description, setDescription] = useState(line.description);
   const [state, action, pending] = useActionState(updateComplimentaryServiceWithState, idleComplimentary);
   useEffect(() => { if (state.status === "success") onClose(); }, [state.status, onClose]);
-  function chooseService(id: string) { const service = services.find((item) => item.id === id); if (service) setDescription(service.description); }
   return <form action={action} className="bg-violet-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.4fr)_minmax(12rem,.8fr)_7rem_4.5rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(22rem,1.8fr)_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="complimentary" /></div>
       <HistoricalDescriptionCombobox kind="labor" rowKey={`edit-comp-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
-      <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
       <div className="pb-2 text-right font-semibold">{money(0)}</div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
@@ -177,7 +214,7 @@ function DraftLineItem({ repairOrderId, vendors, services, defaultRate, onSaved 
   return <div>
     {type === "part" ? <DraftPart repairOrderId={repairOrderId} vendors={vendors} type={type} setType={setType} onSaved={onSaved} /> : null}
     {type === "labor" ? <DraftLabor repairOrderId={repairOrderId} services={services} defaultRate={defaultRate} type={type} setType={setType} onSaved={onSaved} /> : null}
-    {type === "complimentary" ? <DraftComplimentary repairOrderId={repairOrderId} services={services} type={type} setType={setType} onSaved={onSaved} /> : null}
+    {type === "complimentary" ? <DraftComplimentary repairOrderId={repairOrderId} type={type} setType={setType} onSaved={onSaved} /> : null}
   </div>;
 }
 
@@ -222,20 +259,25 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
   const [hours, setHours] = useState("");
   const [rate, setRate] = useState(defaultRate);
   const [eligible, setEligible] = useState(true);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [state, action, pending] = useActionState(addLaborLineWithState, idleLabor);
   useEffect(() => { if (state.status === "success") onSaved(); }, [state.status, onSaved]);
-  function chooseService(id: string) {
-    const service = services.find((item) => item.id === id);
-    if (!service) return;
-    setDescription(service.description); setHours(service.defaultHours); setRate(service.defaultLaborRate); setEligible(service.shopSuppliesEligible);
+  const selectedPreset = selectedPresetId ? services.find((service) => service.id === selectedPresetId) ?? null : null;
+  const presetModified = selectedPreset ? description !== selectedPreset.description || hours !== selectedPreset.defaultHours || rate !== selectedPreset.defaultLaborRate || eligible !== selectedPreset.shopSuppliesEligible : false;
+  function chooseService(service: CommonService) {
+    setSelectedPresetId(service.id);
+    setDescription(service.description);
+    setHours(service.defaultHours);
+    setRate(service.defaultLaborRate);
+    setEligible(service.shopSuppliesEligible);
   }
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
+    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={() => setSelectedPresetId(null)} />
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow />
-      <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom labor</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
       <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
@@ -245,18 +287,16 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
   </form>;
 }
 
-function DraftComplimentary({ repairOrderId, services, type, setType, onSaved }: { repairOrderId: string; services: CommonService[]; type: LineType; setType: (value: LineType) => void; onSaved: () => void }) {
+function DraftComplimentary({ repairOrderId, type, setType, onSaved }: { repairOrderId: string; type: LineType; setType: (value: LineType) => void; onSaved: () => void }) {
   const [description, setDescription] = useState("");
   const [state, action, pending] = useActionState(addComplimentaryServiceWithState, idleComplimentary);
   useEffect(() => { if (state.status === "success") onSaved(); }, [state.status, onSaved]);
-  function chooseService(id: string) { const service = services.find((item) => item.id === id); if (service) setDescription(service.description); }
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(19rem,1.65fr)_minmax(13rem,.9fr)_7rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(28rem,2fr)_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-complimentary" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Complimentary service description" multiline autoGrow />
-      <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
       <AmountField value={money(0)} />
     </div>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
