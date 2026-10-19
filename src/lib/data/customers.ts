@@ -35,6 +35,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1, life
       displayName: true,
       email: true,
       phone: true,
+      acquisitionSource: true,
       archivedAt: true,
     },
   });
@@ -64,6 +65,7 @@ export async function getCustomerForCurrentShop(id: string) {
       city: true,
       state: true,
       postalCode: true,
+      acquisitionSource: true,
       legacyCustno: true,
       archivedAt: true,
       notes: true,
