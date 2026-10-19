@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useCallback, useId, useLayoutEffect, useState, useTransition } from "react";
 import type { InternalNotesState } from "@/app/(app)/internal-notes-actions";
+import { DictationButton } from "@/components/dictation-button";
 import { MAX_INTERNAL_NOTES_LENGTH } from "@/lib/internal-notes";
 
 export function InternalNoteEditor({ recordId, notes, label, emptyMessage, successMessage, canEdit, action, contextCustomerId }: {
@@ -21,6 +22,23 @@ export function InternalNoteEditor({ recordId, notes, label, emptyMessage, succe
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState<InternalNotesState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
+
+  const resizeTextarea = useCallback(() => {
+    const textarea = document.getElementById(textareaId) as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
+    const chrome = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom) + Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth);
+    const minimum = (lineHeight * 4) + chrome;
+    const maximum = (lineHeight * 10) + chrome;
+    textarea.style.height = `${Math.max(minimum, Math.min(textarea.scrollHeight, maximum))}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maximum ? "auto" : "hidden";
+  }, [textareaId]);
+
+  useLayoutEffect(() => {
+    if (editing) resizeTextarea();
+  }, [draft, editing, resizeTextarea]);
 
   function cancel() {
     setDraft(savedNotes ?? "");
@@ -54,8 +72,11 @@ export function InternalNoteEditor({ recordId, notes, label, emptyMessage, succe
       {canEdit && !editing ? <button type="button" onClick={() => { setEditing(true); setState({ status: "idle" }); }} className="rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30">{savedNotes ? "Edit" : "Add note"}</button> : null}
     </div>
     {editing ? <div className="mt-3">
-      <label htmlFor={textareaId} className="sr-only">{label} internal note</label>
-      <textarea id={textareaId} value={draft} onChange={(event) => { setDraft(event.target.value); setState({ status: "idle" }); }} rows={4} maxLength={MAX_INTERNAL_NOTES_LENGTH} aria-describedby={state.status === "error" ? messageId : undefined} className="min-h-24 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10" />
+      <div className="mb-1 flex min-h-7 items-center justify-between gap-2">
+        <label htmlFor={textareaId} className="text-xs font-semibold text-slate-600">{label}</label>
+        <DictationButton textareaId={textareaId} value={draft} onChange={(next) => { setDraft(next); setState({ status: "idle" }); }} />
+      </div>
+      <textarea id={textareaId} value={draft} onChange={(event) => { setDraft(event.target.value); setState({ status: "idle" }); }} rows={4} maxLength={MAX_INTERNAL_NOTES_LENGTH} aria-describedby={state.status === "error" ? messageId : undefined} className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10" />
       <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
         <button type="button" onClick={cancel} disabled={pending} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200 disabled:opacity-50">Cancel</button>
         <button type="button" onClick={save} disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save note"}</button>

@@ -2,21 +2,23 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { searchHistoricalDescriptions } from "@/app/(app)/repair-orders/description-history-actions";
+import { DictationButton } from "@/components/dictation-button";
 import { HISTORICAL_DESCRIPTION_MIN_CHARS, normalizeHistoricalDescription, type HistoricalDescriptionKind, type HistoricalDescriptionSuggestion } from "@/lib/historical-descriptions";
 
 const DEBOUNCE_MS = 275;
 
-function useAutoGrowingTextarea(inputId: string, value: string, enabled: boolean, maxVisibleRows = 5) {
+function useAutoGrowingTextarea(inputId: string, value: string, enabled: boolean, maxVisibleRows = 10) {
   const resize = useCallback(() => {
     const textarea = document.getElementById(inputId) as HTMLTextAreaElement | null;
     if (!textarea) return;
-    textarea.rows = 1;
+    textarea.rows = 3;
     textarea.style.height = "auto";
     const styles = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(styles.lineHeight) || 24;
     const chrome = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom) + Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth);
+    const minimum = (lineHeight * 3) + chrome;
     const maximum = (lineHeight * maxVisibleRows) + chrome;
-    textarea.style.height = `${Math.min(textarea.scrollHeight, maximum)}px`;
+    textarea.style.height = `${Math.max(minimum, Math.min(textarea.scrollHeight, maximum))}px`;
     textarea.style.overflowY = textarea.scrollHeight > maximum ? "auto" : "hidden";
   }, [inputId, maxVisibleRows]);
 
@@ -33,16 +35,75 @@ function useAutoGrowingTextarea(inputId: string, value: string, enabled: boolean
   }, [enabled, inputId, resize]);
 }
 
-export function HistoricalDescriptionCombobox({ kind, value, onChange, label = "Description", placeholder, inputClass, rowKey, multiline = false, autoGrow = kind === "part" }: { kind: HistoricalDescriptionKind; value: string; onChange: (value: string) => void; label?: string; placeholder?: string; inputClass: string; rowKey: string; multiline?: boolean; autoGrow?: boolean }) {
-  const inputId = useId(); const listboxId = useId(); const [results, setResults] = useState<HistoricalDescriptionSuggestion[]>([]); const [loading, setLoading] = useState(false); const [error, setError] = useState(false); const [open, setOpen] = useState(false); const [active, setActive] = useState(-1); const sequence = useRef(0); const query = normalizeHistoricalDescription(value); const eligible = query.length >= HISTORICAL_DESCRIPTION_MIN_CHARS;
+export function HistoricalDescriptionCombobox({ kind, value, onChange, label = "Description", placeholder, inputClass, rowKey, multiline = false, autoGrow = multiline, allowDictation = multiline }: { kind: HistoricalDescriptionKind; value: string; onChange: (value: string) => void; label?: string; placeholder?: string; inputClass: string; rowKey: string; multiline?: boolean; autoGrow?: boolean; allowDictation?: boolean }) {
+  const inputId = useId();
+  const listboxId = useId();
+  const [results, setResults] = useState<HistoricalDescriptionSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const sequence = useRef(0);
+  const query = normalizeHistoricalDescription(value);
+  const eligible = query.length >= HISTORICAL_DESCRIPTION_MIN_CHARS;
   useAutoGrowingTextarea(inputId, value, multiline && autoGrow);
+
   useEffect(() => {
     if (!open || !eligible) return;
     const request = ++sequence.current;
-    const timer = window.setTimeout(async () => { setLoading(true); setError(false); try { const matches = await searchHistoricalDescriptions(kind, query); if (request === sequence.current) { setResults(matches); setActive(-1); } } catch { if (request === sequence.current) { setError(true); setResults([]); } } finally { if (request === sequence.current) setLoading(false); } }, DEBOUNCE_MS);
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setError(false);
+      try {
+        const matches = await searchHistoricalDescriptions(kind, query);
+        if (request === sequence.current) { setResults(matches); setActive(-1); }
+      } catch {
+        if (request === sequence.current) { setError(true); setResults([]); }
+      } finally {
+        if (request === sequence.current) setLoading(false);
+      }
+    }, DEBOUNCE_MS);
     return () => { window.clearTimeout(timer); sequence.current += 1; };
   }, [eligible, kind, open, query, rowKey]);
+
   const choose = (description: string) => { onChange(description); setOpen(false); setActive(-1); };
-  const controlProps = { id: inputId, name: "description", role: "combobox", "aria-autocomplete": "list" as const, "aria-expanded": open, "aria-controls": listboxId, "aria-activedescendant": open && active >= 0 ? `${listboxId}-${active}` : undefined, autoComplete: "off", required: true, maxLength: 500, value, placeholder, onFocus: () => setOpen(true), onBlur: () => setOpen(false), onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { onChange(event.target.value); setOpen(true); setActive(-1); }, onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => { if (event.key === "Escape") { setOpen(false); setActive(-1); } else if (!multiline && event.key === "ArrowDown" && results.length) { event.preventDefault(); setOpen(true); setActive((index) => (index + 1) % results.length); } else if (!multiline && event.key === "ArrowUp" && results.length) { event.preventDefault(); setOpen(true); setActive((index) => index > 0 ? index - 1 : results.length - 1); } else if (!multiline && event.key === "Enter" && open && active >= 0) { event.preventDefault(); choose(results[active].description); } }, className: inputClass };
-  return <label htmlFor={inputId} className="relative z-20 block min-w-0 text-sm font-semibold text-slate-800 focus-within:z-40">{label}{multiline ? <textarea {...controlProps} rows={3} /> : <input {...controlProps} />}{open ? <div id={listboxId} role="listbox" aria-label="Previous descriptions" className="absolute left-0 z-50 mt-1 max-h-56 w-full min-w-0 overflow-y-auto rounded-lg border border-slate-300 bg-white p-1 font-normal shadow-lg">{!eligible ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Type at least 2 characters</p> : loading ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Searching previous descriptions…</p> : error ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Previous descriptions are unavailable. Continue typing to use a new description.</p> : results.length ? results.map((result, index) => <button key={normalizeHistoricalDescription(result.description)} id={`${listboxId}-${index}`} type="button" role="option" aria-selected={active === index} onPointerDown={(event) => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(result.description)} className={`block w-full whitespace-pre-wrap break-words rounded-md px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-primary/30 ${active === index ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}>{result.description}</button>) : <div className="px-3 py-2 text-sm text-slate-600"><p>No previous descriptions found</p><p className="mt-1 text-xs">Continue typing to use a new description</p></div>}</div> : null}</label>;
+  const controlProps = {
+    id: inputId,
+    name: "description",
+    role: "combobox",
+    "aria-autocomplete": "list" as const,
+    "aria-expanded": open,
+    "aria-controls": listboxId,
+    "aria-activedescendant": open && active >= 0 ? `${listboxId}-${active}` : undefined,
+    autoComplete: "off",
+    required: true,
+    maxLength: 500,
+    value,
+    placeholder,
+    onFocus: () => setOpen(true),
+    onBlur: () => setOpen(false),
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { onChange(event.target.value); setOpen(true); setActive(-1); },
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key === "Escape") { setOpen(false); setActive(-1); }
+      else if (!multiline && event.key === "ArrowDown" && results.length) { event.preventDefault(); setOpen(true); setActive((index) => (index + 1) % results.length); }
+      else if (!multiline && event.key === "ArrowUp" && results.length) { event.preventDefault(); setOpen(true); setActive((index) => index > 0 ? index - 1 : results.length - 1); }
+      else if (!multiline && event.key === "Enter" && open && active >= 0) { event.preventDefault(); choose(results[active].description); }
+    },
+    className: inputClass,
+  };
+
+  return <label htmlFor={inputId} className="relative z-20 block min-w-0 text-sm font-semibold text-slate-800 focus-within:z-40">
+    <span className="mb-1 flex min-h-7 items-center justify-between gap-2">
+      <span>{label}</span>
+      {multiline && allowDictation ? <DictationButton textareaId={inputId} value={value} onChange={(next) => { onChange(next); setOpen(false); }} /> : null}
+    </span>
+    {multiline ? <textarea {...controlProps} rows={3} /> : <input {...controlProps} />}
+    {open ? <div id={listboxId} role="listbox" aria-label="Previous descriptions" className="absolute left-0 z-50 mt-1 max-h-56 w-full min-w-0 overflow-y-auto rounded-lg border border-slate-300 bg-white p-1 font-normal shadow-lg">
+      {!eligible ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Type at least 2 characters</p>
+        : loading ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Searching previous descriptions…</p>
+        : error ? <p role="status" className="px-3 py-2 text-sm text-slate-600">Previous descriptions are unavailable. Continue typing to use a new description.</p>
+        : results.length ? results.map((result, index) => <button key={normalizeHistoricalDescription(result.description)} id={`${listboxId}-${index}`} type="button" role="option" aria-selected={active === index} onPointerDown={(event) => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(result.description)} className={`block w-full whitespace-pre-wrap break-words rounded-md px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-primary/30 ${active === index ? "bg-brand-subtle text-brand-primary" : "text-slate-700 hover:bg-slate-50"}`}>{result.description}</button>)
+        : <div className="px-3 py-2 text-sm text-slate-600"><p>No previous descriptions found</p><p className="mt-1 text-xs">Continue typing to use a new description</p></div>}
+    </div> : null}
+  </label>;
 }
