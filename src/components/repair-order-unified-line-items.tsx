@@ -161,7 +161,7 @@ function ComplimentaryEditRow({ repairOrderId, line, services, onClose }: { repa
   function chooseService(id: string) { const service = services.find((item) => item.id === id); if (service) setDescription(service.description); }
   return <form action={action} className="bg-violet-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} />
-    <div className="grid gap-3 lg:grid-cols-[9rem_minmax(18rem,1.4fr)_minmax(12rem,.8fr)_7rem_4.5rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.4fr)_minmax(12rem,.8fr)_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="complimentary" /></div>
       <HistoricalDescriptionCombobox kind="labor" rowKey={`edit-comp-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
       <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
@@ -189,7 +189,7 @@ function DraftHeader({ pending }: { pending: boolean }) {
 }
 
 function TypeSelect({ value, onChange }: { value: LineType; onChange: (value: LineType) => void }) {
-  return <label className="text-xs font-semibold text-slate-600">Type<select value={value} onChange={(e) => onChange(e.target.value as LineType)} className={`${inputClass} mt-1 min-w-[9rem]`}><option value="part">Part</option><option value="labor">Labor</option><option value="complimentary">Complimentary</option></select></label>;
+  return <label className="text-xs font-semibold text-slate-600">Type<select value={value} onChange={(e) => onChange(e.target.value as LineType)} className={`${inputClass} mt-1 min-w-[10rem]`}><option value="part">Part</option><option value="labor">Labor</option><option value="complimentary">Complimentary</option></select></label>;
 }
 
 function AmountField({ value }: { value: string }) {
@@ -205,7 +205,7 @@ function DraftPart({ repairOrderId, vendors, type, setType, onSaved }: { repairO
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[9rem_minmax(18rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="part" rowKey="draft-unified-part" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Part description" multiline autoGrow />
       <VendorCombobox vendors={vendors} />
@@ -232,7 +232,7 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[9rem_minmax(18rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow />
       <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom labor</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
@@ -240,7 +240,7 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
       <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
     </div>
-    <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 lg:ml-[9.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
+    <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 lg:ml-[10.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
   </form>;
 }
@@ -253,7 +253,7 @@ function DraftComplimentary({ repairOrderId, services, type, setType, onSaved }:
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[9rem_minmax(20rem,1.65fr)_minmax(13rem,.9fr)_7rem] lg:items-end">
+    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(19rem,1.65fr)_minmax(13rem,.9fr)_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-complimentary" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Complimentary service description" multiline autoGrow />
       <label className="text-xs font-semibold text-slate-600">Common service<select defaultValue="" onChange={(e) => chooseService(e.target.value)} className={`${inputClass} mt-1`}><option value="">Custom service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
