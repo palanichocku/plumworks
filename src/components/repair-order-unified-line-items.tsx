@@ -7,7 +7,7 @@ import { addPartLineWithState, deletePartLine, updatePartLineWithState } from "@
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PendingIcon, TrashIcon } from "@/components/line-item-layout";
 import { VendorCombobox, type VendorOption } from "@/components/vendor-combobox";
-import { HistoricalDescriptionCombobox } from "@/components/historical-description-combobox";
+import { HistoricalDescriptionCombobox, ReadOnlyDescriptionPreview } from "@/components/historical-description-combobox";
 import type { PartActionState } from "@/components/part-action-form";
 
 type PartLine = { id: string; description: string; quantity: string; unitPrice: string; vendor: VendorOption | null };
@@ -64,7 +64,7 @@ function TypeBadge({ type }: { type: LineType }) {
 function DisplayRow({ type, description, secondary, qty, rate, amount, actions }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode }) {
   return <div className="grid gap-2 px-4 py-3 text-sm lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-center lg:gap-3 sm:px-5">
     <div><TypeBadge type={type} /></div>
-    <div className="min-w-0 whitespace-pre-wrap break-words font-medium text-slate-900">{description}</div>
+    <ReadOnlyDescriptionPreview value={description} />
     <div className="text-slate-500">{secondary}</div>
     <div className="flex justify-between gap-3 lg:block lg:text-right"><span className="text-slate-500 lg:hidden">Qty / hrs</span><span>{qty}</span></div>
     <div className="flex justify-between gap-3 lg:block lg:text-right"><span className="text-slate-500 lg:hidden">Price / rate</span><span>{rate}</span></div>
