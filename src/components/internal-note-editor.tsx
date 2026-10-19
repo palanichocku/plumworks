@@ -66,10 +66,18 @@ export function InternalNoteEditor({ recordId, notes, label, emptyMessage, succe
     });
   }
 
+  const startEditing = () => {
+    setEditing(true);
+    setState({ status: "idle" });
+  };
+
   return <div className="min-w-0">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-semibold text-slate-900">{label}</h3>
-      {canEdit && !editing ? <button type="button" onClick={() => { setEditing(true); setState({ status: "idle" }); }} className="rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30">{savedNotes ? "Edit" : "Add note"}</button> : null}
+      {canEdit && !editing ? (
+        savedNotes ? <button type="button" onClick={startEditing} className="rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30">Edit</button>
+          : <button type="button" onClick={startEditing} className="shrink-0 rounded-lg bg-brand-primary px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20">+ Add note</button>
+      ) : null}
     </div>
     {editing ? <div className="mt-3">
       <div className="mb-1 flex min-h-7 items-center justify-between gap-2">
