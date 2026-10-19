@@ -216,6 +216,7 @@ model MarketingGalleryItem {
 model MarketingLead {
   id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId              String              @map("shop_id") @db.Uuid
+  customerId          String?             @map("customer_id") @db.Uuid
   source              MarketingLeadSource
   name                String
   phone               String?
@@ -243,16 +244,19 @@ model MarketingLead {
   landingPath         String?             @map("landing_path")
   submissionPath      String?             @map("submission_path")
   firstTouchAt        DateTime?           @map("first_touch_at")
+  convertedAt         DateTime?           @map("converted_at")
   status              MarketingLeadStatus @default(NEW)
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at")
   shop                Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer            Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   notification        MarketingLeadNotification?
 
   @@unique([shopId, id])
   @@index([shopId, status, createdAt])
   @@index([shopId, attributionSource, createdAt])
+  @@index([shopId, customerId])
   @@map("marketing_leads")
 }
 
@@ -370,6 +374,7 @@ model Customer {
   postalCode         String?               @map("postal_code")
   notes              String?
   message            String?
+  acquisitionSource  String?               @map("acquisition_source")
   legacyCustno       String?               @map("legacy_custno")
   legacySourceTable  String?               @map("legacy_source_table")
   archivedAt         DateTime?             @map("archived_at")
@@ -382,11 +387,13 @@ model Customer {
   payments           Payment[]
   accountsReceivable AccountReceivable[]
   legacyAliases      CustomerLegacyAlias[]
+  marketingLeads     MarketingLead[]
 
   @@unique([shopId, legacyCustno])
   @@index([legacyCustno])
   @@index([shopId, displayName])
   @@index([shopId, archivedAt])
+  @@index([shopId, acquisitionSource])
   @@map("customers")
 }
 
@@ -474,8 +481,8 @@ model RepairOrder {
   shopSuppliesOverriddenByUserId String?            @map("shop_supplies_overridden_by_user_id") @db.Uuid
   shopSuppliesOverriddenAt       DateTime?          @map("shop_supplies_overridden_at")
   repairOrderNumber              Int?               @map("repair_order_number")
-  legacyRoNo                     String?            @map("legacy_ro_no")
-  legacySourceTable              String?            @map("legacy_source_table")
+  legacyRoNo                     String?             @map("legacy_ro_no")
+  legacySourceTable              String?             @map("legacy_source_table")
   createdAt                      DateTime           @default(now()) @map("created_at")
   updatedAt                      DateTime           @default(now()) @updatedAt @map("updated_at")
   shop                           Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
