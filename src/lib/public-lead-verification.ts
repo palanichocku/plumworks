@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 
 export const MIN_FORM_COMPLETION_MS = 3000;
+const TURNSTILE_ALWAYS_PASS_TEST_SECRET = "1x0000000000000000000000000000000AA";
 
 export function leadProtectionHash(value: string) {
   const secret = process.env.LEAD_ABUSE_HASH_SECRET;
@@ -64,8 +65,17 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     if (!result || typeof result !== "object") return failed("invalid_response", true);
     const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
     const success = value.success === true;
-    const hostnameMatched = typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
-    const actionMatched = value.action === source;
+
+    // Cloudflare's official always-pass test secret returns a fixed synthetic
+    // hostname/action (localhost/test), not the real request hostname/action.
+    // Accept that exact synthetic response only when the dedicated test secret
+    // is configured. Production secrets continue to require strict matching.
+    const isOfficialTestSecret = secret === TURNSTILE_ALWAYS_PASS_TEST_SECRET;
+    const hostnameMatched = isOfficialTestSecret
+      ? value.hostname === "localhost"
+      : typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
+    const actionMatched = isOfficialTestSecret ? value.action === "test" : value.action === source;
+
     if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
     if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
     if (!actionMatched) return failed("action_mismatch", true, true, true, false);
