@@ -32,12 +32,24 @@ export async function updateLeadStatus(formData: FormData) {
     if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) throw new Error("Invalid scheduled date.");
     if (scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) throw new Error("Invalid scheduled time.");
     if (status === "SCHEDULED" && (!rawDate || !scheduledTime)) throw new Error("Scheduled date and time are required.");
+    if (status === "CLOSED" && !internalNote) throw new Error("A Lost reason is required in Internal note.");
     const scheduledDate = rawDate ? new Date(`${rawDate}T00:00:00.000Z`) : null;
 
     console.info({ ...metadata, result: "validated" });
     stage = "persistence";
     const updated = await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`SELECT id FROM marketing_leads WHERE id = ${id}::uuid AND shop_id = ${membership.shopId}::uuid FOR UPDATE`;
+      const existingLead = await transaction.marketingLead.findFirstOrThrow({ where: { id, shopId: membership.shopId } });
+
+      // Converted is system-controlled once a Repair Order exists. The hidden
+      // Converted value is still accepted so staff can save notes on that lead.
+      if (status === "CONVERTED" && existingLead.status !== "CONVERTED") {
+        throw new Error("Converted status is set automatically when a Repair Order is created.");
+      }
+      if (existingLead.status === "CONVERTED" && status !== "CONVERTED") {
+        throw new Error("Converted and Completed leads are system-controlled.");
+      }
+
       const result = await transaction.marketingLead.updateMany({
         where: { id, shopId: membership.shopId },
         data: { status, scheduledDate, scheduledTime, internalNote },
@@ -56,9 +68,6 @@ export async function updateLeadStatus(formData: FormData) {
         let customerId = links[0]?.customer_id ?? null;
         const leadName = normalizedCustomerName(lead.name);
 
-        // Keep an existing lead->customer link only when the active customer's
-        // name still matches the lead. This lets a previously incorrect contact-
-        // only match repair itself when the Scheduled lead is saved again.
         if (customerId) {
           const linkedCustomer = await transaction.customer.findFirst({
             where: { id: customerId, shopId: membership.shopId, archivedAt: null },
@@ -69,9 +78,6 @@ export async function updateLeadStatus(formData: FormData) {
 
         const storedPhone = customerPhoneForStorage(lead.phone ?? "");
 
-        // Reuse an existing customer only when BOTH identity name and a contact
-        // point agree. Shared/reused emails or phone numbers must not cause a
-        // website lead to attach to a different person.
         if (!customerId && lead.email) {
           const emailCandidates = await transaction.customer.findMany({
             where: { shopId: membership.shopId, archivedAt: null, email: { equals: lead.email, mode: "insensitive" } },
