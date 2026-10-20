@@ -8,6 +8,7 @@ import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { repairOrderEmailMessage, type RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { hasPermission } from "@/lib/permissions";
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
+import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
 import {
   createRepairOrderEmailAuthorizationRequest,
   markRepairOrderAuthorizationRequestSent,
@@ -49,6 +50,9 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
   const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
   if (authorization?.status === "AUTHORIZED") {
     return { status: "success", message: "This Repair Order revision is already authorized." };
+  }
+  if (!(await isRepairOrderReadyForAuthorization(membership.shopId, repairOrderId))) {
+    return { status: "error", message: "Save draft before sending a customer authorization request." };
   }
 
   let request: Awaited<ReturnType<typeof createRepairOrderEmailAuthorizationRequest>> | null = null;
