@@ -1,6 +1,7 @@
 import { PageHeading } from "@/components/page-heading";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PermissionDenied } from "@/components/permission-denied";
+import { ExpandableDescriptionField } from "@/components/expandable-description-field";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -50,10 +51,11 @@ export default async function CannedServicesPage() {
                 <input name="name" required maxLength={100} defaultValue={service.name} className={inputClass} />
               </label>
               
-              <label className={labelClass}>
-                Description
-                <input name="description" required maxLength={500} defaultValue={service.description} className={inputClass} />
-              </label>
+              <ExpandableDescriptionField
+                defaultValue={service.description}
+                placeholder="Enter the reusable labor description"
+                inputClass={inputClass}
+              />
               
               <label className={labelClass}>
                 Hours
@@ -110,10 +112,10 @@ export default async function CannedServicesPage() {
             <input name="name" required maxLength={100} placeholder="e.g. Synthetic Oil Change" className={inputClass} />
           </label>
           
-          <label className={labelClass}>
-            Description
-            <input name="description" required maxLength={500} placeholder="e.g. Full synthetic replacement with filter change" className={inputClass} />
-          </label>
+          <ExpandableDescriptionField
+            placeholder="e.g. Full synthetic replacement with filter change"
+            inputClass={inputClass}
+          />
           
           <label className={labelClass}>
             Hours

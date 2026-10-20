@@ -11,6 +11,14 @@ type CustomerListItem = CustomersResult["customers"][number];
 
 export const dynamic = "force-dynamic";
 
+function customerSourceLabel(customer: CustomerListItem) {
+  const source = customer.acquisitionSource ?? (customer.legacySourceTable ? "LEGACY" : "MANUAL");
+  if (source === "WEB") return "Web";
+  if (source === "LEGACY") return "Legacy";
+  if (source === "MANUAL") return "Manual";
+  return source;
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -100,6 +108,7 @@ export default async function CustomersPage({
                   <th className={thClass}>Name</th>
                   <th className={thClass}>Email</th>
                   <th className={thClass}>Phone</th>
+                  <th className={thClass}>Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -115,6 +124,11 @@ export default async function CustomersPage({
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-600 font-medium">
                       {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {customerSourceLabel(customer)}
+                      </span>
                     </td>
                   </tr>
                 ))}

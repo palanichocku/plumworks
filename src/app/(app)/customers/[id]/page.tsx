@@ -49,9 +49,12 @@ export default async function CustomerDetailPage({
         <p className="text-sm font-semibold uppercase tracking-wider text-brand-primary">
           Customer
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          {customer.displayName}
-        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">
+            {customer.displayName}
+          </h1>
+          {customer.acquisitionSource ? <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-sky-800">Source: {customer.acquisitionSource === "WEB" ? "Web" : customer.acquisitionSource}</span> : null}
+        </div>
         </div>
         <RecordLifecycleActions id={customer.id} archived={Boolean(customer.archivedAt)} canManage={canManageLifecycle} canDelete={Boolean(canDelete && deleteBlockers === 0)} archiveAction={archiveCustomer} restoreAction={restoreCustomer} deleteAction={deleteCustomerPermanently}>{!customer.archivedAt ? <><Link href={activeVehicles.length === 1 ? `/repair-orders/new?customerId=${customer.id}&vehicleId=${activeVehicles[0].id}` : "#customer-repair-order"} className="rounded-lg border border-brand-primary px-4 py-2.5 text-sm font-semibold text-brand-primary">Create Repair Order</Link><Link href={`/customers/${customer.id}/edit`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Edit customer</Link></> : null}</RecordLifecycleActions>
       </header>
@@ -71,6 +74,8 @@ export default async function CustomerDetailPage({
             <dd className="min-w-0 truncate text-slate-900">
               {customer.email ?? "Not recorded"}
             </dd>
+            <dt className="text-slate-500">Source</dt>
+            <dd className="text-slate-900">{customer.acquisitionSource === "WEB" ? "Web" : customer.acquisitionSource ?? "Not recorded"}</dd>
             <dt className="text-slate-500">Legacy ID</dt>
             <dd className="text-slate-900">
               {customer.legacyCustno ?? "Not recorded"}

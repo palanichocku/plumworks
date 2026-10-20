@@ -8,6 +8,7 @@ import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { repairOrderEmailMessage, type RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { hasPermission } from "@/lib/permissions";
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
+import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
 import {
   createRepairOrderEmailAuthorizationRequest,
   markRepairOrderAuthorizationRequestSent,
@@ -26,8 +27,7 @@ async function authorizationOrigin() {
 
 export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, formData: FormData): Promise<RepairOrderEmailState> {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
-  const recipient = normalizeEmailRecipient(String(formData.get("recipient") ?? ""));
-  if (!recipient) return { status: "error", message: "Enter a valid recipient email address." };
+  const mode = String(formData.get("mode") ?? "estimate");
 
   const { user, membership } = await getCurrentMembership();
   if (!user || !membership) return { status: "error", message: "You do not have permission to email this Repair Order." };
@@ -36,12 +36,23 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
   if (!model) return { status: "error", message: "Repair Order not found for this shop." };
   if (model.status === "void") return { status: "error", message: "Voided Repair Orders cannot be emailed." };
 
-  const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
-  if (authorization?.status === "AUTHORIZED") {
+  const recipient = normalizeEmailRecipient(String(formData.get("recipient") ?? ""))
+    ?? normalizeEmailRecipient(model.customer.email ?? "");
+  if (!recipient) return { status: "error", message: "Add a valid customer email address before sending." };
+
+  if (mode !== "authorization") {
     const result = await deliverRepairOrderEmail(model, recipient);
     return result.ok
-      ? { status: "success", message: "Repair Order emailed successfully. This revision is already authorized." }
+      ? { status: "success", message: "Estimate emailed successfully." }
       : { status: "error", message: result.message };
+  }
+
+  const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
+  if (authorization?.status === "AUTHORIZED") {
+    return { status: "success", message: "This Repair Order revision is already authorized." };
+  }
+  if (!(await isRepairOrderReadyForAuthorization(membership.shopId, repairOrderId))) {
+    return { status: "error", message: "Save draft before sending a customer authorization request." };
   }
 
   let request: Awaited<ReturnType<typeof createRepairOrderEmailAuthorizationRequest>> | null = null;
@@ -56,7 +67,7 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
       return { status: "error", message: result.message };
     }
     await markRepairOrderAuthorizationRequestSent(request.requestId, approvalMessage.subject);
-    return { status: "success", message: "Repair Order emailed with a secure customer approval link." };
+    return { status: "success", message: `Authorization request sent to ${recipient}.` };
   } catch {
     if (request) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
     return { status: "error", message: "The secure approval request could not be sent. Please try again." };

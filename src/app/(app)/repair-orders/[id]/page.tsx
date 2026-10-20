@@ -9,7 +9,7 @@ import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { EditableRepairOrderWorkspace } from "@/components/repair-order-concerns-form";
-import { RepairOrderLaborCard, RepairOrderPartsCard } from "@/components/repair-order-line-items";
+import { RepairOrderUnifiedLineItems } from "@/components/repair-order-unified-line-items";
 import { EmailRepairOrderButton } from "@/components/email-repair-order-button";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
 import { RepairOrderInternalNotesPanel } from "@/components/repair-order-internal-notes-panel";
@@ -32,6 +32,9 @@ type CustomerEditRecord = NonNullable<Awaited<ReturnType<typeof getCustomerForEd
 type VehicleEditRecord = NonNullable<Awaited<ReturnType<typeof getVehicleForEdit>>>;
 
 export const dynamic = "force-dynamic";
+
+const overviewActionClass = "shrink-0 px-1 py-2 text-sm font-semibold text-brand-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30";
+const changeActionWrapperClass = "[&>button]:!border-0 [&>button]:!bg-transparent [&>button]:!px-1 [&>button]:!py-2 [&>button]:!text-[0px] [&>button]:!text-brand-primary [&>button]:!shadow-none [&>button]:!underline [&>button]:!underline-offset-4 [&>button:hover]:!bg-transparent [&>button:hover]:!text-brand-primary [&>button]:after:text-sm [&>button]:after:font-semibold [&>button]:after:underline [&>button]:after:underline-offset-4 [&>button]:after:content-['Change']";
 
 export default async function RepairOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,12 +60,15 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
     <div className="space-y-6">
       <header>
         <Link href="/repair-orders" className="text-sm font-semibold text-brand-primary">← Repair Orders</Link>
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Repair Order / Estimate</p>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1></div>
-          <div className="flex flex-wrap items-start gap-3"><EmailRepairOrderButton repairOrderId={order.id} defaultRecipient={normalizeEmailRecipient(order.customer.email ?? "") ?? ""} status={order.status} printHref={`/repair-orders/${order.id}/print`} />{invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : canVoid ? <VoidRepairOrderButton repairOrderId={order.id} repairOrderNumber={String(order.repairOrderNumber)} /> : null}</div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="text-3xl font-bold text-slate-950">RO #{order.repairOrderNumber}</h1>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${order.status === "void" ? "border border-red-300 bg-red-100 text-red-800" : "bg-brand-subtle text-brand-primary"}`}>{order.status}</span>
+          <span className="text-sm font-medium text-slate-600">Estimate · Created {formatDate(order.openedAt)}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <EmailRepairOrderButton repairOrderId={order.id} defaultRecipient={normalizeEmailRecipient(order.customer.email ?? "") ?? ""} status={order.status} printHref={`/repair-orders/${order.id}/print`} />
+            {invoice ? <Link href={`/invoices/${invoice.id}`} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary">{invoice.status === "open" ? "Open Invoice" : "View Invoice"}</Link> : canVoid ? <details className="relative"><summary aria-label="More Repair Order actions" className="flex min-h-10 cursor-pointer list-none items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-bold leading-none text-slate-700 hover:border-brand-primary hover:text-brand-primary">•••</summary><div className="absolute right-0 z-20 mt-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xl"><VoidRepairOrderButton repairOrderId={order.id} repairOrderNumber={String(order.repairOrderNumber)} compact /></div></details> : null}
+          </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Created {formatDate(order.openedAt)}</p>
         {order.status === "void" ? <section className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"><h2 className="font-bold">This repair order was voided and is retained for audit history.</h2><dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]"><dt className="font-semibold">Void reason</dt><dd>{repairOrderVoidReasonLabel(order.voidReason)}</dd>{order.voidNote ? <><dt className="font-semibold">Explanation</dt><dd className="whitespace-pre-wrap">{order.voidNote}</dd></> : null}<dt className="font-semibold">Voided</dt><dd>{formatDate(order.voidedAt)}</dd></dl></section> : !editable ? <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p> : null}
       </header>
 
@@ -85,17 +91,18 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         recommendation={order.recommendation}
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
-        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
-        parts={<PartsSection order={order} editable />}
-        labor={<LaborSection order={order} editable />}
+        overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
+        parts={<LineItemsSection order={order} editable />}
+        labor={null}
         totals={<TotalsSection order={order} />}
+        notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}
       /> : <RepairOrderWorkspace
-        overview={<><OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} /><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} /></>}
+        overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} />}
         concerns={<ConcernsSection order={order} />}
-        parts={<PartsSection order={order} editable={false} />}
-        labor={<LaborSection order={order} editable={false} />}
+        parts={<LineItemsSection order={order} editable={false} />}
+        labor={null}
         totals={<TotalsSection order={order} />}
-        notes={order.status === "void" ? null : <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}
+        notes={<><RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />{order.status === "void" ? null : <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">An invoice exists for this repair order, so financial lines are read-only here.</p>}</>}
       />}
     </div>
   );
@@ -110,19 +117,21 @@ function OrderOverview({ order, vehicle, customerForEdit, vehicleForEdit, canEdi
     : order.vehicle.odometer !== null
       ? { mileage: order.vehicle.odometer, source: "vehicle record" }
       : null;
-  return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2><div className="flex flex-wrap items-center justify-end gap-2"><RepairOrderHistoryButton customerId={order.customer.id} vehicleId={order.vehicle.id} vehicleLabel={vehicle || "Vehicle details unavailable"} currentRepairOrderId={order.id} />{canEditCustomerVehicle && customerForEdit ? <EditRecordDialog triggerLabel="Edit Customer" title="Edit customer" description="Update this customer's master record without leaving the Repair Order."><CustomerEditForm customer={customerForEdit} action={updateCustomer} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /> : null}</div></div>
-      <Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl>
-    </section>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Vehicle</h2><div className="flex flex-wrap items-center justify-end gap-2">{canEditCustomerVehicle && vehicleForEdit ? <EditRecordDialog triggerLabel="Edit Vehicle" title="Edit vehicle" description="Update this vehicle's master record. Current mileage for this service visit remains recorded separately on the Repair Order."><VehicleEditForm vehicle={vehicleForEdit} action={updateVehicle} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /> : null}</div></div>
-      <Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">License plate</dt><dd className="text-slate-800">{order.vehicle.licensePlate ?? "Not recorded"}</dd><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{displayedMileage ? <>{displayedMileage.mileage.toLocaleString()} <span className="text-xs text-slate-500">({displayedMileage.source})</span></> : "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
-      {canCorrectAssignment ? <RepairOrderMileageField repairOrderId={order.id} mileage={order.odometer} /> : <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-sm"><dt className="text-slate-500">Current mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? "Not recorded"}</dd></dl>}
-    </section>
-  </div>;
+  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="grid md:grid-cols-2">
+      <div className="min-w-0 p-5 md:border-r md:border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Customer</h2><div className="flex flex-wrap items-center justify-end gap-2"><RepairOrderHistoryButton customerId={order.customer.id} currentRepairOrderId={order.id} className={overviewActionClass} />{canEditCustomerVehicle && customerForEdit ? <EditRecordDialog triggerLabel="Edit" triggerClassName={overviewActionClass} title="Edit customer" description="Update this customer's master record without leaving the Repair Order."><CustomerEditForm customer={customerForEdit} action={updateCustomer} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <span className={changeActionWrapperClass}><RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="customer" /></span> : null}</div></div>
+        <Link href={`/customers/${order.customer.id}`} className="mt-3 block font-medium text-brand-primary">{order.customer.displayName}</Link>
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">Phone</dt><dd className="text-slate-800">{order.customer.phone ?? "Not recorded"}</dd><dt className="text-slate-500">Email</dt><dd className="min-w-0 break-all text-slate-800">{order.customer.email ?? "Not recorded"}</dd><dt className="text-slate-500">Address</dt><dd className="text-slate-800">{[order.customer.addressLine1, order.customer.addressLine2, locality].filter(Boolean).join(" · ") || "Not recorded"}</dd></dl>
+      </div>
+      <div className="min-w-0 border-t border-slate-200 p-5 md:border-t-0">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="ro-section-heading">Vehicle</h2><div className="flex flex-wrap items-center justify-end gap-2">{canEditCustomerVehicle && vehicleForEdit ? <EditRecordDialog triggerLabel="Edit" triggerClassName={overviewActionClass} title="Edit vehicle" description="Update this vehicle's master record. Current mileage for this service visit remains recorded separately on the Repair Order."><VehicleEditForm vehicle={vehicleForEdit} action={updateVehicle} returnTo={returnTo} embedded /></EditRecordDialog> : null}{canCorrectAssignment ? <span className={changeActionWrapperClass}><RepairOrderAssignmentActions repairOrderId={order.id} current={assignment} triggerMode="vehicle" /></span> : null}</div></div>
+        <Link href={`/vehicles/${order.vehicle.id}`} className="mt-3 block font-medium text-brand-primary">{vehicle || "Vehicle details unavailable"}</Link>
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-slate-500">License plate</dt><dd className="text-slate-800">{order.vehicle.licensePlate ?? "Not recorded"}</dd><dt className="text-slate-500">VIN</dt><dd className="min-w-0 break-all text-slate-800">{order.vehicle.vin ?? "Not recorded"}</dd><dt className="text-slate-500">Last recorded mileage</dt><dd className="text-slate-800">{displayedMileage ? <>{displayedMileage.mileage.toLocaleString()} <span className="text-xs text-slate-500">({displayedMileage.source})</span></> : "Not recorded"}</dd><dt className="text-slate-500">Engine</dt><dd className="font-semibold text-slate-900">{order.vehicle.engine ?? "Not recorded"}</dd></dl>
+        {canCorrectAssignment ? <RepairOrderMileageField repairOrderId={order.id} mileage={order.odometer} /> : <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-sm"><dt className="text-slate-500">Current mileage</dt><dd className="text-slate-800">{order.odometer?.toLocaleString() ?? "Not recorded"}</dd></dl>}
+      </div>
+    </div>
+  </section>;
 }
 
 function ConcernsSection({ order }: { order: RepairOrder }) {
@@ -130,14 +139,21 @@ function ConcernsSection({ order }: { order: RepairOrder }) {
   return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="ro-section-heading">Customer Concerns &amp; Recommendations</h2><div className="mt-5 grid gap-5 lg:grid-cols-2">{order.customerComplaint && <div><h3 className="text-sm font-semibold text-slate-700">Customer Complaint</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.customerComplaint}</p></div>}{order.recommendation && <div><h3 className="text-sm font-semibold text-slate-700">Service Recommendation</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{order.recommendation}</p></div>}</div></section>;
 }
 
-function PartsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
-  return <RepairOrderPartsCard repairOrderId={order.id} total={order.partsTotal.toString()} lines={order.parts.map((line) => ({ ...line, quantity: line.quantity.toString(), unitPrice: line.unitPrice.toString() }))} vendors={order.shop.vendors} editable={editable} />;
-}
-
-function LaborSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
+function LineItemsSection({ order, editable }: { order: RepairOrder; editable: boolean }) {
   const ordinaryLabor = order.labor.filter((line) => !line.complimentary);
   const complimentaryLabor = order.labor.filter((line) => line.complimentary);
-  return <RepairOrderLaborCard repairOrderId={order.id} total={order.laborTotal.toString()} lines={ordinaryLabor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))} complimentaryLines={complimentaryLabor.map(({ id, description }) => ({ id, description }))} services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))} defaultRate={order.shop.defaultLaborRate.toString()} editable={editable} />;
+  return <RepairOrderUnifiedLineItems
+    repairOrderId={order.id}
+    partsTotal={order.partsTotal.toString()}
+    laborTotal={order.laborTotal.toString()}
+    parts={order.parts.map((line) => ({ ...line, quantity: line.quantity.toString(), unitPrice: line.unitPrice.toString() }))}
+    labor={ordinaryLabor.map((line) => ({ ...line, hours: line.hours.toString(), hourlyRate: line.hourlyRate.toString() }))}
+    complimentary={complimentaryLabor.map(({ id, description }) => ({ id, description }))}
+    vendors={order.shop.vendors}
+    services={order.shop.cannedServices.map((service) => ({ ...service, defaultHours: service.defaultHours.toString(), defaultLaborRate: service.defaultLaborRate.toString() }))}
+    defaultRate={order.shop.defaultLaborRate.toString()}
+    editable={editable}
+  />;
 }
 
 function TotalsSection({ order }: { order: RepairOrder }) {

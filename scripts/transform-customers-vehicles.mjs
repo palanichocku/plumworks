@@ -154,6 +154,7 @@ async function main() {
         create: {
           shopId: SHOP_ID,
           ...customer,
+          acquisitionSource: "LEGACY",
         },
         select: {
           id: true,

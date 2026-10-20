@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { voidRepairOrder } from "@/app/(app)/repair-orders/void-actions";
 import { REPAIR_ORDER_VOID_REASON_OPTIONS, type VoidRepairOrderState } from "@/lib/repair-order-void";
@@ -18,6 +18,19 @@ export function VoidRepairOrderButton({ repairOrderId, repairOrderNumber, compac
   const [state, setState] = useState<VoidRepairOrderState>(initial);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!compact) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const details = triggerRef.current?.closest("details");
+      if (details?.open && !details.contains(event.target as Node)) details.open = false;
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [compact]);
 
   function submit(formData: FormData) {
     if (submitting.current) return;
@@ -40,7 +53,7 @@ export function VoidRepairOrderButton({ repairOrderId, repairOrderNumber, compac
   }
 
   return <>
-    <button type="button" onClick={showDialog} className={compact
+    <button ref={triggerRef} type="button" onClick={showDialog} className={compact
       ? "inline-flex h-9 items-center justify-center rounded-lg border border-red-300 bg-white px-3 text-xs font-bold text-red-700 hover:bg-red-700 hover:text-white focus:outline-none focus:ring-4 focus:ring-red-100"
       : "rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-700 hover:text-white focus:outline-none focus:ring-4 focus:ring-red-100"}>
       Void

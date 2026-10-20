@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 
 export const MIN_FORM_COMPLETION_MS = 3000;
+const TURNSTILE_ALWAYS_PASS_TEST_SECRET = "1x0000000000000000000000000000000AA";
 
 export function leadProtectionHash(value: string) {
   const secret = process.env.LEAD_ABUSE_HASH_SECRET;
@@ -64,8 +65,22 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     if (!result || typeof result !== "object") return failed("invalid_response", true);
     const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
     const success = value.success === true;
-    const hostnameMatched = typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
-    const actionMatched = value.action === source;
+
+    // Cloudflare's official always-pass test secret can return synthetic
+    // hostname/action values that are not representative of the request host.
+    // In Vercel Preview only, treat a successful verification with that exact
+    // documented test secret as valid. Production uses a real secret and keeps
+    // strict hostname/action validation.
+    const isOfficialPreviewTest =
+      process.env.VERCEL_ENV === "preview" &&
+      secret.trim() === TURNSTILE_ALWAYS_PASS_TEST_SECRET &&
+      success;
+
+    const hostnameMatched = isOfficialPreviewTest
+      ? true
+      : typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
+    const actionMatched = isOfficialPreviewTest ? true : value.action === source;
+
     if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
     if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
     if (!actionMatched) return failed("action_mismatch", true, true, true, false);

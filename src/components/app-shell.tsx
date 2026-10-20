@@ -1,6 +1,7 @@
 import { LeadNotificationProvider } from "./lead-notification-provider";
 import { LeadNotificationCenter } from "./lead-notification-center";
 import { SidebarSearchButton, SidebarToggle } from "./sidebar-controls";
+import { AppSessionFooter } from "./app-session-footer";
 import Link from "next/link";
 import { DesktopNavigation, MobileNavigation } from "./app-navigation";
 import { signOut } from "@/app/(app)/actions";
@@ -27,6 +28,9 @@ export function AppShell({
   canManageLeads: boolean;
 }) {
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const system: "DEV" | "PROD" = process.env.VERCEL_ENV === "production" && !siteUrl.includes("dev.") ? "PROD" : "DEV";
+
   return (
     <LeadNotificationProvider sessionKey={notificationSessionKey} enabled={canManageLeads}>
     <div id="app-shell" data-sidebar-collapsed="true" className="app-shell-canvas min-h-screen font-sans text-slate-900 antialiased">
@@ -114,7 +118,7 @@ export function AppShell({
         <div className="app-shell-content mx-auto max-w-7xl px-4 py-6 print:max-w-none print:p-0 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
-        <footer className="border-t border-slate-200 px-5 py-4 text-center text-xs text-slate-400 print:hidden lg:hidden">{poweredByText}</footer>
+        <AppSessionFooter userEmail={userEmail} system={system} />
       </main>
     </div>
     </LeadNotificationProvider>

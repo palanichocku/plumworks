@@ -1,3 +1,5 @@
+import { applyDevEmailSafety } from "@/lib/email/dev-email-safety";
+
 export type SmtpEmailAttachment = { filename: string; content: Buffer; contentType?: string };
 export type SmtpEmailMessage = { to: string; subject: string; text: string; attachments: SmtpEmailAttachment[] };
 export type SmtpEmailSendResult = { ok: true } | { ok: false; message: string };
@@ -30,8 +32,11 @@ export async function sendResendSmtpMessage(
     return { ok: false, message: "The PDF attachment is too large to email." };
   }
 
+  const safety = applyDevEmailSafety(message);
+  if (!safety.ok) return { ok: false, message: safety.message };
+
   try {
-    await dependencies.sendMail({ from: fromAddress, ...message });
+    await dependencies.sendMail({ from: fromAddress, ...safety.message });
     return { ok: true };
   } catch {
     dependencies.logError?.("Resend SMTP delivery failed.");
