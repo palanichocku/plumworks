@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
+import { getRepairOrderAuthorizationReadinessAction } from "@/app/(app)/repair-orders/authorization-actions";
 import { saveRepairOrderDraftForAuthorization } from "@/app/(app)/repair-orders/save-revision-actions";
 import { createInvoiceFromRepairOrder, type CreateInvoiceState } from "@/app/(app)/repair-orders/finalize-actions";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
@@ -130,20 +131,34 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
   const [state, action, pending] = useActionState(saveRepairOrderDraftForAuthorization, initialState);
   const [createState, createAction, creating] = useActionState(createInvoiceFromRepairOrder, initialCreateState);
   const [dirty, setDirty] = useState(false);
+  const [revisionReady, setRevisionReady] = useState(false);
+  const [readinessChecked, setReadinessChecked] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const storageKey = `plumworks:repair-order-needs-save:${repairOrderId}`;
   const authorized = authorizationStatus === "AUTHORIZED";
-  const invoiceActionDisabled = dirty || pending || creating || state.status === "error";
-  const authorizationBlockedUntilSave = dirty || pending || state.status === "error";
+  const needsSave = dirty || (readinessChecked && !revisionReady);
+  const invoiceActionDisabled = needsSave || !readinessChecked || pending || creating || state.status === "error";
+  const authorizationBlockedUntilSave = needsSave || !readinessChecked || pending || state.status === "error";
 
   const markDirty = () => {
     setDirty(true);
+    setRevisionReady(false);
+    setReadinessChecked(true);
     try { window.sessionStorage.setItem(storageKey, "1"); } catch { /* ignore storage restrictions */ }
   };
 
   useEffect(() => {
+    let active = true;
+    const checkReadiness = async () => {
+      const ready = await getRepairOrderAuthorizationReadinessAction(repairOrderId).catch(() => false);
+      if (!active) return;
+      setRevisionReady(ready);
+      setReadinessChecked(true);
+    };
+    void checkReadiness();
+
     try {
-      if (window.sessionStorage.getItem(storageKey) === "1") setDirty(true);
+      if (window.sessionStorage.getItem(storageKey) === "1") markDirty();
     } catch { /* ignore storage restrictions */ }
 
     const handleNeedsSave = (event: Event) => {
@@ -151,12 +166,17 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
       if (detail?.repairOrderId === repairOrderId) markDirty();
     };
     window.addEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
-    return () => window.removeEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
+    return () => {
+      active = false;
+      window.removeEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
+    };
   }, [repairOrderId, storageKey]);
 
   useEffect(() => {
     if (state.status !== "success") return;
     setDirty(false);
+    setRevisionReady(true);
+    setReadinessChecked(true);
     try { window.sessionStorage.removeItem(storageKey); } catch { /* ignore storage restrictions */ }
   }, [state.status, storageKey]);
 
@@ -174,21 +194,22 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
 
   const actions = <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="grid gap-2">
-      <button form="repair-order-save-form" type="submit" disabled={pending || !dirty} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>
+      <button form="repair-order-save-form" type="submit" disabled={pending || !readinessChecked || !needsSave} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>
       <form action={createAction}>
         <input type="hidden" name="repairOrderId" value={repairOrderId} />
         <button type="submit" disabled={invoiceActionDisabled || !authorized} title={!authorized ? "Customer authorization is required before invoice creation." : undefined} className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{creating ? "Creating…" : "Create invoice"}</button>
       </form>
     </div>
-    {dirty ? <p className="mt-3 text-sm font-medium text-amber-700">Repair Order changed. Save draft before requesting authorization or creating the invoice.</p> : null}
+    {needsSave && readinessChecked ? <p className="mt-3 text-sm font-medium text-amber-700">Repair Order changed. Save draft before requesting authorization or creating the invoice.</p> : null}
+    {!readinessChecked ? <p className="mt-3 text-xs font-medium text-slate-500">Checking saved Repair Order revision…</p> : null}
     {!authorized ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
       <p className="font-semibold">Needs customer authorization</p>
-      <p className="mt-1 text-xs leading-5">{dirty ? "Save the Repair Order first. Send and Verbal remain unavailable until the save completes." : "Use Send or Verbal in the authorization banner above before creating an invoice."}</p>
+      <p className="mt-1 text-xs leading-5">{needsSave || !readinessChecked ? "Save the Repair Order first. Send and Verbal remain unavailable until the save completes." : "Use Send or Verbal in the authorization banner above before creating an invoice."}</p>
       {canOverrideAuthorization ? <button type="button" disabled={invoiceActionDisabled} onClick={() => setOverrideOpen(true)} className="mt-2 text-xs font-bold text-amber-900 underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50">Owner/Admin override</button> : null}
     </div> : null}
     {createState.status === "error" ? <p role="alert" aria-live="assertive" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{createState.message}</p> : null}
-    {!dirty && !pending && state.status === "success" ? <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"><span aria-hidden="true">✓</span> Repair Order saved. Customer authorization can now be requested.</p> : null}
-    {!dirty && !pending && state.status === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{state.message}</p> : null}
+    {!needsSave && readinessChecked && !pending && state.status === "success" ? <p role="status" aria-live="polite" className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"><span aria-hidden="true">✓</span> Repair Order saved. Customer authorization can now be requested.</p> : null}
+    {!pending && state.status === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{state.message}</p> : null}
     <p className="mt-3 text-xs leading-5 text-slate-500">Final adjustments and payments happen on the open invoice. Recording the final payment closes it.</p>
     <Link href="/repair-orders" className="mt-3 inline-flex w-full justify-center px-4 py-2 text-sm font-semibold text-slate-700 underline underline-offset-2 hover:text-brand-primary">Cancel</Link>
   </div>;
