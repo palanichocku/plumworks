@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 
 export const MIN_FORM_COMPLETION_MS = 3000;
+const TURNSTILE_ALWAYS_PASS_TEST_SECRET = "1x0000000000000000000000000000000AA";
 
 export function leadProtectionHash(value: string) {
   const secret = process.env.LEAD_ABUSE_HASH_SECRET;
@@ -65,18 +66,33 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
     const success = value.success === true;
 
-    // Cloudflare's official testing credentials return the synthetic
-    // hostname/action localhost/test. Accept that exact response only on Vercel
-    // Preview deployments. Production always keeps strict hostname/action checks.
-    const isOfficialPreviewTestResponse =
-      process.env.VERCEL_ENV === "preview" &&
+    // Cloudflare's official always-pass testing credentials return the fixed
+    // synthetic hostname/action localhost/test. Recognize that response only
+    // when the server is actually configured with Cloudflare's documented
+    // test secret. Production uses a different secret and therefore always
+    // keeps strict hostname/action validation.
+    const isOfficialTestSecret = secret.trim() === TURNSTILE_ALWAYS_PASS_TEST_SECRET;
+    const isOfficialTestResponse =
+      isOfficialTestSecret &&
+      success &&
       value.hostname === "localhost" &&
       value.action === "test";
 
-    const hostnameMatched = isOfficialPreviewTestResponse
+    if (isOfficialTestSecret) {
+      console.info("turnstile_test_diagnostic", {
+        success,
+        hostname: typeof value.hostname === "string" ? value.hostname : null,
+        action: typeof value.action === "string" ? value.action : null,
+        testSecretMatched: true,
+        testResponseMatched: isOfficialTestResponse,
+        vercelEnv: process.env.VERCEL_ENV ?? null,
+      });
+    }
+
+    const hostnameMatched = isOfficialTestResponse
       ? true
       : typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
-    const actionMatched = isOfficialPreviewTestResponse ? true : value.action === source;
+    const actionMatched = isOfficialTestResponse ? true : value.action === source;
 
     if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
     if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
