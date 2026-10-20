@@ -4,7 +4,6 @@ import { isIP } from "node:net";
 import type { MarketingLeadSource } from "@/generated/prisma/client";
 
 export const MIN_FORM_COMPLETION_MS = 3000;
-const TURNSTILE_ALWAYS_PASS_TEST_SITE_KEY = "1x00000000000000000000AA";
 
 export function leadProtectionHash(value: string) {
   const secret = process.env.LEAD_ABUSE_HASH_SECRET;
@@ -66,20 +65,18 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
     const success = value.success === true;
 
-    // Cloudflare's official test site key returns a fixed synthetic
-    // hostname/action (localhost/test). Accept that response only in Preview
-    // when this deployment is explicitly configured for our dedicated Dev host
-    // and the official Cloudflare test site key. Production cannot satisfy this
-    // combination and therefore always keeps strict hostname/action validation.
-    const isDevTestMode =
+    // Cloudflare's official testing credentials return the synthetic
+    // hostname/action localhost/test. Accept that exact response only on Vercel
+    // Preview deployments. Production always keeps strict hostname/action checks.
+    const isOfficialPreviewTestResponse =
       process.env.VERCEL_ENV === "preview" &&
-      process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY === TURNSTILE_ALWAYS_PASS_TEST_SITE_KEY &&
-      hosts.includes("dev.subbuscardoc.com");
+      value.hostname === "localhost" &&
+      value.action === "test";
 
-    const hostnameMatched = isDevTestMode
-      ? value.hostname === "localhost"
+    const hostnameMatched = isOfficialPreviewTestResponse
+      ? true
       : typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
-    const actionMatched = isDevTestMode ? value.action === "test" : value.action === source;
+    const actionMatched = isOfficialPreviewTestResponse ? true : value.action === source;
 
     if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
     if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
