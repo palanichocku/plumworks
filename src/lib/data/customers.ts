@@ -36,6 +36,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1, life
       email: true,
       phone: true,
       acquisitionSource: true,
+      legacySourceTable: true,
       archivedAt: true,
     },
   });
