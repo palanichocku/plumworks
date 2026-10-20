@@ -10,6 +10,7 @@ const initialState: RepairOrderSaveState = { status: "idle" };
 const initialCreateState: CreateInvoiceState = { status: "idle" };
 const textareaClass = "mt-1.5 min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
+const REPAIR_ORDER_NEEDS_SAVE_EVENT = "plumworks:repair-order-needs-save";
 
 type SpeechRecognitionResultEventLike = { results: ArrayLike<{ 0: { transcript: string } }> };
 type SpeechRecognitionErrorEventLike = { error?: string };
@@ -25,6 +26,7 @@ type SpeechRecognitionLike = {
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type DictationTarget = "concern" | "recommendation";
+type RepairOrderNeedsSaveDetail = { repairOrderId: string };
 
 function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
   const [concernText, setConcernText] = useState(customerComplaint ?? "");
@@ -128,9 +130,34 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
   const [createState, createAction, creating] = useActionState(createInvoiceFromRepairOrder, initialCreateState);
   const [dirty, setDirty] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const storageKey = `plumworks:repair-order-needs-save:${repairOrderId}`;
   const authorized = authorizationStatus === "AUTHORIZED";
   const invoiceActionDisabled = dirty || pending || creating || state.status === "error";
   const authorizationBlockedUntilSave = dirty || pending || state.status === "error";
+
+  const markDirty = () => {
+    setDirty(true);
+    try { window.sessionStorage.setItem(storageKey, "1"); } catch { /* ignore storage restrictions */ }
+  };
+
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem(storageKey) === "1") setDirty(true);
+    } catch { /* ignore storage restrictions */ }
+
+    const handleNeedsSave = (event: Event) => {
+      const detail = (event as CustomEvent<RepairOrderNeedsSaveDetail>).detail;
+      if (detail?.repairOrderId === repairOrderId) markDirty();
+    };
+    window.addEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
+    return () => window.removeEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
+  }, [repairOrderId, storageKey]);
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    setDirty(false);
+    try { window.sessionStorage.removeItem(storageKey); } catch { /* ignore storage restrictions */ }
+  }, [state.status, storageKey]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(REPAIR_ORDER_SAVE_STATE_EVENT, {
@@ -146,16 +173,16 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
 
   const actions = <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="grid gap-2">
-      <button form="repair-order-save-form" type="submit" disabled={pending} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg border border-slate-400 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save draft"}</button>
+      <button form="repair-order-save-form" type="submit" disabled={pending || !dirty} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>
       <form action={createAction}>
         <input type="hidden" name="repairOrderId" value={repairOrderId} />
         <button type="submit" disabled={invoiceActionDisabled || !authorized} title={!authorized ? "Customer authorization is required before invoice creation." : undefined} className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{creating ? "Creating…" : "Create invoice"}</button>
       </form>
     </div>
-    {dirty ? <p className="mt-3 text-sm font-medium text-amber-700">Save draft changes before creating the invoice or requesting authorization.</p> : null}
+    {dirty ? <p className="mt-3 text-sm font-medium text-amber-700">Repair Order changed. Save draft before requesting authorization or creating the invoice.</p> : null}
     {!authorized ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
       <p className="font-semibold">Needs customer authorization</p>
-      <p className="mt-1 text-xs leading-5">Save the Repair Order first, then use Send or Verbal in the authorization banner above.</p>
+      <p className="mt-1 text-xs leading-5">{dirty ? "Save the Repair Order first. Send and Verbal remain unavailable until the save completes." : "Use Send or Verbal in the authorization banner above before creating an invoice."}</p>
       {canOverrideAuthorization ? <button type="button" disabled={invoiceActionDisabled} onClick={() => setOverrideOpen(true)} className="mt-2 text-xs font-bold text-amber-900 underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50">Owner/Admin override</button> : null}
     </div> : null}
     {createState.status === "error" ? <p role="alert" aria-live="assertive" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{createState.message}</p> : null}
@@ -166,7 +193,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
   </div>;
 
   return <>
-    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} onChange={() => setDirty(true)} onSubmit={() => setDirty(false)} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
+    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} onChange={markDirty} onSubmit={() => undefined} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
     {overrideOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" aria-label="Cancel authorization override" disabled={creating} onClick={() => setOverrideOpen(false)} className="absolute inset-0 bg-slate-950/50" />
       <section role="alertdialog" aria-modal="true" aria-labelledby="authorization-override-title" className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
