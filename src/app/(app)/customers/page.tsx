@@ -11,6 +11,10 @@ type CustomerListItem = CustomersResult["customers"][number];
 
 export const dynamic = "force-dynamic";
 
+function customerSource(customer: CustomerListItem) {
+  return customer.legacySourceTable ? "Legacy" : "Manual";
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -100,24 +104,33 @@ export default async function CustomersPage({
                   <th className={thClass}>Name</th>
                   <th className={thClass}>Email</th>
                   <th className={thClass}>Phone</th>
+                  <th className={thClass}>Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {customers.map((customer: CustomerListItem) => (
-                  <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
-                        {customer.displayName} {customer.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
-                      {customer.email ?? <span className="text-slate-300 font-sans font-normal italic">No email</span>}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
-                      {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
-                    </td>
-                  </tr>
-                ))}
+                {customers.map((customer: CustomerListItem) => {
+                  const source = customerSource(customer);
+                  return (
+                    <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                        <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
+                          {customer.displayName} {customer.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                        {customer.email ?? <span className="text-slate-300 font-sans font-normal italic">No email</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                        {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${source === "Legacy" ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700"}`}>
+                          {source}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
