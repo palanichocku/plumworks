@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
-import { updateRepairOrderConcerns, type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
+import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
+import { saveRepairOrderDraftForAuthorization } from "@/app/(app)/repair-orders/save-revision-actions";
 import { createInvoiceFromRepairOrder, type CreateInvoiceState } from "@/app/(app)/repair-orders/finalize-actions";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 
@@ -126,7 +127,7 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
 }
 
 export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint, recommendation, overview, parts, labor, totals, notes, authorizationStatus, canOverrideAuthorization }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; overview: ReactNode; parts: ReactNode; labor: ReactNode; totals: ReactNode; notes: ReactNode; authorizationStatus: "AUTHORIZED" | "NOT_AUTHORIZED"; canOverrideAuthorization: boolean }) {
-  const [state, action, pending] = useActionState(updateRepairOrderConcerns, initialState);
+  const [state, action, pending] = useActionState(saveRepairOrderDraftForAuthorization, initialState);
   const [createState, createAction, creating] = useActionState(createInvoiceFromRepairOrder, initialCreateState);
   const [dirty, setDirty] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
