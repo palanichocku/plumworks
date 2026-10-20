@@ -10,6 +10,12 @@ export type VerbalAuthorizationActionState =
   | { status: "success"; message: string }
   | { status: "error"; message: string };
 
+export async function getRepairOrderAuthorizationReadinessAction(repairOrderId: string): Promise<boolean> {
+  const { membership } = await getCurrentMembership();
+  if (!membership) return false;
+  return isRepairOrderReadyForAuthorization(membership.shopId, repairOrderId);
+}
+
 export async function recordVerbalAuthorizationAction(
   _previous: VerbalAuthorizationActionState,
   formData: FormData,
