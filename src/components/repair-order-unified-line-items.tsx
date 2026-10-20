@@ -20,6 +20,7 @@ const idleLabor: LaborActionState = { status: "idle" };
 const idleComplimentary: ComplimentaryServiceActionState = { status: "idle" };
 const inputClass = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
 const descriptionClass = `${inputClass} resize-none overflow-y-hidden whitespace-pre-wrap break-words leading-5`;
+const laborDescriptionWrapperClass = "[&>div>div:first-child>span:last-child]:hidden";
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number.isFinite(value) ? value : 0);
 
 export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTotal, parts, labor, complimentary, vendors, services, defaultRate, editable }: {
@@ -171,12 +172,19 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
     setRate(service.defaultLaborRate);
     setEligible(service.shopSuppliesEligible);
   }
+  function clearPreset() {
+    setSelectedPresetId(null);
+    setDescription(line.description);
+    setHours(line.hours);
+    setRate(line.hourlyRate);
+    setEligible(line.shopSuppliesEligible);
+  }
   return <form action={action} className="bg-emerald-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
-    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={() => setSelectedPresetId(null)} />
+    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={clearPreset} />
     <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="labor" /></div>
-      <HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
+      <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
       <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <div className="self-center text-right font-semibold">{money(Number(hours) * Number(rate))}</div>
@@ -271,13 +279,20 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
     setRate(service.defaultLaborRate);
     setEligible(service.shopSuppliesEligible);
   }
+  function clearPreset() {
+    setSelectedPresetId(null);
+    setDescription("");
+    setHours("");
+    setRate(defaultRate);
+    setEligible(true);
+  }
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <DraftHeader pending={pending} />
-    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={() => setSelectedPresetId(null)} />
+    <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={clearPreset} />
     <div className="grid gap-3 lg:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
-      <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow />
+      <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow /></div>
       <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
