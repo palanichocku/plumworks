@@ -46,6 +46,10 @@ function PhoneIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.69 2.81a2 2 0 0 1-.45 2.11L8.08 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.33 1.85.56 2.81.69A2 2 0 0 1 22 16.92Z" /></svg>;
 }
 
+function EmailIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>;
+}
+
 function CalendarIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></svg>;
 }
@@ -54,10 +58,14 @@ function ContactPreference({ preferred }: { preferred: MarketingLead["preferredC
   if (!preferred) return null;
   const textPreferred = preferred === "TEXT";
   const callPreferred = preferred === "PHONE_CALL";
+  const emailPreferred = preferred === "EMAIL";
+  const secondary = "border-slate-300 bg-slate-50 text-slate-500";
+  const primary = "border-brand-primary bg-brand-primary text-white";
   return <div className="flex flex-wrap items-center gap-2 sm:justify-end">
     <span className="mr-1 text-xs font-black uppercase tracking-wide text-slate-500">Preferred</span>
-    <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black ${textPreferred ? "border-brand-primary bg-brand-primary text-white" : "border-slate-300 bg-white text-slate-900"}`}><MessageIcon />Text</span>
-    <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black ${callPreferred ? "border-brand-primary bg-brand-primary text-white" : "border-slate-300 bg-white text-slate-900"}`}><PhoneIcon />Call</span>
+    <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black ${textPreferred ? primary : secondary}`}><MessageIcon />Text</span>
+    <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black ${callPreferred ? primary : secondary}`}><PhoneIcon />Call</span>
+    <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black ${emailPreferred ? primary : secondary}`}><EmailIcon />Email</span>
   </div>;
 }
 
