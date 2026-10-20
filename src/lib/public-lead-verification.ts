@@ -67,12 +67,12 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     const success = value.success === true;
 
     // Cloudflare's official test site key returns a fixed synthetic
-    // hostname/action (localhost/test). Only accept that response in our
-    // dedicated dev Preview deployment. Production and all other previews keep
-    // strict hostname/action validation.
+    // hostname/action (localhost/test). Accept that response only in Preview
+    // when this deployment is explicitly configured for our dedicated Dev host
+    // and the official Cloudflare test site key. Production cannot satisfy this
+    // combination and therefore always keeps strict hostname/action validation.
     const isDevTestMode =
       process.env.VERCEL_ENV === "preview" &&
-      process.env.VERCEL_GIT_COMMIT_REF === "dev" &&
       process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY === TURNSTILE_ALWAYS_PASS_TEST_SITE_KEY &&
       hosts.includes("dev.subbuscardoc.com");
 
