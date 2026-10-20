@@ -19,7 +19,7 @@ export async function createCustomer(formData: FormData) {
     throw new Error("Invalid customer information.");
   }
   const { membership } = await requirePermission("edit_customer_vehicle");
-  const customer = await prisma.customer.create({ data: { shopId: membership.shopId, displayName, phone, phone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null }, select: { id: true } });
+  const customer = await prisma.customer.create({ data: { shopId: membership.shopId, displayName, phone, phone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null, acquisitionSource: "MANUAL" }, select: { id: true } });
   redirect(`/customers/${customer.id}`);
 }
 
