@@ -11,6 +11,10 @@ const statuses = new Set(Object.values(MarketingLeadStatus));
 
 type LeadCustomerLink = { customer_id: string | null };
 
+function normalizedCustomerName(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+}
+
 export async function updateLeadStatus(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "") as MarketingLeadStatus;
@@ -50,28 +54,38 @@ export async function updateLeadStatus(formData: FormData) {
           WHERE id = ${id}::uuid AND shop_id = ${membership.shopId}::uuid
         `;
         let customerId = links[0]?.customer_id ?? null;
+        const leadName = normalizedCustomerName(lead.name);
 
+        // Keep an existing lead->customer link only when the active customer's
+        // name still matches the lead. This lets a previously incorrect contact-
+        // only match repair itself when the Scheduled lead is saved again.
         if (customerId) {
           const linkedCustomer = await transaction.customer.findFirst({
             where: { id: customerId, shopId: membership.shopId, archivedAt: null },
-            select: { id: true },
+            select: { id: true, displayName: true },
           });
-          if (!linkedCustomer) customerId = null;
+          if (!linkedCustomer || normalizedCustomerName(linkedCustomer.displayName) !== leadName) customerId = null;
         }
 
         const storedPhone = customerPhoneForStorage(lead.phone ?? "");
+
+        // Reuse an existing customer only when BOTH identity name and a contact
+        // point agree. Shared/reused emails or phone numbers must not cause a
+        // website lead to attach to a different person.
         if (!customerId && lead.email) {
-          const emailMatch = await transaction.customer.findFirst({
+          const emailCandidates = await transaction.customer.findMany({
             where: { shopId: membership.shopId, archivedAt: null, email: { equals: lead.email, mode: "insensitive" } },
-            select: { id: true },
+            select: { id: true, displayName: true },
           });
+          const emailMatch = emailCandidates.find((candidate) => normalizedCustomerName(candidate.displayName) === leadName);
           customerId = emailMatch?.id ?? null;
         }
         if (!customerId && storedPhone) {
-          const phoneMatch = await transaction.customer.findFirst({
+          const phoneCandidates = await transaction.customer.findMany({
             where: { shopId: membership.shopId, archivedAt: null, OR: [{ phone: storedPhone }, { phone2: storedPhone }] },
-            select: { id: true },
+            select: { id: true, displayName: true },
           });
+          const phoneMatch = phoneCandidates.find((candidate) => normalizedCustomerName(candidate.displayName) === leadName);
           customerId = phoneMatch?.id ?? null;
         }
 
