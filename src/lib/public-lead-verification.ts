@@ -66,33 +66,20 @@ export async function verifyLeadTurnstile(token: string, source: MarketingLeadSo
     const value = result as { success?: unknown; hostname?: unknown; action?: unknown };
     const success = value.success === true;
 
-    // Cloudflare's official always-pass testing credentials return the fixed
-    // synthetic hostname/action localhost/test. Recognize that response only
-    // when the server is actually configured with Cloudflare's documented
-    // test secret. Production uses a different secret and therefore always
-    // keeps strict hostname/action validation.
-    const isOfficialTestSecret = secret.trim() === TURNSTILE_ALWAYS_PASS_TEST_SECRET;
-    const isOfficialTestResponse =
-      isOfficialTestSecret &&
-      success &&
-      value.hostname === "localhost" &&
-      value.action === "test";
+    // Cloudflare's official always-pass test secret can return synthetic
+    // hostname/action values that are not representative of the request host.
+    // In Vercel Preview only, treat a successful verification with that exact
+    // documented test secret as valid. Production uses a real secret and keeps
+    // strict hostname/action validation.
+    const isOfficialPreviewTest =
+      process.env.VERCEL_ENV === "preview" &&
+      secret.trim() === TURNSTILE_ALWAYS_PASS_TEST_SECRET &&
+      success;
 
-    if (isOfficialTestSecret) {
-      console.info("turnstile_test_diagnostic", {
-        success,
-        hostname: typeof value.hostname === "string" ? value.hostname : null,
-        action: typeof value.action === "string" ? value.action : null,
-        testSecretMatched: true,
-        testResponseMatched: isOfficialTestResponse,
-        vercelEnv: process.env.VERCEL_ENV ?? null,
-      });
-    }
-
-    const hostnameMatched = isOfficialTestResponse
+    const hostnameMatched = isOfficialPreviewTest
       ? true
       : typeof value.hostname === "string" && hosts.includes(value.hostname.toLowerCase());
-    const actionMatched = isOfficialTestResponse ? true : value.action === source;
+    const actionMatched = isOfficialPreviewTest ? true : value.action === source;
 
     if (!success) return failed("verification_failed", true, false, hostnameMatched, actionMatched);
     if (!hostnameMatched) return failed("hostname_mismatch", true, true, false, actionMatched);
