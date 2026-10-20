@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
+import { getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 
@@ -50,20 +50,42 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [state, setState] = useState<VerbalAuthorizationActionState>(initial);
-  const [saveRequired, setSaveRequired] = useState(false);
+  const [saveStateBlocked, setSaveStateBlocked] = useState(false);
+  const [revisionReady, setRevisionReady] = useState(false);
+  const [readinessChecked, setReadinessChecked] = useState(false);
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const authorized = summary.status === "AUTHORIZED";
+  const saveRequired = !readinessChecked || saveStateBlocked || !revisionReady;
   const waitingForEmailApproval = emailState.status === "success" && !authorized;
 
   useEffect(() => {
+    let active = true;
+    const checkReadiness = async () => {
+      const ready = await getRepairOrderAuthorizationReadinessAction(repairOrderId).catch(() => false);
+      if (!active) return;
+      setRevisionReady(ready);
+      setReadinessChecked(true);
+    };
+    void checkReadiness();
+
     const handleSaveState = (event: Event) => {
       const detail = (event as CustomEvent<RepairOrderSaveStateDetail>).detail;
-      if (detail?.repairOrderId === repairOrderId) setSaveRequired(detail.blocked);
+      if (detail?.repairOrderId !== repairOrderId) return;
+      setSaveStateBlocked(detail.blocked);
+      if (detail.blocked) {
+        setRevisionReady(false);
+        setReadinessChecked(true);
+      } else {
+        void checkReadiness();
+      }
     };
     window.addEventListener(REPAIR_ORDER_SAVE_STATE_EVENT, handleSaveState);
-    return () => window.removeEventListener(REPAIR_ORDER_SAVE_STATE_EVENT, handleSaveState);
+    return () => {
+      active = false;
+      window.removeEventListener(REPAIR_ORDER_SAVE_STATE_EVENT, handleSaveState);
+    };
   }, [repairOrderId]);
 
   useEffect(() => {
@@ -103,15 +125,16 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
           <strong className={authorized ? "text-emerald-950" : "text-amber-950"}>{authorized ? "Authorized" : "Authorization required"}</strong>
           <span className={authorized ? "text-emerald-800" : "text-amber-900"}>· {authorized && summary.approvedAt ? `Approved by ${summary.authorizerName ?? "customer"} on ${new Date(summary.approvedAt).toLocaleString()}` : "No approval exists for the current revision"}</span>
         </div>
-        {saveRequired ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">{authorized ? "Unsaved RO changes detected. Save draft to recheck authorization." : "Save draft before requesting customer authorization."}</p> : null}
+        {saveRequired && readinessChecked ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">{authorized ? "Repair Order changed after approval. Save draft and obtain authorization again." : "Repair Order changed. Save draft before requesting customer authorization."}</p> : null}
+        {!readinessChecked ? <p role="status" className="mt-1 text-xs font-medium text-slate-600">Checking saved Repair Order revision…</p> : null}
         {emailState.status !== "idle" ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{emailState.message}</p> : null}
         {waitingForEmailApproval ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer approval · this page updates automatically.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className="px-1.5 py-2 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-brand-primary">Evidence</Link> : null}
         <button type="button" onClick={() => setShowHistory((value) => !value)} className="px-1.5 py-2 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-brand-primary">{showHistory ? "Hide history" : "History"}</button>
-        {editable && !authorized ? <form action={emailAction}><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="mode" value="authorization" /><button type="submit" disabled={emailPending || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><MailIcon />{emailPending ? "Sending…" : "Send"}</button></form> : null}
-        {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => { setState(initial); setOpen(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50"><MicIcon />Verbal</button> : null}
+        {editable && !authorized ? <form action={emailAction}><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="mode" value="authorization" /><button type="submit" disabled={emailPending || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{emailPending ? "Sending…" : "Send"}</button></form> : null}
+        {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => { setState(initial); setOpen(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400"><MicIcon />Verbal</button> : null}
       </div>
     </div>
 
