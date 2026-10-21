@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { addLaborLineWithState, deleteLaborLine, updateLaborLineWithState, type LaborActionState } from "@/app/(app)/repair-orders/labor-actions";
 import { addComplimentaryServiceWithState, deleteComplimentaryService, updateComplimentaryServiceWithState, type ComplimentaryServiceActionState } from "@/app/(app)/repair-orders/complimentary-service-actions";
 import { addPartLineWithState, deletePartLine, updatePartLineWithState } from "@/app/(app)/repair-orders/part-actions";
+import { reorderRepairOrderLine } from "@/app/(app)/repair-orders/reorder-line-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PendingIcon, TrashIcon } from "@/components/line-item-layout";
 import { VendorCombobox, type VendorOption } from "@/components/vendor-combobox";
@@ -40,7 +41,7 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
       <div>
         <h2 className="text-base font-bold text-slate-950">Line items</h2>
-        <p className="mt-1 text-xs text-slate-500">Parts use quantity × unit price. Labor uses hours × rate. Complimentary services remain $0.00.</p>
+        <p className="mt-1 text-xs text-slate-500">Parts use quantity × unit price. Labor uses hours × rate. Use ↑/↓ to order Parts within Parts and Labor within Labor.</p>
       </div>
       <p className="text-sm font-semibold text-slate-700">Parts {money(Number(partsTotal))} <span className="mx-1 text-slate-300">·</span> Labor {money(Number(laborTotal))}</p>
     </div>
@@ -48,8 +49,8 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
       <span>Type</span><span>Description</span><span>Vendor / service</span><span className="text-right">Qty / hrs</span><span className="text-right">Price / rate</span><span className="text-right">Amount</span><span />
     </div>
     <div className="divide-y divide-slate-200">
-      {parts.map((line) => <PartSavedRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} editable={editable} />)}
-      {labor.map((line) => <LaborSavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} />)}
+      {parts.map((line, index) => <PartSavedRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} editable={editable} canMoveUp={index > 0} canMoveDown={index < parts.length - 1} />)}
+      {labor.map((line, index) => <LaborSavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} canMoveUp={index > 0} canMoveDown={index < labor.length - 1} />)}
       {complimentary.map((line) => <ComplimentarySavedRow key={line.id} repairOrderId={repairOrderId} line={line} editable={editable} />)}
       {!parts.length && !labor.length && !complimentary.length ? <p className="px-4 py-5 text-sm text-slate-500 sm:px-5">No line items yet.</p> : null}
     </div>
@@ -62,9 +63,23 @@ function TypeBadge({ type }: { type: LineType }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${type === "part" ? "bg-blue-50 text-blue-800" : type === "labor" ? "bg-emerald-50 text-emerald-800" : "bg-violet-50 text-violet-800"}`}>{label}</span>;
 }
 
-function DisplayRow({ type, description, secondary, qty, rate, amount, actions }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode }) {
+function ReorderControls({ repairOrderId, lineId, lineType, canMoveUp, canMoveDown }: { repairOrderId: string; lineId: string; lineType: "part" | "labor"; canMoveUp: boolean; canMoveDown: boolean }) {
+  const buttonClass = "inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-black text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent";
+  return <div className="flex shrink-0 flex-col" aria-label={`Reorder ${lineType}`}>
+    <form action={reorderRepairOrderLine}>
+      <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="lineId" value={lineId} /><input type="hidden" name="lineType" value={lineType} /><input type="hidden" name="direction" value="up" />
+      <button type="submit" disabled={!canMoveUp} title={`Move ${lineType} up`} aria-label={`Move ${lineType} up`} className={buttonClass}>▲</button>
+    </form>
+    <form action={reorderRepairOrderLine}>
+      <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="lineId" value={lineId} /><input type="hidden" name="lineType" value={lineType} /><input type="hidden" name="direction" value="down" />
+      <button type="submit" disabled={!canMoveDown} title={`Move ${lineType} down`} aria-label={`Move ${lineType} down`} className={buttonClass}>▼</button>
+    </form>
+  </div>;
+}
+
+function DisplayRow({ type, description, secondary, qty, rate, amount, actions, reorder }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode; reorder?: React.ReactNode }) {
   return <div className="grid gap-2 px-4 py-3 text-sm lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-center lg:gap-3 sm:px-5">
-    <div><TypeBadge type={type} /></div>
+    <div className="flex items-center gap-1"><TypeBadge type={type} />{reorder}</div>
     <ReadOnlyDescriptionPreview value={description} />
     <div className="text-slate-500">{secondary}</div>
     <div className="flex justify-between gap-3 lg:block lg:text-right"><span className="text-slate-500 lg:hidden">Qty / hrs</span><span>{qty}</span></div>
@@ -88,10 +103,10 @@ function EditActions({ pending, onClose }: { pending: boolean; onClose: () => vo
   </div>;
 }
 
-function PartSavedRow({ repairOrderId, line, vendors, editable }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; editable: boolean }) {
+function PartSavedRow({ repairOrderId, line, vendors, editable, canMoveUp, canMoveDown }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; editable: boolean; canMoveUp: boolean; canMoveDown: boolean }) {
   const [editing, setEditing] = useState(false);
   if (editing && editable) return <PartEditRow repairOrderId={repairOrderId} line={line} vendors={vendors} onClose={() => setEditing(false)} />;
-  return <DisplayRow type="part" description={line.description} secondary={line.vendor?.name ?? "—"} qty={line.quantity} rate={money(Number(line.unitPrice))} amount={money(Number(line.quantity) * Number(line.unitPrice))} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deletePartLine} deleteLabel="part" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} /></>} /> : null} />;
+  return <DisplayRow type="part" description={line.description} secondary={line.vendor?.name ?? "—"} qty={line.quantity} rate={money(Number(line.unitPrice))} amount={money(Number(line.quantity) * Number(line.unitPrice))} reorder={editable ? <ReorderControls repairOrderId={repairOrderId} lineId={line.id} lineType="part" canMoveUp={canMoveUp} canMoveDown={canMoveDown} /> : null} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deletePartLine} deleteLabel="part" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} /></>} /> : null} />;
 }
 
 function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; onClose: () => void }) {
@@ -115,10 +130,10 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
   </form>;
 }
 
-function LaborSavedRow({ repairOrderId, line, services, editable }: { repairOrderId: string; line: LaborLine; services: CommonService[]; editable: boolean }) {
+function LaborSavedRow({ repairOrderId, line, services, editable, canMoveUp, canMoveDown }: { repairOrderId: string; line: LaborLine; services: CommonService[]; editable: boolean; canMoveUp: boolean; canMoveDown: boolean }) {
   const [editing, setEditing] = useState(false);
   if (editing && editable) return <LaborEditRow repairOrderId={repairOrderId} line={line} services={services} onClose={() => setEditing(false)} />;
-  return <DisplayRow type="labor" description={line.description} secondary={line.shopSuppliesEligible ? "Shop supplies" : "—"} qty={line.hours} rate={money(Number(line.hourlyRate))} amount={money(Number(line.hours) * Number(line.hourlyRate))} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteLaborLine} deleteLabel="labor" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
+  return <DisplayRow type="labor" description={line.description} secondary={line.shopSuppliesEligible ? "Shop supplies" : "—"} qty={line.hours} rate={money(Number(line.hourlyRate))} amount={money(Number(line.hours) * Number(line.hourlyRate))} reorder={editable ? <ReorderControls repairOrderId={repairOrderId} lineId={line.id} lineType="labor" canMoveUp={canMoveUp} canMoveDown={canMoveDown} /> : null} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteLaborLine} deleteLabel="labor" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
 }
 
 function LaborPresetPicker({ services, selectedId, modified, onSelect, onClear }: { services: CommonService[]; selectedId: string | null; modified: boolean; onSelect: (service: CommonService) => void; onClear: () => void }) {
