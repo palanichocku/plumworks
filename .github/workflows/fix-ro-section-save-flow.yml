@@ -1,0 +1,109 @@
+name: Fix RO section save flow
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-ro-section-save-flow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Split section saves from financial draft save
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # 1) Financial draft save should only capture the current financial revision.
+          p = Path('src/app/(app)/repair-orders/save-revision-actions.ts')
+          s = p.read_text()
+          s = s.replace('import { updateRepairOrderConcerns, type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";', 'import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";')
+          old = '''export async function saveRepairOrderDraftForAuthorization(\n  previousState: RepairOrderSaveState,\n  formData: FormData,\n): Promise<RepairOrderSaveState> {\n  const result = await updateRepairOrderConcerns(previousState, formData);\n  if (result.status !== "success") return result;\n\n  const repairOrderId = String(formData.get("repairOrderId") ?? "");\n  const { membership } = await getCurrentMembership();'''
+          new = '''export async function saveRepairOrderDraftForAuthorization(\n  _previousState: RepairOrderSaveState,\n  formData: FormData,\n): Promise<RepairOrderSaveState> {\n  const repairOrderId = String(formData.get("repairOrderId") ?? "");\n  const { membership } = await getCurrentMembership();'''
+          if old not in s:
+              raise SystemExit('save revision action block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # 2) Concerns save themselves; summary is driven only by financial readiness.
+          p = Path('src/components/repair-order-concerns-form.tsx')
+          s = p.read_text()
+          s = s.replace('import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";', 'import { updateRepairOrderConcerns, type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";')
+          s = s.replace('const REPAIR_ORDER_NEEDS_SAVE_EVENT = "plumworks:repair-order-needs-save";\ntype RepairOrderNeedsSaveDetail = { repairOrderId: string };\n', '')
+
+          old_sig = '''function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, pending, state, onChange }: {\n  repairOrderId: string;\n  customerComplaint: string | null;\n  recommendation: string | null;\n  action: (formData: FormData) => void;\n  pending: boolean;\n  state: RepairOrderSaveState;\n  onChange: () => void;\n}) {'''
+          new_sig = '''function ConcernsForm({ repairOrderId, customerComplaint, recommendation }: {\n  repairOrderId: string;\n  customerComplaint: string | null;\n  recommendation: string | null;\n}) {\n  const [state, action, pending] = useActionState(updateRepairOrderConcerns, initialState);'''
+          if old_sig not in s:
+              raise SystemExit('concerns signature not found')
+          s = s.replace(old_sig, new_sig, 1)
+
+          s = s.replace('onChange={(next) => { setConcernText(next); onChange(); }}', 'onChange={setConcernText}')
+          s = s.replace('onChange={(event) => { setConcernText(event.target.value); onChange(); }}', 'onChange={(event) => setConcernText(event.target.value)}')
+          s = s.replace('onChange={(next) => { setRecommendationText(next); onChange(); }}', 'onChange={setRecommendationText}')
+          s = s.replace('onChange={(event) => { setRecommendationText(event.target.value); onChange(); }}', 'onChange={(event) => setRecommendationText(event.target.value)}')
+
+          old_export = '''export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint, recommendation, overview, parts, labor, totals, notes, authorizationStatus, canOverrideAuthorization }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; overview: ReactNode; parts: ReactNode; labor: ReactNode; totals: ReactNode; notes: ReactNode; authorizationStatus: "AUTHORIZED" | "NOT_AUTHORIZED"; canOverrideAuthorization: boolean }) {'''
+          new_export = '''export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint, recommendation, estimatedTotal, overview, parts, labor, totals, notes, authorizationStatus, canOverrideAuthorization }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; estimatedTotal: string; overview: ReactNode; parts: ReactNode; labor: ReactNode; totals: ReactNode; notes: ReactNode; authorizationStatus: "AUTHORIZED" | "NOT_AUTHORIZED"; canOverrideAuthorization: boolean }) {'''
+          if old_export not in s:
+              raise SystemExit('workspace signature not found')
+          s = s.replace(old_export, new_export, 1)
+
+          s = s.replace('  const [dirty, setDirty] = useState(false);\n', '')
+          s = s.replace('  const storageKey = `plumworks:repair-order-needs-save:${repairOrderId}`;\n', '')
+          s = s.replace('  const needsSave = dirty || (readinessChecked && !revisionReady);', '  const needsSave = readinessChecked && !revisionReady;')
+
+          start = s.find('  const markDirty = () => {')
+          end = s.find('  useEffect(() => {\n    let active = true;', start)
+          if start == -1 or end == -1:
+              raise SystemExit('markDirty block not found')
+          s = s[:start] + s[end:]
+
+          old_effect = '''  useEffect(() => {\n    let active = true;\n    const checkReadiness = async () => {\n      const ready = await getRepairOrderAuthorizationReadinessAction(repairOrderId).catch(() => false);\n      if (!active) return;\n      setRevisionReady(ready);\n      setReadinessChecked(true);\n    };\n    void checkReadiness();\n\n    try {\n      if (window.sessionStorage.getItem(storageKey) === "1") markDirty();\n    } catch { /* ignore storage restrictions */ }\n\n    const handleNeedsSave = (event: Event) => {\n      const detail = (event as CustomEvent<RepairOrderNeedsSaveDetail>).detail;\n      if (detail?.repairOrderId === repairOrderId) markDirty();\n    };\n    window.addEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);\n    return () => {\n      active = false;\n      window.removeEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);\n    };\n  }, [repairOrderId, storageKey]);'''
+          new_effect = '''  useEffect(() => {\n    let active = true;\n    const checkReadiness = async () => {\n      const ready = await getRepairOrderAuthorizationReadinessAction(repairOrderId).catch(() => false);\n      if (!active) return;\n      setRevisionReady(ready);\n      setReadinessChecked(true);\n    };\n    void checkReadiness();\n    return () => { active = false; };\n  }, [repairOrderId, estimatedTotal]);'''
+          if old_effect not in s:
+              raise SystemExit('readiness effect block not found')
+          s = s.replace(old_effect, new_effect, 1)
+
+          old_success = '''  useEffect(() => {\n    if (state.status !== "success") return;\n    setDirty(false);\n    setRevisionReady(true);\n    setReadinessChecked(true);\n    try { window.sessionStorage.removeItem(storageKey); } catch { /* ignore storage restrictions */ }\n  }, [state.status, storageKey]);'''
+          new_success = '''  useEffect(() => {\n    if (state.status !== "success") return;\n    setRevisionReady(true);\n    setReadinessChecked(true);\n  }, [state.status]);'''
+          if old_success not in s:
+              raise SystemExit('save success effect not found')
+          s = s.replace(old_success, new_success, 1)
+
+          old_button = '''      <button form="repair-order-save-form" type="submit" disabled={pending || !readinessChecked || !needsSave} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>'''
+          new_button = '''      <form action={action}>\n        <input type="hidden" name="repairOrderId" value={repairOrderId} />\n        <button type="submit" disabled={pending || !readinessChecked || !needsSave} aria-label="Save financial Repair Order revision" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>\n      </form>'''
+          if old_button not in s:
+              raise SystemExit('summary save button not found')
+          s = s.replace(old_button, new_button, 1)
+
+          old_render = '''    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} pending={pending} state={state} onChange={markDirty} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />'''
+          new_render = '''    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />'''
+          if old_render not in s:
+              raise SystemExit('concerns render not found')
+          s = s.replace(old_render, new_render, 1)
+          p.write_text(s)
+
+          # 3) Total changes are the signal that causes readiness to re-check.
+          p = Path('src/app/(app)/repair-orders/[id]/page.tsx')
+          s = p.read_text()
+          old = '''        recommendation={order.recommendation}\n        authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}'''
+          new = '''        recommendation={order.recommendation}\n        estimatedTotal={Number(order.estimatedTotal).toFixed(2)}\n        authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}'''
+          if old not in s:
+              raise SystemExit('page workspace props not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/'(app)'/repair-orders/save-revision-actions.ts src/components/repair-order-concerns-form.tsx src/app/'(app)'/repair-orders/'[id]'/page.tsx
+          git commit -m "fix(ro): separate section saves from financial draft revision"
+          git push origin dev
