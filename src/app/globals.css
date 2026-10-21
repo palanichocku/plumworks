@@ -14,6 +14,13 @@
   --ro-heading-bg: #eaf2fb;
   --ro-heading-border: #8da9c7;
   --ro-heading-text: #172f52;
+  --transaction-workspace-max-width: 68rem;
+}
+
+/* Keep high-density RO and Invoice workspaces aligned to one shared width. */
+.transaction-workspace-width {
+  width: 100%;
+  max-width: var(--transaction-workspace-max-width);
 }
 
 /* Repair Order layout responds to usable workspace width after navigation and padding. */
@@ -511,168 +518,105 @@ body {
 
 .invoice-document th,
 .invoice-document td {
-  border-bottom: 0.35pt solid #aaa;
+  border-bottom: 0.5pt solid #ccc;
   padding: 3pt 2pt;
-  text-align: right;
   vertical-align: top;
-  overflow-wrap: anywhere;
 }
 
 .invoice-document th {
-  border-bottom-color: black;
-  font-size: 7.5pt;
+  color: #333;
+  font-size: 7pt;
   font-weight: 500;
-}
-
-.invoice-document th:first-child,
-.invoice-document td:first-child {
-  width: 55%;
   text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
-.invoice-document small {
-  margin-top: 1pt;
-  color: #444;
-  font-size: 7.5pt;
+.invoice-document td:nth-child(n+3),
+.invoice-document th:nth-child(n+3) {
+  text-align: right;
+}
+
+.invoice-document-description {
+  width: auto;
+  overflow-wrap: anywhere;
+}
+
+.invoice-document-qty {
+  width: 0.72in;
+}
+
+.invoice-document-rate {
+  width: 0.9in;
+}
+
+.invoice-document-amount {
+  width: 0.92in;
 }
 
 .invoice-document-bottom {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.65in;
-  align-items: start;
-  gap: 18pt;
-  margin-top: 10pt;
+  grid-template-columns: minmax(0, 1fr) 2.35in;
+  gap: 16pt;
+  margin-top: 8pt;
+}
+
+.invoice-document-totals {
+  border-top: 1pt solid black;
+  padding-top: 5pt;
+}
+
+.invoice-document-totals dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3pt 8pt;
+}
+
+.invoice-document-totals dd {
+  text-align: right;
+}
+
+.invoice-document-total-emphasis {
+  margin-top: 3pt !important;
+  border-top: 0.5pt solid #777;
+  padding-top: 4pt;
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.invoice-document-legal {
+  margin-top: 7pt;
+  font-size: 7.5pt;
+  line-height: 1.25;
 }
 
 .invoice-document-legal section + section {
-  margin-top: 6pt;
-}
-
-.invoice-document-legal p {
-  white-space: pre-wrap;
+  margin-top: 5pt;
 }
 
 .invoice-document-signature {
-  border-top: 0.5pt solid black;
-  margin-top: 14pt !important;
-  padding-top: 2pt;
+  margin-top: 9pt;
+  border-top: 0.5pt solid #777;
+  padding-top: 6pt;
 }
 
-.invoice-document-totals dl > div {
-  padding: 1.5pt 0;
+.invoice-document-signature-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 8pt;
 }
 
-.invoice-document-grand-total {
-  border-top: 1pt solid black;
-  margin-top: 2pt;
-  padding-top: 4pt !important;
-  font-size: 10pt;
-  font-weight: 500;
-}
-
-.invoice-document-totals > p {
-  margin-top: 5pt;
-  font-size: 7.5pt;
+.invoice-document-signature-line::after {
+  content: "";
+  flex: 1;
+  min-width: 1.75in;
+  border-bottom: 0.5pt solid black;
 }
 
 .invoice-document footer {
+  margin-top: 8pt;
   border-top: 0.5pt solid #777;
-  margin-top: 10pt;
-  padding-top: 5pt;
+  padding-top: 4pt;
+  font-size: 7pt;
   text-align: center;
-  white-space: pre-wrap;
-  font-size: 7.5pt;
-}
-
-.repair-order-estimate-notice {
-  border: 0.5pt solid #777;
-  margin-top: 7pt !important;
-  padding: 4pt;
-  text-align: center;
-  font-size: 8pt;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-
-.repair-order-document-meta {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.repair-order-complimentary ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.repair-order-complimentary li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12pt;
-  border-bottom: 0.35pt solid #aaa;
-  padding: 3pt 2pt;
-  break-inside: avoid;
-}
-
-.repair-order-document-bottom {
-  break-inside: auto;
-  page-break-inside: auto;
-}
-
-.repair-order-document footer p + p {
-  margin-top: 2pt;
-}
-
-@media screen and (max-width: 720px) {
-  .invoice-print-route { padding: 0; }
-  .invoice-document { padding: 1rem; }
-  .invoice-document-meta, .invoice-document-bottom { grid-template-columns: 1fr; }
-}
-
-@media print {
-  .invoice-print-route {
-    min-height: 0;
-    padding: 0;
-  }
-
-  .invoice-document {
-    page: invoice-letter;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    transform: none;
-    box-shadow: none;
-  }
-
-  .invoice-document-repeat {
-    display: flex;
-  }
-}
-
-.invoice-table th {
-  border-bottom: 1px solid #cbd5e1;
-  background: #f1f5f9;
-  padding: 0.65rem 0.75rem;
-  color: #475569;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.invoice-table td {
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0.75rem;
-  vertical-align: top;
-}
-
-/* Hide the Next.js dev indicator portal tag completely */
-nextjs-portal {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  width: 0 !important;
-  height: 0 !important;
 }
