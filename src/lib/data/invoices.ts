@@ -129,8 +129,8 @@ export async function getInvoiceForCurrentShop(id: string) {
           invoiceCertificationText: true,
           vendors: { orderBy: { name: "asc" }, select: { id: true, name: true } },
           cannedServices: {
-            where: { isActive: true },
-            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+            where: { active: true },
+            orderBy: { name: "asc" },
             select: {
               id: true,
               name: true,
