@@ -40,6 +40,7 @@ const Shield = (props: SVGProps<SVGSVGElement>) => <Icon {...props}><path d="M12
 
 const businessProfile = getBusinessProfile();
 const { terminology } = businessProfile;
+const PUBLIC_WEBSITE_URL = "https://www.subbuscardoc.com";
 
 const navigation = [
   { href: "/repair-orders", label: terminology.workOrderPlural, icon: Wrench, module: "workOrders" },
@@ -47,7 +48,7 @@ const navigation = [
   { href: "/customers", label: "Customers", icon: Users, module: "customers" },
   { href: "/vehicles", label: terminology.assetPlural, icon: Car, module: "assets" },
   { href: "/leads", label: "Leads", icon: Inbox, module: null },
-  { href: "/", label: "Website", icon: Globe, module: null },
+  { href: PUBLIC_WEBSITE_URL, label: "Website", icon: Globe, module: null },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, module: null },
   { href: "/reports", label: "Reports", icon: BarChart3, module: "reports" },
   { href: "/admin", label: "Admin", icon: Shield, module: "admin" },
@@ -136,7 +137,7 @@ function NavigationLink({
 }
 
 function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
-  return navigation.filter((item) => (item.module === null || businessProfile.modules[item.module]) && (item.href !== "/reports" || canViewReports) && (!["/", "/admin"].includes(item.href) || canViewAdmin));
+  return navigation.filter((item) => (item.module === null || businessProfile.modules[item.module]) && (item.href !== "/reports" || canViewReports) && (![PUBLIC_WEBSITE_URL, "/admin"].includes(item.href) || canViewAdmin));
 }
 
 export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {
