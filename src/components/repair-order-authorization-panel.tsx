@@ -117,7 +117,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
     });
   }
 
-  return <section className={`rounded-xl border px-4 py-3 shadow-sm ${authorized ? "border-emerald-200 bg-emerald-50/70" : "border-amber-300 bg-amber-50"}`}>
+  return <section className={`transaction-workspace-width rounded-xl border px-4 py-3 shadow-sm ${authorized ? "border-emerald-200 bg-emerald-50/70" : "border-amber-300 bg-amber-50"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-sm">
