@@ -69,7 +69,7 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
         }
       }
     `}</style>
-    <div className="ro-workspace-grid grid w-full max-w-[68rem] min-w-0 items-start gap-5">
+    <div className="ro-workspace-grid transaction-workspace-width grid min-w-0 items-start gap-5">
       <div className="ro-top-workbench grid min-w-0 items-start gap-5">
         <div className="min-w-0" data-ro-section="overview">{overview}</div>
         <aside className="ro-summary-column w-full min-w-0" data-ro-section="totals">
