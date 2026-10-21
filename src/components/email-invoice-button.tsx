@@ -10,10 +10,9 @@ const initialState: InvoiceEmailState = { status: "idle" };
 export const INVOICE_EMAIL_SUCCESS_DURATION_MS = 5_000;
 const fallbackError = "Invoice could not be emailed. Please try again.";
 
-export function EmailInvoiceButton({ invoiceId, defaultRecipient, status, printHref }: {
+export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref }: {
   invoiceId: string;
   defaultRecipient: string;
-  status: "Open" | "Closed" | "Void";
   printHref: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -60,9 +59,6 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, status, printH
       }
     `}</style>
     <div className="flex flex-wrap items-center justify-end gap-2" data-invoice-action-row>
-      <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-        {status}
-      </span>
       <button
         ref={buttonRef}
         type="button"
