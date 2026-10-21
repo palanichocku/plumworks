@@ -5,6 +5,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { calculateEditableInvoiceTotals, invoiceBalance } from "@/lib/invoice-lifecycle";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { cleanVendorName, MAX_VENDOR_NAME_LENGTH, validatedVendorName } from "@/lib/vendors";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const money = (value: FormDataEntryValue | null) => {
@@ -110,7 +111,10 @@ async function mutateOpenInvoice(invoiceId: string, mutation: (transaction: Pris
 
 async function invoicePartVendor(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string, formData: FormData) {
   const vendorId = String(formData.get("vendorId") ?? "");
-  if (!vendorId) return null;
+  const newVendorName = String(formData.get("newVendorName") ?? "");
+  const vendorInput = cleanVendorName(String(formData.get("vendorInput") ?? ""));
+  if (vendorId && newVendorName) throw new Error("Select either an existing Vendor or a new Vendor.");
+
   if (vendorId === "current-snapshot") {
     const partId = String(formData.get("partId") ?? "");
     if (!UUID.test(partId)) throw new Error("Invalid Invoice Part.");
@@ -118,10 +122,28 @@ async function invoicePartVendor(transaction: Prisma.TransactionClient, shopId: 
     if (!part) throw new Error("Part not found.");
     return part.vendorNameSnapshot;
   }
-  if (!UUID.test(vendorId)) throw new Error("Invalid Vendor selection.");
-  const vendor = await transaction.vendor.findFirst({ where: { id: vendorId, shopId }, select: { name: true } });
-  if (!vendor) throw new Error("That Vendor is not available for this shop.");
-  return vendor.name;
+
+  if (vendorId) {
+    if (!UUID.test(vendorId)) throw new Error("Invalid Vendor selection.");
+    const vendor = await transaction.vendor.findFirst({ where: { id: vendorId, shopId }, select: { name: true } });
+    if (!vendor) throw new Error("That Vendor is not available for this shop.");
+    return vendor.name;
+  }
+
+  if (newVendorName) {
+    const vendorName = validatedVendorName(newVendorName);
+    const vendor = await transaction.vendor.upsert({
+      where: { shopId_normalizedName: { shopId, normalizedName: vendorName.normalizedName } },
+      update: {},
+      create: { shopId, ...vendorName },
+      select: { name: true },
+    });
+    return vendor.name;
+  }
+
+  if (vendorInput.length > MAX_VENDOR_NAME_LENGTH) throw new Error(`Vendor name must be ${MAX_VENDOR_NAME_LENGTH} characters or fewer.`);
+  if (vendorInput) throw new Error("Select a Vendor or choose the Add Vendor option.");
+  return null;
 }
 
 export async function updateInvoiceDetails(formData: FormData) {
@@ -183,8 +205,17 @@ async function invoiceEditResult(action: (formData: FormData) => Promise<void>, 
     await action(formData);
     return { status: "success" };
   } catch (error) {
-    const financialMessage = error instanceof Error && (error.message.startsWith("Discount ") || error.message.startsWith("Invoice changes cannot reduce")) ? error.message : null;
-    return { status: "error", message: financialMessage ?? message };
+    const specificMessage = error instanceof Error && (
+      error.message.startsWith("Discount ") ||
+      error.message.startsWith("Invoice changes cannot reduce") ||
+      error.message.startsWith("Vendor ") ||
+      error.message.startsWith("Enter a Vendor") ||
+      error.message.startsWith("Invalid Vendor") ||
+      error.message.startsWith("That Vendor") ||
+      error.message.startsWith("Select a Vendor") ||
+      error.message.startsWith("Select either")
+    ) ? error.message : null;
+    return { status: "error", message: specificMessage ?? message };
   }
 }
 
