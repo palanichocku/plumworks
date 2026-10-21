@@ -119,7 +119,7 @@ export function VendorCombobox({ vendors, defaultVendor = null, onValueChange }:
         }
       }}
     />
-    {open && <div id={listId} role="listbox" aria-label="Vendors" className="absolute left-0 z-50 mt-1 max-h-56 w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 font-normal shadow-lg">
+    {open && <div id={listId} role="listbox" aria-label="Vendors" className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 font-normal shadow-lg">
       {choices.map((choice, index) => choice.type === "new" ? <button
         key={`new:${choice.name}`}
         id={`${inputId}-option-${index}`}
