@@ -82,7 +82,7 @@ export async function getInvoiceForCurrentShop(id: string) {
 
   if (!membership) return null;
 
-  return prisma.invoice.findFirst({
+  const invoice = await prisma.invoice.findFirst({
     where: { id, shopId: membership.shopId },
     select: {
       id: true,
@@ -180,6 +180,7 @@ export async function getInvoiceForCurrentShop(id: string) {
           quantity: true,
           unitPrice: true,
           vendorNameSnapshot: true,
+          legacyLineKey: true,
         },
       },
       labor: {
@@ -192,8 +193,29 @@ export async function getInvoiceForCurrentShop(id: string) {
           hourlyRate: true,
           complimentary: true,
           shopSuppliesEligible: true,
+          legacyLineKey: true,
         },
       },
     },
   });
+  if (!invoice || !invoice.repairOrderId) return invoice;
+
+  const positions = await prisma.$queryRaw<Array<{ line_type: "part" | "labor"; legacy_line_key: string; sort_order: number }>>`
+    SELECT line_type, legacy_line_key, sort_order
+    FROM repair_order_line_positions
+    WHERE shop_id = ${membership.shopId}::uuid
+      AND repair_order_id = ${invoice.repairOrderId}::uuid
+  `.catch(() => []);
+
+  const partOrder = new Map(positions.filter((row) => row.line_type === "part").map((row) => [row.legacy_line_key, row.sort_order]));
+  const laborOrder = new Map(positions.filter((row) => row.line_type === "labor").map((row) => [row.legacy_line_key, row.sort_order]));
+  const fallback = Number.MAX_SAFE_INTEGER;
+  invoice.parts.sort((a, b) => (partOrder.get(a.legacyLineKey) ?? fallback) - (partOrder.get(b.legacyLineKey) ?? fallback));
+  invoice.labor.sort((a, b) => {
+    if (a.complimentary !== b.complimentary) return a.complimentary ? 1 : -1;
+    if (a.complimentary) return 0;
+    return (laborOrder.get(a.legacyLineKey) ?? fallback) - (laborOrder.get(b.legacyLineKey) ?? fallback);
+  });
+
+  return invoice;
 }
