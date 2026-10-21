@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { addLaborLineWithState, deleteLaborLine, updateLaborLineWithState, type LaborActionState } from "@/app/(app)/repair-orders/labor-actions";
 import { addComplimentaryServiceWithState, deleteComplimentaryService, updateComplimentaryServiceWithState, type ComplimentaryServiceActionState } from "@/app/(app)/repair-orders/complimentary-service-actions";
 import { addPartLineWithState, deletePartLine, updatePartLineWithState } from "@/app/(app)/repair-orders/part-actions";
@@ -24,6 +24,12 @@ const descriptionClass = `${inputClass} resize-none overflow-y-hidden whitespace
 const laborDescriptionWrapperClass = "[&>div>div:first-child>span:last-child]:hidden";
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number.isFinite(value) ? value : 0);
 const decimalPattern = "[0-9]*[.]?[0-9]+";
+
+function NumericTextInput({ name, value, onChange, label }: { name: string; value: string; onChange: (value: string) => void; label: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.setCustomValidity(""); }, [value]);
+  return <input ref={inputRef} name={name} type="text" inputMode="decimal" pattern={decimalPattern} required value={value} onChange={(e) => onChange(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity(`Enter a number for ${label}.`)} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />;
+}
 
 export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTotal, parts, labor, complimentary, vendors, services, defaultRate, editable }: {
   repairOrderId: string;
@@ -122,8 +128,8 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
       <div><TypeBadge type="part" /></div>
       <HistoricalDescriptionCombobox kind="part" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
       <VendorCombobox vendors={vendors} defaultVendor={line.vendor} />
-      <label className="text-xs font-semibold text-slate-600">Qty<input name="quantity" type="text" inputMode="decimal" pattern={decimalPattern} required value={quantity} onChange={(e) => setQuantity(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Qty.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Unit price<input name="unitPrice" type="text" inputMode="decimal" pattern={decimalPattern} required value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Unit price.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
+      <label className="text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
       <div className="self-center text-right font-semibold">{money(Number(quantity) * Number(unitPrice))}</div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
@@ -201,8 +207,8 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
     <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="labor" /></div>
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
-      <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="text" inputMode="decimal" pattern={decimalPattern} required value={hours} onChange={(e) => setHours(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Hours.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="text" inputMode="decimal" pattern={decimalPattern} required value={rate} onChange={(e) => setRate(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Rate.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
+      <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
       <div className="self-center text-right font-semibold">{money(Number(hours) * Number(rate))}</div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
@@ -270,8 +276,8 @@ function DraftPart({ repairOrderId, vendors, type, setType, onSaved }: { repairO
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="part" rowKey="draft-unified-part" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Part description" multiline autoGrow />
       <VendorCombobox vendors={vendors} />
-      <label className="text-xs font-semibold text-slate-600">Qty<input name="quantity" type="text" inputMode="decimal" pattern={decimalPattern} required value={quantity} onChange={(e) => setQuantity(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Qty.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Unit price<input name="unitPrice" type="text" inputMode="decimal" pattern={decimalPattern} required value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Unit price.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
+      <label className="text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
       <AmountField value={money(Number(quantity) * Number(unitPrice))} />
     </div>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
@@ -309,8 +315,8 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
     <div className="grid gap-3 lg:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow /></div>
-      <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="text" inputMode="decimal" pattern={decimalPattern} required value={hours} onChange={(e) => setHours(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Hours.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="text" inputMode="decimal" pattern={decimalPattern} required value={rate} onChange={(e) => setRate(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Rate.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
+      <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
     </div>
     <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 lg:ml-[10.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
