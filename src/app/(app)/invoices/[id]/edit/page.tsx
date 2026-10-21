@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { InvoiceEditWorkspaceV2 } from "@/components/invoice-edit-workspace-v2";
+import { InvoiceEditWorkspaceV3 } from "@/components/invoice-edit-workspace-v3";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
 import { invoiceBalance, isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 
@@ -12,7 +12,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
   const balance = invoice.accountsReceivable[0]?.balance ?? invoiceBalance(invoice.total, invoice.paidTotal);
   const subtotalBeforeTax = invoice.partsTotal.plus(invoice.laborTotal).plus(invoice.shopSuppliesAmount).toDecimalPlaces(2);
 
-  return <InvoiceEditWorkspaceV2 invoice={{
+  return <InvoiceEditWorkspaceV3 invoice={{
     id: invoice.id,
     repairOrderNumber: invoice.repairOrderNumber,
     customerComplaint: invoice.customerComplaint,
