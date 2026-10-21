@@ -26,17 +26,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
       paid: invoice.paidTotal.toFixed(2), balance: balance.toFixed(2),
     },
     vendors: invoice.shop.vendors,
-    services: invoice.shop.cannedServices.map((service) => ({
-      id: service.id,
-      name: service.name,
-      description: service.description,
-      defaultHours: service.defaultHours.toString(),
-      defaultLaborRate: service.defaultLaborRate.toString(),
-      shopSuppliesEligible: service.shopSuppliesEligible,
-    })),
-    defaultLaborRate: invoice.shop.defaultLaborRate.toString(),
     parts: invoice.parts.map((part) => ({ id: part.id, description: part.description, quantity: part.quantity.toString(), unitPrice: part.unitPrice.toString(), vendorNameSnapshot: part.vendorNameSnapshot })),
     labor: invoice.labor.filter((labor) => !labor.complimentary).map((labor) => ({ id: labor.id, description: labor.description, hours: labor.hours.toString(), hourlyRate: labor.hourlyRate.toString(), shopSuppliesEligible: labor.shopSuppliesEligible })),
-    complimentary: invoice.labor.filter((labor) => labor.complimentary).map((labor) => ({ id: labor.id, description: labor.description })),
   }} />;
 }
