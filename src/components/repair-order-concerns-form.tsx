@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
 import { getRepairOrderAuthorizationReadinessAction } from "@/app/(app)/repair-orders/authorization-actions";
 import { saveRepairOrderDraftForAuthorization } from "@/app/(app)/repair-orders/save-revision-actions";
 import { createInvoiceFromRepairOrder, type CreateInvoiceState } from "@/app/(app)/repair-orders/finalize-actions";
+import { DictationButton } from "@/components/dictation-button";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 
 const initialState: RepairOrderSaveState = { status: "idle" };
@@ -13,90 +14,11 @@ const initialCreateState: CreateInvoiceState = { status: "idle" };
 const textareaClass = "mt-1.5 min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
 const REPAIR_ORDER_NEEDS_SAVE_EVENT = "plumworks:repair-order-needs-save";
-
-type SpeechRecognitionResultEventLike = { results: ArrayLike<{ 0: { transcript: string } }> };
-type SpeechRecognitionErrorEventLike = { error?: string };
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-};
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-type DictationTarget = "concern" | "recommendation";
 type RepairOrderNeedsSaveDetail = { repairOrderId: string };
 
 function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
   const [concernText, setConcernText] = useState(customerComplaint ?? "");
   const [recommendationText, setRecommendationText] = useState(recommendation ?? "");
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [speechListening, setSpeechListening] = useState<DictationTarget | null>(null);
-  const [speechError, setSpeechError] = useState<{ target: DictationTarget; message: string } | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-
-  useEffect(() => {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    setSpeechSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
-    return () => recognitionRef.current?.stop();
-  }, []);
-
-  function startVoiceDictation(target: DictationTarget) {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    recognitionRef.current?.stop();
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim();
-      if (!transcript) return;
-      if (target === "concern") {
-        setConcernText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
-      } else {
-        setRecommendationText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
-      }
-      onChange();
-    };
-    recognition.onerror = (event) => {
-      setSpeechError({
-        target,
-        message: event.error === "not-allowed" ? "Microphone access was not allowed." : "Voice dictation could not start. You can keep typing instead.",
-      });
-      setSpeechListening(null);
-    };
-    recognition.onend = () => {
-      setSpeechListening(null);
-      recognitionRef.current = null;
-    };
-
-    recognitionRef.current = recognition;
-    setSpeechError(null);
-    setSpeechListening(target);
-    try {
-      recognition.start();
-    } catch {
-      setSpeechListening(null);
-      recognitionRef.current = null;
-      setSpeechError({ target, message: "Voice dictation could not start. You can keep typing instead." });
-    }
-  }
-
-  function stopVoiceDictation() {
-    recognitionRef.current?.stop();
-  }
 
   return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
@@ -104,24 +26,18 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
       <section aria-labelledby="check-in-concern-label">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label id="check-in-concern-label" htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Check-in concern</label>
-          {speechSupported ? <button type="button" onClick={speechListening === "concern" ? stopVoiceDictation : () => startVoiceDictation("concern")} disabled={speechListening !== null && speechListening !== "concern"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "concern"}>
-            <span aria-hidden="true">🎤</span>{speechListening === "concern" ? "Stop listening" : "Speak"}
-          </button> : null}
+          <DictationButton textareaId="customerComplaint" value={concernText} onChange={(next) => { setConcernText(next); onChange(); }} />
         </div>
         <textarea id="customerComplaint" name="customerComplaint" rows={3} value={concernText} onChange={(event) => setConcernText(event.target.value)} className={textareaClass} placeholder="Add or update the customer's concern." />
         <p className="mt-1.5 text-xs text-slate-500">Originally captured during vehicle check-in. New typing or dictation is added to the same concern.</p>
-        {speechError?.target === "concern" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
       </section>
       <section aria-labelledby="shop-recommendation-label">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label id="shop-recommendation-label" htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation</label>
-          {speechSupported ? <button type="button" onClick={speechListening === "recommendation" ? stopVoiceDictation : () => startVoiceDictation("recommendation")} disabled={speechListening !== null && speechListening !== "recommendation"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "recommendation"}>
-            <span aria-hidden="true">🎤</span>{speechListening === "recommendation" ? "Stop listening" : "Speak"}
-          </button> : null}
+          <DictationButton textareaId="recommendation" value={recommendationText} onChange={(next) => { setRecommendationText(next); onChange(); }} />
         </div>
         <textarea id="recommendation" name="recommendation" rows={3} value={recommendationText} onChange={(event) => setRecommendationText(event.target.value)} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
-        {speechSupported ? <p className="mt-1.5 text-xs text-slate-500">Voice dictation is optional and uses your browser's built-in speech recognition when available.</p> : null}
-        {speechError?.target === "recommendation" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
+        <p className="mt-1.5 text-xs text-slate-500">Voice dictation stays active until Stop listening is pressed. Dictated text is inserted in ALL CAPS.</p>
       </section>
     </div>
   </form>;
