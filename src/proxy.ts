@@ -18,6 +18,10 @@ function isPublicAuthorizationPath(pathname: string) {
   return pathname.startsWith("/authorize/repair-order/");
 }
 
+function isFrameworkAsset(pathname: string) {
+  return pathname.startsWith("/_next/") || pathname === "/favicon.ico";
+}
+
 function isAppPath(pathname: string) {
   return publicAppPaths.has(pathname) || protectedAppPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -33,6 +37,10 @@ function redirectToHost(request: NextRequest, host: string, status: 301 | 302 | 
 export async function proxy(request: NextRequest) {
   const hostname = request.nextUrl.hostname.toLowerCase();
   const pathname = request.nextUrl.pathname;
+
+  // Next.js framework assets must never pass through hostname or auth routing.
+  // Intercepting these requests can cause pages to render without CSS/JS.
+  if (isFrameworkAsset(pathname)) return NextResponse.next();
 
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
