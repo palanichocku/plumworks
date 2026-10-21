@@ -34,6 +34,13 @@ export function InvoiceDeliverySignaturePanel({
     sessionId,
     rows: signatures.filter((row) => row.sessionId === sessionId),
   }));
+  const hasPriorSignatures = signatures.length > 0 && !currentComplete;
+  const signatureStatus = currentComplete
+    ? "Customer + shop signatures on file"
+    : hasPriorSignatures
+      ? "Signatures on file for prior invoice revision"
+      : "Signatures not yet captured";
+  const actionLabel = hasPriorSignatures ? "Recapture Signatures" : "Capture Delivery Signatures";
 
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -48,12 +55,17 @@ export function InvoiceDeliverySignaturePanel({
                   : "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800"
               }
             >
-              {currentComplete ? "Customer + shop signatures on file" : "Signatures not yet captured"}
+              {signatureStatus}
             </span>
           </div>
           <p className="mt-2 text-sm text-slate-600">
             Two immutable signatures are retained with the exact invoice revision: the customer and the shop representative who completes delivery.
           </p>
+          {hasPriorSignatures ? (
+            <p className="mt-2 text-sm font-medium text-amber-800">
+              The invoice changed after the signatures below were captured. Recapture signatures to acknowledge the current invoice revision.
+            </p>
+          ) : null}
         </div>
 
         {!currentComplete ? (
@@ -61,7 +73,7 @@ export function InvoiceDeliverySignaturePanel({
             href={`/invoices/${invoiceId}/delivery-signatures`}
             className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
           >
-            Capture Delivery Signatures
+            {actionLabel}
           </Link>
         ) : null}
       </div>
