@@ -15,31 +15,78 @@ const textareaClass = "mt-1.5 min-h-20 w-full rounded-lg border border-slate-300
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
 const REPAIR_ORDER_NEEDS_SAVE_EVENT = "plumworks:repair-order-needs-save";
 type RepairOrderNeedsSaveDetail = { repairOrderId: string };
+type ConcernField = "customerComplaint" | "recommendation";
 
-function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
+function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, pending, state, onChange }: {
+  repairOrderId: string;
+  customerComplaint: string | null;
+  recommendation: string | null;
+  action: (formData: FormData) => void;
+  pending: boolean;
+  state: RepairOrderSaveState;
+  onChange: () => void;
+}) {
+  const [savedConcern, setSavedConcern] = useState(customerComplaint ?? "");
+  const [savedRecommendation, setSavedRecommendation] = useState(recommendation ?? "");
   const [concernText, setConcernText] = useState(customerComplaint ?? "");
   const [recommendationText, setRecommendationText] = useState(recommendation ?? "");
+  const [editing, setEditing] = useState<ConcernField | null>(null);
 
-  return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+  useEffect(() => {
+    if (state.status !== "success" || editing === null) return;
+    setSavedConcern(concernText.trim());
+    setSavedRecommendation(recommendationText.trim());
+    setEditing(null);
+  }, [state.status, editing, concernText, recommendationText]);
+
+  const cancel = () => {
+    setConcernText(savedConcern);
+    setRecommendationText(savedRecommendation);
+    setEditing(null);
+  };
+
+  const startEditing = (field: ConcernField) => {
+    setConcernText(savedConcern);
+    setRecommendationText(savedRecommendation);
+    setEditing(field);
+  };
+
+  const fieldHeader = (field: ConcernField, label: string) => (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-sm font-semibold text-slate-700">{label}</h3>
+      {editing !== field ? <button type="button" onClick={() => startEditing(field)} className="rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30">Edit</button> : null}
+    </div>
+  );
+
+  return <form id="repair-order-save-form" action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
+    <input type="hidden" name="customerComplaint" value={concernText} />
+    <input type="hidden" name="recommendation" value={recommendationText} />
     <div className="grid gap-4 lg:grid-cols-2">
       <section aria-labelledby="check-in-concern-label">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label id="check-in-concern-label" htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Check-in concern</label>
-          <DictationButton textareaId="customerComplaint" value={concernText} onChange={(next) => { setConcernText(next); onChange(); }} />
-        </div>
-        <textarea id="customerComplaint" name="customerComplaint" rows={3} value={concernText} onChange={(event) => setConcernText(event.target.value)} className={textareaClass} placeholder="Add or update the customer's concern." />
-        <p className="mt-1.5 text-xs text-slate-500">Originally captured during vehicle check-in. New typing or dictation is added to the same concern.</p>
+        {fieldHeader("customerComplaint", "Check-in concern")}
+        {editing === "customerComplaint" ? <div className="mt-2">
+          <div className="flex items-center justify-end"><DictationButton textareaId="customerComplaintEditor" value={concernText} onChange={(next) => { setConcernText(next); onChange(); }} /></div>
+          <textarea id="customerComplaintEditor" rows={3} value={concernText} onChange={(event) => { setConcernText(event.target.value); onChange(); }} className={textareaClass} placeholder="Add or update the customer's concern." />
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={cancel} disabled={pending} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+          </div>
+        </div> : <p id="check-in-concern-label" className="mt-2 min-h-12 whitespace-pre-wrap text-sm leading-6 text-slate-800">{savedConcern || "No check-in concern recorded."}</p>}
       </section>
       <section aria-labelledby="shop-recommendation-label">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label id="shop-recommendation-label" htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation</label>
-          <DictationButton textareaId="recommendation" value={recommendationText} onChange={(next) => { setRecommendationText(next); onChange(); }} />
-        </div>
-        <textarea id="recommendation" name="recommendation" rows={3} value={recommendationText} onChange={(event) => setRecommendationText(event.target.value)} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
-        <p className="mt-1.5 text-xs text-slate-500">Voice dictation stays active until Stop listening is pressed. Dictated text is inserted in ALL CAPS.</p>
+        {fieldHeader("recommendation", "Shop recommendation")}
+        {editing === "recommendation" ? <div className="mt-2">
+          <div className="flex items-center justify-end"><DictationButton textareaId="recommendationEditor" value={recommendationText} onChange={(next) => { setRecommendationText(next); onChange(); }} /></div>
+          <textarea id="recommendationEditor" rows={3} value={recommendationText} onChange={(event) => { setRecommendationText(event.target.value); onChange(); }} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={cancel} disabled={pending} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+          </div>
+        </div> : <p id="shop-recommendation-label" className="mt-2 min-h-12 whitespace-pre-wrap text-sm leading-6 text-slate-800">{savedRecommendation || "No shop recommendation recorded."}</p>}
       </section>
     </div>
+    {state.status === "error" ? <p role="alert" className="mt-3 text-sm font-medium text-red-700">{state.message}</p> : null}
   </form>;
 }
 
@@ -131,7 +178,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
   </div>;
 
   return <>
-    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} onChange={markDirty} onSubmit={() => undefined} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
+    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} pending={pending} state={state} onChange={markDirty} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
     {overrideOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" aria-label="Cancel authorization override" disabled={creating} onClick={() => setOverrideOpen(false)} className="absolute inset-0 bg-slate-950/50" />
       <section role="alertdialog" aria-modal="true" aria-labelledby="authorization-override-title" className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
