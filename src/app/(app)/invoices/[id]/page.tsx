@@ -107,7 +107,7 @@ export default async function InvoiceDetailPage({
       {voided ? <div className="mt-4 rounded-xl border-2 border-red-300 bg-red-50 px-5 py-4 text-red-900"><p className="text-xl font-black tracking-widest">VOID</p><p className="mt-1 text-sm">Voided {formatDate(invoice.voidedAt)} · Reason: {invoice.voidReason?.replaceAll("_", " ").toLowerCase() ?? "Not recorded"}{invoice.voidNote ? ` · ${invoice.voidNote}` : ""}</p></div> : null}
       {!open && invoice.closedAt ? <p className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">Closed {formatDate(invoice.closedAt)}{invoice.deliveredAt ? ` · Vehicle delivered ${formatDate(invoice.deliveredAt)}` : ""}</p> : null}
 
-      <div className="mt-6 min-w-0 space-y-5">
+      <div className="transaction-workspace-width mt-6 min-w-0 space-y-5">
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-base font-semibold text-slate-950">Job summary</h2>
@@ -121,9 +121,9 @@ export default async function InvoiceDetailPage({
                 <dd className="mt-1">{invoice.vehicle ? <Link href={`/vehicles/${invoice.vehicle.id}`} className="font-semibold text-brand-primary hover:text-brand-primary">{vehicle}</Link> : <span className="text-slate-700">Vehicle not linked</span>}</dd>
               </div>
             </dl>
-            {(invoice.customerComplaint || invoice.recommendation) ? <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+            {(invoice.customerComplaint || invoice.recommendation) ? <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
               {invoice.customerComplaint ? <div><h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer complaint</h3><p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{invoice.customerComplaint}</p></div> : null}
-              {invoice.recommendation ? <div><h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Service recommendation</h3><p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{invoice.recommendation}</p></div> : null}
+              {invoice.recommendation ? <div><h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shop recommendation</h3><p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{invoice.recommendation}</p></div> : null}
             </div> : null}
           </section>
 
