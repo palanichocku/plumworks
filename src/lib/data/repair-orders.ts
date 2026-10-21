@@ -62,7 +62,7 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
   const { membership } = await getCurrentMembership();
   if (!membership) return null;
 
-  return prisma.repairOrder.findFirst({
+  const order = await prisma.repairOrder.findFirst({
     where: {
       id,
       shopId: membership.shopId,
@@ -138,18 +138,19 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
         },
       },
       parts: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
           description: true,
           quantity: true,
           unitPrice: true,
+          legacyLineKey: true,
           vendorNameSnapshot: true,
           vendor: { select: { id: true, name: true } },
         },
       },
       labor: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
           description: true,
@@ -157,10 +158,32 @@ export async function getWebRepairOrderForCurrentShop(id: string) {
           hourlyRate: true,
           complimentary: true,
           shopSuppliesEligible: true,
+          legacyLineKey: true,
         },
       },
     },
   });
+  if (!order) return null;
+
+  const positions = await prisma.$queryRaw<Array<{ line_type: "part" | "labor"; legacy_line_key: string; sort_order: number }>>`
+    SELECT line_type, legacy_line_key, sort_order
+    FROM repair_order_line_positions
+    WHERE shop_id = ${membership.shopId}::uuid
+      AND repair_order_id = ${id}::uuid
+  `.catch(() => []);
+
+  const partOrder = new Map(positions.filter((row) => row.line_type === "part").map((row) => [row.legacy_line_key, row.sort_order]));
+  const laborOrder = new Map(positions.filter((row) => row.line_type === "labor").map((row) => [row.legacy_line_key, row.sort_order]));
+  const fallback = Number.MAX_SAFE_INTEGER;
+
+  order.parts.sort((a, b) => (partOrder.get(a.legacyLineKey) ?? fallback) - (partOrder.get(b.legacyLineKey) ?? fallback));
+  order.labor.sort((a, b) => {
+    if (a.complimentary !== b.complimentary) return a.complimentary ? 1 : -1;
+    if (a.complimentary) return 0;
+    return (laborOrder.get(a.legacyLineKey) ?? fallback) - (laborOrder.get(b.legacyLineKey) ?? fallback);
+  });
+
+  return order;
 }
 
 export async function getRepairOrderInternalNotesForCurrentShop(id: string) {
