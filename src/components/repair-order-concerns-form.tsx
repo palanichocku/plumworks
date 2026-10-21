@@ -2,150 +2,102 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
-import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
+import { updateRepairOrderConcerns, type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
 import { getRepairOrderAuthorizationReadinessAction } from "@/app/(app)/repair-orders/authorization-actions";
 import { saveRepairOrderDraftForAuthorization } from "@/app/(app)/repair-orders/save-revision-actions";
 import { createInvoiceFromRepairOrder, type CreateInvoiceState } from "@/app/(app)/repair-orders/finalize-actions";
+import { DictationButton } from "@/components/dictation-button";
 import { RepairOrderWorkspace } from "@/components/repair-order-workspace";
 
 const initialState: RepairOrderSaveState = { status: "idle" };
 const initialCreateState: CreateInvoiceState = { status: "idle" };
 const textareaClass = "mt-1.5 min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10";
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
-const REPAIR_ORDER_NEEDS_SAVE_EVENT = "plumworks:repair-order-needs-save";
+type ConcernField = "customerComplaint" | "recommendation";
 
-type SpeechRecognitionResultEventLike = { results: ArrayLike<{ 0: { transcript: string } }> };
-type SpeechRecognitionErrorEventLike = { error?: string };
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-};
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-type DictationTarget = "concern" | "recommendation";
-type RepairOrderNeedsSaveDetail = { repairOrderId: string };
-
-function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action, onChange, onSubmit }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; action: (formData: FormData) => void; onChange: () => void; onSubmit: () => void }) {
+function ConcernsForm({ repairOrderId, customerComplaint, recommendation }: {
+  repairOrderId: string;
+  customerComplaint: string | null;
+  recommendation: string | null;
+}) {
+  const [state, action, pending] = useActionState(updateRepairOrderConcerns, initialState);
+  const [savedConcern, setSavedConcern] = useState(customerComplaint ?? "");
+  const [savedRecommendation, setSavedRecommendation] = useState(recommendation ?? "");
   const [concernText, setConcernText] = useState(customerComplaint ?? "");
   const [recommendationText, setRecommendationText] = useState(recommendation ?? "");
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [speechListening, setSpeechListening] = useState<DictationTarget | null>(null);
-  const [speechError, setSpeechError] = useState<{ target: DictationTarget; message: string } | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [editing, setEditing] = useState<ConcernField | null>(null);
+  const submittedField = useRef<ConcernField | null>(null);
 
   useEffect(() => {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    setSpeechSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
-    return () => recognitionRef.current?.stop();
-  }, []);
+    if (state.status !== "success" || submittedField.current === null) return;
+    const field = submittedField.current;
+    submittedField.current = null;
+    if (field === "customerComplaint") setSavedConcern(concernText.trim());
+    if (field === "recommendation") setSavedRecommendation(recommendationText.trim());
+    setEditing(null);
+  }, [state, concernText, recommendationText]);
 
-  function startVoiceDictation(target: DictationTarget) {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+  const cancel = () => {
+    setConcernText(savedConcern);
+    setRecommendationText(savedRecommendation);
+    setEditing(null);
+  };
 
-    recognitionRef.current?.stop();
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim();
-      if (!transcript) return;
-      if (target === "concern") {
-        setConcernText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
-      } else {
-        setRecommendationText((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
-      }
-      onChange();
-    };
-    recognition.onerror = (event) => {
-      setSpeechError({
-        target,
-        message: event.error === "not-allowed" ? "Microphone access was not allowed." : "Voice dictation could not start. You can keep typing instead.",
-      });
-      setSpeechListening(null);
-    };
-    recognition.onend = () => {
-      setSpeechListening(null);
-      recognitionRef.current = null;
-    };
+  const startEditing = (field: ConcernField) => {
+    setConcernText(savedConcern);
+    setRecommendationText(savedRecommendation);
+    setEditing(field);
+  };
 
-    recognitionRef.current = recognition;
-    setSpeechError(null);
-    setSpeechListening(target);
-    try {
-      recognition.start();
-    } catch {
-      setSpeechListening(null);
-      recognitionRef.current = null;
-      setSpeechError({ target, message: "Voice dictation could not start. You can keep typing instead." });
-    }
-  }
+  const fieldHeader = (field: ConcernField, label: string) => (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-sm font-semibold text-slate-700">{label}</h3>
+      {editing !== field ? <button type="button" onClick={() => startEditing(field)} className="rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30">Edit</button> : null}
+    </div>
+  );
 
-  function stopVoiceDictation() {
-    recognitionRef.current?.stop();
-  }
-
-  return <form id="repair-order-save-form" action={action} onChange={onChange} onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+  return <form id="repair-order-save-form" action={action} onSubmit={() => { submittedField.current = editing; }} className="min-w-0">
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
+    <input type="hidden" name="customerComplaint" value={concernText} />
+    <input type="hidden" name="recommendation" value={recommendationText} />
     <div className="grid gap-4 lg:grid-cols-2">
-      <section aria-labelledby="check-in-concern-label">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label id="check-in-concern-label" htmlFor="customerComplaint" className="text-sm font-semibold text-slate-700">Check-in concern</label>
-          {speechSupported ? <button type="button" onClick={speechListening === "concern" ? stopVoiceDictation : () => startVoiceDictation("concern")} disabled={speechListening !== null && speechListening !== "concern"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "concern"}>
-            <span aria-hidden="true">🎤</span>{speechListening === "concern" ? "Stop listening" : "Speak"}
-          </button> : null}
-        </div>
-        <textarea id="customerComplaint" name="customerComplaint" rows={3} value={concernText} onChange={(event) => setConcernText(event.target.value)} className={textareaClass} placeholder="Add or update the customer's concern." />
-        <p className="mt-1.5 text-xs text-slate-500">Originally captured during vehicle check-in. New typing or dictation is added to the same concern.</p>
-        {speechError?.target === "concern" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
+      <section aria-labelledby="check-in-concern-label" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        {fieldHeader("customerComplaint", "Check-in concern")}
+        {editing === "customerComplaint" ? <div className="mt-2">
+          <div className="flex items-center justify-end"><DictationButton textareaId="customerComplaintEditor" value={concernText} onChange={setConcernText} /></div>
+          <textarea id="customerComplaintEditor" rows={3} value={concernText} onChange={(event) => setConcernText(event.target.value)} className={textareaClass} placeholder="Add or update the customer's concern." />
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={cancel} disabled={pending} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+          </div>
+        </div> : <p id="check-in-concern-label" className="mt-2 min-h-12 whitespace-pre-wrap text-sm leading-6 text-slate-800">{savedConcern || "No check-in concern recorded."}</p>}
       </section>
-      <section aria-labelledby="shop-recommendation-label">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label id="shop-recommendation-label" htmlFor="recommendation" className="text-sm font-semibold text-slate-700">Shop recommendation</label>
-          {speechSupported ? <button type="button" onClick={speechListening === "recommendation" ? stopVoiceDictation : () => startVoiceDictation("recommendation")} disabled={speechListening !== null && speechListening !== "recommendation"} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-primary hover:border-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-50" aria-pressed={speechListening === "recommendation"}>
-            <span aria-hidden="true">🎤</span>{speechListening === "recommendation" ? "Stop listening" : "Speak"}
-          </button> : null}
-        </div>
-        <textarea id="recommendation" name="recommendation" rows={3} value={recommendationText} onChange={(event) => setRecommendationText(event.target.value)} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
-        {speechSupported ? <p className="mt-1.5 text-xs text-slate-500">Voice dictation is optional and uses your browser's built-in speech recognition when available.</p> : null}
-        {speechError?.target === "recommendation" ? <p role="alert" className="mt-1.5 text-xs font-medium text-amber-700">{speechError.message}</p> : null}
+      <section aria-labelledby="shop-recommendation-label" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        {fieldHeader("recommendation", "Shop recommendation")}
+        {editing === "recommendation" ? <div className="mt-2">
+          <div className="flex items-center justify-end"><DictationButton textareaId="recommendationEditor" value={recommendationText} onChange={setRecommendationText} /></div>
+          <textarea id="recommendationEditor" rows={3} value={recommendationText} onChange={(event) => setRecommendationText(event.target.value)} className={textareaClass} placeholder="Add findings and recommended work after inspection." />
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={cancel} disabled={pending} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+          </div>
+        </div> : <p id="shop-recommendation-label" className="mt-2 min-h-12 whitespace-pre-wrap text-sm leading-6 text-slate-800">{savedRecommendation || "No shop recommendation recorded."}</p>}
       </section>
     </div>
+    {state.status === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{state.message}</p> : null}
   </form>;
 }
 
-export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint, recommendation, overview, parts, labor, totals, notes, authorizationStatus, canOverrideAuthorization }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; overview: ReactNode; parts: ReactNode; labor: ReactNode; totals: ReactNode; notes: ReactNode; authorizationStatus: "AUTHORIZED" | "NOT_AUTHORIZED"; canOverrideAuthorization: boolean }) {
+export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint, recommendation, estimatedTotal, overview, parts, labor, totals, notes, authorizationStatus, canOverrideAuthorization }: { repairOrderId: string; customerComplaint: string | null; recommendation: string | null; estimatedTotal: string; overview: ReactNode; parts: ReactNode; labor: ReactNode; totals: ReactNode; notes: ReactNode; authorizationStatus: "AUTHORIZED" | "NOT_AUTHORIZED"; canOverrideAuthorization: boolean }) {
   const [state, action, pending] = useActionState(saveRepairOrderDraftForAuthorization, initialState);
   const [createState, createAction, creating] = useActionState(createInvoiceFromRepairOrder, initialCreateState);
-  const [dirty, setDirty] = useState(false);
   const [revisionReady, setRevisionReady] = useState(false);
   const [readinessChecked, setReadinessChecked] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
-  const storageKey = `plumworks:repair-order-needs-save:${repairOrderId}`;
   const authorized = authorizationStatus === "AUTHORIZED";
-  const needsSave = dirty || (readinessChecked && !revisionReady);
+  const needsSave = readinessChecked && !revisionReady;
   const invoiceActionDisabled = needsSave || !readinessChecked || pending || creating || state.status === "error";
   const authorizationBlockedUntilSave = needsSave || !readinessChecked || pending || state.status === "error";
-
-  const markDirty = () => {
-    setDirty(true);
-    setRevisionReady(false);
-    setReadinessChecked(true);
-    try { window.sessionStorage.setItem(storageKey, "1"); } catch { /* ignore storage restrictions */ }
-  };
 
   useEffect(() => {
     let active = true;
@@ -156,29 +108,14 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
       setReadinessChecked(true);
     };
     void checkReadiness();
-
-    try {
-      if (window.sessionStorage.getItem(storageKey) === "1") markDirty();
-    } catch { /* ignore storage restrictions */ }
-
-    const handleNeedsSave = (event: Event) => {
-      const detail = (event as CustomEvent<RepairOrderNeedsSaveDetail>).detail;
-      if (detail?.repairOrderId === repairOrderId) markDirty();
-    };
-    window.addEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
-    return () => {
-      active = false;
-      window.removeEventListener(REPAIR_ORDER_NEEDS_SAVE_EVENT, handleNeedsSave);
-    };
-  }, [repairOrderId, storageKey]);
+    return () => { active = false; };
+  }, [repairOrderId, estimatedTotal]);
 
   useEffect(() => {
     if (state.status !== "success") return;
-    setDirty(false);
     setRevisionReady(true);
     setReadinessChecked(true);
-    try { window.sessionStorage.removeItem(storageKey); } catch { /* ignore storage restrictions */ }
-  }, [state.status, storageKey]);
+  }, [state.status]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(REPAIR_ORDER_SAVE_STATE_EVENT, {
@@ -194,7 +131,10 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
 
   const actions = <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="grid gap-2">
-      <button form="repair-order-save-form" type="submit" disabled={pending || !readinessChecked || !needsSave} aria-label="Save Repair Order" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>
+      <form action={action}>
+        <input type="hidden" name="repairOrderId" value={repairOrderId} />
+        <button type="submit" disabled={pending || !readinessChecked || !needsSave} aria-label="Save financial Repair Order revision" className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{pending ? "Saving…" : "Save draft"}</button>
+      </form>
       <form action={createAction}>
         <input type="hidden" name="repairOrderId" value={repairOrderId} />
         <button type="submit" disabled={invoiceActionDisabled || !authorized} title={!authorized ? "Customer authorization is required before invoice creation." : undefined} className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{creating ? "Creating…" : "Create invoice"}</button>
@@ -215,7 +155,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
   </div>;
 
   return <>
-    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} action={action} onChange={markDirty} onSubmit={() => undefined} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
+    <RepairOrderWorkspace overview={overview} concerns={<ConcernsForm repairOrderId={repairOrderId} customerComplaint={customerComplaint} recommendation={recommendation} />} parts={parts} labor={labor} totals={totals} notes={notes} actions={actions} />
     {overrideOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" aria-label="Cancel authorization override" disabled={creating} onClick={() => setOverrideOpen(false)} className="absolute inset-0 bg-slate-950/50" />
       <section role="alertdialog" aria-modal="true" aria-labelledby="authorization-override-title" className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">

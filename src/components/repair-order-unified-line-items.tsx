@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { addLaborLineWithState, deleteLaborLine, updateLaborLineWithState, type LaborActionState } from "@/app/(app)/repair-orders/labor-actions";
 import { addComplimentaryServiceWithState, deleteComplimentaryService, updateComplimentaryServiceWithState, type ComplimentaryServiceActionState } from "@/app/(app)/repair-orders/complimentary-service-actions";
 import { addPartLineWithState, deletePartLine, updatePartLineWithState } from "@/app/(app)/repair-orders/part-actions";
+import { reorderRepairOrderLine } from "@/app/(app)/repair-orders/reorder-line-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PendingIcon, TrashIcon } from "@/components/line-item-layout";
 import { VendorCombobox, type VendorOption } from "@/components/vendor-combobox";
@@ -22,6 +23,13 @@ const inputClass = "w-full min-w-0 rounded-lg border border-slate-300 bg-white p
 const descriptionClass = `${inputClass} resize-none overflow-y-hidden whitespace-pre-wrap break-words leading-5`;
 const laborDescriptionWrapperClass = "[&>div>div:first-child>span:last-child]:hidden";
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number.isFinite(value) ? value : 0);
+const decimalPattern = "[0-9]*[.]?[0-9]+";
+
+function NumericTextInput({ name, value, onChange, label }: { name: string; value: string; onChange: (value: string) => void; label: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.setCustomValidity(""); }, [value]);
+  return <input ref={inputRef} name={name} type="text" inputMode="decimal" pattern={decimalPattern} required value={value} onChange={(e) => onChange(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity(`Enter a number for ${label}.`)} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />;
+}
 
 export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTotal, parts, labor, complimentary, vendors, services, defaultRate, editable }: {
   repairOrderId: string;
@@ -40,7 +48,7 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
       <div>
         <h2 className="text-base font-bold text-slate-950">Line items</h2>
-        <p className="mt-1 text-xs text-slate-500">Parts use quantity × unit price. Labor uses hours × rate. Complimentary services remain $0.00.</p>
+        <p className="mt-1 text-xs text-slate-500">Parts use quantity × unit price. Labor uses hours × rate. Use ↑/↓ to order Parts within Parts and Labor within Labor.</p>
       </div>
       <p className="text-sm font-semibold text-slate-700">Parts {money(Number(partsTotal))} <span className="mx-1 text-slate-300">·</span> Labor {money(Number(laborTotal))}</p>
     </div>
@@ -48,8 +56,8 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
       <span>Type</span><span>Description</span><span>Vendor / service</span><span className="text-right">Qty / hrs</span><span className="text-right">Price / rate</span><span className="text-right">Amount</span><span />
     </div>
     <div className="divide-y divide-slate-200">
-      {parts.map((line) => <PartSavedRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} editable={editable} />)}
-      {labor.map((line) => <LaborSavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} />)}
+      {parts.map((line, index) => <PartSavedRow key={line.id} repairOrderId={repairOrderId} line={line} vendors={vendors} editable={editable} canMoveUp={index > 0} canMoveDown={index < parts.length - 1} />)}
+      {labor.map((line, index) => <LaborSavedRow key={line.id} repairOrderId={repairOrderId} line={line} services={services} editable={editable} canMoveUp={index > 0} canMoveDown={index < labor.length - 1} />)}
       {complimentary.map((line) => <ComplimentarySavedRow key={line.id} repairOrderId={repairOrderId} line={line} editable={editable} />)}
       {!parts.length && !labor.length && !complimentary.length ? <p className="px-4 py-5 text-sm text-slate-500 sm:px-5">No line items yet.</p> : null}
     </div>
@@ -62,9 +70,23 @@ function TypeBadge({ type }: { type: LineType }) {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${type === "part" ? "bg-blue-50 text-blue-800" : type === "labor" ? "bg-emerald-50 text-emerald-800" : "bg-violet-50 text-violet-800"}`}>{label}</span>;
 }
 
-function DisplayRow({ type, description, secondary, qty, rate, amount, actions }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode }) {
+function ReorderControls({ repairOrderId, lineId, lineType, canMoveUp, canMoveDown }: { repairOrderId: string; lineId: string; lineType: "part" | "labor"; canMoveUp: boolean; canMoveDown: boolean }) {
+  const buttonClass = "inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-black text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent";
+  return <div className="flex shrink-0 flex-col" aria-label={`Reorder ${lineType}`}>
+    <form action={reorderRepairOrderLine}>
+      <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="lineId" value={lineId} /><input type="hidden" name="lineType" value={lineType} /><input type="hidden" name="direction" value="up" />
+      <button type="submit" disabled={!canMoveUp} title={`Move ${lineType} up`} aria-label={`Move ${lineType} up`} className={buttonClass}>▲</button>
+    </form>
+    <form action={reorderRepairOrderLine}>
+      <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="lineId" value={lineId} /><input type="hidden" name="lineType" value={lineType} /><input type="hidden" name="direction" value="down" />
+      <button type="submit" disabled={!canMoveDown} title={`Move ${lineType} down`} aria-label={`Move ${lineType} down`} className={buttonClass}>▼</button>
+    </form>
+  </div>;
+}
+
+function DisplayRow({ type, description, secondary, qty, rate, amount, actions, reorder }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode; reorder?: React.ReactNode }) {
   return <div className="grid gap-2 px-4 py-3 text-sm lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-center lg:gap-3 sm:px-5">
-    <div><TypeBadge type={type} /></div>
+    <div className="flex items-center gap-1"><TypeBadge type={type} />{reorder}</div>
     <ReadOnlyDescriptionPreview value={description} />
     <div className="text-slate-500">{secondary}</div>
     <div className="flex justify-between gap-3 lg:block lg:text-right"><span className="text-slate-500 lg:hidden">Qty / hrs</span><span>{qty}</span></div>
@@ -88,10 +110,10 @@ function EditActions({ pending, onClose }: { pending: boolean; onClose: () => vo
   </div>;
 }
 
-function PartSavedRow({ repairOrderId, line, vendors, editable }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; editable: boolean }) {
+function PartSavedRow({ repairOrderId, line, vendors, editable, canMoveUp, canMoveDown }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; editable: boolean; canMoveUp: boolean; canMoveDown: boolean }) {
   const [editing, setEditing] = useState(false);
   if (editing && editable) return <PartEditRow repairOrderId={repairOrderId} line={line} vendors={vendors} onClose={() => setEditing(false)} />;
-  return <DisplayRow type="part" description={line.description} secondary={line.vendor?.name ?? "—"} qty={line.quantity} rate={money(Number(line.unitPrice))} amount={money(Number(line.quantity) * Number(line.unitPrice))} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deletePartLine} deleteLabel="part" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} /></>} /> : null} />;
+  return <DisplayRow type="part" description={line.description} secondary={line.vendor?.name ?? "—"} qty={line.quantity} rate={money(Number(line.unitPrice))} amount={money(Number(line.quantity) * Number(line.unitPrice))} reorder={editable ? <ReorderControls repairOrderId={repairOrderId} lineId={line.id} lineType="part" canMoveUp={canMoveUp} canMoveDown={canMoveDown} /> : null} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deletePartLine} deleteLabel="part" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} /></>} /> : null} />;
 }
 
 function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId: string; line: PartLine; vendors: VendorOption[]; onClose: () => void }) {
@@ -106,8 +128,8 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
       <div><TypeBadge type="part" /></div>
       <HistoricalDescriptionCombobox kind="part" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
       <VendorCombobox vendors={vendors} defaultVendor={line.vendor} />
-      <label className="text-xs font-semibold text-slate-600">Qty<input name="quantity" type="number" required min="0.01" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Unit price<input name="unitPrice" type="number" required min="0" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
+      <label className="text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
       <div className="self-center text-right font-semibold">{money(Number(quantity) * Number(unitPrice))}</div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
@@ -115,10 +137,10 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
   </form>;
 }
 
-function LaborSavedRow({ repairOrderId, line, services, editable }: { repairOrderId: string; line: LaborLine; services: CommonService[]; editable: boolean }) {
+function LaborSavedRow({ repairOrderId, line, services, editable, canMoveUp, canMoveDown }: { repairOrderId: string; line: LaborLine; services: CommonService[]; editable: boolean; canMoveUp: boolean; canMoveDown: boolean }) {
   const [editing, setEditing] = useState(false);
   if (editing && editable) return <LaborEditRow repairOrderId={repairOrderId} line={line} services={services} onClose={() => setEditing(false)} />;
-  return <DisplayRow type="labor" description={line.description} secondary={line.shopSuppliesEligible ? "Shop supplies" : "—"} qty={line.hours} rate={money(Number(line.hourlyRate))} amount={money(Number(line.hours) * Number(line.hourlyRate))} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteLaborLine} deleteLabel="labor" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
+  return <DisplayRow type="labor" description={line.description} secondary={line.shopSuppliesEligible ? "Shop supplies" : "—"} qty={line.hours} rate={money(Number(line.hourlyRate))} amount={money(Number(line.hours) * Number(line.hourlyRate))} reorder={editable ? <ReorderControls repairOrderId={repairOrderId} lineId={line.id} lineType="labor" canMoveUp={canMoveUp} canMoveDown={canMoveDown} /> : null} actions={editable ? <RowActions onEdit={() => setEditing(true)} deleteAction={deleteLaborLine} deleteLabel="labor" hiddenInputs={<><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /></>} /> : null} />;
 }
 
 function LaborPresetPicker({ services, selectedId, modified, onSelect, onClear }: { services: CommonService[]; selectedId: string | null; modified: boolean; onSelect: (service: CommonService) => void; onClear: () => void }) {
@@ -185,8 +207,8 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
     <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
       <div><TypeBadge type="labor" /></div>
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
-      <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
+      <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
       <div className="self-center text-right font-semibold">{money(Number(hours) * Number(rate))}</div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
@@ -254,8 +276,8 @@ function DraftPart({ repairOrderId, vendors, type, setType, onSaved }: { repairO
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="part" rowKey="draft-unified-part" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Part description" multiline autoGrow />
       <VendorCombobox vendors={vendors} />
-      <label className="text-xs font-semibold text-slate-600">Qty<input name="quantity" type="number" required min="0.01" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Unit price<input name="unitPrice" type="number" required min="0" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
+      <label className="text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
       <AmountField value={money(Number(quantity) * Number(unitPrice))} />
     </div>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
@@ -264,7 +286,7 @@ function DraftPart({ repairOrderId, vendors, type, setType, onSaved }: { repairO
 
 function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSaved }: { repairOrderId: string; services: CommonService[]; defaultRate: string; type: LineType; setType: (value: LineType) => void; onSaved: () => void }) {
   const [description, setDescription] = useState("");
-  const [hours, setHours] = useState("");
+  const [hours, setHours] = useState("1");
   const [rate, setRate] = useState(defaultRate);
   const [eligible, setEligible] = useState(true);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
@@ -282,7 +304,7 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
   function clearPreset() {
     setSelectedPresetId(null);
     setDescription("");
-    setHours("");
+    setHours("1");
     setRate(defaultRate);
     setEligible(true);
   }
@@ -293,8 +315,8 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
     <div className="grid gap-3 lg:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] lg:items-end">
       <TypeSelect value={type} onChange={setType} />
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow /></div>
-      <label className="text-xs font-semibold text-slate-600">Hours<input name="hours" type="number" required min="0.01" step="0.01" value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1`} /></label>
-      <label className="text-xs font-semibold text-slate-600">Rate<input name="hourlyRate" type="number" required min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
+      <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
     </div>
     <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 lg:ml-[10.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>

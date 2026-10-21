@@ -147,7 +147,7 @@ export async function getRepairOrderAuthorizationSummaryForShop(shopId: string, 
     WHERE dr.shop_id = ${shopId}::uuid
       AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
       AND dr.document_id = ${repairOrderId}::uuid
-      AND dr.snapshot_sha256 = ${current.hash}
+      AND dr.total = ${current.total}::decimal
       AND ae.decision = 'APPROVED'::"AuthorizationDecision"
     ORDER BY ae.occurred_at DESC
     LIMIT 1

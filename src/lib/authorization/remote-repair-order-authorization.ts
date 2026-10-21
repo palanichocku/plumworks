@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { ensureCurrentRepairOrderRevision, getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
+import { ensureCurrentRepairOrderRevision } from "@/lib/authorization/repair-order-evidence";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{40,100}$/;
 const REQUEST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
@@ -147,8 +147,8 @@ export async function getPublicRepairOrderAuthorization(token: string) {
   if (effectiveStatus === "PENDING" && row.expiresAt.getTime() <= Date.now()) effectiveStatus = "EXPIRED";
 
   if (effectiveStatus === "PENDING") {
-    const current = await getRepairOrderAuthorizationSummaryForShop(row.shopId, row.documentId);
-    if (!current || current.currentSnapshotSha256 !== row.snapshotSha256) effectiveStatus = "SUPERSEDED";
+    const currentRevision = await ensureCurrentRepairOrderRevision(row.shopId, row.documentId);
+    if (!currentRevision || currentRevision.total !== Number(row.total).toFixed(2)) effectiveStatus = "SUPERSEDED";
   }
 
   return { ...row, effectiveStatus };
@@ -209,7 +209,7 @@ export async function decidePublicRepairOrderAuthorization(input: {
       return { ok: false as const, code: "expired" as const };
     }
 
-    if (!currentRevision || currentRevision.snapshotSha256 !== row.snapshotSha256) {
+    if (!currentRevision || currentRevision.total !== Number(row.total).toFixed(2)) {
       await tx.$executeRaw`
         UPDATE authorization_requests
         SET status = 'SUPERSEDED'::"AuthorizationRequestStatus", superseded_at = CURRENT_TIMESTAMP

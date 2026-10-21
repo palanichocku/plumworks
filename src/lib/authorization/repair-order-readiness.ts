@@ -22,5 +22,8 @@ export async function getSavedCurrentRepairOrderRevision(shopId: string, repairO
 }
 
 export async function isRepairOrderReadyForAuthorization(shopId: string, repairOrderId: string) {
+  const summary = await getRepairOrderAuthorizationSummaryForShop(shopId, repairOrderId);
+  if (!summary) return false;
+  if (summary.status === "AUTHORIZED") return true;
   return Boolean(await getSavedCurrentRepairOrderRevision(shopId, repairOrderId));
 }

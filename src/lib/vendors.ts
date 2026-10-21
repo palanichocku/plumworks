@@ -28,13 +28,20 @@ export function buildVendorChoices(vendors: VendorChoiceOption[], query: string)
   const exactVendor = normalizedQuery
     ? vendors.find((vendor) => normalizeVendorName(vendor.name) === normalizedQuery) ?? null
     : null;
-  const filteredVendors = vendors.filter((vendor) =>
-    normalizeVendorName(vendor.name).includes(normalizedQuery)
-  );
+  const filteredVendors = vendors
+    .filter((vendor) => normalizeVendorName(vendor.name).includes(normalizedQuery))
+    .sort((a, b) => {
+      const aName = normalizeVendorName(a.name);
+      const bName = normalizeVendorName(b.name);
+      const aStarts = normalizedQuery ? aName.startsWith(normalizedQuery) : false;
+      const bStarts = normalizedQuery ? bName.startsWith(normalizedQuery) : false;
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      return a.name.localeCompare(b.name, "en-US", { sensitivity: "base" });
+    });
   const canAdd = Boolean(cleanedQuery) && !exactVendor && cleanedQuery.length <= MAX_VENDOR_NAME_LENGTH;
   const choices: VendorChoice[] = [
-    ...(canAdd ? [{ type: "new" as const, name: cleanedQuery }] : []),
     ...filteredVendors.map((vendor) => ({ type: "existing" as const, vendor })),
+    ...(canAdd ? [{ type: "new" as const, name: cleanedQuery }] : []),
   ];
   return { cleanedQuery, exactVendor, filteredVendors, canAdd, choices };
 }
