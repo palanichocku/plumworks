@@ -1,0 +1,47 @@
+name: RO validation hotfix
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/ro-validation-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Patch stale numeric validation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/repair-order-unified-line-items.tsx')
+          s = p.read_text()
+          s = s.replace('import { useActionState, useEffect, useState } from "react";', 'import { useActionState, useEffect, useRef, useState } from "react";')
+          marker = 'const decimalPattern = "[0-9]*[.]?[0-9]+";\n'
+          insert = '''const decimalPattern = "[0-9]*[.]?[0-9]+";\n\nfunction NumericTextInput({ name, value, onChange, label }: { name: string; value: string; onChange: (value: string) => void; label: string }) {\n  const inputRef = useRef<HTMLInputElement>(null);\n  useEffect(() => { inputRef.current?.setCustomValidity(""); }, [value]);\n  return <input ref={inputRef} name={name} type="text" inputMode="decimal" pattern={decimalPattern} required value={value} onChange={(e) => onChange(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity(`Enter a number for ${label}.`)} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />;\n}\n'''
+          if 'function NumericTextInput' not in s:
+              s = s.replace(marker, insert)
+          replacements = {
+            '<input name="quantity" type="text" inputMode="decimal" pattern={decimalPattern} required value={quantity} onChange={(e) => setQuantity(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Qty.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />': '<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" />',
+            '<input name="unitPrice" type="text" inputMode="decimal" pattern={decimalPattern} required value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Unit price.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />': '<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" />',
+            '<input name="hours" type="text" inputMode="decimal" pattern={decimalPattern} required value={hours} onChange={(e) => setHours(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Hours.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />': '<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" />',
+            '<input name="hourlyRate" type="text" inputMode="decimal" pattern={decimalPattern} required value={rate} onChange={(e) => setRate(e.target.value)} onInput={(e) => e.currentTarget.setCustomValidity("")} onInvalid={(e) => e.currentTarget.setCustomValidity("Enter a number for Rate.")} onWheel={(e) => e.currentTarget.blur()} className={`${inputClass} mt-1`} />': '<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" />',
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Commit hotfix
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/repair-order-unified-line-items.tsx
+          git commit -m "fix(ro): clear stale numeric validation on preset values"
+          git push origin dev
