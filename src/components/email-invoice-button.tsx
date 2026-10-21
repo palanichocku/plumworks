@@ -33,7 +33,33 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, status, printH
   }, []);
 
   return <div className="flex min-w-0 flex-col items-end gap-1.5">
-    <div className="flex flex-wrap items-center justify-end gap-3" data-invoice-action-row>
+    <style>{`
+      header:has([data-invoice-action-row]) {
+        width: 100%;
+        max-width: var(--transaction-workspace-max-width);
+      }
+      header:has([data-invoice-action-row]) > div:last-child {
+        justify-content: flex-end;
+      }
+      header:has([data-invoice-action-row]) > div:last-child > a {
+        border: 0 !important;
+        background: var(--primary) !important;
+        color: white !important;
+        padding: 0.5rem 0.75rem !important;
+      }
+      header:has([data-invoice-action-row]) > div:last-child > a:hover {
+        background: var(--primary) !important;
+        color: white !important;
+      }
+      header:has([data-invoice-action-row]) > div:last-child > a[href$="/edit"] {
+        font-size: 0 !important;
+      }
+      header:has([data-invoice-action-row]) > div:last-child > a[href$="/edit"]::after {
+        content: "Edit";
+        font-size: 0.875rem;
+      }
+    `}</style>
+    <div className="flex flex-wrap items-center justify-end gap-2" data-invoice-action-row>
       <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
         {status}
       </span>
@@ -41,13 +67,13 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, status, printH
         ref={buttonRef}
         type="button"
         onClick={() => { setSuccess(null); setOpen(true); }}
-        className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
+        className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
       >
         Email
       </button>
       <Link
         href={printHref}
-        className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary"
+        className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary"
       >
         Print
       </Link>
