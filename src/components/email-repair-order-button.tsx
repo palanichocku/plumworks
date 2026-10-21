@@ -37,16 +37,36 @@ export function EmailRepairOrderButton({ repairOrderId, defaultRecipient, status
   }, []);
 
   return <div className="flex min-w-0 flex-col items-end gap-1.5">
+    <style>{`
+      header:has([data-repair-order-action-row]) {
+        width: 100%;
+        max-width: var(--transaction-workspace-max-width);
+      }
+      header:has([data-repair-order-action-row]) > div:last-child {
+        justify-content: flex-end;
+      }
+      header:has([data-repair-order-action-row]) > div:last-child > details > summary {
+        min-height: 2.5rem !important;
+        border: 0 !important;
+        background: var(--primary) !important;
+        color: white !important;
+        padding: 0.5rem 0.75rem !important;
+      }
+      header:has([data-repair-order-action-row]) > div:last-child > details > summary:hover {
+        background: var(--primary) !important;
+        color: white !important;
+      }
+    `}</style>
     <div className="flex flex-wrap items-center justify-end gap-2" data-repair-order-action-row>
       {status !== "void" ? <button
         ref={buttonRef}
         type="button"
         onClick={() => { setSuccess(null); setOpen(true); }}
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20"
       >
         <MailIcon /> Email estimate
       </button> : null}
-      <Link href={printHref} className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary">Print</Link>
+      <Link href={printHref} className="inline-flex min-h-10 items-center rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary">Print</Link>
     </div>
     {success ? <div aria-live="polite" aria-atomic="true" className="text-right">
       <p role="status" className="text-sm font-medium text-emerald-700">{success}</p>
