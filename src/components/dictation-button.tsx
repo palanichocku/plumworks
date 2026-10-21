@@ -32,7 +32,7 @@ function getSpeechRecognition(): SpeechRecognitionConstructor | null {
 }
 
 function insertTranscript(value: string, transcript: string, start: number, end: number) {
-  const spoken = transcript.trim();
+  const spoken = transcript.trim().toUpperCase();
   if (!spoken) return { value, caret: start };
 
   const before = value.slice(0, start);
@@ -51,24 +51,38 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
 }) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const selectionRef = useRef({ start: value.length, end: value.length });
+  const valueRef = useRef(value);
+  const keepListeningRef = useRef(false);
+  const restartTimerRef = useRef<number | null>(null);
   const [listening, setListening] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const supported = Boolean(getSpeechRecognition());
 
-  useEffect(() => () => recognitionRef.current?.abort(), []);
+  useEffect(() => { valueRef.current = value; }, [value]);
+  useEffect(() => () => {
+    keepListeningRef.current = false;
+    if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
+    recognitionRef.current?.abort();
+  }, []);
 
   function speak() {
     setMessage(null);
     const textarea = document.getElementById(textareaId) as HTMLTextAreaElement | null;
     if (textarea) {
       selectionRef.current = {
-        start: textarea.selectionStart ?? value.length,
-        end: textarea.selectionEnd ?? value.length,
+        start: textarea.selectionStart ?? valueRef.current.length,
+        end: textarea.selectionEnd ?? valueRef.current.length,
       };
     }
 
     if (listening) {
+      keepListeningRef.current = false;
+      if (restartTimerRef.current !== null) {
+        window.clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       recognitionRef.current?.stop();
+      setListening(false);
       return;
     }
 
@@ -79,7 +93,7 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
     }
 
     const recognition = new Recognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = "en-US";
     recognition.onresult = (event) => {
@@ -89,7 +103,9 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
         if (result?.isFinal !== false) transcript += result?.[0]?.transcript ?? "";
       }
       const { start, end } = selectionRef.current;
-      const inserted = insertTranscript(value, transcript, start, end);
+      const inserted = insertTranscript(valueRef.current, transcript, start, end);
+      valueRef.current = inserted.value;
+      selectionRef.current = { start: inserted.caret, end: inserted.caret };
       onChange(inserted.value);
       window.requestAnimationFrame(() => {
         const current = document.getElementById(textareaId) as HTMLTextAreaElement | null;
@@ -98,22 +114,42 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
       });
     };
     recognition.onerror = (event) => {
+      if (event.error === "no-speech") return;
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        keepListeningRef.current = false;
         setMessage("Microphone access is blocked. Allow microphone access in the browser and try again.");
       } else if (event.error !== "aborted") {
-        setMessage("Speech input could not start. Please try again.");
+        keepListeningRef.current = false;
+        setMessage("Speech input stopped unexpectedly. Please try again.");
       }
-      setListening(false);
+      if (!keepListeningRef.current) setListening(false);
     };
     recognition.onend = () => {
+      if (keepListeningRef.current) {
+        restartTimerRef.current = window.setTimeout(() => {
+          if (!keepListeningRef.current || recognitionRef.current !== recognition) return;
+          try {
+            recognition.start();
+          } catch {
+            keepListeningRef.current = false;
+            recognitionRef.current = null;
+            setListening(false);
+            setMessage("Speech input could not continue. Please press Speak to try again.");
+          }
+        }, 150);
+        return;
+      }
       setListening(false);
       recognitionRef.current = null;
     };
+
     recognitionRef.current = recognition;
+    keepListeningRef.current = true;
     setListening(true);
     try {
       recognition.start();
     } catch {
+      keepListeningRef.current = false;
       setListening(false);
       recognitionRef.current = null;
       setMessage("Speech input could not start. Please try again.");
@@ -122,7 +158,7 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
 
   return <span className={`inline-flex flex-col items-end ${className}`}>
     <button type="button" onClick={speak} disabled={!supported && !message} aria-pressed={listening} title={supported ? "Dictate text" : "Speech input is not supported in this browser"} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-brand-subtle focus:outline-none focus:ring-2 focus:ring-brand-primary/30 disabled:cursor-not-allowed disabled:text-slate-400">
-      <MicIcon />{listening ? "Listening…" : "Speak"}
+      <MicIcon />{listening ? "Stop listening" : "Speak"}
     </button>
     {message ? <span role="status" className="mt-1 max-w-72 text-right text-[11px] font-normal text-slate-500">{message}</span> : null}
   </span>;
