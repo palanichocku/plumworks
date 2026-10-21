@@ -1,0 +1,67 @@
+name: Fix RO concern cards
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-ro-concern-cards.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Patch concern editor cards and save state
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/repair-order-concerns-form.tsx')
+          s = p.read_text()
+
+          s = s.replace(
+            'import { useActionState, useEffect, useState, type ReactNode } from "react";',
+            'import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";'
+          )
+
+          old = '''  const [editing, setEditing] = useState<ConcernField | null>(null);\n\n  useEffect(() => {\n    if (state.status !== "success" || editing === null) return;\n    setSavedConcern(concernText.trim());\n    setSavedRecommendation(recommendationText.trim());\n    setEditing(null);\n  }, [state.status, editing, concernText, recommendationText]);'''
+          new = '''  const [editing, setEditing] = useState<ConcernField | null>(null);\n  const submittedField = useRef<ConcernField | null>(null);\n\n  useEffect(() => {\n    if (state.status !== "success" || submittedField.current === null) return;\n    const field = submittedField.current;\n    submittedField.current = null;\n    if (field === "customerComplaint") setSavedConcern(concernText.trim());\n    if (field === "recommendation") setSavedRecommendation(recommendationText.trim());\n    setEditing(null);\n  }, [state, concernText, recommendationText]);'''
+          if old not in s:
+              raise SystemExit('save-state block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''  return <form id="repair-order-save-form" action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">'''
+          new = '''  return <form id="repair-order-save-form" action={action} onSubmit={() => { submittedField.current = editing; }} className="min-w-0">'''
+          if old not in s:
+              raise SystemExit('form wrapper not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    <div className="grid gap-0 lg:grid-cols-2">\n      <section aria-labelledby="check-in-concern-label" className="pb-4 lg:pb-0 lg:pr-5">'''
+          new = '''    <div className="grid gap-4 lg:grid-cols-2">\n      <section aria-labelledby="check-in-concern-label" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">'''
+          if old not in s:
+              raise SystemExit('grid/check-in wrapper not found')
+          s = s.replace(old, new, 1)
+
+          old = '''      <section aria-labelledby="shop-recommendation-label" className="border-t border-slate-200 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">'''
+          new = '''      <section aria-labelledby="shop-recommendation-label" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">'''
+          if old not in s:
+              raise SystemExit('recommendation wrapper not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    {state.status === "error" ? <p role="alert" className="mt-3 text-sm font-medium text-red-700">{state.message}</p> : null}'''
+          new = '''    {state.status === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{state.message}</p> : null}'''
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/repair-order-concerns-form.tsx
+          git commit -m "fix(ro): separate concern cards and stabilize recommendation edit"
+          git push origin dev
