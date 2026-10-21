@@ -89,6 +89,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         customerComplaint={order.customerComplaint}
         recommendation={order.recommendation}
+        estimatedTotal={Number(order.estimatedTotal).toFixed(2)}
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
