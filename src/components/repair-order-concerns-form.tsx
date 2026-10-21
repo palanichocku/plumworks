@@ -62,8 +62,8 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <input type="hidden" name="customerComplaint" value={concernText} />
     <input type="hidden" name="recommendation" value={recommendationText} />
-    <div className="grid gap-4 lg:grid-cols-2">
-      <section aria-labelledby="check-in-concern-label">
+    <div className="grid gap-0 lg:grid-cols-2">
+      <section aria-labelledby="check-in-concern-label" className="pb-4 lg:pb-0 lg:pr-5">
         {fieldHeader("customerComplaint", "Check-in concern")}
         {editing === "customerComplaint" ? <div className="mt-2">
           <div className="flex items-center justify-end"><DictationButton textareaId="customerComplaintEditor" value={concernText} onChange={(next) => { setConcernText(next); onChange(); }} /></div>
@@ -74,7 +74,7 @@ function ConcernsForm({ repairOrderId, customerComplaint, recommendation, action
           </div>
         </div> : <p id="check-in-concern-label" className="mt-2 min-h-12 whitespace-pre-wrap text-sm leading-6 text-slate-800">{savedConcern || "No check-in concern recorded."}</p>}
       </section>
-      <section aria-labelledby="shop-recommendation-label">
+      <section aria-labelledby="shop-recommendation-label" className="border-t border-slate-200 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
         {fieldHeader("recommendation", "Shop recommendation")}
         {editing === "recommendation" ? <div className="mt-2">
           <div className="flex items-center justify-end"><DictationButton textareaId="recommendationEditor" value={recommendationText} onChange={(next) => { setRecommendationText(next); onChange(); }} /></div>
