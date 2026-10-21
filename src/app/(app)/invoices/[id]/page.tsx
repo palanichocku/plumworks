@@ -92,14 +92,13 @@ export default async function InvoiceDetailPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {invoice.repairOrderId ? <Link href={`/repair-orders/${invoice.repairOrderId}/authorization-evidence`} className="rounded-lg border border-brand-primary/30 px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Estimate Authorization</Link> : null}
-          {canVoid ? <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={String(invoice.repairOrderNumber)} originalTotal={formatMoney(invoice.total)} /> : null}
           {open ? <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg border border-brand-primary/30 px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle">Edit Invoice</Link> : null}
           <EmailInvoiceButton
             invoiceId={invoice.id}
             defaultRecipient={normalizeEmailRecipient(invoice.customer.email ?? "") ?? ""}
-            status={voided ? "Void" : open ? "Open" : "Closed"}
             printHref={`/invoices/${invoice.id}/print`}
           />
+          {canVoid ? <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={String(invoice.repairOrderNumber)} originalTotal={formatMoney(invoice.total)} /> : null}
         </div>
       </header>
 
