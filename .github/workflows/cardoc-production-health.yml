@@ -7,6 +7,8 @@ jobs:
   health:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     env:
       MONITOR_BASE_URL: ${{ secrets.MONITOR_BASE_URL }}
       MONITOR_HEALTH_TOKEN: ${{ secrets.MONITOR_HEALTH_TOKEN }}
@@ -16,29 +18,51 @@ jobs:
       MONITOR_HEARTBEAT_URL: ${{ secrets.MONITOR_HEARTBEAT_URL }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       TRANSACTIONAL_EMAIL_FROM: ${{ secrets.TRANSACTIONAL_EMAIL_FROM }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
+
+      - name: Install dependencies
+        id: dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Chromium
+        id: browser
+        run: npx playwright install --with-deps chromium
+
       - name: Run read-only monitoring
         id: smoke
         continue-on-error: true
         run: npm run monitor:smoke
-      - name: Email report and set health outcome
-        if: always()
+
+      - name: Email health report
+        id: report
+        if: >-
+          always() &&
+          steps.dependencies.outcome == 'success' &&
+          steps.browser.outcome == 'success' &&
+          (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')
+        continue-on-error: true
         run: npm run monitor:report -- --send
+
       - name: Upload sanitized metrics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cardoc-monitoring-result
-          path: artifacts/monitoring/result.json
+          path: |
+            artifacts/monitoring/result.json
+            artifacts/monitoring/report-delivery.json
           if-no-files-found: ignore
           retention-days: 30
+
       - name: Upload Playwright diagnostics on failure
         if: always() && steps.smoke.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -47,6 +71,83 @@ jobs:
           path: artifacts/monitoring/playwright/results.xml
           if-no-files-found: ignore
           retention-days: 7
-      - name: Confirm smoke command succeeded
-        if: always() && steps.smoke.outcome == 'failure'
-        run: exit 1
+
+      - name: Signal complete monitoring success
+        id: heartbeat_success
+        if: >-
+          always() &&
+          steps.dependencies.outcome == 'success' &&
+          steps.browser.outcome == 'success' &&
+          steps.smoke.outcome == 'success' &&
+          steps.report.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${MONITOR_HEARTBEAT_URL:-}" ]; then
+            echo "MONITOR_HEARTBEAT_URL is missing."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 10 "$MONITOR_HEARTBEAT_URL"
+          echo "Monitoring success heartbeat delivered after tests and report delivery."
+
+      - name: Signal monitoring failure and send dependency-free fallback alert
+        if: >-
+          always() &&
+          !(
+            steps.dependencies.outcome == 'success' &&
+            steps.browser.outcome == 'success' &&
+            steps.smoke.outcome == 'success' &&
+            steps.report.outcome == 'success' &&
+            steps.heartbeat_success.outcome == 'success'
+          )
+        shell: bash
+        run: |
+          set +e
+
+          failure_summary="dependencies=${{ steps.dependencies.outcome }}, browser=${{ steps.browser.outcome }}, smoke=${{ steps.smoke.outcome }}, report=${{ steps.report.outcome }}, heartbeat=${{ steps.heartbeat_success.outcome }}"
+          echo "Monitoring failure: $failure_summary"
+
+          if [ -n "${MONITOR_HEARTBEAT_URL:-}" ]; then
+            fail_url="${MONITOR_HEARTBEAT_URL%/}/fail"
+            if curl --fail --silent --show-error --max-time 10 "$fail_url"; then
+              echo "Better Stack failure heartbeat delivered."
+            else
+              echo "::warning::Better Stack failure heartbeat could not be delivered."
+            fi
+          else
+            echo "::warning::MONITOR_HEARTBEAT_URL is missing; Better Stack could not be notified."
+          fi
+
+          report_already_delivered="false"
+          if [ -f artifacts/monitoring/report-delivery.json ] && command -v jq >/dev/null 2>&1; then
+            report_already_delivered="$(jq -r '.ok // false' artifacts/monitoring/report-delivery.json 2>/dev/null)"
+          fi
+
+          if [ "$report_already_delivered" != "true" ]; then
+            if [ -n "${RESEND_API_KEY:-}" ] && [ -n "${MONITOR_REPORT_EMAIL:-}" ] && [ -n "${TRANSACTIONAL_EMAIL_FROM:-}" ]; then
+              subject="Car Doc Monitoring FAILED — Run #${GITHUB_RUN_NUMBER}"
+              body="Car Doc production monitoring did not complete successfully. App status may be UNKNOWN. ${failure_summary}. GitHub run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              payload="$(jq -n \
+                --arg from "$TRANSACTIONAL_EMAIL_FROM" \
+                --arg to "$MONITOR_REPORT_EMAIL" \
+                --arg subject "$subject" \
+                --arg text "$body" \
+                '{from:$from,to:[$to],subject:$subject,text:$text}')"
+
+              if curl --fail --silent --show-error --max-time 15 \
+                -X POST https://api.resend.com/emails \
+                -H "Authorization: Bearer ${RESEND_API_KEY}" \
+                -H "Content-Type: application/json" \
+                --data "$payload" >/dev/null; then
+                echo "Dependency-free fallback alert accepted by Resend."
+              else
+                echo "::warning::Fallback alert email could not be delivered."
+              fi
+            else
+              echo "::warning::Fallback alert email could not be attempted because email configuration is incomplete."
+            fi
+          else
+            echo "Normal health report was already delivered; skipping duplicate fallback email."
+          fi
+
+          exit 1
