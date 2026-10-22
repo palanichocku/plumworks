@@ -27,7 +27,9 @@ const styles = StyleSheet.create({
   legal: { flexGrow: 1, flexBasis: 0 },
   legalBlock: { marginBottom: 6 },
   totals: { width: 190 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
+  totalRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 2 },
+  totalLabel: { flexGrow: 1, flexBasis: 0, paddingRight: 8 },
+  totalValue: { width: 68, textAlign: "right" },
   grandTotal: { borderTop: "1pt solid #000000", marginTop: 2, paddingTop: 4, fontSize: 10 },
   signature: { marginTop: 12, borderTop: "0.5pt solid #000000", paddingTop: 2 },
   signedBlock: { marginTop: 10 },
@@ -142,17 +144,17 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
         </View>
         <View style={styles.totals} wrap={false}>
           <Text style={styles.sectionTitle}>TOTALS</Text>
-          <View style={styles.totalRow}><Text>Parts</Text><Text>{model.totals.parts}</Text></View>
-          <View style={styles.totalRow}><Text>Labor</Text><Text>{model.totals.labor}</Text></View>
-          <View style={styles.totalRow}><Text>Shop supplies</Text><Text>{model.totals.shopSupplies}</Text></View>
-          <View style={styles.totalRow}><Text>Subtotal before tax</Text><Text>{model.totals.displaySubtotalBeforeTax}</Text></View>
-          {model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <View style={styles.totalRow}><Text>Discount</Text><Text>{model.totals.discount}</Text></View> : null}
-          {model.legacyCharges.map((charge) => <View key={charge.label} style={styles.totalRow}><Text>{charge.label}</Text><Text>{charge.amount}</Text></View>)}
-          <View style={styles.totalRow}><Text>Tax</Text><Text>{model.totals.tax}</Text></View>
-          <View style={[styles.totalRow, styles.grandTotal]}><Text>Total</Text><Text>{model.totals.total}</Text></View>
-          <View style={styles.totalRow}><Text>Amount paid</Text><Text>{model.totals.amountPaid}</Text></View>
-          <View style={styles.totalRow}><Text>Balance due</Text><Text>{model.totals.balanceDue}</Text></View>
-          <View style={styles.totalRow}><Text>Payment status</Text><Text>{model.totals.paymentStatus}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Parts</Text><Text style={styles.totalValue}>{model.totals.parts}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Labor</Text><Text style={styles.totalValue}>{model.totals.labor}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Shop supplies</Text><Text style={styles.totalValue}>{model.totals.shopSupplies}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal before tax</Text><Text style={styles.totalValue}>{model.totals.displaySubtotalBeforeTax}</Text></View>
+          {model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>{model.totals.discount}</Text></View> : null}
+          {model.legacyCharges.map((charge) => <View key={charge.label} style={styles.totalRow}><Text style={styles.totalLabel}>{charge.label}</Text><Text style={styles.totalValue}>{charge.amount}</Text></View>)}
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{model.totals.tax}</Text></View>
+          <View style={[styles.totalRow, styles.grandTotal]}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{model.totals.total}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Amount paid</Text><Text style={styles.totalValue}>{model.totals.amountPaid}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Balance due</Text><Text style={styles.totalValue}>{model.totals.balanceDue}</Text></View>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Payment status</Text><Text style={styles.totalValue}>{model.totals.paymentStatus}</Text></View>
           {model.paymentMethods.length ? <Text style={{ marginTop: 5 }}>Payments: {model.paymentMethods.map((payment) => `${payment.method} ${payment.amount}`).join("; ")}</Text> : null}
         </View>
       </View>

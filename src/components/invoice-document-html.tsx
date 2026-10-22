@@ -9,6 +9,14 @@ function Detail({ label, value }: { label: string; value: string | number | null
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
+function TotalDetail({ label, value, grand = false }: { label: string; value: string | number | null | undefined; grand?: boolean }) {
+  if (value === null || value === undefined || value === "") return null;
+  return <div
+    className={grand ? "invoice-document-grand-total" : undefined}
+    style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12pt", padding: "2pt 0", breakInside: "avoid", pageBreakInside: "avoid" }}
+  ><dt style={{ flex: "1 1 auto", minWidth: 0 }}>{label}</dt><dd style={{ flex: "0 0 auto", textAlign: "right", whiteSpace: "nowrap" }}>{value}</dd></div>;
+}
+
 function SignedBlock({ label, signerName, signedAt, signatureData }: { label: string; signerName: string; signedAt: string; signatureData: string }) {
   return <section style={{ marginTop: "12px" }}>
     <p style={{ margin: 0, fontWeight: 700 }}>{label}</p>
@@ -44,8 +52,8 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
     </DocumentTable>
     {model.complimentaryServices.length > 0 && <section className="invoice-document-section"><h2>Complimentary Services</h2><ul>{model.complimentaryServices.map((service, index) => <li key={`${service.description}-${index}`}>{service.description} — No charge</li>)}</ul></section>}
 
-    <section className="invoice-document-bottom">
-      <div className="invoice-document-legal">
+    <section className="invoice-document-bottom" style={{ display: "flex", alignItems: "flex-start", gap: "18pt" }}>
+      <div className="invoice-document-legal" style={{ flex: "1 1 0", minWidth: 0 }}>
         {model.shop.laborWarrantyText && <Legal title="Labor Warranty" text={model.shop.laborWarrantyText} />}
         {model.shop.partsWarrantyText && <Legal title="Parts Warranty" text={model.shop.partsWarrantyText} />}
         {model.shop.authorizationText && <Legal title="Customer Authorization" text={model.shop.authorizationText} />}
@@ -59,7 +67,7 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
           <p className="invoice-document-signature">Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</p>
         </>}
       </div>
-      <div className="invoice-document-totals"><h2>Totals</h2><dl><Detail label="Parts" value={model.totals.parts} /><Detail label="Labor" value={model.totals.labor} /><Detail label="Shop supplies" value={model.totals.shopSupplies} /><Detail label="Subtotal before tax" value={model.totals.displaySubtotalBeforeTax} />{model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <Detail label="Discount" value={model.totals.discount} /> : null}{model.legacyCharges.map((charge) => <Detail key={charge.label} label={charge.label} value={charge.amount} />)}<Detail label="Tax" value={model.totals.tax} /><div className="invoice-document-grand-total"><dt>Total</dt><dd>{model.totals.total}</dd></div><Detail label="Amount paid" value={model.totals.amountPaid} /><Detail label="Balance due" value={model.totals.balanceDue} /><Detail label="Payment status" value={model.totals.paymentStatus} /></dl>{model.paymentMethods.length > 0 && <p>Payments: {model.paymentMethods.map((payment) => `${payment.method} ${payment.amount}`).join("; ")}</p>}</div>
+      <div className="invoice-document-totals" style={{ flex: "0 0 190pt", minWidth: "190pt", breakInside: "avoid", pageBreakInside: "avoid" }}><h2>Totals</h2><dl><TotalDetail label="Parts" value={model.totals.parts} /><TotalDetail label="Labor" value={model.totals.labor} /><TotalDetail label="Shop supplies" value={model.totals.shopSupplies} /><TotalDetail label="Subtotal before tax" value={model.totals.displaySubtotalBeforeTax} />{model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <TotalDetail label="Discount" value={model.totals.discount} /> : null}{model.legacyCharges.map((charge) => <TotalDetail key={charge.label} label={charge.label} value={charge.amount} />)}<TotalDetail label="Tax" value={model.totals.tax} /><TotalDetail label="Total" value={model.totals.total} grand /><TotalDetail label="Amount paid" value={model.totals.amountPaid} /><TotalDetail label="Balance due" value={model.totals.balanceDue} /><TotalDetail label="Payment status" value={model.totals.paymentStatus} /></dl>{model.paymentMethods.length > 0 && <p style={{ marginTop: "5pt", lineHeight: 1.3 }}>Payments: {model.paymentMethods.map((payment) => `${payment.method} ${payment.amount}`).join("; ")}</p>}</div>
     </section>
     {model.shop.footerMessage && <footer>{model.shop.footerMessage}</footer>}
   </article>;
