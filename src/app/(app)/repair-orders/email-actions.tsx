@@ -25,6 +25,14 @@ async function authorizationOrigin() {
   return `${protocol}://${host}`;
 }
 
+export async function getRepairOrderEmailRecipientAction(repairOrderId: string) {
+  const { user, membership } = await getCurrentMembership();
+  if (!user || !membership || !hasPermission(membership.role, "edit_draft_repair_order")) return "";
+  const model = await getRepairOrderDocumentForShop(repairOrderId, membership.shopId);
+  if (!model || model.status === "void") return "";
+  return normalizeEmailRecipient(model.customer.email ?? "") ?? "";
+}
+
 export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, formData: FormData): Promise<RepairOrderEmailState> {
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const mode = String(formData.get("mode") ?? "estimate");
