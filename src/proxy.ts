@@ -18,6 +18,10 @@ function isPublicAuthorizationPath(pathname: string) {
   return pathname.startsWith("/authorize/repair-order/");
 }
 
+function isHealthPath(pathname: string) {
+  return pathname === "/api/health";
+}
+
 function isFrameworkAsset(pathname: string) {
   return pathname.startsWith("/_next/") || pathname === "/favicon.ico";
 }
@@ -41,6 +45,10 @@ export async function proxy(request: NextRequest) {
   // Next.js framework assets must never pass through hostname or auth routing.
   // Intercepting these requests can cause pages to render without CSS/JS.
   if (isFrameworkAsset(pathname)) return NextResponse.next();
+
+  // The production health endpoint has its own bearer-token authorization.
+  // Do not let Supabase session routing redirect it to /login before the handler runs.
+  if (isHealthPath(pathname)) return NextResponse.next();
 
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
