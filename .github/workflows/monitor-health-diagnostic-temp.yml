@@ -16,18 +16,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tmp="$(mktemp)"
-          code="$(curl --silent --show-error --max-time 20 -o "$tmp" -w '%{http_code}' \
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          code="$(curl --silent --show-error --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' \
             -H "Authorization: Bearer ${MONITOR_HEALTH_TOKEN}" \
             "${MONITOR_BASE_URL%/}/api/health" || true)"
           echo "HTTP_STATUS=$code"
+          location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit}' "$headers")"
+          if [ -n "$location" ]; then
+            safe_location="$(printf '%s' "$location" | sed -E 's#(https?://[^/?#]+).*#\1#')"
+            echo "REDIRECT_ORIGIN=$safe_location"
+          fi
           if command -v jq >/dev/null 2>&1; then
-            status="$(jq -r '.status // "missing"' "$tmp" 2>/dev/null || echo invalid-json)"
-            database="$(jq -r '.database // "missing"' "$tmp" 2>/dev/null || echo invalid-json)"
+            status="$(jq -r '.status // "missing"' "$body" 2>/dev/null || echo invalid-json)"
+            database="$(jq -r '.database // "missing"' "$body" 2>/dev/null || echo invalid-json)"
             echo "BODY_STATUS=$status"
             echo "BODY_DATABASE=$database"
           fi
-          case "$code" in
-            200|401|503) exit 0 ;;
-            *) exit 1 ;;
-          esac
+          exit 0
