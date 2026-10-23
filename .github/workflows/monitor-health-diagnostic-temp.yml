@@ -1,0 +1,33 @@
+name: Monitor health diagnostic temp
+
+on:
+  push:
+    branches:
+      - fix/monitoring-health-diagnostics
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      MONITOR_BASE_URL: ${{ secrets.MONITOR_BASE_URL }}
+      MONITOR_HEALTH_TOKEN: ${{ secrets.MONITOR_HEALTH_TOKEN }}
+    steps:
+      - name: Check sanitized health response
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          code="$(curl --silent --show-error --max-time 20 -o "$tmp" -w '%{http_code}' \
+            -H "Authorization: Bearer ${MONITOR_HEALTH_TOKEN}" \
+            "${MONITOR_BASE_URL%/}/api/health" || true)"
+          echo "HTTP_STATUS=$code"
+          if command -v jq >/dev/null 2>&1; then
+            status="$(jq -r '.status // "missing"' "$tmp" 2>/dev/null || echo invalid-json)"
+            database="$(jq -r '.database // "missing"' "$tmp" 2>/dev/null || echo invalid-json)"
+            echo "BODY_STATUS=$status"
+            echo "BODY_DATABASE=$database"
+          fi
+          case "$code" in
+            200|401|503) exit 0 ;;
+            *) exit 1 ;;
+          esac
