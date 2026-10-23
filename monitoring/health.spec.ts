@@ -31,24 +31,41 @@ test("read-only production health smoke", async ({ page, request }) => {
       const check = measuredCheck(name, group, true, typeof measured === "number" ? measured : performance.now() - start);
       if (consoleError) check.warning = [check.warning, "Browser console error observed"].filter(Boolean).join("; ");
       checks.push(check);
-    } catch {
-      // Fixed diagnostics only. Browser/SQL exceptions can contain private URLs or records.
-      checks.push(measuredCheck(name, group, false, performance.now() - start));
+    } catch (error) {
+      const check = measuredCheck(name, group, false, performance.now() - start);
+      if (error instanceof Error && /^SAFE:/.test(error.message)) check.error = error.message.slice(5);
+      checks.push(check);
     }
   }
 
   try {
     const token = process.env.MONITOR_HEALTH_TOKEN;
     await record("Health endpoint", "database", async () => {
-      if (!token) throw new Error("Missing token");
-      const response = await request.get("/api/health", { headers: { Authorization: `Bearer ${token}` }, timeout: 30000 });
-      if (response.status() !== 200) throw new Error("Health status failed");
+      if (!token) throw new Error("SAFE:Health endpoint configuration failed: MONITOR_HEALTH_TOKEN is missing");
+      const response = await request.get("/api/health", {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
+        maxRedirects: 0,
+      });
+      const status = response.status();
+      if (status >= 300 && status < 400) {
+        throw new Error(`SAFE:Health endpoint configuration failed: MONITOR_BASE_URL redirected (HTTP ${status})`);
+      }
+      if (status === 401) throw new Error("SAFE:Health endpoint authentication failed (HTTP 401)");
+      if (status === 503) throw new Error("SAFE:Health endpoint reached production but database health check failed (HTTP 503)");
+      if (status !== 200) throw new Error(`SAFE:Health endpoint failed with HTTP ${status}`);
       const body = await response.json();
-      if (body.status !== "ok" || body.database !== "ok") throw new Error("Database status failed");
+      if (body.status !== "ok" || body.database !== "ok") throw new Error("SAFE:Health endpoint returned an unhealthy database status");
       checks.push(measuredCheck("Database", "database", true, body.databaseMs));
       return body.totalMs;
     });
-    if (!checks.some((check) => check.name === "Database")) checks.push(measuredCheck("Database", "database", false, 0));
+    if (!checks.some((check) => check.name === "Database")) {
+      const health = checks.find((check) => check.name === "Health endpoint");
+      const database = measuredCheck("Database", "database", false, 0);
+      if (health?.error?.includes("MONITOR_BASE_URL redirected")) database.error = "Database status UNKNOWN because the health endpoint base URL redirected before the check ran";
+      else if (health?.error?.includes("authentication failed")) database.error = "Database status UNKNOWN because health endpoint authentication failed";
+      checks.push(database);
+    }
 
     async function visit(name: string, path: string, group: Check["group"]) {
       await record(name, group, async () => {
@@ -92,7 +109,6 @@ test("read-only production health smoke", async ({ page, request }) => {
 
     if (checks.find((check) => check.name === "Login")?.pass) {
       for (const [name, path, group] of pages.slice(4)) await visit(name, path, group);
-      // Reports is read only, but only exercise it when the UI grants permission.
       if (await page.getByRole("link", { name: "Reports", exact: true }).count()) await visit("Reports", "/reports", "app");
     } else {
       for (const [name] of pages.slice(4)) checks.push(measuredCheck(name, "app", false, 0));
