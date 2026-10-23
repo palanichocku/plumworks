@@ -125,7 +125,7 @@ function EmailRepairOrderDialog({ repairOrderId, defaultRecipient, onClose, onSu
       >
         <input type="hidden" name="repairOrderId" value={repairOrderId} />
         <input type="hidden" name="mode" value="estimate" />
-        <label htmlFor={`${titleId}-recipient`} className="text-sm font-semibold text-slate-700">Recipient email</label>
+        <label htmlFor={`${titleId}-recipient`} className="text-sm font-semibold text-slate-700">Send email to</label>
         <input
           ref={inputRef}
           id={`${titleId}-recipient`}
@@ -146,7 +146,7 @@ function EmailRepairOrderDialog({ repairOrderId, defaultRecipient, onClose, onSu
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button type="button" disabled={pending} onClick={close} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-300/40 disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={pending} aria-label={pending ? "Sending estimate" : "Send estimate"} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Sending…" : "Send estimate"}</button>
+          <button type="submit" disabled={pending} aria-label={pending ? "Sending estimate" : "Send estimate"} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20 disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Sending…" : "Send"}</button>
         </div>
       </form>
     </section>
