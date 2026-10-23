@@ -94,6 +94,7 @@ export async function getInvoiceForCurrentShop(id: string) {
       customerSnapshot: true,
       vehicleSnapshot: true,
       invoiceDate: true,
+      odometer: true,
       status: true,
       closedAt: true,
       deliveredAt: true,
