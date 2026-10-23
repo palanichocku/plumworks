@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { formatReport, measuredCheck, summarize, type MonitoringResult } from "../src/lib/monitoring/report.ts";
-import { sendResendEmail } from "../src/lib/email/resend-core.ts";
 
 const deliveryPath = "artifacts/monitoring/report-delivery.json";
 
@@ -11,6 +10,29 @@ async function recordDelivery(ok: boolean, detail: string) {
     JSON.stringify({ ok, detail, recordedAt: new Date().toISOString() }, null, 2) + "\n",
     { mode: 0o600 },
   );
+}
+
+async function sendMonitoringEmail(to: string, report: { subject: string; text: string; html: string }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.TRANSACTIONAL_EMAIL_FROM;
+  if (!apiKey || !from) return { ok: false, code: "email-config-missing" } as const;
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to], ...report }),
+      signal: AbortSignal.timeout(15000),
+    });
+    return response.ok
+      ? ({ ok: true, code: "accepted" } as const)
+      : ({ ok: false, code: `http-${response.status}` } as const);
+  } catch {
+    return { ok: false, code: "request-failed" } as const;
+  }
 }
 
 async function main() {
@@ -34,7 +56,7 @@ async function main() {
       await recordDelivery(false, "MONITOR_REPORT_EMAIL is missing");
       process.exitCode = 1;
     } else {
-      const sent = await sendResendEmail({ to, ...report });
+      const sent = await sendMonitoringEmail(to, report);
       if (!sent.ok) {
         console.error(`Monitoring email was not delivered (${sent.code}).`);
         await recordDelivery(false, `Resend delivery failed (${sent.code})`);
