@@ -119,6 +119,10 @@ export default async function InvoiceDetailPage({
                 <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicle</dt>
                 <dd className="mt-1">{invoice.vehicle ? <Link href={`/vehicles/${invoice.vehicle.id}`} className="font-semibold text-brand-primary hover:text-brand-primary">{vehicle}</Link> : <span className="text-slate-700">Vehicle not linked</span>}</dd>
               </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mileage</dt>
+                <dd className="mt-1 font-medium text-slate-800">{invoice.odometer === null ? "—" : `${invoice.odometer.toLocaleString()} mi`}</dd>
+              </div>
             </dl>
             {(invoice.customerComplaint || invoice.recommendation) ? <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
               {invoice.customerComplaint ? <div><h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer complaint</h3><p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{invoice.customerComplaint}</p></div> : null}
