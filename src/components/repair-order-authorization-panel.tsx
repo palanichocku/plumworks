@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
-import { sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
+import { getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
@@ -39,10 +39,9 @@ function MicIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75a3 3 0 0 0-3 3v5.5a3 3 0 0 0 6 0v-5.5a3 3 0 0 0-3-3Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 11.5v.75a5.25 5.25 0 0 0 10.5 0v-.75M12 17.5v2.75M9.5 20.25h5" /></svg>;
 }
 
-export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, defaultRecipient, summary, history, editable }: {
+export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, summary, history, editable }: {
   repairOrderId: string;
   estimatedTotal: string;
-  defaultRecipient: string;
   summary: { status: "NOT_AUTHORIZED" | "AUTHORIZED"; approvedRevision: number | null; approvedAt: string | null; authorizerName: string | null };
   history: HistoryItem[];
   editable: boolean;
@@ -50,7 +49,8 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, d
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
-  const [recipient, setRecipient] = useState(defaultRecipient);
+  const [recipient, setRecipient] = useState("");
+  const [recipientLoading, setRecipientLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [state, setState] = useState<VerbalAuthorizationActionState>(initial);
   const [saveStateBlocked, setSaveStateBlocked] = useState(false);
@@ -110,6 +110,17 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, d
     };
   }, [router, waitingForEmailApproval]);
 
+  async function openEmailConfirmation() {
+    if (recipientLoading || saveRequired) return;
+    setRecipientLoading(true);
+    try {
+      setRecipient(await getRepairOrderEmailRecipientAction(repairOrderId));
+      setEmailOpen(true);
+    } finally {
+      setRecipientLoading(false);
+    }
+  }
+
   function submit(formData: FormData) {
     if (submitting.current || saveRequired) return;
     submitting.current = true;
@@ -140,7 +151,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, d
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className="px-1.5 py-2 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-brand-primary">Evidence</Link> : null}
         <button type="button" onClick={() => setShowHistory((value) => !value)} className="px-1.5 py-2 text-sm font-semibold text-amber-950 underline underline-offset-2 hover:text-brand-primary">{showHistory ? "Hide history" : "History"}</button>
-        {editable && !authorized ? <button type="button" disabled={emailPending || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => { setRecipient(defaultRecipient); setEmailOpen(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />Send</button> : null}
+        {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : "Send"}</button> : null}
         {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => { setState(initial); setOpen(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400"><MicIcon />Verbal</button> : null}
       </div>
     </div>
