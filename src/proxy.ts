@@ -23,7 +23,10 @@ function isHealthPath(pathname: string) {
 }
 
 function isFrameworkAsset(pathname: string) {
-  return pathname.startsWith("/_next/") || pathname === "/favicon.ico";
+  return pathname.startsWith("/_next/") ||
+    pathname.startsWith("/client-assets/") ||
+    pathname.startsWith("/brand/") ||
+    pathname === "/favicon.ico";
 }
 
 function isAppPath(pathname: string) {
@@ -42,8 +45,8 @@ export async function proxy(request: NextRequest) {
   const hostname = request.nextUrl.hostname.toLowerCase();
   const pathname = request.nextUrl.pathname;
 
-  // Next.js framework assets must never pass through hostname or auth routing.
-  // Intercepting these requests can cause pages to render without CSS/JS.
+  // Next.js framework and public static assets must never pass through hostname or auth routing.
+  // Intercepting these requests can cause pages to render without CSS/JS or public images.
   if (isFrameworkAsset(pathname)) return NextResponse.next();
 
   // The production health endpoint has its own bearer-token authorization.
