@@ -4,6 +4,7 @@ import { measuredCheck, summarize, type Check } from "../src/lib/monitoring/repo
 import { loginWithRetry, type LoginResult, type LoginAttemptTiming } from "./login";
 
 const output = "artifacts/monitoring/result.json";
+const publicImageUrl = "https://www.subbuscardoc.com/client-assets/cardoc/customer-entrance.jpg";
 const pages = [
   ["Homepage", "/", "website"], ["Services", "/services", "website"],
   ["Appointment", "/appointment", "website"], ["Contact", "/contact", "website"],
@@ -86,6 +87,26 @@ test("read-only production health smoke", async ({ page, request }) => {
     }
 
     for (const [name, path, group] of pages.slice(0, 4)) await visit(name, path, group);
+
+    await record("Website image asset", "website", async () => {
+      const response = await request.get(publicImageUrl, {
+        timeout: 30000,
+        maxRedirects: 0,
+      });
+      const status = response.status();
+      const location = response.headers()["location"] || "";
+      if (status >= 300 && status < 400) {
+        if (/\/login(?:[/?#]|$)/i.test(location)) {
+          throw new Error(`SAFE:Website image asset redirected to login (HTTP ${status})`);
+        }
+        throw new Error(`SAFE:Website image asset redirected unexpectedly (HTTP ${status})`);
+      }
+      if (status !== 200) throw new Error(`SAFE:Website image asset failed with HTTP ${status}`);
+      const contentType = (response.headers()["content-type"] || "").toLowerCase();
+      if (!contentType.startsWith("image/")) {
+        throw new Error(`SAFE:Website image asset returned non-image content (${contentType || "missing content-type"})`);
+      }
+    });
 
     pageError = false;
     consoleError = false;
