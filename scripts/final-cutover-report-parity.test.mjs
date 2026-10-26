@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addDestinationPayments,
+  allCutoverReportPeriods,
   compareReportTotals,
   cutoverReportPeriods,
   summarizeDestinationInvoices,
@@ -27,6 +28,20 @@ test("Oct 31 cutover creates exact October and 2026 YTD periods", () => {
   const periods = cutoverReportPeriods("2026-10-31");
   assert.deepEqual(periods.map((period) => [period.key, period.start.toISOString().slice(0, 10), period.endExclusive.toISOString().slice(0, 10)]), [
     ["2026-10", "2026-10-01", "2026-11-01"],
+    ["2026-YTD", "2026-01-01", "2026-11-01"],
+  ]);
+});
+
+test("final parity includes every historical calendar year plus current YTD", () => {
+  const periods = allCutoverReportPeriods("2026-10-31", [
+    { invoiceDate: new Date("2024-06-15T00:00:00Z") },
+    { invoiceDate: new Date("2025-03-01T00:00:00Z") },
+    { invoiceDate: new Date("2026-10-31T00:00:00Z") },
+  ]);
+  assert.deepEqual(periods.map((period) => [period.key, period.start.toISOString().slice(0, 10), period.endExclusive.toISOString().slice(0, 10)]), [
+    ["2026-10", "2026-10-01", "2026-11-01"],
+    ["2024-YEAR", "2024-01-01", "2025-01-01"],
+    ["2025-YEAR", "2025-01-01", "2026-01-01"],
     ["2026-YTD", "2026-01-01", "2026-11-01"],
   ]);
 });
