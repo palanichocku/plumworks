@@ -5,8 +5,8 @@ import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { readLegacyDbf } from "./lib/read-legacy-report-sources.mjs";
 import {
   addDestinationPayments,
+  allCutoverReportPeriods,
   compareReportTotals,
-  cutoverReportPeriods,
   money,
   projectSourceReportInvoices,
   summarizeDestinationInvoices,
@@ -45,7 +45,6 @@ function displayTotals(totals) {
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not configured.");
   const cutoverDate = argument("--cutover-date") ?? "2026-10-31";
-  const periods = cutoverReportPeriods(cutoverDate);
   const source = await resolveLegacySource({ requiredFiles: ["ar.DBF", "FINAL.DBF", "laborfinal.DBF"] });
   const [ar, final, labor] = await Promise.all([
     readLegacyDbf(source.files["ar.DBF"]),
@@ -56,6 +55,7 @@ async function main() {
   if (projection.fatalIssues.length) {
     throw new Error(`Source report projection has ${projection.fatalIssues.length} blocking issue(s): ${JSON.stringify(projection.fatalIssues.slice(0, 10))}`);
   }
+  const periods = allCutoverReportPeriods(cutoverDate, projection.invoices);
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   try {
