@@ -12,7 +12,25 @@ import { publicLeadAdmission, LeadAdmissionThresholdError } from "@/lib/public-l
 import { isBlockedLeadEmailDomain } from "@/lib/public-lead-blocked-domains";
 import { logLeadProtection, type LeadProtectionEvent } from "@/lib/public-lead-observability";
 
-async function createLead(source: MarketingLeadSource, formData: FormData, destination: LeadProtectionEvent["submissionPath"]) {
+async function resolveLeadShopId(requestedShopId?: string) {
+  if (requestedShopId) {
+    const shop = await prisma.shop.findUnique({ where: { id: requestedShopId }, select: { id: true } });
+    if (!shop) throw new Error("Shop unavailable");
+    return shop.id;
+  }
+
+  // Preserve the existing single-shop behavior for the Car Doc public website.
+  const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
+  if (shops.length !== 1) throw new Error("Shop unavailable");
+  return shops[0].id;
+}
+
+async function createLead(
+  source: MarketingLeadSource,
+  formData: FormData,
+  destination: LeadProtectionEvent["submissionPath"],
+  requestedShopId?: string,
+) {
   // Match normal success even if a bot also filled retired/unknown fields.
   const event: LeadProtectionEvent = {
     source, submissionPath: destination,
@@ -56,9 +74,7 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
           const ip = publicLeadIp(await headers());
           event.stage = "shop_lookup";
           event.reason = "shop_unavailable";
-          const shops = await prisma.shop.findMany({ take: 2, select: { id: true } });
-          if (shops.length !== 1) throw new Error("Shop unavailable");
-          const shopId = shops[0].id;
+          const shopId = await resolveLeadShopId(requestedShopId);
           event.stage = "attribution";
           event.reason = "unavailable";
           const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, destination);
@@ -97,3 +113,13 @@ async function createLead(source: MarketingLeadSource, formData: FormData, desti
 export async function submitContactLead(formData: FormData) { return createLead("CONTACT", formData, "/contact"); }
 export async function submitAppointmentLead(formData: FormData) { return createLead("APPOINTMENT", formData, "/appointment"); }
 export async function submitDropOffLead(formData: FormData) { return createLead("DROP_OFF", formData, "/drop-off"); }
+
+export async function submitHostedContactLead(shopId: string, formData: FormData) {
+  return createLead("CONTACT", formData, `/forms/${shopId}/contact`, shopId);
+}
+export async function submitHostedAppointmentLead(shopId: string, formData: FormData) {
+  return createLead("APPOINTMENT", formData, `/forms/${shopId}/appointment`, shopId);
+}
+export async function submitHostedDropOffLead(shopId: string, formData: FormData) {
+  return createLead("DROP_OFF", formData, `/forms/${shopId}/drop-off`, shopId);
+}
