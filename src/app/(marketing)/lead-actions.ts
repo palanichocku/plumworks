@@ -28,12 +28,13 @@ async function resolveLeadShopId(requestedShopId?: string) {
 async function createLead(
   source: MarketingLeadSource,
   formData: FormData,
-  destination: LeadProtectionEvent["submissionPath"],
-  requestedShopId?: string,
+  submissionPath: LeadProtectionEvent["submissionPath"],
+  options?: { shopId?: string; redirectDestination?: string },
 ) {
+  const redirectDestination = options?.redirectDestination ?? submissionPath;
   // Match normal success even if a bot also filled retired/unknown fields.
   const event: LeadProtectionEvent = {
-    source, submissionPath: destination,
+    source, submissionPath,
     outcome: "rejected", stage: "honeypot", reason: "none", turnstile: null,
     formStartValid: null, honeypotTriggered: false, validationPassed: null,
     blockedDomainMatched: null, admission: null,
@@ -42,7 +43,7 @@ async function createLead(
     event.honeypotTriggered = true;
     event.reason = "honeypot_triggered";
     logLeadProtection(event);
-    redirect(`${destination}?sent=1`);
+    redirect(`${redirectDestination}?sent=1`);
   }
   let outcome = "sent=1";
   try {
@@ -74,10 +75,10 @@ async function createLead(
           const ip = publicLeadIp(await headers());
           event.stage = "shop_lookup";
           event.reason = "shop_unavailable";
-          const shopId = await resolveLeadShopId(requestedShopId);
+          const shopId = await resolveLeadShopId(options?.shopId);
           event.stage = "attribution";
           event.reason = "unavailable";
-          const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, destination);
+          const attribution = leadAttributionData((await cookies()).get(marketingAttributionCookie)?.value, submissionPath);
           event.stage = "admission";
           event.reason = "unavailable";
           const admit = publicLeadAdmission(shopId, data, ip);
@@ -107,7 +108,7 @@ async function createLead(
     outcome = "error=1";
   }
   logLeadProtection(event);
-  redirect(`${destination}?${outcome}`);
+  redirect(`${redirectDestination}?${outcome}`);
 }
 
 export async function submitContactLead(formData: FormData) { return createLead("CONTACT", formData, "/contact"); }
@@ -115,11 +116,11 @@ export async function submitAppointmentLead(formData: FormData) { return createL
 export async function submitDropOffLead(formData: FormData) { return createLead("DROP_OFF", formData, "/drop-off"); }
 
 export async function submitHostedContactLead(shopId: string, formData: FormData) {
-  return createLead("CONTACT", formData, `/forms/${shopId}/contact`, shopId);
+  return createLead("CONTACT", formData, "/contact", { shopId, redirectDestination: `/forms/${shopId}/contact` });
 }
 export async function submitHostedAppointmentLead(shopId: string, formData: FormData) {
-  return createLead("APPOINTMENT", formData, `/forms/${shopId}/appointment`, shopId);
+  return createLead("APPOINTMENT", formData, "/appointment", { shopId, redirectDestination: `/forms/${shopId}/appointment` });
 }
 export async function submitHostedDropOffLead(shopId: string, formData: FormData) {
-  return createLead("DROP_OFF", formData, `/forms/${shopId}/drop-off`, shopId);
+  return createLead("DROP_OFF", formData, "/drop-off", { shopId, redirectDestination: `/forms/${shopId}/drop-off` });
 }
