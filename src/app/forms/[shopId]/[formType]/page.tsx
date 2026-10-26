@@ -38,6 +38,25 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+async function findHostedFormShop(shopId: string) {
+  if (shopId !== "current") {
+    return prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true, name: true, phone: true, city: true, state: true },
+    });
+  }
+
+  // Convenience alias for local/Preview testing only. Production requires an
+  // explicit shop identifier so requests can never become tenant-ambiguous.
+  if (process.env.VERCEL_ENV === "production") return null;
+  const shops = await prisma.shop.findMany({
+    take: 2,
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, phone: true, city: true, state: true },
+  });
+  return shops.length === 1 ? shops[0] : null;
+}
+
 export default async function HostedLeadFormPage({
   params,
   searchParams,
@@ -49,10 +68,7 @@ export default async function HostedLeadFormPage({
   const definition = hostedForms[formType as HostedFormType];
   if (!definition) notFound();
 
-  const shop = await prisma.shop.findUnique({
-    where: { id: shopId },
-    select: { id: true, name: true, phone: true, city: true, state: true },
-  });
+  const shop = await findHostedFormShop(shopId);
   if (!shop) notFound();
 
   const query = await searchParams;
