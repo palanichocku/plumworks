@@ -4,6 +4,7 @@ import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { readLegacyDbf } from "./lib/read-legacy-report-sources.mjs";
 import {
+  addDestinationPayments,
   compareReportTotals,
   cutoverReportPeriods,
   money,
@@ -29,6 +30,15 @@ function displayTotals(totals) {
     legacyChargeTotal: money(totals.legacyChargeTotalCents),
     grossSalesTotal: money(totals.grossSalesTotalCents),
     invoicePaidTotal: money(totals.invoicePaidTotalCents),
+    paymentRowCount: totals.paymentRowCount,
+    paidInvoiceCount: totals.paidInvoiceCount,
+    splitTenderInvoiceCount: totals.splitTenderInvoiceCount,
+    cashTotal: money(totals.cashTotalCents),
+    checkTotal: money(totals.checkTotalCents),
+    cardTotal: money(totals.cardTotalCents),
+    internalTotal: money(totals.internalTotalCents),
+    otherTotal: money(totals.otherTotalCents),
+    paymentTotal: money(totals.paymentTotalCents),
   };
 }
 
@@ -53,26 +63,39 @@ async function main() {
     const results = [];
     for (const period of periods) {
       const sourceTotals = summarizeSourcePeriod(projection.invoices, period);
-      const destinationInvoices = await prisma.invoice.findMany({
-        where: {
-          shopId,
-          legacySourceTable: { not: null },
-          invoiceDate: { gte: period.start, lt: period.endExclusive },
-        },
-        select: {
-          legacyRoNo: true,
-          invoiceDate: true,
-          partsTotal: true,
-          laborTotal: true,
-          subtotal: true,
-          shopSuppliesAmount: true,
-          taxTotal: true,
-          total: true,
-          paidTotal: true,
-          legacyCharges: { select: { amount: true } },
-        },
-      });
-      const destinationTotals = summarizeDestinationInvoices(destinationInvoices);
+      const [destinationInvoices, destinationPayments] = await Promise.all([
+        prisma.invoice.findMany({
+          where: {
+            shopId,
+            legacySourceTable: { not: null },
+            invoiceDate: { gte: period.start, lt: period.endExclusive },
+          },
+          select: {
+            legacyRoNo: true,
+            invoiceDate: true,
+            partsTotal: true,
+            laborTotal: true,
+            subtotal: true,
+            shopSuppliesAmount: true,
+            taxTotal: true,
+            total: true,
+            paidTotal: true,
+            legacyCharges: { select: { amount: true } },
+          },
+        }),
+        prisma.payment.findMany({
+          where: {
+            shopId,
+            legacySourceTable: "ar.DBF",
+            paidAt: { gte: period.start, lt: period.endExclusive },
+          },
+          select: { amount: true, method: true, invoiceId: true },
+        }),
+      ]);
+      const destinationTotals = addDestinationPayments(
+        summarizeDestinationInvoices(destinationInvoices),
+        destinationPayments,
+      );
       const differences = compareReportTotals(sourceTotals, destinationTotals);
       results.push({
         key: period.key,
