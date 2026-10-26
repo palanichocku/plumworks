@@ -108,7 +108,7 @@ function signature(row) {
 }
 
 function sourcePaymentRows(rawData, legacyRoNo, fatalIssues) {
-  const paymentCents = parseLegacyMoneyCents(rawData?.PAYMENT ?? "");
+  const paymentCents = parseLegacyMoneyCents(rawData?.PAYMENT);
   if (paymentCents === null || paymentCents < 0) {
     fatalIssues.push({ code: "invalid-authoritative-payment", legacyRoNo });
     return [];
