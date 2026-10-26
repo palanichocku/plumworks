@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  addDestinationPayments,
   compareReportTotals,
   cutoverReportPeriods,
   summarizeDestinationInvoices,
@@ -53,18 +54,54 @@ test("destination summary mirrors the report financial equation exactly", () => 
     paidTotal: "325.00",
     legacyCharges: [{ amount: "2.00" }],
   }]);
-  assert.deepEqual(totals, {
-    invoiceCount: 1,
-    partsTotalCents: 10_000,
-    laborTotalCents: 20_000,
-    subtotalCents: 30_000,
-    shopSuppliesTotalCents: 1_000,
-    ordinarySalesTaxTotalCents: 1_800,
-    discountsTotalCents: 500,
-    legacyChargeTotalCents: 200,
-    grossSalesTotalCents: 32_500,
-    invoicePaidTotalCents: 32_500,
-  });
+  assert.equal(totals.invoiceCount, 1);
+  assert.equal(totals.partsTotalCents, 10_000);
+  assert.equal(totals.laborTotalCents, 20_000);
+  assert.equal(totals.subtotalCents, 30_000);
+  assert.equal(totals.shopSuppliesTotalCents, 1_000);
+  assert.equal(totals.ordinarySalesTaxTotalCents, 1_800);
+  assert.equal(totals.discountsTotalCents, 500);
+  assert.equal(totals.legacyChargeTotalCents, 200);
+  assert.equal(totals.grossSalesTotalCents, 32_500);
+  assert.equal(totals.invoicePaidTotalCents, 32_500);
+  assert.equal(totals.paymentTotalCents, 0);
+});
+
+test("destination payment summary normalizes report tender methods and split tenders", () => {
+  const totals = addDestinationPayments(summarizeDestinationInvoices([]), [
+    { invoiceId: "invoice-1", method: "cash", amount: "100.00" },
+    { invoiceId: "invoice-1", method: "card", amount: "50.00" },
+    { invoiceId: "invoice-2", method: "debit_card", amount: "25.00" },
+    { invoiceId: "invoice-3", method: "internal", amount: "10.00" },
+    { invoiceId: "invoice-4", method: "other", amount: "5.00" },
+  ]);
+  assert.equal(totals.paymentRowCount, 5);
+  assert.equal(totals.paidInvoiceCount, 4);
+  assert.equal(totals.splitTenderInvoiceCount, 1);
+  assert.equal(totals.cashTotalCents, 10_000);
+  assert.equal(totals.cardTotalCents, 7_500);
+  assert.equal(totals.internalTotalCents, 1_000);
+  assert.equal(totals.otherTotalCents, 500);
+  assert.equal(totals.paymentTotalCents, 19_000);
+});
+
+test("source payment rows contribute to the same report totals", () => {
+  const [october] = cutoverReportPeriods("2026-10-31");
+  const totals = summarizeSourcePeriod([{
+    legacyRoNo: "10",
+    invoiceDate: new Date("2026-10-31T00:00:00Z"),
+    financials: financials({ paidCents: 15_000 }),
+    paymentRows: [
+      { method: "cash", amountCents: 10_000 },
+      { method: "card", amountCents: 5_000 },
+    ],
+  }], october);
+  assert.equal(totals.paymentRowCount, 2);
+  assert.equal(totals.paidInvoiceCount, 1);
+  assert.equal(totals.splitTenderInvoiceCount, 1);
+  assert.equal(totals.cashTotalCents, 10_000);
+  assert.equal(totals.cardTotalCents, 5_000);
+  assert.equal(totals.paymentTotalCents, 15_000);
 });
 
 test("parity comparison fails on a one-cent difference", () => {
