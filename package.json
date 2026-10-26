@@ -22,6 +22,7 @@
     "user:dev:create": "node --env-file=.env.development.local scripts/create-dev-user.mjs",
     "user:dev:rename": "node --env-file=.env.development.local scripts/rename-dev-user-email.mjs",
     "test:monitoring": "node --test tests/monitoring.test.mjs",
+    "test:financial": "node --test tests/financial-golden-master.test.mjs tests/complimentary-services.test.mjs tests/invoice-multiple-payments.test.mjs tests/invoice-payment-form.test.mjs tests/invoice-legacy-charges-security.test.mjs tests/repair-order-direct-invoice.test.mjs tests/repair-order-line-items.test.mjs tests/repair-order-void.test.mjs",
     "test:seo": "node --test tests/marketing-seo.test.mjs tests/marketing-homepage.test.mjs tests/marketing-content-preview.test.mjs tests/marketing-about-owner.test.mjs tests/marketing-lead-attribution.test.mjs tests/marketing-service-content.test.mjs tests/marketing-trust.test.mjs tests/marketing-review-links.test.mjs tests/marketing-photos.test.mjs",
     "website:benchmark": "node scripts/website-benchmark.mjs",
     "website:legacy:inventory": "node scripts/legacy-url-inventory.mjs --origin https://www.subbuscardoc.com --output /private/tmp/cardoc-legacy-url-inventory.json --cap 300 --delay-ms 100",
