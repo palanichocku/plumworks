@@ -1,5 +1,6 @@
 import { mapLegacyInvoiceFinancials, parseLegacyMoneyCents } from "./legacy-invoice-financials.mjs";
 import { groupRowsByRo, selectLegacyInvoiceDate } from "./legacy-invoice-reconciliation.mjs";
+import { LEGACY_TENDER_BUCKETS } from "./legacy-payment-import.mjs";
 
 export const FINAL_CUTOVER_REPORT_FIELDS = Object.freeze([
   "invoiceCount",
@@ -12,6 +13,15 @@ export const FINAL_CUTOVER_REPORT_FIELDS = Object.freeze([
   "legacyChargeTotalCents",
   "grossSalesTotalCents",
   "invoicePaidTotalCents",
+  "paymentRowCount",
+  "paidInvoiceCount",
+  "splitTenderInvoiceCount",
+  "cashTotalCents",
+  "checkTotalCents",
+  "cardTotalCents",
+  "internalTotalCents",
+  "otherTotalCents",
+  "paymentTotalCents",
 ]);
 
 export function cutoverReportPeriods(cutoverDate) {
@@ -50,6 +60,15 @@ export function emptyReportTotals() {
     legacyChargeTotalCents: 0,
     grossSalesTotalCents: 0,
     invoicePaidTotalCents: 0,
+    paymentRowCount: 0,
+    paidInvoiceCount: 0,
+    splitTenderInvoiceCount: 0,
+    cashTotalCents: 0,
+    checkTotalCents: 0,
+    cardTotalCents: 0,
+    internalTotalCents: 0,
+    otherTotalCents: 0,
+    paymentTotalCents: 0,
   };
 }
 
@@ -66,9 +85,51 @@ function addFinancials(totals, financials) {
   totals.invoicePaidTotalCents += financials.paidCents;
 }
 
+function addPaymentRows(totals, paymentRows) {
+  if (!paymentRows.length) return;
+  totals.paymentRowCount += paymentRows.length;
+  totals.paidInvoiceCount += 1;
+  if (paymentRows.length > 1) totals.splitTenderInvoiceCount += 1;
+  for (const row of paymentRows) {
+    const field = `${row.method}TotalCents`;
+    if (!(field in totals)) throw new Error(`Unsupported normalized payment method: ${row.method}`);
+    totals[field] += row.amountCents;
+    totals.paymentTotalCents += row.amountCents;
+  }
+}
+
 function signature(row) {
-  const fields = ["PARTS", "LABOR", "TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6", "TOTAL", "PAYMENT", "DISCOUNT", "DEDUCT", "BALANCE", "DATE_SOLD", "RO_DATE"];
+  const fields = [
+    "PARTS", "LABOR", "TAX", "TAX2", "TAX3", "TAX4", "TAX5", "TAX6", "TOTAL", "PAYMENT",
+    "DISCOUNT", "DEDUCT", "BALANCE", "DATE_SOLD", "RO_DATE",
+    ...LEGACY_TENDER_BUCKETS.map(({ bucket }) => bucket),
+  ];
   return JSON.stringify(fields.map((field) => row.rawData?.[field] == null ? null : String(row.rawData[field]).trim()));
+}
+
+function sourcePaymentRows(rawData, legacyRoNo, fatalIssues) {
+  const paymentCents = parseLegacyMoneyCents(rawData?.PAYMENT ?? "");
+  if (paymentCents === null || paymentCents < 0) {
+    fatalIssues.push({ code: "invalid-authoritative-payment", legacyRoNo });
+    return [];
+  }
+  const rows = [];
+  let invalid = false;
+  for (const { bucket, method } of LEGACY_TENDER_BUCKETS) {
+    const value = rawData?.[bucket];
+    const cents = value === null || value === undefined ? 0 : parseLegacyMoneyCents(value);
+    if (cents === null || cents < 0) {
+      fatalIssues.push({ code: "invalid-tender-bucket", legacyRoNo, bucket });
+      invalid = true;
+    } else if (cents > 0) rows.push({ bucket, method, amountCents: cents });
+  }
+  if (invalid) return [];
+  const tenderTotal = rows.reduce((sum, row) => sum + row.amountCents, 0);
+  if (tenderTotal !== paymentCents) {
+    fatalIssues.push({ code: "source-tender-payment-mismatch", legacyRoNo, paymentCents, tenderTotal });
+    return [];
+  }
+  return rows;
 }
 
 export function projectSourceReportInvoices({ arRows, finalRows = [], laborRows = [] }) {
@@ -84,12 +145,14 @@ export function projectSourceReportInvoices({ arRows, finalRows = [], laborRows 
       fatalIssues.push({ code: "conflicting-ar-report-records", legacyRoNo });
       continue;
     }
-    const financials = mapLegacyInvoiceFinancials(groupedAr[0].rawData);
+    const rawData = groupedAr[0].rawData;
+    const financials = mapLegacyInvoiceFinancials(rawData);
     const selectedDate = selectLegacyInvoiceDate({
       arRows: groupedAr,
       finalRows: finalGroups.get(legacyRoNo) ?? [],
       laborRows: laborGroups.get(legacyRoNo) ?? [],
     });
+    const paymentRows = sourcePaymentRows(rawData, legacyRoNo, fatalIssues);
     if (!financials.valid || !financials.reconciliation?.reconciles || !selectedDate.date) {
       fatalIssues.push({
         code: "invalid-report-projection",
@@ -100,7 +163,7 @@ export function projectSourceReportInvoices({ arRows, finalRows = [], laborRows 
       });
       continue;
     }
-    invoices.push({ legacyRoNo, invoiceDate: selectedDate.date, financials });
+    invoices.push({ legacyRoNo, invoiceDate: selectedDate.date, financials, paymentRows });
   }
   return { invoices, fatalIssues };
 }
@@ -110,6 +173,7 @@ export function summarizeSourcePeriod(sourceInvoices, period) {
   for (const invoice of sourceInvoices) {
     if (invoice.invoiceDate < period.start || invoice.invoiceDate >= period.endExclusive) continue;
     addFinancials(totals, invoice.financials);
+    addPaymentRows(totals, invoice.paymentRows ?? []);
   }
   return totals;
 }
@@ -144,6 +208,28 @@ export function summarizeDestinationInvoices(invoices) {
     totals.grossSalesTotalCents += grossSalesTotalCents;
     totals.invoicePaidTotalCents += invoicePaidTotalCents;
   }
+  return totals;
+}
+
+function normalizePaymentMethod(method) {
+  const normalized = method?.trim().toLowerCase();
+  if (normalized === "debit_card") return "card";
+  return ["cash", "check", "card", "internal"].includes(normalized) ? normalized : "other";
+}
+
+export function addDestinationPayments(totals, payments) {
+  const byInvoice = new Map();
+  for (const payment of payments) {
+    const method = normalizePaymentMethod(payment.method);
+    const amountCents = decimalCents(payment.amount);
+    const invoiceId = payment.invoiceId ?? null;
+    totals.paymentRowCount += 1;
+    totals[`${method}TotalCents`] += amountCents;
+    totals.paymentTotalCents += amountCents;
+    if (invoiceId) byInvoice.set(invoiceId, (byInvoice.get(invoiceId) ?? 0) + 1);
+  }
+  totals.paidInvoiceCount = byInvoice.size;
+  totals.splitTenderInvoiceCount = [...byInvoice.values()].filter((count) => count > 1).length;
   return totals;
 }
 
