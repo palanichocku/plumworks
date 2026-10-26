@@ -24,12 +24,17 @@ export const FINAL_CUTOVER_REPORT_FIELDS = Object.freeze([
   "paymentTotalCents",
 ]);
 
-export function cutoverReportPeriods(cutoverDate) {
+function parsedCutoverDate(cutoverDate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoverDate ?? "")) throw new Error("--cutover-date must use YYYY-MM-DD.");
   const end = new Date(`${cutoverDate}T00:00:00Z`);
   if (Number.isNaN(end.getTime()) || end.toISOString().slice(0, 10) !== cutoverDate) throw new Error("--cutover-date is invalid.");
   const endExclusive = new Date(end);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  return { end, endExclusive };
+}
+
+export function cutoverReportPeriods(cutoverDate) {
+  const { end, endExclusive } = parsedCutoverDate(cutoverDate);
   const year = end.getUTCFullYear();
   const month = end.getUTCMonth();
   return [
@@ -46,6 +51,25 @@ export function cutoverReportPeriods(cutoverDate) {
       endExclusive,
     },
   ];
+}
+
+export function allCutoverReportPeriods(cutoverDate, sourceInvoices = []) {
+  const { end, endExclusive } = parsedCutoverDate(cutoverDate);
+  const currentYear = end.getUTCFullYear();
+  const [monthPeriod] = cutoverReportPeriods(cutoverDate);
+  const years = [...new Set(sourceInvoices
+    .map((invoice) => invoice.invoiceDate)
+    .filter((date) => date instanceof Date && !Number.isNaN(date.getTime()) && date <= end)
+    .map((date) => date.getUTCFullYear()))]
+    .sort((left, right) => left - right);
+  if (!years.includes(currentYear)) years.push(currentYear);
+  const yearlyPeriods = years.map((year) => ({
+    key: year === currentYear ? `${year}-YTD` : `${year}-YEAR`,
+    label: year === currentYear ? `${year} year-to-date through ${cutoverDate}` : `${year} calendar year`,
+    start: new Date(Date.UTC(year, 0, 1)),
+    endExclusive: year === currentYear ? endExclusive : new Date(Date.UTC(year + 1, 0, 1)),
+  }));
+  return [monthPeriod, ...yearlyPeriods];
 }
 
 export function emptyReportTotals() {
