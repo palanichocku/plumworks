@@ -92,6 +92,7 @@ export default async function HostedLeadFormPage({
           sent={query.sent === "1"}
           error={query.error}
           shopId={shop.id}
+          shopName={shop.name}
         />
 
         <p className="mt-6 text-center text-xs font-semibold text-slate-400">Powered by PlumWorks</p>

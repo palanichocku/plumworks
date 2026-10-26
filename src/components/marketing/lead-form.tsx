@@ -20,11 +20,12 @@ const hostedActions = {
   DROP_OFF: submitHostedDropOffLead,
 } as const;
 
-export function LeadForm({ source, sent = false, error = false, shopId }: {
+export function LeadForm({ source, sent = false, error = false, shopId, shopName }: {
   source: MarketingLeadSource;
   sent?: boolean;
   error?: boolean | string;
   shopId?: string;
+  shopName?: string;
 }) {
   const appointment = source === "APPOINTMENT";
   const dropOff = source === "DROP_OFF";
@@ -57,6 +58,6 @@ export function LeadForm({ source, sent = false, error = false, shopId }: {
     </>}
     {!appointment && !dropOff && vehicleFields}
     {(appointment || dropOff) && serviceField}
-    <LeadVerification source={source} key={formStarted} />
+    <LeadVerification source={source} businessName={shopName} key={formStarted} />
   </form>;
 }
