@@ -139,6 +139,7 @@ export function customerCreateData(entry, shopId) {
     city: entry.city,
     state: entry.state,
     postalCode: entry.postalCode,
+    acquisitionSource: "LEGACY",
     legacySourceTable: "legacy-customer-recovery.json",
   };
 }

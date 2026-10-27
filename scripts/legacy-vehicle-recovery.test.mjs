@@ -60,13 +60,15 @@ test("dry-run Vehicle execution performs zero writes and confirmed execution cre
 test("historical Invoice linkage preserves Customer identity and applies exactly the reviewed Vehicle mapping", async () => {
   const plan = planCutoverVehicleRecovery({ ...fixture(), shopId, snapshotDate: "2026-07-11" });
   const updates = [];
+  let transactionOptions;
   const invoices = new Map(plan.orderLinks.map((link, index) => [link.legacyRoNo, { id: `invoice-${index}`, customer: { legacyCustno: "RECOVERED" }, vehicleId: null }]));
-  const prisma = { $transaction: async (callback) => callback({ invoice: {
+  const prisma = { $transaction: async (callback, options) => { transactionOptions = options; return callback({ invoice: {
     findFirst: async ({ where }) => invoices.get(where.legacyRoNo),
     update: async ({ where, data }) => { updates.push({ ...where, ...data }); },
-  } }) };
+  } }); } };
   const result = await applyReviewedInvoiceVehicleLinks({ confirmedWrite: true, prisma, shopId, plan });
   assert.deepEqual(result, { databaseWrites: 2, linked: 2, evidenceOnly: 1 });
+  assert.deepEqual(transactionOptions, { maxWait: 10_000, timeout: 120_000 });
   assert.equal(updates.length, 2);
   assert.ok(updates.every((update) => !Object.hasOwn(update, "customerId")));
   invoices.get("101").customer.legacyCustno = "OTHER";
