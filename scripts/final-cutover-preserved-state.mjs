@@ -49,9 +49,7 @@ async function capture(prisma, shopId) {
   const [
     shop, memberships, invites, cannedServices, employees, vendors,
     marketingSetting, marketingPages, marketingServices, marketingCoupons,
-    marketingTestimonials, marketingGalleryItems, marketingLeads,
-    publicLeadSubmissionCount, marketingLeadNotifications, marketingLeadNotificationReads,
-    linkedMarketingLeads,
+    marketingTestimonials, marketingGalleryItems,
   ] = await Promise.all([
     prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: SHOP_SETTINGS_SELECT }),
     prisma.shopMembership.findMany({ where: { shopId }, select: { id: true, userId: true, userEmail: true, role: true }, orderBy: { id: "asc" } }),
@@ -65,14 +63,9 @@ async function capture(prisma, shopId) {
     prisma.marketingCoupon.findMany({ where: { shopId }, orderBy: { id: "asc" } }),
     prisma.marketingTestimonial.findMany({ where: { shopId }, orderBy: { id: "asc" } }),
     prisma.marketingGalleryItem.findMany({ where: { shopId }, orderBy: { id: "asc" } }),
-    prisma.marketingLead.findMany({ where: { shopId }, select: { id: true, source: true, customerId: true, status: true, convertedAt: true, attributionSource: true, attributionMedium: true, attributionCampaign: true }, orderBy: { id: "asc" } }),
-    prisma.publicLeadSubmission.count({ where: { shopId } }),
-    prisma.marketingLeadNotification.findMany({ where: { shopId }, select: { id: true, marketingLeadId: true }, orderBy: { id: "asc" } }),
-    prisma.marketingLeadNotificationRead.findMany({ where: { shopId }, select: { id: true, notificationId: true, userId: true, readAt: true }, orderBy: { id: "asc" } }),
-    prisma.marketingLead.count({ where: { shopId, customerId: { not: null } } }),
   ]);
   return normalize({
-    version: 1,
+    version: 2,
     shopId,
     shop,
     memberships,
@@ -86,11 +79,6 @@ async function capture(prisma, shopId) {
     marketingCoupons,
     marketingTestimonials,
     marketingGalleryItems,
-    marketingLeads,
-    publicLeadSubmissionCount,
-    marketingLeadNotifications,
-    marketingLeadNotificationReads,
-    linkedMarketingLeads,
   });
 }
 
@@ -114,20 +102,16 @@ async function main() {
     const shopId = await resolveSingleShopId(prisma, argument("--shop-id"));
     const current = await capture(prisma, shopId);
     if (mode === "capture") {
-      if (current.linkedMarketingLeads > 0) {
-        throw new Error(`Cutover preflight blocked: ${current.linkedMarketingLeads} marketing lead(s) are linked to operational customers. A full operational reset would clear those customer links; review and disposition them before cutover.`);
-      }
       const payload = { capturedAt: new Date().toISOString(), ...current };
       await writeFile(file, `${JSON.stringify(payload, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-      console.log(`Preserved-state snapshot captured: ${file}`);
-      console.log("Linked marketing leads: 0");
+      console.log(`Preserved configuration snapshot captured: ${file}`);
       return;
     }
     const before = JSON.parse(await readFile(file, "utf8"));
     if (before.shopId !== shopId) throw new Error("Preserved-state snapshot belongs to a different shop.");
     const changed = differences(before, current);
-    if (changed.length) throw new Error(`Preserved-state verification failed. Changed sections: ${changed.join(", ")}.`);
-    console.log("Preserved-state verification: PASS");
+    if (changed.length) throw new Error(`Preserved configuration verification failed. Changed sections: ${changed.join(", ")}.`);
+    console.log("Preserved configuration verification: PASS");
   } finally {
     await prisma.$disconnect();
   }
