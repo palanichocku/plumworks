@@ -3,19 +3,30 @@ import { PrismaClient } from "@prisma/client";
 import { resolveLegacySource } from "./lib/legacy-source.mjs";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
 import { readLegacyDbf } from "./lib/read-legacy-report-sources.mjs";
+import { loadAndValidateRecoveryApprovalV4 } from "./lib/legacy-customer-recovery-proposal.mjs";
 import {
   addDestinationPayments,
   allCutoverReportPeriods,
+  assertReportSourceMatchesReviewedSnapshot,
   compareReportTotals,
   money,
   projectSourceReportInvoices,
   summarizeDestinationInvoices,
-  summarizeSourcePeriod,
+  summarizeSourcePeriodWithApprovedExclusions,
 } from "./lib/final-cutover-report-parity.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? null : process.argv[index + 1];
+}
+
+function reviewedArtifactArguments() {
+  const names = ["--recovery-approval", "--customer-recovery-proposal", "--snapshot-manifest"];
+  const supplied = names.map((name) => argument(name));
+  if (supplied.some(Boolean) && supplied.some((value) => !value)) {
+    throw new Error("Reviewed exclusions require --recovery-approval, --customer-recovery-proposal, and --snapshot-manifest together.");
+  }
+  return supplied.some(Boolean) ? { approvalPath: supplied[0], proposalPath: supplied[1], snapshotManifestPath: supplied[2] } : null;
 }
 
 function displayTotals(totals) {
@@ -60,9 +71,14 @@ async function main() {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   try {
     const shopId = await resolveSingleShopId(prisma, argument("--shop-id"));
+    const reviewedPaths = reviewedArtifactArguments();
+    const recovery = reviewedPaths ? await loadAndValidateRecoveryApprovalV4({ ...reviewedPaths, shopId }) : null;
+    if (recovery) assertReportSourceMatchesReviewedSnapshot(source.fingerprints, recovery.value.snapshot);
+    const approvedExclusions = recovery?.legacyManifest.unresolvedOrders ?? [];
     const results = [];
     for (const period of periods) {
-      const sourceTotals = summarizeSourcePeriod(projection.invoices, period);
+      const sourceSummary = summarizeSourcePeriodWithApprovedExclusions(projection.invoices, period, approvedExclusions);
+      const sourceTotals = sourceSummary.totals;
       const [destinationInvoices, destinationPayments] = await Promise.all([
         prisma.invoice.findMany({
           where: {
@@ -97,23 +113,31 @@ async function main() {
         destinationPayments,
       );
       const differences = compareReportTotals(sourceTotals, destinationTotals);
+      const adjustedCountMatches = sourceSummary.adjustedExpectedInvoiceCount === destinationTotals.invoiceCount;
       results.push({
         key: period.key,
         label: period.label,
         start: period.start.toISOString().slice(0, 10),
         endExclusive: period.endExclusive.toISOString().slice(0, 10),
-        status: differences.length ? "FAIL" : "PASS",
+        status: differences.length ? "FAIL" : sourceSummary.approvedExcludedInvoiceCount ? "PASS WITH APPROVED EXCEPTION" : "PASS",
+        rawSourceInvoiceCount: sourceSummary.rawSourceInvoiceCount,
+        destinationImportedInvoiceCount: destinationTotals.invoiceCount,
+        approvedExcludedInvoiceCount: sourceSummary.approvedExcludedInvoiceCount,
+        approvedExcludedRoNumbers: sourceSummary.approvedExcludedRoNumbers,
+        adjustedExpectedInvoiceCount: sourceSummary.adjustedExpectedInvoiceCount,
+        adjustedCountMatches,
         source: displayTotals(sourceTotals),
         destination: displayTotals(destinationTotals),
         differences,
       });
     }
 
-    const failed = results.filter((result) => result.status === "FAIL");
+    const failed = results.filter((result) => result.status === "FAIL" || !result.adjustedCountMatches);
     console.log(JSON.stringify({
       status: failed.length ? "FAIL" : "PASS",
       cutoverDate,
       sourceFingerprint: source.fingerprint,
+      reviewedRecoveryApproval: recovery ? { path: recovery.path, sha256: recovery.sha256 } : null,
       sourceInvoiceCount: projection.invoices.length,
       periods: results,
     }, null, 2));

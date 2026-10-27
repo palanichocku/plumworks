@@ -202,6 +202,47 @@ export function summarizeSourcePeriod(sourceInvoices, period) {
   return totals;
 }
 
+/**
+ * Applies only unresolved invoices from a previously validated, snapshot-bound
+ * Recovery Approval v4. The caller must validate that artifact before passing
+ * its unresolvedOrders here. The cutover recovery policy permits only explicit
+ * zero-dollar keep-skipped decisions.
+ */
+export function summarizeSourcePeriodWithApprovedExclusions(sourceInvoices, period, approvedExclusions = []) {
+  const periodInvoices = sourceInvoices.filter((invoice) => invoice.invoiceDate >= period.start && invoice.invoiceDate < period.endExclusive);
+  const seen = new Set();
+  const excludedInPeriod = [];
+  for (const exclusion of approvedExclusions) {
+    const legacyRoNo = String(exclusion?.legacyOrderNumber ?? "").trim();
+    if (!legacyRoNo || seen.has(legacyRoNo) || exclusion.disposition !== "keep-skipped" || exclusion.reviewStatus !== "approved-skip" || exclusion.total !== "0.00") {
+      throw new Error("Approved report exclusions must be unique, reviewed zero-dollar keep-skipped decisions.");
+    }
+    seen.add(legacyRoNo);
+    const matches = sourceInvoices.filter((invoice) => String(invoice.legacyRoNo) === legacyRoNo);
+    if (matches.length !== 1 || matches[0].financials.totalCents !== 0 || matches[0].financials.paidCents !== 0 || (matches[0].paymentRows ?? []).length !== 0) {
+      throw new Error(`Approved report exclusion ${legacyRoNo} does not match exactly one zero-dollar, unpaid source invoice.`);
+    }
+    if (matches[0].invoiceDate >= period.start && matches[0].invoiceDate < period.endExclusive) excludedInPeriod.push(legacyRoNo);
+  }
+  const totals = summarizeSourcePeriod(sourceInvoices, period);
+  totals.invoiceCount -= excludedInPeriod.length;
+  return {
+    totals,
+    rawSourceInvoiceCount: periodInvoices.length,
+    approvedExcludedInvoiceCount: excludedInPeriod.length,
+    approvedExcludedRoNumbers: excludedInPeriod.sort((left, right) => left.localeCompare(right, undefined, { numeric: true })),
+    adjustedExpectedInvoiceCount: periodInvoices.length - excludedInPeriod.length,
+  };
+}
+
+export function assertReportSourceMatchesReviewedSnapshot(sourceFingerprints, recoverySnapshot) {
+  for (const [file, fingerprint] of Object.entries(sourceFingerprints ?? {})) {
+    if (recoverySnapshot?.sourceHashes?.[file] !== fingerprint) {
+      throw new Error(`Report source file ${file} does not match the snapshot-bound Recovery Approval v4.`);
+    }
+  }
+}
+
 function decimalCents(value) {
   if (value === null || value === undefined) return 0;
   const parsed = parseLegacyMoneyCents(String(value));

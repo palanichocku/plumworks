@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addDestinationPayments,
+  assertReportSourceMatchesReviewedSnapshot,
   allCutoverReportPeriods,
   compareReportTotals,
   cutoverReportPeriods,
   summarizeDestinationInvoices,
   summarizeSourcePeriod,
+  summarizeSourcePeriodWithApprovedExclusions,
 } from "./lib/final-cutover-report-parity.mjs";
 
 function financials(overrides = {}) {
@@ -128,4 +130,50 @@ test("parity comparison fails on a one-cent difference", () => {
   assert.deepEqual(compareReportTotals(source, destination), [
     { field: "grossSalesTotalCents", source: 32_500, destination: 32_501, difference: 1 },
   ]);
+});
+
+const zeroDollarInvoice = {
+  legacyRoNo: "18181",
+  invoiceDate: new Date("2020-09-25T00:00:00Z"),
+  financials: financials({ partsCents: 0, laborCents: 0, subtotalCents: 0, shopSuppliesCents: 0, salesTaxCents: 0, discountsCents: 0, legacyAdditionalChargesCents: 0, totalCents: 0, paidCents: 0 }),
+  paymentRows: [],
+};
+const year2020 = { start: new Date("2020-01-01T00:00:00Z"), endExclusive: new Date("2021-01-01T00:00:00Z") };
+const reviewedZeroDollarExclusion = { legacyOrderNumber: "18181", total: "0.00", disposition: "keep-skipped", reviewStatus: "approved-skip" };
+
+test("reviewed zero-dollar excluded invoice passes with a named approved exception", () => {
+  const source = summarizeSourcePeriodWithApprovedExclusions([zeroDollarInvoice], year2020, [reviewedZeroDollarExclusion]);
+  const destination = summarizeDestinationInvoices([]);
+  assert.deepEqual({ raw: source.rawSourceInvoiceCount, imported: destination.invoiceCount, excluded: source.approvedExcludedInvoiceCount, ros: source.approvedExcludedRoNumbers, adjusted: source.adjustedExpectedInvoiceCount }, {
+    raw: 1, imported: 0, excluded: 1, ros: ["18181"], adjusted: 0,
+  });
+  assert.deepEqual(compareReportTotals(source.totals, destination), []);
+  assert.equal(source.adjustedExpectedInvoiceCount, destination.invoiceCount);
+});
+
+test("an absent reviewed approval leaves the missing source invoice as a hard failure", () => {
+  const source = summarizeSourcePeriodWithApprovedExclusions([zeroDollarInvoice], year2020);
+  const destination = summarizeDestinationInvoices([]);
+  assert.deepEqual(compareReportTotals(source.totals, destination), [
+    { field: "invoiceCount", source: 1, destination: 0, difference: -1 },
+  ]);
+});
+
+test("approved exclusion cannot hide a nonzero invoice or payment", () => {
+  const nonzero = { ...zeroDollarInvoice, financials: financials({ totalCents: 1, paidCents: 1 }), paymentRows: [{ amountCents: 1 }] };
+  assert.throws(() => summarizeSourcePeriodWithApprovedExclusions([nonzero], year2020, [reviewedZeroDollarExclusion]), /zero-dollar, unpaid source invoice/);
+});
+
+test("a one-cent financial difference still fails with an approved count exception", () => {
+  const source = summarizeSourcePeriodWithApprovedExclusions([zeroDollarInvoice], year2020, [reviewedZeroDollarExclusion]);
+  const destination = { ...summarizeDestinationInvoices([]), laborTotalCents: 1 };
+  assert.deepEqual(compareReportTotals(source.totals, destination), [
+    { field: "laborTotalCents", source: 0, destination: 1, difference: 1 },
+  ]);
+});
+
+test("reviewed snapshot binds every report DBF by its own source hash", () => {
+  const snapshot = { sourceHashes: { "ar.DBF": "a".repeat(64), "FINAL.DBF": "b".repeat(64), "laborfinal.DBF": "c".repeat(64) } };
+  assert.doesNotThrow(() => assertReportSourceMatchesReviewedSnapshot(snapshot.sourceHashes, snapshot));
+  assert.throws(() => assertReportSourceMatchesReviewedSnapshot({ ...snapshot.sourceHashes, "ar.DBF": "d".repeat(64) }, snapshot), /ar\.DBF does not match/);
 });
