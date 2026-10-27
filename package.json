@@ -58,6 +58,7 @@
     "legacy:cutover:dry-run": "node --env-file=.env.local scripts/legacy-cutover.mjs --dry-run",
     "legacy:cutover:backup": "node --env-file=.env.local scripts/legacy-cutover.mjs --backup --report",
     "legacy:cutover:verify": "node --env-file=.env.local scripts/legacy-cutover.mjs --verify --report",
+    "legacy:cutover:fresh-slate": "node --env-file=.env.local scripts/final-cutover-fresh-slate.mjs",
     "legacy:cutover:final-report-parity": "node --env-file=.env.local scripts/verify-final-cutover-report-parity.mjs --cutover-date 2026-10-31",
     "legacy:parallel-refresh:adopt-baseline": "node --env-file=.env.local scripts/legacy-parallel-refresh.mjs adopt-baseline",
     "legacy:parallel-refresh:prepare": "node --env-file=.env.local scripts/legacy-parallel-refresh.mjs prepare",
