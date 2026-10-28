@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
 import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
 import { recordVerbalRepairOrderAuthorization } from "@/lib/authorization/repair-order-evidence";
 
@@ -14,6 +15,13 @@ export async function getRepairOrderAuthorizationReadinessAction(repairOrderId: 
   const { membership } = await getCurrentMembership();
   if (!membership) return false;
   return isRepairOrderReadyForAuthorization(membership.shopId, repairOrderId);
+}
+
+export async function getRepairOrderAuthorizationDefaultsAction(repairOrderId: string): Promise<{ authorizerName: string }> {
+  const { membership } = await getCurrentMembership();
+  if (!membership) return { authorizerName: "" };
+  const order = await getWebRepairOrderForCurrentShop(repairOrderId);
+  return { authorizerName: order?.customer.displayName ?? "" };
 }
 
 export async function recordVerbalAuthorizationAction(
