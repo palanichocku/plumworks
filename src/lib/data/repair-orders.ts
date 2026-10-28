@@ -31,13 +31,16 @@ export async function getRepairOrderFormOptions() {
   const { membership } = await getCurrentMembership();
   if (!membership) return { citySuggestions: [], vehicleSuggestions: [] };
 
+  // These are convenience/autocomplete datasets only. A bad legacy value or
+  // transient query failure must never prevent the New Repair Order page from
+  // opening, so each lookup degrades independently to an empty suggestion list.
   const [customerCities, vehicleSuggestions] = await Promise.all([
     prisma.customer.findMany({
       where: { shopId: membership.shopId, city: { not: null } },
       distinct: ["city"],
       select: { city: true },
       orderBy: { city: "asc" },
-    }),
+    }).catch(() => []),
     prisma.vehicle.findMany({
       where: {
         shopId: membership.shopId,
@@ -46,7 +49,7 @@ export async function getRepairOrderFormOptions() {
       distinct: ["make", "model"],
       select: { make: true, model: true },
       orderBy: [{ make: "asc" }, { model: "asc" }],
-    }),
+    }).catch(() => []),
   ]);
 
   return {
