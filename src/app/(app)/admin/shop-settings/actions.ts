@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { auditEntry, writeAuditEntry } from "@/lib/audit";
+import { ensureShopSignatureDefaultsStorage } from "@/lib/authorization/shop-signature-defaults-storage";
 import { requirePermission } from "@/lib/permissions";
 import { normalizeLeadNotificationEmail } from "@/lib/marketing-lead-notification-settings";
 import { prisma } from "@/lib/prisma";
@@ -66,6 +67,8 @@ export async function updateInvoiceSettings(formData: FormData) {
   if ((invoiceFooterMessage?.length ?? 0) > 2000 || [warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText].some((value) => (value?.length ?? 0) > 4000) || [repairFacilityRegistrationNumber, defaultInvoiceTechnicianLicenseNumber].some((value) => (value?.length ?? 0) > 100) || [defaultAuthorizedRepresentative, defaultInvoiceTechnicianName].some((value) => (value?.length ?? 0) > 150)) {
     throw new Error("Invoice settings text is too long.");
   }
+
+  await ensureShopSignatureDefaultsStorage();
 
   await prisma.$transaction(async (transaction) => {
     await transaction.shop.update({
