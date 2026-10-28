@@ -40,7 +40,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
-  const publicAuthPath = pathname === "/login" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/update-password";
+  const publicAuthPath = pathname === "/login" || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/update-password" || pathname === "/invite";
 
   if (!user && !publicAuthPath) {
     const loginUrl = request.nextUrl.clone();
