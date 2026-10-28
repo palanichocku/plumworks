@@ -95,7 +95,7 @@ async function loadRepairOrderSnapshot(shopId: string, repairOrderId: string) {
 }
 
 type RevisionRow = { id: string; revision: number; snapshotSha256: string };
-type ApprovalRow = { revision: number; occurredAt: Date; authorizerName: string };
+type DecisionRow = { revision: number; occurredAt: Date; authorizerName: string; decision: "APPROVED" | "DECLINED" };
 type HistoryRow = AuthorizationHistoryItem;
 
 export async function ensureCurrentRepairOrderRevision(shopId: string, repairOrderId: string) {
@@ -140,22 +140,90 @@ export async function getRepairOrderAuthorizationSummaryForShop(shopId: string, 
   const current = await loadRepairOrderSnapshot(shopId, repairOrderId);
   if (!current) return null;
 
-  const approved = await prisma.$queryRaw<ApprovalRow[]>`
-    SELECT dr.revision, ae.occurred_at AS "occurredAt", ae.authorizer_name AS "authorizerName"
+  const currentDecision = await prisma.$queryRaw<DecisionRow[]>`
+    SELECT
+      dr.revision,
+      ae.occurred_at AS "occurredAt",
+      ae.authorizer_name AS "authorizerName",
+      ae.decision::text AS decision
     FROM document_revisions dr
     JOIN authorization_events ae ON ae.document_revision_id = dr.id AND ae.shop_id = dr.shop_id
     WHERE dr.shop_id = ${shopId}::uuid
       AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
       AND dr.document_id = ${repairOrderId}::uuid
-      AND dr.total = ${current.total}::decimal
-      AND ae.decision = 'APPROVED'::"AuthorizationDecision"
-    ORDER BY ae.occurred_at DESC
+      AND dr.snapshot_sha256 = ${current.hash}
+      AND ae.decision IN ('APPROVED'::"AuthorizationDecision", 'DECLINED'::"AuthorizationDecision")
+    ORDER BY ae.occurred_at DESC, ae.id DESC
     LIMIT 1
   `;
 
-  return approved[0]
-    ? { status: "AUTHORIZED", currentSnapshotSha256: current.hash, approvedRevision: approved[0].revision, approvedAt: approved[0].occurredAt, authorizerName: approved[0].authorizerName }
-    : { status: "NOT_AUTHORIZED", currentSnapshotSha256: current.hash, approvedRevision: null, approvedAt: null, authorizerName: null };
+  const decision = currentDecision[0];
+  if (decision?.decision === "APPROVED") {
+    return {
+      status: "AUTHORIZED",
+      currentSnapshotSha256: current.hash,
+      approvedRevision: decision.revision,
+      approvedAt: decision.occurredAt,
+      authorizerName: decision.authorizerName,
+      decisionRevision: decision.revision,
+      decisionAt: decision.occurredAt,
+      decisionAuthorizerName: decision.authorizerName,
+    };
+  }
+
+  if (decision?.decision === "DECLINED") {
+    return {
+      status: "DECLINED",
+      currentSnapshotSha256: current.hash,
+      approvedRevision: null,
+      approvedAt: null,
+      authorizerName: null,
+      decisionRevision: decision.revision,
+      decisionAt: decision.occurredAt,
+      decisionAuthorizerName: decision.authorizerName,
+    };
+  }
+
+  const previousDecline = await prisma.$queryRaw<DecisionRow[]>`
+    SELECT
+      dr.revision,
+      ae.occurred_at AS "occurredAt",
+      ae.authorizer_name AS "authorizerName",
+      ae.decision::text AS decision
+    FROM document_revisions dr
+    JOIN authorization_events ae ON ae.document_revision_id = dr.id AND ae.shop_id = dr.shop_id
+    WHERE dr.shop_id = ${shopId}::uuid
+      AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
+      AND dr.document_id = ${repairOrderId}::uuid
+      AND dr.snapshot_sha256 <> ${current.hash}
+      AND ae.decision = 'DECLINED'::"AuthorizationDecision"
+    ORDER BY ae.occurred_at DESC, ae.id DESC
+    LIMIT 1
+  `;
+
+  if (previousDecline[0]) {
+    return {
+      status: "DECLINED_PREVIOUS_REVISION",
+      currentSnapshotSha256: current.hash,
+      approvedRevision: null,
+      approvedAt: null,
+      authorizerName: null,
+      decisionRevision: previousDecline[0].revision,
+      decisionAt: previousDecline[0].occurredAt,
+      decisionAuthorizerName: previousDecline[0].authorizerName,
+    };
+  }
+
+  return {
+    status: "NOT_AUTHORIZED",
+    currentSnapshotSha256: current.hash,
+    approvedRevision: null,
+    approvedAt: null,
+    authorizerName: null,
+    decisionRevision: null,
+    decisionAt: null,
+    decisionAuthorizerName: null,
+  };
 }
 
 export async function getRepairOrderAuthorizationSummary(repairOrderId: string): Promise<RepairOrderAuthorizationSummary | null> {
