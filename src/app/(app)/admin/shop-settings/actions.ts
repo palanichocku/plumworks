@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
@@ -8,9 +9,26 @@ import { requirePermission } from "@/lib/permissions";
 import { normalizeLeadNotificationEmail } from "@/lib/marketing-lead-notification-settings";
 import { prisma } from "@/lib/prisma";
 
+const PNG_DATA_URL = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/;
+const MAX_SIGNATURE_BYTES = 750 * 1024;
+
 function optionalText(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
   return text || null;
+}
+
+function validateOptionalSignatureData(value: FormDataEntryValue | null) {
+  const dataUrl = String(value ?? "").trim();
+  if (!dataUrl) return null;
+  const match = PNG_DATA_URL.exec(dataUrl);
+  if (!match) throw new Error("Default shop representative signature is invalid.");
+  const bytes = Buffer.from(match[1], "base64");
+  if (bytes.length < 100) throw new Error("Default shop representative signature is too small.");
+  if (bytes.length > MAX_SIGNATURE_BYTES) throw new Error("Default shop representative signature is too large.");
+  return {
+    dataUrl,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
 }
 
 export async function updateInvoiceSettings(formData: FormData) {
@@ -43,6 +61,7 @@ export async function updateInvoiceSettings(formData: FormData) {
   const defaultAuthorizedRepresentative = optionalText(formData.get("defaultAuthorizedRepresentative"));
   const defaultInvoiceTechnicianName = optionalText(formData.get("defaultInvoiceTechnicianName"));
   const defaultInvoiceTechnicianLicenseNumber = optionalText(formData.get("defaultInvoiceTechnicianLicenseNumber"));
+  const defaultShopRepresentativeSignature = validateOptionalSignatureData(formData.get("defaultShopRepresentativeSignatureData"));
   const auditLoggingEnabled = formData.get("auditLoggingEnabled") === "on";
   if ((invoiceFooterMessage?.length ?? 0) > 2000 || [warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText].some((value) => (value?.length ?? 0) > 4000) || [repairFacilityRegistrationNumber, defaultInvoiceTechnicianLicenseNumber].some((value) => (value?.length ?? 0) > 100) || [defaultAuthorizedRepresentative, defaultInvoiceTechnicianName].some((value) => (value?.length ?? 0) > 150)) {
     throw new Error("Invoice settings text is too long.");
@@ -53,11 +72,44 @@ export async function updateInvoiceSettings(formData: FormData) {
       where: { id: membership.shopId },
       data: { defaultTaxRate: taxPercent.div(100).toDecimalPlaces(5), defaultLaborRate: laborRate.toDecimalPlaces(2), partsTaxable: formData.get("partsTaxable") === "on", laborTaxable: formData.get("laborTaxable") === "on", shopSuppliesEnabled: formData.get("shopSuppliesEnabled") === "on", shopSuppliesRate: shopSuppliesRatePercent.div(100).toDecimalPlaces(6), shopSuppliesCap: shopSuppliesCap.toDecimalPlaces(2), shopSuppliesTaxable: formData.get("shopSuppliesTaxable") === "on", auditLoggingEnabled, invoiceFooterMessage, warrantyText, invoicePartsWarrantyText, invoiceAuthorizationText, invoiceCertificationText, repairFacilityRegistrationNumber, defaultAuthorizedRepresentative, defaultInvoiceTechnicianName, defaultInvoiceTechnicianLicenseNumber },
     });
-    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web", auditLoggingEnabled }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }), { category: "governance" });
+
+    if (defaultShopRepresentativeSignature) {
+      await transaction.$executeRaw`
+        INSERT INTO shop_signature_defaults (
+          shop_id,
+          representative_name,
+          signature_data,
+          signature_sha256,
+          updated_by,
+          updated_at
+        ) VALUES (
+          ${membership.shopId}::uuid,
+          ${defaultAuthorizedRepresentative ?? "Subbu Veerappan"},
+          ${defaultShopRepresentativeSignature.dataUrl},
+          ${defaultShopRepresentativeSignature.sha256},
+          ${user?.id ?? null}::uuid,
+          NOW()
+        )
+        ON CONFLICT (shop_id) DO UPDATE SET
+          representative_name = EXCLUDED.representative_name,
+          signature_data = EXCLUDED.signature_data,
+          signature_sha256 = EXCLUDED.signature_sha256,
+          updated_by = EXCLUDED.updated_by,
+          updated_at = NOW()
+      `;
+    } else {
+      await transaction.$executeRaw`
+        DELETE FROM shop_signature_defaults
+        WHERE shop_id = ${membership.shopId}::uuid
+      `;
+    }
+
+    await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "shop_settings_updated", "shop", membership.shopId, { source: "web", auditLoggingEnabled, defaultShopRepresentativeSignatureConfigured: Boolean(defaultShopRepresentativeSignature) }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: membership.shop.name, entityHref: "/admin/shop-settings", contextSummary: "Shop settings updated" }), { category: "governance" });
   });
 
   revalidatePath("/admin/shop-settings");
   revalidatePath("/repair-orders");
+  revalidatePath("/invoices");
   redirect("/admin/shop-settings?saved=1");
 }
 
