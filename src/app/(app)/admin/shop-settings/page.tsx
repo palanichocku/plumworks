@@ -1,6 +1,7 @@
 import { LeadNotificationSettingsForm } from "@/components/lead-notification-settings-form";
 import { PageHeading } from "@/components/page-heading";
 import { PermissionDenied } from "@/components/permission-denied";
+import { ShopRepresentativeSignatureSetting } from "@/components/shop-representative-signature-setting";
 import { hasPermission } from "@/lib/permissions";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { prisma } from "@/lib/prisma";
@@ -52,11 +53,18 @@ export default async function ShopSettingsPage({
 
   if (!shop) return null;
 
+  const signatureRows = await prisma.$queryRaw<Array<{ signatureData: string }>>`
+    SELECT signature_data AS "signatureData"
+    FROM shop_signature_defaults
+    WHERE shop_id = ${membership.shopId}::uuid
+    LIMIT 1
+  `;
+  const defaultShopRepresentativeSignature = signatureRows[0]?.signatureData ?? "";
+
   const inputClass = "mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 font-medium outline-none transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 shadow-2xs";
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Main Page Header */}
       <PageHeading
         eyebrow="Admin"
         title="Shop Settings"
@@ -69,7 +77,7 @@ export default async function ShopSettingsPage({
         marketingLeadNotifyEmail1: shop.marketingLeadNotifyEmail1,
         marketingLeadNotifyEmail2: shop.marketingLeadNotifyEmail2,
       }} />
-      {/* Configuration Card Structure */}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-base font-bold text-slate-900">Invoice defaults</h2>
@@ -78,7 +86,6 @@ export default async function ShopSettingsPage({
           </p>
         </div>
 
-        {/* Premium Saved Alert Status Notification Banner */}
         {saved === "1" && (
           <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 border border-emerald-200 shadow-2xs animate-fadeIn">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-900">✓</span>
@@ -104,52 +111,21 @@ export default async function ShopSettingsPage({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
               Default tax rate (%)
-              <input 
-                name="defaultTaxRate" 
-                type="number" 
-                min="0" 
-                max="100" 
-                step="0.001" 
-                required 
-                defaultValue={shop.defaultTaxRate.mul(100).toString()} 
-                className={inputClass} 
-              />
+              <input name="defaultTaxRate" type="number" min="0" max="100" step="0.001" required defaultValue={shop.defaultTaxRate.mul(100).toString()} className={inputClass} />
             </label>
-            
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
               Default labor rate ($ / hr)
-              <input 
-                name="defaultLaborRate" 
-                type="number" 
-                min="0" 
-                max="1000000" 
-                step="0.01" 
-                required 
-                defaultValue={shop.defaultLaborRate.toString()} 
-                className={inputClass} 
-              />
+              <input name="defaultLaborRate" type="number" min="0" max="1000000" step="0.01" required defaultValue={shop.defaultLaborRate.toString()} className={inputClass} />
             </label>
           </div>
 
-          {/* Interactive Checkbox Tile Container Blocks */}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-semibold text-slate-700 bg-slate-50/20 cursor-pointer select-none transition-colors hover:bg-slate-50/70">
-              <input 
-                name="partsTaxable" 
-                type="checkbox" 
-                defaultChecked={shop.partsTaxable} 
-                className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" 
-              /> 
+              <input name="partsTaxable" type="checkbox" defaultChecked={shop.partsTaxable} className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" />
               Parts are taxable
             </label>
-            
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-semibold text-slate-700 bg-slate-50/20 cursor-pointer select-none transition-colors hover:bg-slate-50/70">
-              <input 
-                name="laborTaxable" 
-                type="checkbox" 
-                defaultChecked={shop.laborTaxable} 
-                className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" 
-              /> 
+              <input name="laborTaxable" type="checkbox" defaultChecked={shop.laborTaxable} className="h-4 w-4 rounded-md border-slate-300 text-brand-primary focus:ring-brand-primary" />
               Labor is taxable
             </label>
           </div>
@@ -158,26 +134,12 @@ export default async function ShopSettingsPage({
 
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Invoice footer message
-            <textarea 
-              name="invoiceFooterMessage" 
-              rows={3} 
-              maxLength={2000} 
-              defaultValue={shop.invoiceFooterMessage ?? ""} 
-              placeholder="Thank you for choosing our shop..."
-              className={`${inputClass} font-normal resize-none`} 
-            />
+            <textarea name="invoiceFooterMessage" rows={3} maxLength={2000} defaultValue={shop.invoiceFooterMessage ?? ""} placeholder="Thank you for choosing our shop..." className={`${inputClass} font-normal resize-none`} />
           </label>
 
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Warranty text
-            <textarea 
-              name="warrantyText" 
-              rows={5} 
-              maxLength={4000} 
-              defaultValue={shop.warrantyText ?? ""} 
-              placeholder="All repairs guarantee structural coverage up to 12 months or 12,000 miles..."
-              className={`${inputClass} font-normal`} 
-            />
+            <textarea name="warrantyText" rows={5} maxLength={4000} defaultValue={shop.warrantyText ?? ""} placeholder="All repairs guarantee structural coverage up to 12 months or 12,000 miles..." className={`${inputClass} font-normal`} />
           </label>
 
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -197,15 +159,14 @@ export default async function ShopSettingsPage({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Repair-facility registration number<input name="repairFacilityRegistrationNumber" maxLength={100} defaultValue={shop.repairFacilityRegistrationNumber ?? ""} className={inputClass} /></label>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Authorized representative<input name="defaultAuthorizedRepresentative" maxLength={150} defaultValue={shop.defaultAuthorizedRepresentative ?? ""} className={inputClass} /></label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Authorized representative<input name="defaultAuthorizedRepresentative" maxLength={150} defaultValue={shop.defaultAuthorizedRepresentative ?? ""} placeholder="Subbu Veerappan" className={inputClass} /></label>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Default Invoice technician<input name="defaultInvoiceTechnicianName" maxLength={150} defaultValue={shop.defaultInvoiceTechnicianName ?? ""} className={inputClass} /></label>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Technician or mechanic license<input name="defaultInvoiceTechnicianLicenseNumber" maxLength={100} defaultValue={shop.defaultInvoiceTechnicianLicenseNumber ?? ""} className={inputClass} /></label>
           </div>
 
-          <button 
-            type="submit" 
-            className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20"
-          >
+          <ShopRepresentativeSignatureSetting initialValue={defaultShopRepresentativeSignature} />
+
+          <button type="submit" className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20">
             Save Invoice Defaults
           </button>
         </form>
