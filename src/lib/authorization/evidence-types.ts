@@ -39,4 +39,7 @@ export type RepairOrderAuthorizationSummary = {
   approvedRevision: number | null;
   approvedAt: Date | null;
   authorizerName: string | null;
+  decisionRevision: number | null;
+  decisionAt: Date | null;
+  decisionAuthorizerName: string | null;
 };
