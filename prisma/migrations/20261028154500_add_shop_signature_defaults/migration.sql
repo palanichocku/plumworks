@@ -1,4 +1,4 @@
-CREATE TABLE "shop_signature_defaults" (
+CREATE TABLE IF NOT EXISTS "shop_signature_defaults" (
   "shop_id" UUID NOT NULL,
   "representative_name" TEXT NOT NULL,
   "signature_data" TEXT NOT NULL,
