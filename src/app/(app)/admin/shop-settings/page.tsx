@@ -4,6 +4,7 @@ import { PermissionDenied } from "@/components/permission-denied";
 import { ShopRepresentativeSignatureSetting } from "@/components/shop-representative-signature-setting";
 import { hasPermission } from "@/lib/permissions";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { ensureShopSignatureDefaultsStorage } from "@/lib/authorization/shop-signature-defaults-storage";
 import { prisma } from "@/lib/prisma";
 import { updateInvoiceSettings } from "./actions";
 import { ShopSuppliesSettings } from "@/components/shop-supplies-settings";
@@ -53,6 +54,7 @@ export default async function ShopSettingsPage({
 
   if (!shop) return null;
 
+  await ensureShopSignatureDefaultsStorage();
   const signatureRows = await prisma.$queryRaw<Array<{ signatureData: string }>>`
     SELECT signature_data AS "signatureData"
     FROM shop_signature_defaults
