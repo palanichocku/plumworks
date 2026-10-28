@@ -22,6 +22,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
   try {
     const repairOrderId = String(formData.get("repairOrderId") ?? "");
     const authorizationOverrideReason = String(formData.get("authorizationOverrideReason") ?? "").trim();
+    const postDeclineBillingReason = String(formData.get("postDeclineBillingReason") ?? "").trim();
     if (!UUID.test(repairOrderId)) throw new Error("Invalid repair order.");
     const { user, membership } = await requirePermission("finalize_repair_order");
 
@@ -42,7 +43,20 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
       const authorization = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
       if (!authorization) throw new InvoiceAuthorizationError("Authorization status could not be verified for this Repair Order.");
 
-      const authorizationOverride = authorization.status !== "AUTHORIZED";
+      const declinedCurrentRevision = authorization.status === "DECLINED";
+      const declinedPreviousRevision = authorization.status === "DECLINED_PREVIOUS_REVISION";
+      const postDeclineBilling = declinedCurrentRevision || declinedPreviousRevision;
+      const authorizationOverride = authorization.status === "NOT_AUTHORIZED";
+
+      if (declinedPreviousRevision) {
+        if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+          throw new InvoiceAuthorizationError("Only an Owner or Admin can create an invoice after changing a Repair Order that the customer previously declined.");
+        }
+        if (postDeclineBillingReason.length < 10 || postDeclineBillingReason.length > 500) {
+          throw new InvoiceAuthorizationError("Enter a billing reason between 10 and 500 characters for the post-decline invoice.");
+        }
+      }
+
       if (authorizationOverride) {
         if (!authorizationOverrideReason) throw new InvoiceAuthorizationError(AUTHORIZATION_REQUIRED_MESSAGE);
         if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
@@ -189,12 +203,23 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
         },
       });
 
+      const auditAction = postDeclineBilling
+        ? "invoice_created_after_declined_estimate"
+        : authorizationOverride
+          ? "invoice_created_authorization_override"
+          : "invoice_created";
+      const contextSummary = postDeclineBilling
+        ? "Invoice created for diagnostic or other charges after customer declined estimate"
+        : authorizationOverride
+          ? "Invoice created with Owner/Admin authorization override"
+          : "Invoice created from authorized repair order";
+
       await writeAuditEntry(
         transaction,
         auditEntry(
           membership.shopId,
           user?.id,
-          authorizationOverride ? "invoice_created_authorization_override" : "invoice_created",
+          auditAction,
           "repair_order",
           order.id,
           {
@@ -202,6 +227,11 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
             authorizationStatus: authorization.status,
             authorizationSnapshotSha256: authorization.currentSnapshotSha256,
             authorizationApprovedRevision: authorization.approvedRevision,
+            authorizationDecisionRevision: authorization.decisionRevision,
+            authorizationDecisionAt: authorization.decisionAt?.toISOString() ?? null,
+            authorizationDecisionAuthorizerName: authorization.decisionAuthorizerName,
+            postDeclineBilling,
+            postDeclineBillingReason: declinedPreviousRevision ? postDeclineBillingReason : null,
             authorizationOverride,
             authorizationOverrideReason: authorizationOverride ? authorizationOverrideReason : null,
           },
@@ -210,12 +240,10 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
             actorRole: membership.role,
             entityLabel: `RO #${order.repairOrderNumber}`,
             entityHref: `/invoices/${createdInvoice.id}`,
-            contextSummary: authorizationOverride
-              ? "Invoice created with Owner/Admin authorization override"
-              : "Invoice created from authorized repair order",
+            contextSummary,
           },
         ),
-        authorizationOverride
+        postDeclineBilling || authorizationOverride
           ? { category: "governance" }
           : { category: "operational", enabled: membership.shop.auditLoggingEnabled },
       );
