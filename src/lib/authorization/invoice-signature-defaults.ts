@@ -34,8 +34,8 @@ export async function getInvoiceDeliverySignatureDefaults() {
       AND ae.decision = 'DELIVERY_ACKNOWLEDGED'::"AuthorizationDecision"
       AND ae.signature_role = 'SHOP_REPRESENTATIVE'::"SignatureRole"
     ORDER BY
+      CASE WHEN LOWER(TRIM(ae.authorizer_name)) = LOWER(${DEFAULT_OWNER_NAME}) THEN 0 ELSE 1 END,
       CASE WHEN dr.snapshot #>> '{invoice,number}' = ${PREFERRED_SOURCE_REPAIR_ORDER} THEN 0 ELSE 1 END,
-      CASE WHEN LOWER(ae.authorizer_name) = LOWER(${DEFAULT_OWNER_NAME}) THEN 0 ELSE 1 END,
       ae.occurred_at DESC,
       ae.id DESC
     LIMIT 1
