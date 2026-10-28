@@ -9,7 +9,8 @@ function Detail({ label, value }: { label: string; value: string | number | null
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function SummaryRow({ label, value, emphasized = false }: { label: string; value: string; emphasized?: boolean }) {
+function SummaryRow({ label, value, emphasized = false }: { label: string; value: string | null | undefined; emphasized?: boolean }) {
+  if (value === null || value === undefined || value === "") return null;
   const className = emphasized ? "invoice-document-total-emphasis" : undefined;
   return <><dt className={className}>{label}</dt><dd className={className}>{value}</dd></>;
 }
