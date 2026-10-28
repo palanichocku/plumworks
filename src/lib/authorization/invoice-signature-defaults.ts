@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "@/lib/data/membership";
+import { ensureShopSignatureDefaultsStorage } from "@/lib/authorization/shop-signature-defaults-storage";
 
 const DEFAULT_OWNER_NAME = "Subbu Veerappan";
 const PREFERRED_SOURCE_REPAIR_ORDER = "21861";
@@ -21,6 +22,8 @@ export async function getInvoiceDeliverySignatureDefaults() {
   if (!membership) {
     return { shopRepresentativeName: DEFAULT_OWNER_NAME, shopRepresentativeSignatureData: "" };
   }
+
+  await ensureShopSignatureDefaultsStorage();
 
   const configured = await prisma.$queryRaw<ConfiguredSignatureRow[]>`
     SELECT
