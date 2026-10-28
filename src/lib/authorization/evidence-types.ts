@@ -27,8 +27,14 @@ export type AuthorizationHistoryItem = {
   snapshotSha256: string;
 };
 
+export type RepairOrderAuthorizationStatus =
+  | "NOT_AUTHORIZED"
+  | "AUTHORIZED"
+  | "DECLINED"
+  | "DECLINED_PREVIOUS_REVISION";
+
 export type RepairOrderAuthorizationSummary = {
-  status: "NOT_AUTHORIZED" | "AUTHORIZED";
+  status: RepairOrderAuthorizationStatus;
   currentSnapshotSha256: string;
   approvedRevision: number | null;
   approvedAt: Date | null;
