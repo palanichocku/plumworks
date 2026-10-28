@@ -6,6 +6,11 @@ import { getCurrentMembership } from "@/lib/data/membership";
 const DEFAULT_OWNER_NAME = "Subbu Veerappan";
 const PREFERRED_SOURCE_REPAIR_ORDER = "21861";
 
+type ConfiguredSignatureRow = {
+  representativeName: string | null;
+  signatureData: string;
+};
+
 type DefaultSignatureRow = {
   signerName: string;
   signatureData: string;
@@ -15,6 +20,23 @@ export async function getInvoiceDeliverySignatureDefaults() {
   const { membership } = await getCurrentMembership();
   if (!membership) {
     return { shopRepresentativeName: DEFAULT_OWNER_NAME, shopRepresentativeSignatureData: "" };
+  }
+
+  const configured = await prisma.$queryRaw<ConfiguredSignatureRow[]>`
+    SELECT
+      COALESCE(NULLIF(BTRIM(s.default_authorized_representative), ''), d.representative_name) AS "representativeName",
+      d.signature_data AS "signatureData"
+    FROM shop_signature_defaults d
+    JOIN shops s ON s.id = d.shop_id
+    WHERE d.shop_id = ${membership.shopId}::uuid
+    LIMIT 1
+  `;
+
+  if (configured[0]?.signatureData) {
+    return {
+      shopRepresentativeName: configured[0].representativeName ?? DEFAULT_OWNER_NAME,
+      shopRepresentativeSignatureData: configured[0].signatureData,
+    };
   }
 
   const rows = await prisma.$queryRaw<DefaultSignatureRow[]>`
@@ -42,7 +64,7 @@ export async function getInvoiceDeliverySignatureDefaults() {
   `;
 
   return {
-    shopRepresentativeName: DEFAULT_OWNER_NAME,
+    shopRepresentativeName: rows[0]?.signerName || DEFAULT_OWNER_NAME,
     shopRepresentativeSignatureData: rows[0]?.signatureData ?? "",
   };
 }
