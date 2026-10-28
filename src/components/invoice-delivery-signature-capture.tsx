@@ -39,10 +39,12 @@ function SignaturePad({
       const ratio = Math.max(1, window.devicePixelRatio || 1);
       const width = Math.max(1, Math.round(rect.width * ratio));
       const height = Math.max(1, Math.round(rect.height * ratio));
-      if (canvas.width === width && canvas.height === height) return;
+      const sizeChanged = canvas.width !== width || canvas.height !== height;
 
-      canvas.width = width;
-      canvas.height = height;
+      if (sizeChanged) {
+        canvas.width = width;
+        canvas.height = height;
+      }
       const context = canvas.getContext("2d");
       if (!context) return;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -50,7 +52,7 @@ function SignaturePad({
       context.lineCap = "round";
       context.lineJoin = "round";
 
-      if (value) {
+      if (value && sizeChanged) {
         const image = new Image();
         image.onload = () => context.drawImage(image, 0, 0, rect.width, rect.height);
         image.src = value;
@@ -196,7 +198,7 @@ function SignaturePad({
         className="mt-2 h-52 w-full rounded-xl border-2 border-slate-300 bg-white"
         style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       />
-      <p className="mt-1 text-xs text-slate-500">Sign inside the box using a finger, stylus, or mouse.</p>
+      <p className="mt-1 text-xs text-slate-500">Sign inside the box using a finger, stylus, or mouse. Use Clear to replace a prefilled signature before recording.</p>
     </div>
   );
 }
@@ -207,17 +209,21 @@ export function InvoiceDeliverySignatureCapture({
   vehicleLabel,
   totalLabel,
   defaultCustomerName,
+  defaultShopRepresentativeName,
+  defaultShopRepresentativeSignature,
 }: {
   invoiceId: string;
   invoiceNumber: string;
   vehicleLabel: string;
   totalLabel: string;
   defaultCustomerName: string;
+  defaultShopRepresentativeName: string;
+  defaultShopRepresentativeSignature: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState<InvoiceSignatureActionState>(initial);
   const [customerSignature, setCustomerSignature] = useState("");
-  const [shopSignature, setShopSignature] = useState("");
+  const [shopSignature, setShopSignature] = useState(defaultShopRepresentativeSignature);
   const [pending, startTransition] = useTransition();
 
   function submit(formData: FormData) {
@@ -281,7 +287,7 @@ export function InvoiceDeliverySignatureCapture({
             <SignaturePad label="Customer signature" value={customerSignature} onChange={setCustomerSignature} />
           </div>
           <label className="mt-5 flex items-start gap-3 text-sm leading-6 text-slate-700">
-            <input type="checkbox" name="customerConsentAccepted" required className="mt-1.5 h-4 w-4 shrink-0" />
+            <input type="checkbox" name="customerConsentAccepted" defaultChecked required className="mt-1.5 h-4 w-4 shrink-0" />
             <span>I have reviewed the acknowledgement above and agree that this electronic signature represents my signature.</span>
           </label>
         </section>
@@ -295,6 +301,7 @@ export function InvoiceDeliverySignatureCapture({
             Shop representative printed name
             <input
               name="shopRepresentativeName"
+              defaultValue={defaultShopRepresentativeName}
               required
               minLength={2}
               maxLength={120}
@@ -305,7 +312,7 @@ export function InvoiceDeliverySignatureCapture({
             <SignaturePad label="Shop representative signature" value={shopSignature} onChange={setShopSignature} />
           </div>
           <label className="mt-5 flex items-start gap-3 text-sm leading-6 text-slate-700">
-            <input type="checkbox" name="shopConsentAccepted" required className="mt-1.5 h-4 w-4 shrink-0" />
+            <input type="checkbox" name="shopConsentAccepted" defaultChecked required className="mt-1.5 h-4 w-4 shrink-0" />
             <span>I confirm the acknowledgement above and agree that this electronic signature represents my signature.</span>
           </label>
         </section>
