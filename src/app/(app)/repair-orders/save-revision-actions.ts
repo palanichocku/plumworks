@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { type RepairOrderSaveState } from "@/app/(app)/repair-orders/actions";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { ensureCurrentRepairOrderRevision } from "@/lib/authorization/repair-order-evidence";
@@ -16,6 +15,5 @@ export async function saveRepairOrderDraftForAuthorization(
   const revision = await ensureCurrentRepairOrderRevision(membership.shopId, repairOrderId);
   if (!revision) return { status: "error", message: "This Repair Order could not be prepared for authorization." };
 
-  revalidatePath(`/repair-orders/${repairOrderId}`);
   return { status: "success", message: `Repair Order saved as revision ${revision.revision}.` };
 }
