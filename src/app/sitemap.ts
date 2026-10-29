@@ -7,7 +7,7 @@ import { getReviewLinks } from "@/lib/marketing-review-links";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = configuredPublicSiteOrigin();
   if (!origin || !marketingIndexingEnabled()) return [];
-  const routes = ["/", "/services", "/about", "/contact", "/appointment", "/drop-off", "/privacy"];
+  const routes = ["/", "/services", "/about", "/contact", "/appointment", "/drop-off", "/privacy", "/terms"];
   const [services, coupons, testimonials, gallery, shop, settings] = await Promise.all([getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(), getPublicShop(), getMarketingSettings()]);
   const reviewLinks = getReviewLinks(shop, settings.reviewUrl);
   if (coupons.some((item) => !item.id.startsWith("fallback-"))) routes.push("/coupons");
