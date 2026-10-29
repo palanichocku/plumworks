@@ -43,7 +43,7 @@ export default async function WorkspaceLayout({
   }
 
   const security = await getShopSecuritySettings(membership.shopId);
-  if (security.mfaRequired) {
+  if (security.mfaRequired && membership.role !== "MONITOR") {
     const supabase = await createClient();
     const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
