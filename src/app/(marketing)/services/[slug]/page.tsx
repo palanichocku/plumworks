@@ -33,16 +33,19 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
   ] : [];
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(serviceJsonLd) }} />
-    {service.content ? <StructuredServicePage service={service} content={service.content} shop={shop} /> : <LegacyServicePage service={service} />}
+    {service.content ? <StructuredServicePage service={service} content={service.content} shop={shop} /> : <LegacyServicePage service={service} shop={shop} />}
   </>;
 }
 
-function StructuredServicePage({ service, content, shop }: { service: { slug: string; name: string }; content: ServiceContent; shop: { name: string; city: string | null; phone: string | null } }) {
+function StructuredServicePage({ service, content, shop }: { service: { slug: string; name: string }; content: ServiceContent; shop: { name: string; city: string | null; state: string | null; phone: string | null } }) {
+  const locality = [shop.city, shop.state].filter(Boolean).join(", ");
+  const heading = `${serviceSeoTitle(service.slug, service.name)}${locality ? ` in ${locality}` : ""}`;
   return <main className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
     <AttributionLink href="/services" className={`text-sm font-bold text-orange-700 hover:underline ${focusRing}`}>← All services</AttributionLink>
     <header className="mt-8 max-w-4xl">
       <p className="text-xs font-black uppercase tracking-[0.25em] text-orange-700">Vehicle service{shop.city ? ` in ${shop.city}` : ""}</p>
-      <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">{content.heading}</h1>
+      <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">{heading}</h1>
+      {content.heading !== heading ? <p className="mt-4 text-lg font-bold text-slate-800">{content.heading}</p> : null}
       <p className="mt-6 text-lg leading-8 text-slate-600 sm:text-xl sm:leading-9">{content.intro}</p>
     </header>
 
@@ -71,6 +74,8 @@ function ListSection({ section }: { section: { heading: string; intro?: string; 
   return <section><h2 className="text-2xl font-black text-slate-950 sm:text-3xl">{section.heading}</h2>{section.intro ? <p className="mt-5 leading-8 text-slate-600">{section.intro}</p> : null}<ul className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">{section.items.map((item) => <li key={item} className="flex gap-3 leading-7 text-slate-600"><span aria-hidden="true" className="mt-2.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />{item}</li>)}</ul></section>;
 }
 
-function LegacyServicePage({ service }: { service: { slug: string; name: string; detail: string } }) {
-  return <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6"><Link href="/services" className="text-sm font-bold text-orange-700">← All services</Link><div className="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]"><div><p className="text-xs font-black uppercase tracking-[0.25em] text-orange-700">Vehicle service</p><h1 className="mt-4 text-5xl font-black tracking-tight">{service.name}</h1><p className="mt-6 text-xl leading-9 text-slate-600">{service.detail}</p><h2 className="mt-10 text-2xl font-black">What to expect</h2><ul className="mt-5 space-y-3 text-slate-600"><li>A conversation about symptoms, timing, and priorities.</li><li>An inspection or test appropriate to the concern.</li><li>A clear recommendation and estimate before authorized work.</li></ul></div><aside className="rounded-3xl bg-slate-950 p-7 text-white"><p className="text-sm font-black uppercase tracking-widest text-orange-400">Need this service?</p><AttributionLink href={`/appointment?service=${service.slug}`} className="mt-6 block rounded-xl bg-orange-500 px-5 py-3 text-center font-black text-slate-950">Request Service</AttributionLink></aside></div></main>;
+function LegacyServicePage({ service, shop }: { service: { slug: string; name: string; detail: string }; shop: { city: string | null; state: string | null } }) {
+  const locality = [shop.city, shop.state].filter(Boolean).join(", ");
+  const heading = `${serviceSeoTitle(service.slug, service.name)}${locality ? ` in ${locality}` : ""}`;
+  return <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6"><Link href="/services" className="text-sm font-bold text-orange-700">← All services</Link><div className="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]"><div><p className="text-xs font-black uppercase tracking-[0.25em] text-orange-700">Vehicle service</p><h1 className="mt-4 text-5xl font-black tracking-tight">{heading}</h1><p className="mt-6 text-xl leading-9 text-slate-600">{service.detail}</p><h2 className="mt-10 text-2xl font-black">What to expect</h2><ul className="mt-5 space-y-3 text-slate-600"><li>A conversation about symptoms, timing, and priorities.</li><li>An inspection or test appropriate to the concern.</li><li>A clear recommendation and estimate before authorized work.</li></ul></div><aside className="rounded-3xl bg-slate-950 p-7 text-white"><p className="text-sm font-black uppercase tracking-widest text-orange-400">Need this service?</p><AttributionLink href={`/appointment?service=${service.slug}`} className="mt-6 block rounded-xl bg-orange-500 px-5 py-3 text-center font-black text-slate-950">Request Service</AttributionLink></aside></div></main>;
 }
