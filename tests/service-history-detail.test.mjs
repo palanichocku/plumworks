@@ -36,7 +36,7 @@ test("record actions are secondary and route to the correct internal record", ()
   assert.match(sharedDrawer, /detail\.source === "invoice" \? `\/invoices\/\$\{detail\.id\}`/);
   assert.match(sharedDrawer, /detail\.legacyReadOnly \? `\/open-orders\/\$\{detail\.id\}` : `\/repair-orders\/\$\{detail\.id\}`/);
   assert.match(sharedDrawer, /"View Invoice" : "View Repair Order"/);
-  assert.match(loader, /lifecycleLabel: invoice\.legacySourceTable \? "Legacy service" : "Completed service"/);
+  assert.match(loader, /lifecycleLabel: invoice\.legacySourceTable \? "Legacy service" : invoice\.status === "void" \? "VOID Invoice" : "Completed service"/);
   assert.match(loader, /lifecycleLabel: order\.legacySourceTable \? "Legacy · read only"/);
 });
 

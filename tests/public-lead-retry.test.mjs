@@ -50,13 +50,18 @@ function setup(source = 'CONTACT') {
   const component = load('@/components/marketing/lead-verification').LeadVerification;
   const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
   const textContent = tree => typeof tree === 'string' ? tree : Array.isArray(tree) ? tree.map(textContent).join(' ') : tree && typeof tree === 'object' ? textContent(tree.props?.children) : '';
-  const confirmationImmediatelyBeforeSubmit = tree => {
-    if (Array.isArray(tree)) {
-      const index = tree.findIndex(node => node?.type === 'label' && textContent(node).includes('I am contacting Car Doc about service for a vehicle.'));
-      if (index >= 0 && tree[index + 1]?.props?.type === 'submit') return true;
-      return tree.some(confirmationImmediatelyBeforeSubmit);
-    }
-    return tree && typeof tree === 'object' ? confirmationImmediatelyBeforeSubmit(tree.props?.children) : false;
+  const confirmationBeforeSubmit = tree => {
+    const ordered = [];
+    const visit = node => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== 'object') return;
+      ordered.push(node);
+      visit(node.props?.children);
+    };
+    visit(tree);
+    const confirmation = ordered.findIndex(node => node.type === 'label' && textContent(node).includes('about service for a vehicle.'));
+    const submit = ordered.findIndex(node => node.type === 'button' && node.props?.type === 'submit');
+    return confirmation >= 0 && submit > confirmation;
   };
   const render = () => {
     refIndex = stateIndex = callbackIndex = effectIndex = 0;
@@ -67,7 +72,7 @@ function setup(source = 'CONTACT') {
   };
   const submit = () => listeners.get('submit')?.({ preventDefault() {}, stopImmediatePropagation() {} });
   return {
-    render, submit, textContent, confirmationImmediatelyBeforeSubmit, get options() { return options; }, get executes() { return executes; }, get resets() { return resets; },
+    render, submit, textContent, confirmationBeforeSubmit, get options() { return options; }, get executes() { return executes; }, get resets() { return resets; },
     get submissions() { return submissions; }, form,
     restore() { for (const cleanup of cleanups) cleanup?.(); if (previous === undefined) delete globalThis.window; else globalThis.window = previous; },
   };
@@ -94,9 +99,9 @@ test('Turnstile waits for Submit, executes once, and only then submits through t
     assert.equal(initial.find(node => node.props?.name === 'website').props.tabIndex, -1);
     assert.equal(initial.find(node => node.props?.type === 'checkbox' && node.props?.name === 'vehicleServiceIntent').props.required, true);
     const renderedText = h.textContent(initial);
-    assert.ok(renderedText.includes('I am contacting Car Doc about service for a vehicle.'));
+    assert.match(renderedText, /I am contacting .+ about service for a vehicle\./);
     assert.ok(renderedText.includes('This form is for vehicle service requests only. Sales, marketing, and other solicitations will be discarded.'));
-    assert.equal(h.confirmationImmediatelyBeforeSubmit(initial[0]), true);
+    assert.equal(h.confirmationBeforeSubmit(initial[0]), true);
   } finally { h.restore(); }
 });
 

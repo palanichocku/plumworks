@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
+import { configurationEvidence } from "./lib/final-cutover-preserved-state.mjs";
 
 export const SHOP_SETTINGS_SELECT = Object.freeze({
   id: true,
@@ -64,8 +65,18 @@ async function capture(prisma, shopId) {
     prisma.marketingTestimonial.findMany({ where: { shopId }, orderBy: { id: "asc" } }),
     prisma.marketingGalleryItem.findMany({ where: { shopId }, orderBy: { id: "asc" } }),
   ]);
+  const [signatureDefaults, securitySettings] = await Promise.all([
+    prisma.$queryRawUnsafe(
+      "SELECT representative_name, signature_sha256, updated_by FROM public.shop_signature_defaults WHERE shop_id = $1::uuid",
+      shopId,
+    ),
+    prisma.$queryRawUnsafe(
+      "SELECT mfa_required FROM public.shop_security_settings WHERE shop_id = $1::uuid",
+      shopId,
+    ),
+  ]);
   return normalize({
-    version: 2,
+    version: 3,
     shopId,
     shop,
     memberships,
@@ -79,6 +90,10 @@ async function capture(prisma, shopId) {
     marketingCoupons,
     marketingTestimonials,
     marketingGalleryItems,
+    ...configurationEvidence({
+      signatureDefaults: signatureDefaults[0] ?? null,
+      securitySettings: securitySettings[0] ?? null,
+    }),
   });
 }
 

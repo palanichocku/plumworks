@@ -71,7 +71,7 @@ async function harness(storage = new Map()) {
   const renderNavigation = (mobile = false) => (mobile ? navigation.exports.MobileNavigation : navigation.exports.DesktopNavigation)({ canViewReports: false, canViewAdmin: false });
   const render = () => {
     index = 0;
-    const provider = loaded.exports.LeadNotificationProvider({ sessionKey: "shop:user", children: null });
+    const provider = loaded.exports.LeadNotificationProvider({ sessionKey: "shop:user", enabled: true, children: null });
     context = provider.props.value;
     const tree = center.exports.LeadNotificationCenter();
     while (effects.length) effects.shift()();
