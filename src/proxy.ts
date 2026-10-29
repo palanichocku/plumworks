@@ -6,7 +6,7 @@ import { resolveCardocLegacyRedirect } from "@/lib/cardoc-legacy-redirects";
 const PUBLIC_WEBSITE_HOST = "www.subbuscardoc.com";
 const PRODUCTION_APP_HOST = "app.subbuscardoc.com";
 
-const publicMarketingPaths = new Set(["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services"]);
+const publicMarketingPaths = new Set(["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services", "/terms"]);
 const publicAppPaths = new Set(["/login", "/forgot-password", "/auth/callback", "/update-password", "/invite"]);
 const protectedAppPrefixes = ["/dashboard", "/leads", "/customers", "/vehicles", "/repair-orders", "/open-orders", "/invoices", "/accounts-receivable", "/reports", "/search", "/help", "/admin", "/settings"];
 
@@ -45,12 +45,7 @@ export async function proxy(request: NextRequest) {
   const hostname = request.nextUrl.hostname.toLowerCase();
   const pathname = request.nextUrl.pathname;
 
-  // Next.js framework and public static assets must never pass through hostname or auth routing.
-  // Intercepting these requests can cause pages to render without CSS/JS or public images.
   if (isFrameworkAsset(pathname)) return NextResponse.next();
-
-  // The production health endpoint has its own bearer-token authorization.
-  // Do not let Supabase session routing redirect it to /login before the handler runs.
   if (isHealthPath(pathname)) return NextResponse.next();
 
   if (request.method === "GET" || request.method === "HEAD") {
@@ -119,6 +114,7 @@ export const config = {
     "/privacy",
     "/reviews",
     "/services/:path*",
+    "/terms",
     "/authorize/repair-order/:path*",
     "/invite",
     "/dashboard/:path*",
