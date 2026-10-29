@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { getShopSecuritySettings } from "@/lib/auth/shop-security-settings";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
+import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -38,6 +40,20 @@ export default async function WorkspaceLayout({
 
   if (!membership) {
     redirect("/invite");
+  }
+
+  const security = await getShopSecuritySettings(membership.shopId);
+  if (security.mfaRequired && membership.role !== "MONITOR") {
+    const supabase = await createClient();
+    const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (assurance.error) {
+      throw assurance.error;
+    }
+
+    if (assurance.data.currentLevel !== "aal2") {
+      redirect(assurance.data.nextLevel === "aal2" ? "/mfa/challenge" : "/mfa/enroll");
+    }
   }
 
   return <AppShell notificationSessionKey={`${membership.shopId}:${user.id}`} shopName={membership.shop.name} userEmail={user.email ?? "Signed-in user"} canViewReports={hasPermission(membership.role, "view_reports")} canViewAdmin={hasPermission(membership.role, "edit_shop_settings")} canManageLeads={hasPermission(membership.role, "manage_marketing_leads")}>{children}</AppShell>;
