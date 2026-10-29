@@ -97,10 +97,10 @@ export default async function RepairOrderAuthorizationPage({ params, searchParam
       <form action={submitRepairOrderAuthorization} className="mt-5 space-y-5">
         <input type="hidden" name="token" value={token} />
         <label className="block text-sm font-semibold text-slate-700">Full name of person authorizing
-          <input name="authorizerName" required minLength={2} maxLength={120} autoComplete="name" className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10" />
+          <input name="authorizerName" required minLength={2} maxLength={120} autoComplete="name" defaultValue={snapshot.customer?.displayName || ""} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10" />
         </label>
         <label className="flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-          <input type="checkbox" name="consent" value="yes" required className="mt-1 h-4 w-4" />
+          <input type="checkbox" name="consent" value="yes" required defaultChecked className="mt-1 h-4 w-4" />
           <span>{REMOTE_AUTHORIZATION_CONSENT_TEXT}</span>
         </label>
         <p className="text-xs leading-5 text-slate-500">Your decision, name, date/time, browser information, and network address are recorded as authorization evidence for this exact Repair Order revision.</p>

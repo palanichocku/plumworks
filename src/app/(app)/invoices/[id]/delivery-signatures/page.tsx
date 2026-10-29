@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getInvoiceForCurrentShop } from "@/lib/data/invoices";
 import { formatMoney } from "@/lib/formatters";
 import { getInvoiceDeliverySignatureEvidence } from "@/lib/authorization/invoice-signature-evidence";
+import { getInvoiceDeliverySignatureDefaults } from "@/lib/authorization/invoice-signature-defaults";
 import { InvoiceDeliverySignatureCapture } from "@/components/invoice-delivery-signature-capture";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,10 @@ export default async function InvoiceDeliverySignaturesPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, signatureEvidence] = await Promise.all([
+  const [invoice, signatureEvidence, signatureDefaults] = await Promise.all([
     getInvoiceForCurrentShop(id),
     getInvoiceDeliverySignatureEvidence(id),
+    getInvoiceDeliverySignatureDefaults(),
   ]);
 
   if (!invoice) notFound();
@@ -44,6 +46,8 @@ export default async function InvoiceDeliverySignaturesPage({
       vehicleLabel={vehicleLabel}
       totalLabel={formatMoney(invoice.total)}
       defaultCustomerName={invoice.customer.displayName}
+      defaultShopRepresentativeName={signatureDefaults.shopRepresentativeName}
+      defaultShopRepresentativeSignature={signatureDefaults.shopRepresentativeSignatureData}
     />
   );
 }

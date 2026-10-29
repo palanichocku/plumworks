@@ -4,10 +4,12 @@ import type { RepairOrderDocumentModel } from "@/lib/repair-order-document";
 const styles = StyleSheet.create({
   page: { paddingTop: 40, paddingRight: 32, paddingBottom: 32, paddingLeft: 32, fontFamily: "Helvetica", fontSize: 8.5, lineHeight: 1.28, color: "#000000" },
   repeatHeader: { position: "absolute", top: 16, left: 32, right: 32, flexDirection: "row", justifyContent: "space-between", borderBottom: "0.5pt solid #777777", paddingBottom: 4, fontSize: 7.5 },
-  header: { flexDirection: "row", justifyContent: "space-between", gap: 16, paddingBottom: 8, borderBottom: "1pt solid #000000" },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 24, paddingBottom: 8, borderBottom: "1pt solid #000000" },
+  shopBlock: { flexGrow: 1, flexBasis: 0 },
   shopName: { fontSize: 14, marginBottom: 2 },
-  title: { fontSize: 15, textAlign: "right" },
-  right: { textAlign: "right" },
+  titleBlock: { width: 220, flexShrink: 0 },
+  title: { fontSize: 15, textAlign: "right", marginBottom: 4 },
+  right: { textAlign: "right", marginBottom: 1 },
   muted: { color: "#444444" },
   estimateNotice: { marginTop: 7, padding: 5, border: "0.5pt solid #777777", textAlign: "center", fontSize: 8, fontWeight: 700 },
   voidNotice: { marginTop: 7, marginBottom: 4, padding: 8, border: "2pt solid #991b1b", color: "#991b1b", textAlign: "center", fontSize: 13, fontWeight: 900 },
@@ -35,6 +37,10 @@ function locality(city: string | null, state: string | null, postalCode: string 
   return [[city, state].filter(Boolean).join(", "), postalCode].filter(Boolean).join(" ");
 }
 
+function normalizeDocumentText(value: string | null | undefined) {
+  return value?.replace(/\\n/g, "\n") ?? "";
+}
+
 function Value({ label, value }: { label: string; value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === "") return null;
   return <Text><Text style={styles.muted}>{label}: </Text>{String(value)}</Text>;
@@ -44,19 +50,20 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
   const shopLocality = locality(model.shop.city, model.shop.state, model.shop.postalCode);
   const customerLocality = locality(model.customer.city, model.customer.state, model.customer.postalCode);
   const vehicleName = [model.vehicle.year, model.vehicle.make, model.vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable";
+  const footerMessage = normalizeDocumentText(model.shop.invoiceFooterMessage) || `Thank you for choosing ${model.shop.name}.`;
 
   return <Document title={`Repair Order ${model.repairOrderNumber}`} author={model.shop.name}>
     <Page size="LETTER" style={styles.page} wrap>
       <View fixed style={styles.repeatHeader}><Text>{model.shop.name}</Text><Text>Repair Order {model.repairOrderNumber}</Text></View>
       <View style={styles.header}>
-        <View>
+        <View style={styles.shopBlock}>
           <Text style={styles.shopName}>{model.shop.name}</Text>
           {model.shop.addressLine1 ? <Text>{model.shop.addressLine1}</Text> : null}
           {shopLocality ? <Text>{shopLocality}</Text> : null}
           {model.shop.phone ? <Text>{model.shop.phone}</Text> : null}
         </View>
-        <View>
-          <Text style={styles.title}>REPAIR ORDER / ESTIMATE</Text>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title}>REPAIR ORDER ESTIMATE</Text>
           <Text style={styles.right}>No. {model.repairOrderNumber}</Text>
           <Text style={styles.right}>Opened {model.openedDate}</Text>
           {model.closedDate ? <Text style={styles.right}>Closed {model.closedDate}</Text> : null}
@@ -115,7 +122,7 @@ export function RepairOrderDocumentPDF({ model }: { model: RepairOrderDocumentMo
           <View style={[styles.totalRow, styles.grandTotal]}><Text>Estimated total</Text><Text>{model.totals.estimatedTotal}</Text></View>
         </View>
       </View>
-      <Text style={styles.footer}>{model.shop.invoiceFooterMessage ?? `Thank you for choosing ${model.shop.name}.`}\nThis repair order is an estimate and is not a finalized invoice.</Text>
+      <Text style={styles.footer}>{footerMessage}{"\n"}This repair order is an estimate and is not a finalized invoice.</Text>
     </Page>
   </Document>;
 }

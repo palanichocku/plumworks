@@ -13,7 +13,7 @@ type Turnstile = {
 };
 declare global { interface Window { turnstile?: Turnstile } }
 
-export function LeadVerification({ source }: { source: MarketingLeadSource }) {
+export function LeadVerification({ source, businessName = "Car Doc" }: { source: MarketingLeadSource; businessName?: string }) {
   const sitekey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const element = useRef<HTMLDivElement>(null);
   const widget = useRef<string | null>(null);
@@ -124,7 +124,7 @@ export function LeadVerification({ source }: { source: MarketingLeadSource }) {
       {verifying && <p role="status" className="mb-3 text-sm text-slate-600">Verifying your request…</p>}
     </> : <p role="alert" className="mb-4 text-sm text-slate-700">Online requests are temporarily unavailable. Please call the shop.</p>}
     <noscript><p>Enable JavaScript to verify and send this request, or call the shop.</p></noscript>
-    <label className="mb-3 flex items-start gap-3 text-sm font-semibold text-slate-800"><input type="checkbox" name="vehicleServiceIntent" value="yes" required className="mt-1 h-4 w-4 shrink-0 accent-orange-500" /><span>I am contacting Car Doc about service for a vehicle.<span className="mt-1 block text-xs font-normal leading-5 text-slate-600">This form is for vehicle service requests only. Sales, marketing, and other solicitations will be discarded.</span></span></label>
+    <label className="mb-3 flex items-start gap-3 text-sm font-semibold text-slate-800"><input type="checkbox" name="vehicleServiceIntent" value="yes" required className="mt-1 h-4 w-4 shrink-0 accent-orange-500" /><span>I am contacting {businessName} about service for a vehicle.<span className="mt-1 block text-xs font-normal leading-5 text-slate-600">This form is for vehicle service requests only. Sales, marketing, and other solicitations will be discarded.</span></span></label>
     <button type="submit" disabled={verifying || pending || !sitekey} className="w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-sm hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60">{pending ? "Sending…" : verifying ? "Verifying…" : `Send ${source === "DROP_OFF" ? "Drop-Off" : source === "APPOINTMENT" ? "Appointment" : "Contact"} Request`}</button>
     <p className="mt-3 text-center text-xs text-slate-500">Submitting a request does not guarantee a time. The shop will confirm availability.</p>
     {source === "DROP_OFF" && <p className="mt-3 text-sm font-bold text-amber-900">Wait for confirmation and approved drop-off instructions before leaving keys or a vehicle.</p>}

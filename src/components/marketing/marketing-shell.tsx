@@ -5,7 +5,7 @@ import { AttributionLink } from "@/components/marketing/attribution-link";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 
 const primaryLinks = [["Home", "/"], ["Services", "/services"], ["About", "/about"], ["Contact", "/contact"]] as const;
-const productionAppLoginUrl = "https://app.subbuscardoc.com/login";
+const appLoginUrl = `${(process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.subbuscardoc.com").replace(/\/$/, "")}/login`;
 
 const linkFocus = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/25 focus-visible:ring-offset-2";
 
@@ -47,7 +47,7 @@ export function MarketingShell({ shop, optionalLinks = [], previewMode = false, 
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.1fr_.9fr_.9fr] lg:px-8">
         <div><p className="text-xl font-black text-white">{shop.name}</p><p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">Contact the shop to discuss a vehicle concern, maintenance need, or service request.</p>{shop.phone ? <TrackedCallLink href={phoneHref(shop.phone)} className="mt-5 inline-block rounded-md font-bold text-white hover:text-orange-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30">{shop.phone}</TrackedCallLink> : null}</div>
         <div><p className="text-sm font-bold uppercase tracking-widest text-slate-500">Visit</p><p className="mt-3 text-sm leading-6">{address || "Contact the shop for location details"}</p><p className="mt-3 text-sm leading-6 text-slate-400">{shop.hours}</p></div>
-        <div><p className="text-sm font-bold uppercase tracking-widest text-slate-500">Explore</p><nav aria-label="Footer navigation" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">{[...primaryLinks.slice(1), ...optionalLinks].map(([label, href]) => <AttributionLink key={href} href={href} className="hover:text-white">{label}</AttributionLink>)}<AttributionLink href="/appointment" className="hover:text-white">Request Service</AttributionLink><AttributionLink href="/privacy" className="hover:text-white">Privacy</AttributionLink><Link href={productionAppLoginUrl} className="hover:text-white">Staff Login</Link></nav></div>
+        <div><p className="text-sm font-bold uppercase tracking-widest text-slate-500">Explore</p><nav aria-label="Footer navigation" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">{[...primaryLinks.slice(1), ...optionalLinks].map(([label, href]) => <AttributionLink key={href} href={href} className="hover:text-white">{label}</AttributionLink>)}<AttributionLink href="/appointment" className="hover:text-white">Request Service</AttributionLink><AttributionLink href="/privacy" className="hover:text-white">Privacy</AttributionLink><Link href={appLoginUrl} className="hover:text-white">Staff Login</Link></nav></div>
       </div>
       <div className="border-t border-slate-800 px-4 py-5 text-center text-xs text-slate-500">{poweredByText}</div>
     </footer>
