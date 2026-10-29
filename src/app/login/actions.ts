@@ -14,6 +14,7 @@ export async function loginAction(
 ): Promise<LoginActionState> {
   const email = formData.get("email");
   const password = formData.get("password");
+  const captchaToken = formData.get("captchaToken");
 
   if (
     typeof email !== "string" ||
@@ -29,6 +30,10 @@ export async function loginAction(
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+      options:
+        typeof captchaToken === "string" && captchaToken.trim()
+          ? { captchaToken: captchaToken.trim() }
+          : undefined,
     });
 
     if (error) {
