@@ -8,6 +8,21 @@ export type LoginActionState = {
   message?: string;
 };
 
+function loginErrorMessage(code?: string) {
+  switch (code) {
+    case "invalid_credentials":
+      return "Invalid email or password.";
+    case "captcha_failed":
+      return "Sign-in verification failed. Please retry the verification and sign in again.";
+    case "over_request_rate_limit":
+      return "Too many sign-in attempts. Please wait a few minutes and try again.";
+    case "email_not_confirmed":
+      return "This account is not ready for sign-in. Please contact the administrator.";
+    default:
+      return "Unable to sign in right now. Please try again.";
+  }
+}
+
 export async function loginAction(
   _previousState: LoginActionState,
   formData: FormData,
@@ -37,7 +52,11 @@ export async function loginAction(
     });
 
     if (error) {
-      return { status: "error", message: "Invalid email or password." };
+      console.warn("Supabase sign-in failed", {
+        code: error.code,
+        status: error.status,
+      });
+      return { status: "error", message: loginErrorMessage(error.code) };
     }
   } catch {
     return {
