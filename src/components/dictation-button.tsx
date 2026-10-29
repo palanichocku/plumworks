@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type SpeechRecognitionEventLike = {
+  resultIndex: number;
   results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>;
 };
 
@@ -98,10 +99,11 @@ export function DictationButton({ textareaId, value, onChange, className = "" }:
     recognition.lang = "en-US";
     recognition.onresult = (event) => {
       let transcript = "";
-      for (let index = 0; index < event.results.length; index += 1) {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         if (result?.isFinal !== false) transcript += result?.[0]?.transcript ?? "";
       }
+      if (!transcript.trim()) return;
       const { start, end } = selectionRef.current;
       const inserted = insertTranscript(valueRef.current, transcript, start, end);
       valueRef.current = inserted.value;
