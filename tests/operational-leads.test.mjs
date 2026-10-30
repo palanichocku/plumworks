@@ -9,6 +9,7 @@ const matrix = require("../src/lib/permission-matrix.json");
 const statuses = Object.fromEntries(["NEW", "CONTACTED", "SCHEDULED", "CONVERTED", "CLOSED"].map((status) => [status, status]));
 const jsx = (type, props) => ({ type, props });
 const runtime = { jsx, jsxs: jsx };
+const react = { useState: (initial) => [initial, () => {}], useRef: (initial) => ({ current: initial }), useActionState: (initial) => [initial, () => {}, false] };
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 async function load(path, dependencies = {}) {
   const { outputText } = ts.transpileModule(await read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } });
@@ -18,6 +19,10 @@ async function load(path, dependencies = {}) {
     if (id === "server-only") return {};
     if (id === "@/lib/marketing-lead-contact") return contactMethods;
     if (id === "react/jsx-runtime") return runtime;
+    if (id === "react") return dependencies.react ?? react;
+    if (id === "react-dom") return dependencies["react-dom"] ?? { createPortal: (node) => node };
+    if (id === "@/generated/prisma/client") return dependencies[id] ?? { MarketingLeadStatus: statuses };
+    if (id === "@/lib/customer-phone") return dependencies[id] ?? customerPhone;
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency: ${id}`);
     return dependencies[id];
   }, loaded, loaded.exports, { info() {}, error() {} });
@@ -25,8 +30,9 @@ async function load(path, dependencies = {}) {
 }
 const leadQueries = await load("src/lib/marketing-lead-query.ts", { "@/lib/marketing-lead-context": { callClickMessage: "Visitor clicked Call Now" } });
 const contactMethods = await load("src/lib/marketing-lead-contact.ts");
+const customerPhone = await load("src/lib/customer-phone.ts");
 const managementForm = await load("src/components/lead-management-form.tsx", {
-  react: { useRef: () => ({ current: false }), useActionState: () => ["idle", () => {}, false] },
+  react: { ...react, useActionState: () => ["idle", () => {}, false] },
   "react-hot-toast": { default: { success() {}, error() {} } },
   "@/app/(app)/leads/manage-actions": { updateLeadStatus() {} },
 });
@@ -124,7 +130,7 @@ for (const query of [{}, { status: "NEW" }, { status: "invalid" }]) {
     assert.deepEqual(calls[0].where, leadQueries.operationalMarketingLeadWhere("shop-a", "NEW"));
     const navigation = nodes(tree).find((node) => node.type === "nav" && node.props["aria-label"] === "Lead status");
     const tabs = nodes(navigation).filter((node) => node.type === "a");
-    assert.deepEqual(tabs.map((tab) => tab.props.children), ["New", "Contacted", "Scheduled", "Converted", "Closed", "All"]);
+  assert.deepEqual(tabs.map((tab) => tab.props.children), ["New", "Contacted", "Scheduled", "Converted", "Completed", "Lost", "All"]);
     assert.deepEqual(tabs.filter((tab) => tab.props["aria-current"] === "page").map((tab) => tab.props.children), ["New"]);
     assert.match(tabs[0].props.className, /bg-brand-primary/);
     assert.equal(tabs.at(-1).props.href, "/leads?status=ALL");
@@ -197,7 +203,11 @@ test("STAFF lead updates preserve scheduling email and never mutate notification
   const transaction = { marketingLead: {
     updateMany: async ({ where, data }) => { assert.equal(where.shopId, "shop-a"); if (where.id !== saved.id) return { count: 0 }; saved = { ...saved, ...data }; return { count: 1 }; },
     findFirstOrThrow: async ({ where }) => { assert.deepEqual(where, { id: lead.id, shopId: "shop-a" }); return saved; },
-  } };
+  },
+    $queryRaw: async (strings) => strings.join("").includes("customer_id") ? [{ customer_id: "customer-1" }] : [],
+    $executeRaw: async () => 1,
+    customer: { findFirst: async () => ({ id: "customer-1", displayName: lead.name }) },
+  };
   const actions = await load("src/app/(app)/leads/manage-actions.ts", {
     "next/cache": { revalidatePath: (path) => revalidations.push(path) },
     "@/generated/prisma/client": { MarketingLeadStatus: statuses }, "@/lib/permissions": p,
@@ -241,9 +251,9 @@ test("the shared card retains all lead sources, statuses, contact information an
   });
   for (const source of ["CONTACT", "APPOINTMENT", "DROP_OFF"]) {
     const record = { ...lead, source, phone: "555-0100", email: "visitor@example.test", vehicleYear: 2021, vehicleMake: "Example", vehicleModel: "Sedan", requestedService: "Brakes", message: "Please call", createdAt: new Date(), preferredDate: new Date("2026-10-01"), preferredTime: "10:00", scheduledDate: new Date("2026-10-02"), scheduledTime: "11:00", internalNote: "Confirm arrival" };
-    const rendered = nodes(card.MarketingLeadCard({ lead: record, notification: { id: "alert-a", leadId: lead.id, read: false }, canManage: true }));
+    const rendered = nodes(card.MarketingLeadCard({ lead: record, lifecycleStatus: "NEW", notification: { id: "alert-a", leadId: lead.id, read: false }, canManage: true }));
     assert.ok(rendered.some((node) => node.type === "form" && typeof node.props.action === "function"));
-    assert.deepEqual(rendered.filter((node) => node.type === "option").map((node) => node.props.value), Object.values(statuses));
+    assert.deepEqual(rendered.filter((node) => node.type === "option").map((node) => node.props.value), ["NEW", "CONTACTED", "SCHEDULED", "CLOSED"]);
     for (const name of ["id", "status", "scheduledDate", "scheduledTime", "internalNote"]) assert.ok(rendered.some((node) => node.props?.name === name));
     assert.ok(rendered.some((node) => node.props?.children === record.phone));
     assert.ok(!rendered.some((node) => node.props?.href?.startsWith("tel:")));
@@ -252,11 +262,11 @@ test("the shared card retains all lead sources, statuses, contact information an
     assert.ok(rendered.some((node) => node.props?.children === record.requestedService));
     assert.ok(!rendered.some((node) => node.props?.href?.startsWith("mailto:")));
     assert.equal(rendered.find((node) => node.props?.name === "internalNote").props.defaultValue, "Confirm arrival");
-    assert.ok(!nodes(card.MarketingLeadCard({ lead: record, notification: null, canManage: false })).some((node) => node.type === "form"));
+    assert.ok(!nodes(card.MarketingLeadCard({ lead: record, lifecycleStatus: "NEW", notification: null, canManage: false })).some((node) => node.type === "form"));
   }
 });
 
-for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["APPOINTMENT", null, "No time preference"], ["APPOINTMENT", "00:00", "12:00 AM"], ["APPOINTMENT", "12:15", "12:15 PM"], ["CONTACT", null, null], ["DROP_OFF", null, null]]) {
+for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["APPOINTMENT", null, null], ["APPOINTMENT", "00:00", "12:00 AM"], ["APPOINTMENT", "12:15", "12:15 PM"], ["CONTACT", null, null], ["DROP_OFF", null, null]]) {
   test(`${source} requested appointment presentation with time ${time}`, async () => {
     const card = await load("src/components/marketing-lead-card.tsx", {
       "next/link": { default: "a" }, "@/generated/prisma/client": { MarketingLeadStatus: statuses },
@@ -266,17 +276,13 @@ for (const [source, time, expected] of [["APPOINTMENT", "10:30", "10:30 AM"], ["
     });
     const record = { ...lead, source, createdAt: new Date("2026-09-21T17:00:00Z"), preferredDate: new Date("2026-09-23T00:00:00Z"), preferredTime: time };
     const notification = { id: "alert-a", leadId: lead.id, read: false };
-    const rendered = nodes(card.MarketingLeadCard({ lead: record, notification, canManage: true }));
-    const callout = rendered.find((node) => node.type === "section" && node.props["aria-label"] === "Requested Appointment");
-    assert.equal(Boolean(callout), source === "APPOINTMENT");
-    if (callout) {
-      const content = nodes(callout);
-      assert.ok(content.some((node) => node.type === "h3" && node.props.children === "Requested Appointment"));
-      assert.ok(content.some((node) => node.props.children === "Wednesday, September 23, 2026" && /text-lg font-black/.test(node.props.className)));
-      assert.ok(content.some((node) => node.props.children === expected));
-      assert.ok(content.some((node) => typeof node.props.children === "string" && node.props.children.includes("not a confirmed appointment")));
-      assert.ok(rendered.indexOf(callout) < rendered.findIndex((node) => node.type === "form"));
-    }
+    const rendered = nodes(card.MarketingLeadCard({ lead: record, lifecycleStatus: "NEW", notification, canManage: true }));
+    const requestSummary = rendered.find((node) => node.type === "p" && typeof node.props.children === "object");
+    assert.ok(requestSummary, "requested date/time remains visible in the compact shared card");
+    const requestText = JSON.stringify(requestSummary.props.children);
+    assert.match(requestText, /Customer requested/);
+    assert.match(requestText, /Wed, Sep 23/);
+    if (expected) assert.ok(requestText.includes(expected));
     assert.equal(rendered.find((node) => node.props.name === "scheduledDate").props.defaultValue, "");
     assert.equal(rendered.find((node) => node.props.name === "scheduledTime").props.defaultValue, "");
     assert.equal(rendered.find((node) => node.props.name === "status").props.defaultValue, "NEW");
@@ -309,9 +315,12 @@ for (const method of [null, "TEXT", "PHONE_CALL", "EMAIL"]) {
       "@/lib/marketing-lead-context": { callClickMessage: "Call click" },
       "@/components/lead-read-control": { LeadReadControl: "read-control" },
     });
-    const rendered = nodes(MarketingLeadCard({ lead: { ...lead, createdAt: new Date(), preferredContactMethod: method, phone: "555-0100", email: "visitor@example.test" }, notification: null, canManage: true }));
-    assert.equal(rendered.some((n) => n.props.children === "Preferred contact"), method !== null);
-    if (method) assert.ok(rendered.some((n) => n.props.children === contactMethods.leadContactMethodLabels[method]));
+    const rendered = nodes(MarketingLeadCard({ lead: { ...lead, createdAt: new Date(), preferredContactMethod: method, phone: "555-0100", email: "visitor@example.test" }, lifecycleStatus: "NEW", notification: null, canManage: true }));
+    assert.equal(rendered.some((n) => n.props.children === "Preferred"), method !== null);
+    if (method) {
+      const label = { TEXT: "Text", PHONE_CALL: "Call", EMAIL: "Email" }[method];
+      assert.ok(rendered.some((n) => JSON.stringify(n.props.children ?? "").includes(label) && /bg-brand-primary/.test(n.props.className ?? "")));
+    }
     assert.ok(!rendered.some((n) => /^(tel:|mailto:)/.test(n.props.href ?? "")));
     assert.ok(rendered.some((n) => n.props.children === "555-0100"));
     assert.ok(rendered.some((n) => n.props.children === "visitor@example.test"));

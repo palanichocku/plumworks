@@ -1,4 +1,4 @@
-import { applyDevEmailSafety } from "@/lib/email/dev-email-safety";
+import { applyDevEmailSafety } from "./dev-email-safety.ts";
 
 export type SmtpEmailAttachment = { filename: string; content: Buffer; contentType?: string };
 export type SmtpEmailMessage = { to: string; subject: string; text: string; attachments: SmtpEmailAttachment[] };

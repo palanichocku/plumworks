@@ -15,9 +15,9 @@ test("current Repair Order mileage accepts a valid reading and preserves blank a
 
 test("new RO separates historical reference mileage from blank current mileage", async () => {
   const [form, search, mileage] = await Promise.all([read("src/components/new-repair-order-form.tsx"), read("src/app/(app)/repair-orders/customer-search-actions.ts"), read("src/lib/data/vehicle-mileage.ts")]);
-  assert.match(form, /Last recorded mileage/);
+  assert.match(form, /Last mileage:/);
   assert.match(form, /Current mileage/);
-  assert.match(form, /placeholder="Enter current mileage"/);
+  assert.match(form, /placeholder=\{selectedVehicle\?\.lastRecordedMileage[\s\S]*\? `Last: \$\{selectedVehicle\.lastRecordedMileage\.toLocaleString\(\)\}` : "Enter current mileage"\}/);
   assert.match(form, /key=\{`\$\{vehicleMode\}:\$\{vehicleId\}`\}/);
   assert.match(search, /getLastRecordedMileageForVehicles\(membership\.shopId/);
   assert.match(mileage, /legacy_source_table IS NULL AND status = 'closed' AND closed_at IS NOT NULL/);

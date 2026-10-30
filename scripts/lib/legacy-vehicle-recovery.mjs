@@ -89,6 +89,6 @@ export async function applyReviewedInvoiceVehicleLinks({ confirmedWrite, prisma,
       if (!invoice || invoice.customer.legacyCustno !== link.customerLegacyId) throw new Error(`Historical Invoice ${link.legacyRoNo} no longer matches its reviewed Vehicle recovery Customer.`);
       if (invoice.vehicleId !== link.vehicleId) { await transaction.invoice.update({ where: { id: invoice.id }, data: { vehicleId: link.vehicleId } }); writes += 1; }
     }
-  });
+  }, { maxWait: 10_000, timeout: 120_000 });
   return { databaseWrites: writes, linked: plan.orderLinks.filter((link) => link.vehicleId).length, evidenceOnly: plan.orderLinks.filter((link) => !link.vehicleId).length };
 }

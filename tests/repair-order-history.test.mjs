@@ -20,27 +20,31 @@ test("saved Repair Order uses exact customer and vehicle History through the sha
   assert.match(page, /<EmailRepairOrderButton/);
   const marker = actionsUi.indexOf("data-repair-order-action-row");
   const row = actionsUi.slice(actionsUi.lastIndexOf("<div", marker), actionsUi.indexOf("{success ?"));
-  assert.match(row, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.match(row, /status !== "void"[\s\S]*Email[\s\S]*Print/);
   assert.match(page, /ro-section-heading">Customer[\s\S]*RepairOrderHistoryButton customerId=\{order\.customer\.id\} vehicleId=\{order\.vehicle\.id\} vehicleLabel=\{vehicle \|\| "Vehicle details unavailable"\} currentRepairOrderId=\{order\.id\}/);
   assert.match(historyButton, /type="button"[\s\S]*setOpen\(true\)/);
   assert.doesNotMatch(drawer + actionsUi + historyButton, /router\.|window\.location|pushState|replaceState/);
   assert.match(historyButton, /open \? <RepairOrderHistoryDrawer/);
 });
 
-test("new Repair Order exposes Customer and selected Vehicle History before save", () => {
-  assert.match(newForm, /customerMode === "existing" && selectedCustomer \? [\s\S]*RepairOrderHistoryButton[\s\S]*customerId=\{selectedCustomer\.id\}/);
-  assert.match(newForm, /label="Customer History"/);
-  assert.match(newForm, /selectedVehicle \? <RepairOrderHistoryButton[\s\S]*vehicleId=\{selectedVehicle\.id\}[\s\S]*label="Vehicle History"/);
-  assert.match(newForm, /key=\{`\$\{selectedCustomer\.id\}:\$\{selectedVehicle\.id\}:vehicle`\}/);
-  assert.doesNotMatch(newForm, /RepairOrderHistoryButton[^>]*repairOrderId/);
+test("new Repair Order uses the streamlined check-in flow before save", () => {
+  // Commit 9617abf replaced the former split draft editor with a check-in flow
+  // and intentionally removed pre-save Customer/Vehicle History buttons.
+  assert.match(newForm, /data-repair-order-layout="check-in"/);
+  assert.match(newForm, /<h2 id="check-in-customer-title"[^>]*>Customer<\/h2>/);
+  assert.match(newForm, /<h2 id="check-in-vehicle-title"[^>]*>Vehicle<\/h2>/);
+  assert.doesNotMatch(newForm, /RepairOrderHistoryButton/);
   assert.match(newForm, /function selectCustomer\([\s\S]*setSelectedCustomer\(nextCustomer\)/);
-  assert.match(newForm, /setVehicleId\(nextCustomer\?\.vehicles\[0\]\?\.id \?\? ""\)/);
+  assert.match(newForm, /const nextVehicleId = nextCustomer\?\.vehicles\[0\]\?\.id \?\? "";[\s\S]*setVehicleId\(nextVehicleId\)/);
 });
 
-test("drawer preserves mounted unsaved Repair Order form state", () => {
-  assert.match(concerns, /const \[dirty, setDirty\] = useState\(false\)/);
+test("history drawer stays in a portal while Repair Order sections save independently", () => {
   assert.match(drawer, /createPortal\(/);
-  assert.doesNotMatch(drawer, /<form\b|revalidatePath|router\./);
+  assert.match(historyButton, /open \? <RepairOrderHistoryDrawer/);
+  assert.match(concerns, /const \[concernText, setConcernText\] = useState/);
+  assert.match(concerns, /const \[editing, setEditing\] = useState/);
+  assert.match(concerns, /<RepairOrderWorkspace overview=\{overview\} concerns=\{<ConcernsForm/);
+  assert.doesNotMatch(drawer, /revalidatePath|router\./);
   assert.doesNotMatch(actions, /revalidatePath|redirect/);
 });
 
@@ -189,7 +193,7 @@ test("current Repair Order mileage is stored and copied into the completed Invoi
   const finalization = await read("src/app/(app)/repair-orders/finalize-actions.ts");
   const newOrderForm = await read("src/components/new-repair-order-form.tsx");
   assert.match(newOrderForm, /Current mileage/);
-  assert.match(newOrderForm, /Last recorded mileage/);
+  assert.match(newOrderForm, /Last mileage:/);
   assert.match(newOrderForm, /name="mileage" type="number" min="1"/);
   assert.match(createAction, /status: "draft",\s*odometer: mileage/);
   assert.match(finalization, /repairOrderNumber: true,\s*odometer: true/);

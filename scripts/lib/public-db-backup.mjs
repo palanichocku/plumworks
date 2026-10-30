@@ -12,6 +12,8 @@ export const MIGRATION_MANAGED_PUBLIC_TABLES = [
   "authorization_requests",
   "document_revisions",
   "signature_evidence",
+  "shop_security_settings",
+  "shop_signature_defaults",
 ];
 
 export function sha256(value) {
