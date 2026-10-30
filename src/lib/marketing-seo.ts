@@ -103,6 +103,7 @@ export function autoRepairJsonLd(shop: PublicSeoShop) {
     url: origin?.origin,
     telephone: shop.phone ?? undefined,
     address: shop.addressLine1 || shop.city || shop.state || shop.postalCode ? { "@type": "PostalAddress", streetAddress: shop.addressLine1 ?? undefined, addressLocality: shop.city ?? undefined, addressRegion: shop.state ?? undefined, postalCode: shop.postalCode ?? undefined, addressCountry: "US" } : undefined,
+    areaServed: shop.city ? { "@type": "City", name: [shop.city, shop.state].filter(Boolean).join(", ") } : undefined,
     openingHoursSpecification: openingHoursSpecifications(shop.hours),
   };
 }
