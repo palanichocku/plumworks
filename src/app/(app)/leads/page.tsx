@@ -51,7 +51,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <PageHeading eyebrow="Operations" title="Leads" description="Track website leads from first contact through completed, paid work. Leads that never become business end at Lost." />
-      <Link href="/leads?status=NEW" className="shrink-0 rounded-xl bg-orange-50 px-4 py-3 text-sm font-black text-orange-700">{newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"}</Link>
+      <Link href="/leads?status=NEW" className="shrink-0 rounded-xl bg-orange-50 px-4 py-3 text-sm font-black text-orange-700">{newLeadCount} {newLeadCount === 1 ? "lead" : "leads"} awaiting contact</Link>
     </div>
     <nav aria-label="Lead status" className="flex flex-wrap gap-2">
       {lifecycleTabs.map((status) => <Link key={status} href={`/leads?status=${status}`} aria-current={(selected ?? "ALL") === status ? "page" : undefined} className={`rounded-lg border px-3 py-2 text-sm font-bold ${(selected ?? "ALL") === status ? "border-brand-primary bg-brand-primary text-white" : "border-slate-200 bg-white"}`}>{statusLabels[status]}</Link>)}
