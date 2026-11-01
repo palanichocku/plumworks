@@ -207,7 +207,6 @@ function AddLineItem({ invoice }: { invoice: InvoiceEditModel }) {
   const handleSaved = () => {
     setVersion((v) => v + 1);
     setSavedMessage("Line item added. Invoice updated.");
-    window.setTimeout(() => setSavedMessage(null), 3000);
   };
   return <div className="border-t border-slate-300 bg-slate-50/70 px-4 py-4 sm:px-5">
     {type === "part" ? <DraftPart key={`part-${version}`} invoice={invoice} type={type} setType={setType} onSaved={handleSaved} /> : null}
