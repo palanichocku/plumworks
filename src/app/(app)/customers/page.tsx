@@ -5,6 +5,7 @@ import { getCustomersForCurrentShop } from "@/lib/data/customers";
 import { parseLifecycleFilter } from "@/lib/customer-vehicle-lifecycle";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
+import { customerNameParts } from "@/lib/customer-name";
 
 type CustomersResult = Awaited<ReturnType<typeof getCustomersForCurrentShop>>;
 type CustomerListItem = CustomersResult["customers"][number];
@@ -32,7 +33,6 @@ export default async function CustomersPage({
   const { membership } = await getCurrentMembership();
   const canEdit = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle"));
 
-  // Upgraded header styling for better contrast and visual weight
   const thClass = "px-5 py-4 text-xs font-extrabold uppercase tracking-widest text-slate-700 select-none";
 
   return (
@@ -62,7 +62,7 @@ export default async function CustomersPage({
           name="q"
           type="search"
           defaultValue={search}
-          placeholder="Search by name or phone..."
+          placeholder="Search by first name, last name, or phone..."
           className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition-all focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10"
         />
         <button
@@ -80,7 +80,7 @@ export default async function CustomersPage({
           </h2>
           <p className="mx-auto mt-1 max-w-lg text-sm text-slate-500">
             {search
-              ? "Try checking spelling variables or phone formats."
+              ? "Try checking the spelling or phone number."
               : "Customer records for this shop will appear here."}
           </p>
           {search && (
@@ -96,48 +96,56 @@ export default async function CustomersPage({
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-3 text-xs font-semibold text-slate-500">
             {search
-              ? `Showing localized sequence results matching “${search}”`
+              ? `Showing results matching “${search}”`
               : "Showing the most recent customers"}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                {/* Beefed up the background and border of the table header row */}
                 <tr className="border-b-2 border-slate-200 bg-slate-100/80">
-                  <th className={thClass}>Name</th>
+                  <th className={thClass}>First Name</th>
+                  <th className={thClass}>Last Name</th>
                   <th className={thClass}>Email</th>
                   <th className={thClass}>Phone</th>
                   <th className={thClass}>Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {customers.map((customer: CustomerListItem) => (
-                  <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
-                        {customer.displayName} {customer.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
-                      {customer.email ?? <span className="text-slate-300 font-sans font-normal italic">No email</span>}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">
-                      {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
-                    </td>
-                    <td className="px-5 py-4 text-sm font-medium text-slate-600">
-                      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        {customerSourceLabel(customer)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {customers.map((customer: CustomerListItem) => {
+                  const { firstName, lastName } = customerNameParts(customer);
+                  return (
+                    <tr key={customer.id} className="group transition-colors hover:bg-slate-50/60">
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                        <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
+                          {firstName || <span className="font-normal text-slate-400">—</span>}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                        <Link href={`/customers/${customer.id}`} className="block hover:text-brand-primary transition-colors">
+                          {lastName || "—"} {customer.archivedAt ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">Archived</span> : null}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                        {customer.email ?? <span className="text-slate-300 font-sans font-normal italic">No email</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600 font-medium">
+                        {customer.phone ?? <span className="text-slate-300 font-sans font-normal italic">No phone</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {customerSourceLabel(customer)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
-      
+
       <Pagination
         pathname="/customers"
         page={page}
