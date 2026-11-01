@@ -36,6 +36,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1, life
       email: true,
       phone: true,
       acquisitionSource: true,
+      legacyCustno: true,
       legacySourceTable: true,
       archivedAt: true,
     },
@@ -123,6 +124,8 @@ export async function getCustomerForEdit(id: string) {
     select: {
       id: true,
       displayName: true,
+      legacyCustno: true,
+      legacySourceTable: true,
       phone: true,
       phone2: true,
       email: true,

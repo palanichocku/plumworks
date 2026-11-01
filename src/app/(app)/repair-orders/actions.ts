@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 import { optionalRepairOrderText } from "@/lib/repair-order-fields";
 import { refreshRepairOrderTotals } from "@/lib/repair-order-totals";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
+import { customerDisplayName } from "@/lib/customer-name";
 import { vehicleEngineForStorage } from "@/lib/vehicle-fields";
 import { repairOrderMileageForStorage } from "@/lib/repair-order-mileage";
 import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
@@ -23,7 +24,9 @@ export async function createRepairOrder(formData: FormData) {
     redirect("/repair-orders/new?error=invalid-selection");
   }
 
-  const displayName = String(formData.get("displayName") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const displayName = customerDisplayName(firstName, lastName);
   const phone = String(formData.get("phone") ?? "").trim();
   const storedPhone = customerPhoneForStorage(phone);
   const phone2 = String(formData.get("phone2") ?? "").trim();
@@ -41,7 +44,7 @@ export async function createRepairOrder(formData: FormData) {
   }
   if (
     customerMode === "new" &&
-    (!displayName || displayName.length > 200 || storedPhone === undefined || storedPhone2 === undefined ||
+    (!firstName || !lastName || firstName.length > 100 || lastName.length > 100 || !displayName || displayName.length > 200 || storedPhone === undefined || storedPhone2 === undefined ||
       email.length > 254 || (email && !/^\S+@\S+\.\S+$/.test(email)) ||
       addressLine1.length > 200 || city.length > 100 || state.length > 30 ||
       postalCode.length > 20 || vehicleMode !== "new")

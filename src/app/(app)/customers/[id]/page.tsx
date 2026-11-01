@@ -10,6 +10,7 @@ import { canEditInternalNotes } from "@/lib/internal-notes";
 import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
 import { archiveCustomer, deleteCustomerPermanently, restoreCustomer } from "../../customer-vehicle-lifecycle-actions";
 import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
+import { customerNameParts } from "@/lib/customer-name";
 
 type CustomerDetail = NonNullable<
   Awaited<ReturnType<typeof getCustomerForCurrentShop>>
@@ -29,6 +30,7 @@ export default async function CustomerDetailPage({
   if (!customer) {
     notFound();
   }
+  const { firstName, lastName } = customerNameParts(customer);
   const canEditNotes = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && canEditInternalNotes(membership.role));
   const canEditVehicles = Boolean(membership && hasPermission(membership.role, "edit_customer_vehicle") && !customer.archivedAt);
   const canManageLifecycle = membership?.role === "OWNER" || membership?.role === "ADMIN";
@@ -67,6 +69,10 @@ export default async function CustomerDetailPage({
             Contact details
           </h2>
           <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm">
+            <dt className="text-slate-500">First name</dt>
+            <dd className="text-slate-900">{firstName || "—"}</dd>
+            <dt className="text-slate-500">Last name</dt>
+            <dd className="text-slate-900">{lastName || "—"}</dd>
             <dt className="text-slate-500">Primary phone</dt>
             <dd className="text-slate-900">{customer.phone ? <a href={`tel:${customer.phone.replaceAll(/\D/g, "")}`} className="hover:text-brand-primary">{customer.phone}</a> : "Not recorded"}</dd>
             {customer.phone2 ? <><dt className="text-slate-500">Additional phone</dt><dd className="text-slate-900"><a href={`tel:${customer.phone2.replaceAll(/\D/g, "")}`} className="hover:text-brand-primary">{customer.phone2}</a></dd></> : null}

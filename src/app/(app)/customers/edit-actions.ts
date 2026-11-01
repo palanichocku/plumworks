@@ -5,6 +5,7 @@ import { auditEntry, writeAuditEntry } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
+import { customerDisplayName } from "@/lib/customer-name";
 import { customerVehicleEditReturnPath } from "@/lib/customer-vehicle-edit-return";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,7 +13,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export async function updateCustomer(formData: FormData) {
   const customerId = String(formData.get("customerId") ?? "");
   const returnTo = customerVehicleEditReturnPath(formData.get("returnTo"));
-  const displayName = String(formData.get("displayName") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const displayName = customerDisplayName(firstName, lastName);
   const phone = String(formData.get("phone") ?? "").trim();
   const phone2 = String(formData.get("phone2") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -20,11 +23,11 @@ export async function updateCustomer(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
-  if (!UUID.test(customerId) || !displayName || displayName.length > 200 ||
+  if (!UUID.test(customerId) || !firstName || !lastName || firstName.length > 100 || lastName.length > 100 || !displayName || displayName.length > 200 ||
     phone.length > 40 || phone2.length > 40 || email.length > 254 ||
     (email && !/^\S+@\S+\.\S+$/.test(email)) || addressLine1.length > 200 ||
     city.length > 100 || state.length > 30 || postalCode.length > 20) {
-    throw new Error("Invalid customer information.");
+    throw new Error("Enter both first name and last name and check the customer information.");
   }
   const { user, membership } = await requirePermission("edit_customer_vehicle");
   const existing = await prisma.customer.findFirst({
