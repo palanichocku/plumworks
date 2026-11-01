@@ -751,3 +751,46 @@ body {
   font-size: 7pt;
   text-align: center;
 }
+
+/* Keep these last so screen document styles above cannot override print compaction. */
+@media print {
+  .invoice-document {
+    font-size: 7.75pt;
+    line-height: 1.15;
+  }
+
+  .invoice-document-repeat {
+    padding-bottom: 2pt;
+    margin-bottom: 3pt;
+    font-size: 6.5pt;
+  }
+
+  .invoice-document-header {
+    gap: 10pt;
+    padding-bottom: 4pt;
+  }
+
+  .invoice-document-header h1 {
+    margin-bottom: 1pt;
+    font-size: 11pt;
+  }
+
+  .invoice-document-title p { font-size: 13pt; }
+  .invoice-document-meta { gap: 8pt; padding: 4pt 0; }
+  .invoice-document h2 { padding-bottom: 1pt; margin-bottom: 2pt; font-size: 7.5pt; }
+  .invoice-document h3 { font-size: 7pt; }
+  .invoice-document-section { margin-top: 4pt; }
+  .invoice-document-notes > div + div { margin-top: 2pt; }
+  .invoice-document th, .invoice-document td { padding: 1.5pt 2pt; }
+  .invoice-document th { font-size: 6pt; }
+  .invoice-document-bottom { gap: 10pt !important; margin-top: 4pt; }
+  .invoice-document-totals { padding-top: 3pt; }
+  .invoice-document-legal { margin-top: 3pt; font-size: 6.5pt; line-height: 1.15; }
+  .invoice-document-legal section + section { margin-top: 2pt; }
+  .invoice-document-signature { margin-top: 4pt; padding-top: 3pt; }
+  .invoice-document-signed-block { margin-top: 4pt; }
+  .invoice-document-signature-image { width: 1.65in; height: 0.48in; margin-top: 2pt; }
+  .invoice-document-signed-meta, .invoice-document-signature-integrity { font-size: 6pt; line-height: 1.1; }
+  .invoice-document-signature-integrity { margin-top: 3pt !important; }
+  .invoice-document footer { margin-top: 4pt; padding-top: 2pt; font-size: 6pt; }
+}
