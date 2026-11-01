@@ -172,8 +172,11 @@ export function NewRepairOrderForm({
             <RepairOrderCustomerCombobox selected={selectedCustomer} onSelect={selectCustomer} inputClass={inputClass} labelClass={labelClass} />
           ) : (
             <div className="grid gap-x-5 gap-y-4 sm:grid-cols-6">
-              <label className={`${labelClass} sm:col-span-6`}>Customer name <span className="text-red-500">*</span>
-                <input name="displayName" type="text" maxLength={200} required placeholder="Customer name" className={inputClass} />
+              <label className={`${labelClass} sm:col-span-3`}>First name <span className="text-red-500">*</span>
+                <input name="firstName" type="text" maxLength={100} required autoComplete="given-name" placeholder="First name" className={inputClass} />
+              </label>
+              <label className={`${labelClass} sm:col-span-3`}>Last name <span className="text-red-500">*</span>
+                <input name="lastName" type="text" maxLength={100} required autoComplete="family-name" placeholder="Last name" className={inputClass} />
               </label>
               <label className={`${labelClass} sm:col-span-3`}>Primary phone
                 <CustomerPhoneInput maxLength={40} placeholder="(555) 000-0000" className={inputClass} />

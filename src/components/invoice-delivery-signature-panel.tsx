@@ -104,7 +104,9 @@ export function InvoiceDeliverySignaturePanel({
                         className="mt-3 h-28 w-full rounded-lg border border-slate-200 bg-white object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-500">Signed {new Date(row.occurredAt).toLocaleString()}</p>
-                      {row.staffUserEmail ? (
+                      {row.role === "CUSTOMER" ? (
+                        <p className="mt-1 break-all text-xs text-slate-500">Recorded by {row.signerName}</p>
+                      ) : row.staffUserEmail ? (
                         <p className="mt-1 break-all text-xs text-slate-500">Recorded by {row.staffUserEmail}</p>
                       ) : null}
                       <p className="mt-1 font-mono text-[10px] text-slate-400" title={row.signatureSha256}>
