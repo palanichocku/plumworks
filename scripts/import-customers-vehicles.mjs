@@ -266,6 +266,7 @@ async function runImport() {
     const vehicleSource = await readDbf(VEHICLE_DBF);
     const sourceFingerprint = createHash("sha256")
       .update(customerSource.fingerprint)
+      .update(createHash("sha256").update(await readFile(CUSTOMER_FPT)).digest("hex"))
       .update(vehicleSource.fingerprint)
       .digest("hex");
     const sourceLabel = `customers-vehicles:${sourceFingerprint}`;

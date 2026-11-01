@@ -3,7 +3,7 @@ const EMAIL = /^\S+@\S+\.\S+$/;
 const decoder = new TextDecoder("windows-1252");
 
 export function legacyCustomerMemo(value, memoFile) {
-  if (!memoFile || value.length < 4) return null;
+  if (!memoFile || memoFile.length < 8 || value.length < 4) return null;
   const pointer = value.readUInt32LE();
   const blockSize = memoFile.readUInt16BE(6);
   const offset = pointer * blockSize;

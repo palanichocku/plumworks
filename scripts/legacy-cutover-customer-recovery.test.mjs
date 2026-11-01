@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   APPROVED_SEED_RECOVERY_AGGREGATE,
   CUTOVER_RECOVERY_SOURCE_TABLES,
+  customerCreateData,
   deterministicRecoveredCustomerId,
   executeCutoverCustomerRecovery,
   planCutoverCustomerRecovery,
@@ -16,6 +17,21 @@ import { loadRecoveryManifest, recoveryManifestArgument, recoveryProposalArgumen
 const shopId = "11111111-1111-4111-8111-111111111111";
 const importRunId = "22222222-2222-4222-8222-222222222222";
 const fingerprint = "a".repeat(64);
+
+test("recovered historical Customers retain the LEGACY acquisition source", () => {
+  const customer = customerCreateData({
+    legacyCustomerId: "RECOVERED",
+    displayName: "SYNTHETIC RECOVERED CUSTOMER",
+    phone: null,
+    alternatePhone: null,
+    address: null,
+    city: null,
+    state: null,
+    postalCode: null,
+  }, shopId);
+  assert.equal(customer.acquisitionSource, "LEGACY");
+});
+
 const normalCustomer = {
   id: "33333333-3333-4333-8333-333333333333",
   legacyCustno: "PRIMARY",

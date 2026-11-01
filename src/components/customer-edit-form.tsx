@@ -4,6 +4,7 @@ import { CustomerPhoneInput } from "@/components/customer-phone-input";
 type CustomerEditValues = {
   id: string;
   displayName: string;
+  firstName: string | null;
   phone: string | null;
   phone2: string | null;
   email: string | null;
@@ -34,6 +35,7 @@ export function CustomerEditForm({
     <input type="hidden" name="customerId" value={customer.id} />
     {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
     <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Display name<input name="displayName" required maxLength={200} defaultValue={customer.displayName} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
+    <label className="text-sm font-semibold text-slate-700 sm:col-span-2">First name (optional)<input name="firstName" maxLength={200} defaultValue={customer.firstName ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">Primary phone<CustomerPhoneInput maxLength={40} defaultValue={customer.phone} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700">Additional phone (optional)<CustomerPhoneInput name="phone2" maxLength={40} defaultValue={customer.phone2} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>
     <label className="text-sm font-semibold text-slate-700 sm:col-span-2">Email<input name="email" type="email" maxLength={254} defaultValue={customer.email ?? ""} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal" /></label>

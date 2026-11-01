@@ -133,12 +133,14 @@ export function customerCreateData(entry, shopId) {
     shopId,
     legacyCustno: entry.legacyCustomerId,
     displayName: entry.displayName,
+    firstName: null,
     phone: entry.phone,
     phone2: entry.alternatePhone,
     addressLine1: entry.address,
     city: entry.city,
     state: entry.state,
     postalCode: entry.postalCode,
+    acquisitionSource: "LEGACY",
     legacySourceTable: "legacy-customer-recovery.json",
   };
 }

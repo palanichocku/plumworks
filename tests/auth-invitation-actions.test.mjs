@@ -267,7 +267,9 @@ test("an authenticated account without membership is denied protected app render
     "react/jsx-runtime": { jsx: () => { throw new Error("must not render app"); } },
     "next/navigation": { redirect: (path) => { throw new Error(`redirect:${path}`); } },
     "@/components/app-shell": {}, "@/lib/permissions": {},
+    "@/lib/auth/shop-security-settings": { getShopSecuritySettings: async () => ({ mfaRequired: false }) },
     "@/lib/data/membership": { getCurrentMembership: async () => ({ user: { id: userId }, membership: null }) },
+    "@/lib/supabase/server": { createClient: async () => { throw new Error("must not check MFA without shop membership"); } },
   });
   await assert.rejects(layout.default({ children: null }), /redirect:\/invite/);
 });

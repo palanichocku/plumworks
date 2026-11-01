@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -20,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 export const REQUIRED_LEGACY_FILES = Object.freeze([
   "Cust.DBF",
+  "Cust.FPT",
   "vehicles.DBF",
   "FINAL.DBF",
   "laborfinal.DBF",
@@ -242,6 +244,21 @@ async function walkDirectories(root) {
     }
   }
   return directories;
+}
+
+async function removeExtractedTemporaryTree(directory) {
+  // ZIP directory modes may be read-only. Make only directories in this
+  // intake-owned temporary tree removable before cleaning it up.
+  const directories = [directory];
+  for (let index = 0; index < directories.length; index += 1) {
+    const current = directories[index];
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) directories.push(join(current, entry.name));
+    }
+  }
+  for (const current of directories.reverse()) await chmod(current, 0o700);
+  await rm(directory, { recursive: true, force: true });
 }
 
 export async function discoverLegacyDataDirectory(extractionRoot) {
@@ -508,7 +525,7 @@ export async function runSnapshotIntake(options, { repositoryRoot = process.cwd(
     completed = true;
     return { dryRun: false, finalPath, dataDirectory: join(finalPath, manifest.detectedDataDirectory), manifest };
   } finally {
-    if (!completed) await rm(temporaryPath, { recursive: true, force: true });
+    if (!completed) await removeExtractedTemporaryTree(temporaryPath);
   }
 }
 

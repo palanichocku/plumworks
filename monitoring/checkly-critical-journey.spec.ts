@@ -31,7 +31,8 @@ test("Car Doc critical user journey", async ({ page }) => {
       outcomeTimeoutMs: 20_000,
       retryDelayMs: 1_000,
     });
-    expect(result.pass, result.pass ? undefined : result.error).toBe(true);
+    if ("error" in result) expect(result.pass, result.error).toBe(true);
+    else expect(result.pass).toBe(true);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 });
   });
 

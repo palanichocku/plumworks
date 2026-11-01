@@ -16,16 +16,27 @@ export function commandPlan(operation, forwardedArgs = []) {
   const prismaCli = resolve(root, "node_modules/prisma/build/index.js");
   const setupScript = resolve(root, "scripts/setup-client.mjs");
   const nextCli = resolve(root, "node_modules/next/dist/bin/next");
+  const cutoverScript = resolve(root, "scripts/legacy-cutover.mjs");
+  const freshSlateScript = resolve(root, "scripts/final-cutover-fresh-slate.mjs");
+  const preservedStateScript = resolve(root, "scripts/final-cutover-preserved-state.mjs");
+  const rehearsalScript = resolve(root, "scripts/legacy-refresh-rehearsal.mjs");
+  const parityScript = resolve(root, "scripts/verify-final-cutover-report-parity.mjs");
   const plans = {
     status: [prismaCli, "migrate", "status"],
     migrate: [prismaCli, "migrate", "deploy"],
     generate: [prismaCli, "generate"],
+    validate: [prismaCli, "validate"],
+    cutover: [cutoverScript, ...forwardedArgs],
+    "fresh-slate": [freshSlateScript, ...forwardedArgs],
+    "preserved-state": [preservedStateScript, ...forwardedArgs],
+    rehearse: [rehearsalScript, ...forwardedArgs],
+    parity: [parityScript, ...forwardedArgs],
     setup: [setupScript, ...forwardedArgs],
     app: [nextCli, "dev", ...forwardedArgs],
   };
   const args = plans[operation];
   if (!args) throw new Error("Choose a supported development command: status, migrate, generate, setup, or app.");
-  if (["status", "migrate", "generate"].includes(operation) && forwardedArgs.length) {
+  if (["status", "migrate", "generate", "validate"].includes(operation) && forwardedArgs.length) {
     throw new Error("Prisma development commands do not accept argument overrides.");
   }
   return args;

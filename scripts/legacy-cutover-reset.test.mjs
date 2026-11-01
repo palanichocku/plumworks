@@ -19,6 +19,7 @@ function transactionRecorder({ failAt } = {}) {
       return { count: model === "customerLegacyAlias" ? 6 : 1 };
     },
   }]));
+  transaction.$queryRawUnsafe = async () => [{ count: 0 }];
   return { transaction, calls };
 }
 

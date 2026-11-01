@@ -244,8 +244,10 @@ test("settings action enforces the existing permission and saves normalized sett
   let allowed = false;
   const writes = [];
   const actions = await load("src/app/(app)/admin/shop-settings/actions.ts", {
+    "node:crypto": await import("node:crypto"),
     "next/cache": { revalidatePath() {} }, "next/navigation": {}, "@/generated/prisma/client": {},
     "@/lib/audit": { auditEntry: () => ({}), writeAuditEntry: async () => {} },
+    "@/lib/authorization/shop-signature-defaults-storage": { ensureShopSignatureDefaultsStorage: async () => {} },
     "@/lib/permissions": { requirePermission: async (permission) => { assert.equal(permission, "edit_shop_settings"); if (!allowed) throw new Error("denied"); return { user: { id: "owner" }, membership: { shopId: "shop-a", role: "OWNER", shop: { name: "Example Shop" } } }; } },
     "@/lib/prisma": { prisma: { $transaction: async (callback) => callback({ shop: { update: async (write) => writes.push(write) } }) } },
     "@/lib/marketing-lead-notification-settings": settings,

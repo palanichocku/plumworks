@@ -39,6 +39,7 @@ export function customerData(row) {
   return {
     legacyCustno,
     displayName,
+    firstName: cleanText(rawValue(row.rawData, "CUSTOM1")),
     phone: legacyPhone(rawValue(row.rawData, "PHONE")).value,
     phone2: legacyPhone(rawValue(row.rawData, "PHONE2")).value,
     email: legacyEmail(rawValue(row.rawData, "EMAIL")).value,

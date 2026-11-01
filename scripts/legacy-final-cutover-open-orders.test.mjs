@@ -138,6 +138,7 @@ test("next Repair Order number advances only upward", () => {
 test("writer locks and re-reads the Shop before advancing the counter", async () => {
   const source = await read("scripts/transform-open-orders.mjs");
   assert.match(source, /requiredFiles: \["ordtemps\.DBF", "ordtemps\.FPT"\]/);
+  assert.match(source, /requiredFiles: \["Cust\.DBF", "Cust\.FPT", "vehicles\.DBF"/);
   assert.match(source, /loadLegacyOpenOrderHeaders\(headerSource\)/);
   assert.match(source, /survivingRepairOrders, headerRows, shopSettings/);
   assert.match(source, /SELECT id FROM shops[\s\S]*FOR UPDATE/);
