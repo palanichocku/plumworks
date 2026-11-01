@@ -18,10 +18,10 @@ function TotalDetail({ label, value, grand = false }: { label: string; value: st
 }
 
 function SignedBlock({ label, signerName, signedAt, signatureData }: { label: string; signerName: string; signedAt: string; signatureData: string }) {
-  return <section style={{ marginTop: "12px" }}>
-    <p style={{ margin: 0, fontWeight: 700 }}>{label}</p>
-    <img src={signatureData} alt={`${signerName} signature`} style={{ display: "block", width: "220px", maxWidth: "100%", height: "72px", objectFit: "contain", objectPosition: "left center", marginTop: "4px" }} />
-    <p style={{ margin: "3px 0 0" }}>{signerName} · Signed {signedAt}</p>
+  return <section className="invoice-document-signed-block">
+    <p className="invoice-document-signed-label">{label}</p>
+    <img src={signatureData} alt={`${signerName} signature`} className="invoice-document-signature-image" />
+    <p className="invoice-document-signed-meta">{signerName} · Signed {signedAt}</p>
   </section>;
 }
 
@@ -58,11 +58,10 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
         {model.shop.partsWarrantyText && <Legal title="Parts Warranty" text={model.shop.partsWarrantyText} />}
         {model.shop.authorizationText && <Legal title="Customer Authorization" text={model.shop.authorizationText} />}
         {model.shop.certificationText && <Legal title="Certification" text={model.shop.certificationText} />}
-        {model.deliverySignatures ? <>
+        {model.deliverySignatures ? <div className="invoice-document-signatures" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12pt", alignItems: "start" }}>
           <SignedBlock label="Customer signature" signerName={model.deliverySignatures.customer.signerName} signedAt={model.deliverySignatures.customer.signedAt} signatureData={model.deliverySignatures.customer.signatureData} />
           <SignedBlock label="Shop representative signature" signerName={model.deliverySignatures.shopRepresentative.signerName} signedAt={model.deliverySignatures.shopRepresentative.signedAt} signatureData={model.deliverySignatures.shopRepresentative.signatureData} />
-          <p style={{ marginTop: "8px", fontSize: "10px" }}>Signed invoice revision {model.deliverySignatures.revision} · Evidence Integrity ID {model.deliverySignatures.snapshotSha256}</p>
-        </> : <>
+        </div> : <>
           <p className="invoice-document-signature">Customer signature / date</p>
           <p className="invoice-document-signature">Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</p>
         </>}
