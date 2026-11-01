@@ -364,6 +364,7 @@ model Customer {
   id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId             String                @map("shop_id") @db.Uuid
   displayName        String                @map("display_name")
+  firstName          String?               @map("first_name")
   email              String?
   phone              String?
   phone2             String?

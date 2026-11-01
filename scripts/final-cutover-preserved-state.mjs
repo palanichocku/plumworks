@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { resolveSingleShopId } from "./lib/single-shop.mjs";
-import { configurationEvidence } from "./lib/final-cutover-preserved-state.mjs";
+import { configurationEvidence, preservedConfigurationDifferences, verifyRepairOrderSequence } from "./lib/final-cutover-preserved-state.mjs";
 
 export const SHOP_SETTINGS_SELECT = Object.freeze({
   id: true,
@@ -97,15 +97,6 @@ async function capture(prisma, shopId) {
   });
 }
 
-function differences(before, after) {
-  const result = [];
-  for (const key of Object.keys(before)) {
-    if (key === "capturedAt") continue;
-    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) result.push(key);
-  }
-  return result;
-}
-
 async function main() {
   const mode = process.argv[2];
   if (!new Set(["capture", "verify"]).has(mode)) throw new Error("Usage: final-cutover-preserved-state.mjs capture|verify --file <path> [--shop-id <uuid>]");
@@ -124,8 +115,26 @@ async function main() {
     }
     const before = JSON.parse(await readFile(file, "utf8"));
     if (before.shopId !== shopId) throw new Error("Preserved-state snapshot belongs to a different shop.");
-    const changed = differences(before, current);
-    if (changed.length) throw new Error(`Preserved configuration verification failed. Changed sections: ${changed.join(", ")}.`);
+    const changed = preservedConfigurationDifferences(before, current);
+    const repairOrders = await prisma.repairOrder.findMany({
+      where: { shopId },
+      select: { repairOrderNumber: true, legacyRoNo: true, legacySourceTable: true },
+    });
+    const sequence = verifyRepairOrderSequence({
+      beforeCounter: before.shop?.nextRepairOrderNumber,
+      repairOrders,
+      actualCounter: current.shop.nextRepairOrderNumber,
+    });
+    console.log(`Ordinary configuration preservation: ${changed.length ? "FAIL" : "PASS"}${changed.length ? `; changed sections: ${changed.join(", ")}` : ""}`);
+    console.log(`Repair Order sequencing invariant: ${sequence.pass ? "PASS" : "FAIL"}`);
+    console.log(`  before=${sequence.beforeValue}`);
+    console.log(`  highest operational RO=${sequence.highestOperationalRONumber ?? "none"}`);
+    console.log(`  expected=${sequence.expectedValue ?? "undetermined"}`);
+    console.log(`  actual=${sequence.actualValue}`);
+    if (!sequence.pass) console.log(`  issues=${sequence.issues.join(", ")}`);
+    if (changed.length || !sequence.pass) {
+      throw new Error("Preserved configuration or Repair Order sequencing verification failed.");
+    }
     console.log("Preserved configuration verification: PASS");
   } finally {
     await prisma.$disconnect();

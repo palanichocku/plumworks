@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 export const REQUIRED_LEGACY_FILES = Object.freeze([
   "Cust.DBF",
+  "Cust.FPT",
   "vehicles.DBF",
   "FINAL.DBF",
   "laborfinal.DBF",

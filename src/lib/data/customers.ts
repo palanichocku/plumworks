@@ -59,6 +59,7 @@ export async function getCustomerForCurrentShop(id: string) {
     select: {
       id: true,
       displayName: true,
+      firstName: true,
       email: true,
       phone: true,
       phone2: true,
@@ -123,6 +124,7 @@ export async function getCustomerForEdit(id: string) {
     select: {
       id: true,
       displayName: true,
+      firstName: true,
       phone: true,
       phone2: true,
       email: true,

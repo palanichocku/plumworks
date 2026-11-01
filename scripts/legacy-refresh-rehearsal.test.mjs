@@ -397,6 +397,7 @@ test("rehearsal compares cutover stages against the broader cutover source finge
       assert.equal(sourcePath, "/snapshot/data");
       assert.deepEqual(requiredFiles, [
         "Cust.DBF",
+        "Cust.FPT",
         "vehicles.DBF",
         "FINAL.DBF",
         "laborfinal.DBF",

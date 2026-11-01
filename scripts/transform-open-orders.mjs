@@ -109,7 +109,7 @@ async function main() {
       const headerRows = await loadLegacyOpenOrderHeaders(headerSource);
       const adjudicationSource = adjudicationArguments.manifestPath ? await resolveLegacySource({
         args: process.argv.slice(2),
-        requiredFiles: ["Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
+        requiredFiles: ["Cust.DBF", "Cust.FPT", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
       }) : null;
       const adjudicationContext = adjudicationSource ? await loadFinalCutoverAdjudicationContext({
         manifestPath: adjudicationArguments.manifestPath,
@@ -119,7 +119,7 @@ async function main() {
       }) : null;
       const resolutionSource = resolutionArguments.manifestPath ? (adjudicationSource ?? await resolveLegacySource({
         args: process.argv.slice(2),
-        requiredFiles: ["Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
+        requiredFiles: ["Cust.DBF", "Cust.FPT", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF", "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF"],
       })) : null;
       const resolutionContext = resolutionSource ? await loadFinalCutoverResolutionContext({
         manifestPath: resolutionArguments.manifestPath,

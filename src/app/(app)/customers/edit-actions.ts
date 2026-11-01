@@ -13,6 +13,7 @@ export async function updateCustomer(formData: FormData) {
   const customerId = String(formData.get("customerId") ?? "");
   const returnTo = customerVehicleEditReturnPath(formData.get("returnTo"));
   const displayName = String(formData.get("displayName") ?? "").trim();
+  const firstName = String(formData.get("firstName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const phone2 = String(formData.get("phone2") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -20,7 +21,7 @@ export async function updateCustomer(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim();
   const postalCode = String(formData.get("postalCode") ?? "").trim();
-  if (!UUID.test(customerId) || !displayName || displayName.length > 200 ||
+  if (!UUID.test(customerId) || !displayName || displayName.length > 200 || firstName.length > 200 ||
     phone.length > 40 || phone2.length > 40 || email.length > 254 ||
     (email && !/^\S+@\S+\.\S+$/.test(email)) || addressLine1.length > 200 ||
     city.length > 100 || state.length > 30 || postalCode.length > 20) {
@@ -38,7 +39,7 @@ export async function updateCustomer(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({
       where: { id: customerId, shopId: membership.shopId, archivedAt: null },
-      data: { displayName, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
+      data: { displayName, firstName: firstName || null, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
     });
     if (result.count !== 1) throw new Error("Customer was not found.");
     await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: displayName, entityHref: `/customers/${customerId}`, contextSummary: "Customer record updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });
