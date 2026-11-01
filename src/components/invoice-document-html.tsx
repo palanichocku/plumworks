@@ -58,10 +58,9 @@ export function InvoiceDocumentHTML({ model }: { model: InvoiceDocumentModel }) 
         {model.shop.partsWarrantyText && <Legal title="Parts Warranty" text={model.shop.partsWarrantyText} />}
         {model.shop.authorizationText && <Legal title="Customer Authorization" text={model.shop.authorizationText} />}
         {model.shop.certificationText && <Legal title="Certification" text={model.shop.certificationText} />}
-        {model.deliverySignatures ? <div className="invoice-document-signatures">
+        {model.deliverySignatures ? <div className="invoice-document-signatures" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12pt", alignItems: "start" }}>
           <SignedBlock label="Customer signature" signerName={model.deliverySignatures.customer.signerName} signedAt={model.deliverySignatures.customer.signedAt} signatureData={model.deliverySignatures.customer.signatureData} />
           <SignedBlock label="Shop representative signature" signerName={model.deliverySignatures.shopRepresentative.signerName} signedAt={model.deliverySignatures.shopRepresentative.signedAt} signatureData={model.deliverySignatures.shopRepresentative.signatureData} />
-          <p className="invoice-document-signature-integrity">Signed invoice revision {model.deliverySignatures.revision} · Evidence Integrity ID {model.deliverySignatures.snapshotSha256}</p>
         </div> : <>
           <p className="invoice-document-signature">Customer signature / date</p>
           <p className="invoice-document-signature">Authorized representative / date{model.shop.authorizedRepresentative ? ` — ${model.shop.authorizedRepresentative}` : ""}</p>
