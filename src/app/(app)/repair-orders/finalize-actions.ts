@@ -107,9 +107,11 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
       }
 
       const zero = new Prisma.Decimal(0);
+      const invoiceParts = postDeclineBilling ? [] : order.parts;
+      const invoiceLabor = postDeclineBilling ? [] : order.labor;
       const totals = calculateEditableInvoiceTotals({
-        parts: order.parts,
-        labor: order.labor.filter((line) => !line.complimentary),
+        parts: invoiceParts,
+        labor: invoiceLabor.filter((line) => !line.complimentary),
         shopSuppliesEnabled: order.shopSuppliesEnabledSnapshot,
         shopSuppliesRate: order.shopSuppliesRateSnapshot,
         shopSuppliesCap: order.shopSuppliesCapSnapshot,
@@ -147,15 +149,15 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
           shopSuppliesTaxableSnapshot: order.shopSuppliesTaxableSnapshot,
           shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
           shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
-          shopSuppliesWasOverridden: order.shopSuppliesOverrideAmount !== null,
-          shopSuppliesOverrideReason: order.shopSuppliesOverrideReason,
-          shopSuppliesOverriddenByUserId: order.shopSuppliesOverriddenByUserId,
-          shopSuppliesOverriddenAt: order.shopSuppliesOverriddenAt,
+          shopSuppliesWasOverridden: postDeclineBilling ? false : order.shopSuppliesOverrideAmount !== null,
+          shopSuppliesOverrideReason: postDeclineBilling ? null : order.shopSuppliesOverrideReason,
+          shopSuppliesOverriddenByUserId: postDeclineBilling ? null : order.shopSuppliesOverriddenByUserId,
+          shopSuppliesOverriddenAt: postDeclineBilling ? null : order.shopSuppliesOverriddenAt,
           shopSnapshot: order.shop,
           customerSnapshot: order.customer,
           vehicleSnapshot: order.vehicle,
           parts: {
-            create: order.parts.map((line) => ({
+            create: invoiceParts.map((line) => ({
               shopId: order.shopId,
               description: line.description,
               partNumber: line.partNumber,
@@ -166,7 +168,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
             })),
           },
           labor: {
-            create: order.labor.map((line) => ({
+            create: invoiceLabor.map((line) => ({
               shopId: order.shopId,
               description: line.description,
               hours: line.hours,
@@ -190,17 +192,22 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
 
       await transaction.repairOrder.update({
         where: { id: order.id },
-        data: {
-          status: "invoiced",
-          closedAt: now,
-          partsTotal,
-          laborTotal,
-          taxTotal,
-          estimatedTotal: total,
-          shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
-          shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
-          shopSuppliesAmount: totals.shopSuppliesAmount,
-        },
+        data: postDeclineBilling
+          ? {
+              status: "invoiced",
+              closedAt: now,
+            }
+          : {
+              status: "invoiced",
+              closedAt: now,
+              partsTotal,
+              laborTotal,
+              taxTotal,
+              estimatedTotal: total,
+              shopSuppliesEligibleLaborTotal: totals.shopSuppliesEligibleLaborTotal,
+              shopSuppliesCalculatedAmount: totals.shopSuppliesCalculatedAmount,
+              shopSuppliesAmount: totals.shopSuppliesAmount,
+            },
       });
 
       const auditAction = postDeclineBilling
@@ -209,7 +216,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
           ? "invoice_created_authorization_override"
           : "invoice_created";
       const contextSummary = postDeclineBilling
-        ? "Invoice created for diagnostic or other charges after customer declined estimate"
+        ? "Invoice created empty for diagnostic or other charges after customer declined estimate"
         : authorizationOverride
           ? "Invoice created with Owner/Admin authorization override"
           : "Invoice created from authorized repair order";
@@ -232,6 +239,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
             authorizationDecisionAuthorizerName: authorization.decisionAuthorizerName,
             postDeclineBilling,
             postDeclineBillingReason: declinedPreviousRevision ? postDeclineBillingReason : null,
+            postDeclineInvoiceStartedEmpty: postDeclineBilling,
             authorizationOverride,
             authorizationOverrideReason: authorizationOverride ? authorizationOverrideReason : null,
           },
