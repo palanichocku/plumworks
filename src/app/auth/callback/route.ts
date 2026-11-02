@@ -29,17 +29,8 @@ export async function GET(request: NextRequest) {
       if (error) return callbackRedirect(inviteError);
     } else {
       if (!code) return callbackRedirect(forgotPassword);
-      // The SDK emits this event only for a recovery PKCE verifier.
-      let recoverySession = false;
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "PASSWORD_RECOVERY") recoverySession = true;
-      });
-      try {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error || !recoverySession) return callbackRedirect(forgotPassword);
-      } finally {
-        subscription.unsubscribe();
-      }
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) return callbackRedirect(forgotPassword);
     }
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return callbackRedirect(flow === "invite" ? inviteError : forgotPassword);
