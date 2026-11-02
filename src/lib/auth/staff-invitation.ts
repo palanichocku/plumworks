@@ -49,6 +49,8 @@ export function getAuthCallbackFlow(params: URLSearchParams): AuthCallbackFlow |
   const hasInviteToken = Boolean(params.get("token_hash")) && params.get("type") === "invite";
   // Admin invitations do not support PKCE. Never relabel an arbitrary code as an invite.
   if (next === "/invite" && flow === "invite" && hasInviteToken && !params.has("code")) return "invite";
-  if (params.get("code") && !params.has("token_hash") && !params.has("type") && next === "/update-password" && (flow === null || flow === "recovery")) return "recovery";
+  // Recovery must be explicitly tagged so an arbitrary PKCE sign-in code cannot be
+  // repurposed to create password-recovery context.
+  if (params.get("code") && !params.has("token_hash") && !params.has("type") && next === "/update-password" && flow === "recovery") return "recovery";
   return null;
 }
