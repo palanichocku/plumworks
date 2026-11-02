@@ -255,7 +255,9 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
             ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Approval email was not delivered to {delivery.recipientEmail ?? "the customer"}. Check the email address and resend.</p>
             : delivery.deliveryStatus === "delivery_delayed"
               ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval email delivery is delayed; the email service is retrying. Link expires {expiresAtText} · {expiryText}.</p>
-              : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
+              : delivery.deliveryStatus === "sent" || !delivery.deliveryStatus
+                ? <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Approval email accepted by the email service{delivery.recipientEmail ? ` for ${delivery.recipientEmail}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
+                : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
           : null}
         {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">{delivery?.deliveryStatus === "delivered" ? "Waiting for customer approval · this page updates automatically." : "Waiting for email delivery confirmation · this page updates automatically."}</p> : null}
       </div>
