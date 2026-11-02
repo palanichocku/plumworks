@@ -2,15 +2,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import { RECOVERY_CONTEXT_COOKIE } from "@/lib/auth/password-recovery";
-import { createClient } from "@/lib/supabase/server";
 import { UpdatePasswordForm } from "./update-password-form";
 
 export const metadata: Metadata = { title: "Update Password", robots: { index: false, follow: false } };
 
 export default async function UpdatePasswordPage() {
-  const [cookieStore, supabase] = await Promise.all([cookies(), createClient()]);
-  const { data: { user } } = await supabase.auth.getUser();
-  const validRecovery = cookieStore.get(RECOVERY_CONTEXT_COOKIE)?.value === "1" && Boolean(user);
+  const cookieStore = await cookies();
+  const validRecovery = cookieStore.get(RECOVERY_CONTEXT_COOKIE)?.value === "1";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-5 py-12">
