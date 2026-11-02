@@ -52,9 +52,13 @@ function MicIcon() {
 function remainingApprovalTime(expiresAt: string, now: number) {
   const remainingMs = new Date(expiresAt).getTime() - now;
   if (remainingMs <= 0) return "expired";
-  const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
-  if (hours <= 24) return `${hours} ${hours === 1 ? "hour" : "hours"} remaining`;
-  const days = Math.ceil(hours / 24);
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  if (remainingMs <= dayMs) {
+    const hours = Math.ceil(remainingMs / hourMs);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} remaining`;
+  }
+  const days = Math.ceil(remainingMs / dayMs);
   return `${days} ${days === 1 ? "day" : "days"} remaining`;
 }
 
@@ -132,6 +136,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
     const refreshDelivery = async () => {
       const result = await getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null);
       if (!active) return;
+      setClock(Date.now());
       setDelivery(result as EmailDeliveryState | null);
       if (result && failedDelivery(result.deliveryStatus)) {
         const key = `${result.recipientEmail ?? "customer"}:${result.deliveryStatus}`;
@@ -243,16 +248,16 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         {!readinessChecked ? <p role="status" className="mt-1 text-xs font-medium text-slate-600">Checking saved Repair Order revision…</p> : null}
         {declined && !saveRequired ? <p className="mt-1 text-xs font-medium text-red-800">The declined estimate remains preserved as evidence. An invoice may still be created for diagnostic or other charges actually due.</p> : null}
         {previousDecline && !saveRequired ? <p className="mt-1 text-xs font-medium text-orange-800">The earlier decline remains preserved as evidence for the prior revision.</p> : null}
-        {emailState.status !== "idle" ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{emailState.message}</p> : null}
+        {emailState.status !== "idle" && (emailState.status === "error" || !delivery) ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-slate-600"}`}>{emailState.message}</p> : null}
         {!authorized && !declined && delivery ? delivery.requestStatus === "EXPIRED" || expiryText === "expired"
           ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval link expired. Send a new authorization request.</p>
           : deliveryFailure
             ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Approval email was not delivered to {delivery.recipientEmail ?? "the customer"}. Check the email address and resend.</p>
             : delivery.deliveryStatus === "delivery_delayed"
               ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval email delivery is delayed; the email service is retrying. Link expires {expiresAtText} · {expiryText}.</p>
-              : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">{delivery.deliveryStatus === "delivered" ? "Approval email delivered" : "Approval email sent"}{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
+              : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
           : null}
-        {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer approval · this page updates automatically.</p> : null}
+        {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">{delivery?.deliveryStatus === "delivered" ? "Waiting for customer approval · this page updates automatically." : "Waiting for email delivery confirmation · this page updates automatically."}</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>Evidence</Link> : null}
