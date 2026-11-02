@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { loginAction, type LoginActionState } from "@/app/login/actions";
-import { LoginTurnstile } from "@/app/login/login-turnstile";
 
 const initialState: LoginActionState = { status: "idle" };
 
@@ -84,8 +83,6 @@ export function LoginForm() {
       <div className="text-right">
         <Link href="/forgot-password" className="text-sm font-medium text-brand-primary hover:underline">Forgot password?</Link>
       </div>
-
-      <LoginTurnstile />
 
       {state.status === "error" && state.message ? (
         <p
