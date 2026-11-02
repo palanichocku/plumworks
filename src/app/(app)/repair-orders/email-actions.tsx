@@ -4,11 +4,17 @@ import { headers } from "next/headers";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { getRepairOrderDocumentForShop } from "@/lib/repair-order-document";
 import { deliverRepairOrderEmail } from "@/lib/email/repair-order-email";
+import { deliverRepairOrderAuthorizationEmail } from "@/lib/email/repair-order-authorization-email";
 import { normalizeEmailRecipient } from "@/lib/email/document-email-core";
-import { repairOrderEmailMessage, type RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
+import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { hasPermission } from "@/lib/permissions";
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
 import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
+import {
+  getRepairOrderAuthorizationEmailDeliveryState,
+  markAuthorizationEmailProvider,
+  type AuthorizationEmailDeliveryState,
+} from "@/lib/authorization/authorization-email-delivery";
 import {
   createRepairOrderEmailAuthorizationRequest,
   markRepairOrderAuthorizationRequestSent,
@@ -31,6 +37,12 @@ export async function getRepairOrderEmailRecipientAction(repairOrderId: string) 
   const model = await getRepairOrderDocumentForShop(repairOrderId, membership.shopId);
   if (!model || model.status === "void") return "";
   return normalizeEmailRecipient(model.customer.email ?? "") ?? "";
+}
+
+export async function getRepairOrderEmailDeliveryStatusAction(repairOrderId: string): Promise<AuthorizationEmailDeliveryState | null> {
+  const { user, membership } = await getCurrentMembership();
+  if (!user || !membership) return null;
+  return getRepairOrderAuthorizationEmailDeliveryState(membership.shopId, repairOrderId).catch(() => null);
 }
 
 export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, formData: FormData): Promise<RepairOrderEmailState> {
@@ -64,20 +76,24 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
   }
 
   let request: Awaited<ReturnType<typeof createRepairOrderEmailAuthorizationRequest>> | null = null;
+  let acceptedByProvider = false;
   try {
     request = await createRepairOrderEmailAuthorizationRequest({ shopId: membership.shopId, repairOrderId, recipientEmail: recipient });
     const origin = await authorizationOrigin();
     const authorizationUrl = `${origin}/authorize/repair-order/${encodeURIComponent(request.token)}`;
-    const approvalMessage = repairOrderEmailMessage(model, recipient, authorizationUrl);
-    const result = await deliverRepairOrderEmail(model, recipient, { authorizationUrl });
+    const result = await deliverRepairOrderAuthorizationEmail(model, recipient, authorizationUrl);
     if (!result.ok) {
       await revokeRepairOrderAuthorizationRequest(request.requestId);
       return { status: "error", message: result.message };
     }
-    await markRepairOrderAuthorizationRequestSent(request.requestId, approvalMessage.subject);
-    return { status: "success", message: `Authorization request sent to ${recipient}.` };
+    acceptedByProvider = true;
+    await markRepairOrderAuthorizationRequestSent(request.requestId, result.subject);
+    await markAuthorizationEmailProvider(request.requestId, result.id);
+    return { status: "success", message: `Approval email accepted by the email service for ${recipient}. Waiting for delivery confirmation…` };
   } catch {
-    if (request) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
-    return { status: "error", message: "The secure approval request could not be sent. Please try again." };
+    if (request && !acceptedByProvider) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
+    return { status: "error", message: acceptedByProvider
+      ? "The approval email was accepted for delivery, but PlumWorks could not save its delivery status. Please verify the message in Resend."
+      : "The secure approval request could not be sent. Please try again." };
   }
 }

@@ -80,16 +80,32 @@ export function InvoiceDeliverySignaturePanel({
 
       {sessions.length ? (
         <div className="mt-5 space-y-4 border-t border-slate-200 pt-5">
+          <div>
+            <h3 className="text-sm font-bold text-slate-950">Invoice Revision History</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Open a revision to see the exact immutable invoice snapshot acknowledged by that signature set.
+            </p>
+          </div>
           {sessions.map((session) => {
             const revision = session.rows[0]?.revision;
             const snapshotHash = session.rows[0]?.snapshotSha256;
             return (
               <article key={session.sessionId} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-bold text-slate-900">Delivery signature set · Invoice revision {revision}</p>
-                  <p className="font-mono text-[10px] text-slate-500" title={snapshotHash}>
-                    Integrity ID {snapshotHash ? shortHash(snapshotHash) : "—"}
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Delivery signature set · Invoice revision {revision}</p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-500" title={snapshotHash}>
+                      Integrity ID {snapshotHash ? shortHash(snapshotHash) : "—"}
+                    </p>
+                  </div>
+                  {revision ? (
+                    <Link
+                      href={`/invoices/${invoiceId}/revisions/${revision}`}
+                      className="rounded-lg border border-brand-primary/30 px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle"
+                    >
+                      View revision {revision}
+                    </Link>
+                  ) : null}
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   {session.rows.map((row) => (
