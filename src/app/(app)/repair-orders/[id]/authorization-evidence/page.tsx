@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { AuthorizationEvidenceBackButton } from "@/components/authorization-evidence-back-button";
 import { AuthorizationEvidencePrintButton } from "@/components/authorization-evidence-print-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { getRepairOrderAuthorizationEvidence } from "@/lib/authorization/authorization-report";
+import { getCurrentMembership } from "@/lib/data/membership";
+import { hasPermission } from "@/lib/permissions";
+import { createRepairOrderFromDeclinedEstimate } from "@/app/(app)/repair-orders/declined-estimate-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +24,18 @@ function compactHash(value: string) {
   return value.length <= 24 ? value : `${value.slice(0, 12)}…${value.slice(-12)}`;
 }
 
+function ageInDays(value: Date) {
+  return Math.max(0, Math.floor((Date.now() - value.getTime()) / 86_400_000));
+}
+
 export default async function AuthorizationEvidencePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const report = await getRepairOrderAuthorizationEvidence(id);
+  const [report, { membership }] = await Promise.all([
+    getRepairOrderAuthorizationEvidence(id),
+    getCurrentMembership(),
+  ]);
   if (!report) notFound();
+  const canCreateRepairOrder = Boolean(membership && hasPermission(membership.role, "create_repair_order"));
 
   return <div className="space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -39,6 +51,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
     {report.records.length === 0 ? <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-sm text-slate-600">No authorization evidence has been recorded for this Repair Order.</p></section> : report.records.map((record) => {
       const snapshot = record.snapshot;
       const vehicle = [snapshot.vehicle?.year, snapshot.vehicle?.make, snapshot.vehicle?.model].filter(Boolean).join(" ");
+      const declinedAgeDays = record.decision === "DECLINED" ? ageInDays(record.occurredAt) : 0;
       return <article key={record.eventId} className="break-inside-avoid rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:shadow-none">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
@@ -48,6 +61,24 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
               <span className="text-sm text-slate-500">Revision {record.revision}</span>
             </div>
             <p className="mt-2 text-sm text-slate-600">Recorded {record.occurredAt.toLocaleString()}</p>
+            {record.decision === "DECLINED" && canCreateRepairOrder ? <div className="mt-4 print:hidden">
+              <form action={createRepairOrderFromDeclinedEstimate}>
+                <input type="hidden" name="sourceRepairOrderId" value={id} />
+                <input type="hidden" name="authorizationEventId" value={record.eventId} />
+                <FormSubmitButton
+                  pendingLabel="Creating New RO…"
+                  confirmMessage={`Create a new Repair Order from declined estimate revision ${record.revision}? The old decline will remain unchanged and the new RO will require fresh authorization.`}
+                  className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  Create New RO from This Estimate
+                </FormSubmitButton>
+              </form>
+              <p className={`mt-2 max-w-xl text-xs ${declinedAgeDays >= 7 ? "font-semibold text-amber-800" : "text-slate-500"}`}>
+                {declinedAgeDays >= 7
+                  ? `This estimate was declined ${declinedAgeDays} days ago. Review current mileage, pricing, and parts availability before requesting authorization.`
+                  : "The new RO will copy this exact estimate as a starting point. Review mileage and pricing before requesting authorization."}
+              </p>
+            </div> : null}
           </div>
           <div className="max-w-md text-right">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence Integrity ID</p>
