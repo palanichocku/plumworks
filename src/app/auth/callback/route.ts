@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     authResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     response.cookies.set(RECOVERY_CONTEXT_COOKIE, "1", {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
       secure: request.nextUrl.protocol === "https:",
       path: "/",
       maxAge: 15 * 60,
