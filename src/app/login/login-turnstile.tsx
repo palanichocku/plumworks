@@ -79,7 +79,6 @@ export function LoginTurnstile() {
       setVerifying(true);
 
       try {
-        window.turnstile.reset(widget.current);
         window.turnstile.execute(widget.current);
       } catch {
         fail();
