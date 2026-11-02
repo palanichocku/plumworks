@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
-import { getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
+import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
@@ -12,6 +12,14 @@ const initialEmail: RepairOrderEmailState = { status: "idle" };
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
 
 type AuthorizationStatus = "NOT_AUTHORIZED" | "AUTHORIZED" | "DECLINED" | "DECLINED_PREVIOUS_REVISION";
+type EmailDeliveryStatus = "sent" | "delivered" | "delivery_delayed" | "bounced" | "suppressed" | "failed";
+type EmailDeliveryState = {
+  requestStatus: "PENDING" | "EXPIRED";
+  recipientEmail: string | null;
+  sentAt: string | null;
+  expiresAt: string;
+  deliveryStatus: EmailDeliveryStatus | null;
+};
 
 type HistoryItem = {
   id: string;
@@ -41,6 +49,19 @@ function MicIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75a3 3 0 0 0-3 3v5.5a3 3 0 0 0 6 0v-5.5a3 3 0 0 0-3-3Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 11.5v.75a5.25 5.25 0 0 0 10.5 0v-.75M12 17.5v2.75M9.5 20.25h5" /></svg>;
 }
 
+function remainingApprovalTime(expiresAt: string, now: number) {
+  const remainingMs = new Date(expiresAt).getTime() - now;
+  if (remainingMs <= 0) return "expired";
+  const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
+  if (hours <= 24) return `${hours} ${hours === 1 ? "hour" : "hours"} remaining`;
+  const days = Math.ceil(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} remaining`;
+}
+
+function failedDelivery(status: EmailDeliveryStatus | null) {
+  return status === "bounced" || status === "suppressed" || status === "failed";
+}
+
 export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, summary, history, editable }: {
   repairOrderId: string;
   estimatedTotal: string;
@@ -59,15 +80,19 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [saveStateBlocked, setSaveStateBlocked] = useState(false);
   const [revisionReady, setRevisionReady] = useState(false);
   const [readinessChecked, setReadinessChecked] = useState(false);
+  const [delivery, setDelivery] = useState<EmailDeliveryState | null>(null);
+  const [deliveryPopup, setDeliveryPopup] = useState<string | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
+  const shownDeliveryFailure = useRef<string | null>(null);
   const authorized = summary.status === "AUTHORIZED";
   const declined = summary.status === "DECLINED";
   const previousDecline = summary.status === "DECLINED_PREVIOUS_REVISION";
   const declineEvidence = history.find((item) => item.decision === "DECLINED") ?? null;
   const saveRequired = !readinessChecked || saveStateBlocked || !revisionReady;
-  const waitingForEmailApproval = emailState.status === "success" && !authorized && !declined;
+  const waitingForEmailApproval = Boolean(delivery?.requestStatus === "PENDING") || (emailState.status === "success" && !authorized && !declined);
 
   useEffect(() => {
     let active = true;
@@ -100,6 +125,37 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   useEffect(() => {
     if (emailState.status === "success") setEmailOpen(false);
   }, [emailState.status]);
+
+  useEffect(() => {
+    let active = true;
+    let popupTimer: number | undefined;
+    const refreshDelivery = async () => {
+      const result = await getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null);
+      if (!active) return;
+      setDelivery(result as EmailDeliveryState | null);
+      if (result && failedDelivery(result.deliveryStatus)) {
+        const key = `${result.recipientEmail ?? "customer"}:${result.deliveryStatus}`;
+        if (shownDeliveryFailure.current !== key) {
+          shownDeliveryFailure.current = key;
+          const message = `Approval email was not delivered to ${result.recipientEmail ?? "the customer"}. Check the email address and resend the approval request.`;
+          setDeliveryPopup(message);
+          popupTimer = window.setTimeout(() => setDeliveryPopup(null), 9000);
+        }
+      }
+    };
+    void refreshDelivery();
+    const interval = window.setInterval(refreshDelivery, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      if (popupTimer) window.clearTimeout(popupTimer);
+    };
+  }, [repairOrderId, emailState.status]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!waitingForEmailApproval) return;
@@ -160,8 +216,12 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const declineDetail = declineEvidence
     ? `${declineEvidence.authorizerName || "Customer"} on ${new Date(declineEvidence.occurredAt).toLocaleString()}`
     : "customer";
+  const deliveryFailure = delivery ? failedDelivery(delivery.deliveryStatus) : false;
+  const expiryText = delivery ? remainingApprovalTime(delivery.expiresAt, clock) : null;
+  const expiresAtText = delivery ? new Date(delivery.expiresAt).toLocaleString() : null;
 
   return <section className={`transaction-workspace-width rounded-xl border px-4 py-3 shadow-sm ${tone}`}>
+    {deliveryPopup ? <div role="alert" className="fixed right-4 top-4 z-[70] max-w-md rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900 shadow-xl">{deliveryPopup}</div> : null}
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -184,7 +244,15 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         {declined && !saveRequired ? <p className="mt-1 text-xs font-medium text-red-800">The declined estimate remains preserved as evidence. An invoice may still be created for diagnostic or other charges actually due.</p> : null}
         {previousDecline && !saveRequired ? <p className="mt-1 text-xs font-medium text-orange-800">The earlier decline remains preserved as evidence for the prior revision.</p> : null}
         {emailState.status !== "idle" ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{emailState.message}</p> : null}
-        {waitingForEmailApproval ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer approval · this page updates automatically.</p> : null}
+        {!authorized && !declined && delivery ? delivery.requestStatus === "EXPIRED" || expiryText === "expired"
+          ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval link expired. Send a new authorization request.</p>
+          : deliveryFailure
+            ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Approval email was not delivered to {delivery.recipientEmail ?? "the customer"}. Check the email address and resend.</p>
+            : delivery.deliveryStatus === "delivery_delayed"
+              ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval email delivery is delayed; the email service is retrying. Link expires {expiresAtText} · {expiryText}.</p>
+              : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">{delivery.deliveryStatus === "delivered" ? "Approval email delivered" : "Approval email sent"}{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
+          : null}
+        {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer approval · this page updates automatically.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>Evidence</Link> : null}
