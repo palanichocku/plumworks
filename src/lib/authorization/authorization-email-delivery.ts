@@ -37,7 +37,7 @@ function normalizeResendEvent(value: unknown): AuthorizationEmailDeliveryStatus 
 }
 
 async function retrieveResendStatus(providerId: string) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const apiKey = process.env.RESEND_STATUS_API_KEY?.trim();
   if (!apiKey) return null;
   try {
     const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(providerId)}`, {
