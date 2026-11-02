@@ -17,7 +17,7 @@ class InvoiceAuthorizationError extends Error {}
 export type CreateInvoiceState = { status: "idle" | "error"; message?: string };
 
 export async function createInvoiceFromRepairOrder(_previousState: CreateInvoiceState, formData: FormData): Promise<CreateInvoiceState> {
-  let invoice: { id: string };
+  let invoice: { id: string; editAfterCreate?: boolean };
 
   try {
     const repairOrderId = String(formData.get("repairOrderId") ?? "");
@@ -256,7 +256,7 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
           : { category: "operational", enabled: membership.shop.auditLoggingEnabled },
       );
 
-      return createdInvoice;
+      return { id: createdInvoice.id, editAfterCreate: postDeclineBilling };
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     if (error instanceof InvoiceAuthorizationError) {
@@ -267,5 +267,5 @@ export async function createInvoiceFromRepairOrder(_previousState: CreateInvoice
 
   revalidatePath("/repair-orders");
   revalidatePath("/invoices");
-  redirect(`/invoices/${invoice.id}`);
+  redirect(invoice.editAfterCreate ? `/invoices/${invoice.id}/edit` : `/invoices/${invoice.id}`);
 }
