@@ -17,19 +17,20 @@ const [detail, ui, action, model, pdf, delivery, sharedDelivery, invoiceDelivery
   read("src/lib/email/gmail.ts"),
 ]);
 
-test("Repair Order detail exposes status, History, conditional Email, and Print controls", () => {
+test("Repair Order detail exposes status, History, conditional estimate Email, and Print controls", () => {
   assert.match(detail, /<EmailRepairOrderButton/);
   assert.match(detail, /defaultRecipient=\{normalizeEmailRecipient\(order\.customer\.email \?\? ""\) \?\? ""\}/);
   assert.match(detail, /printHref=\{`\/repair-orders\/\$\{order\.id\}\/print`\}/);
   const marker = ui.indexOf("data-repair-order-action-row");
   const row = ui.slice(ui.lastIndexOf("<div", marker), ui.indexOf("{success ?"));
   assert.match(row, /items-center/);
-  assert.match(row, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.match(row, /Email estimate[\s\S]*Print/);
+  assert.match(detail, /\{order\.status\}/);
   assert.match(ui, /status !== "void" \? <button/);
   assert.match(detail, /<RepairOrderHistoryButton/);
   assert.doesNotMatch(row, /success|role="status"|aria-live/);
   assert.match(ui, /<\/div>\s*\{success \? <div aria-live="polite"/);
-  assert.doesNotMatch(ui.slice(0, ui.indexOf("function EmailRepairOrderDialog")), /min-h-[0-9]/);
+  assert.match(ui.slice(ui.indexOf("function EmailRepairOrderDialog")), /min-h-5/);
 });
 
 test("recipient is sourced only from the scoped Customer, remains editable, and may be blank", () => {
@@ -96,7 +97,8 @@ test("Repair Order dialog prevents duplicates and preserves accessible pending, 
   assert.match(ui, /aria-labelledby=\{titleId\}/);
   assert.match(ui, /aria-describedby=\{error \? errorId : undefined\}/);
   assert.match(ui, /disabled=\{pending\}/g);
-  assert.match(ui, /pending \? "Sending…" : "Send Repair Order"/);
+  assert.match(ui, /pending \? "Sending…" : "Send"/);
+  assert.match(ui, /aria-label=\{pending \? "Sending estimate" : "Send estimate"\}/);
   assert.match(ui, /submittingRef\.current/);
   assert.match(ui, /if \(submittingRef\.current\) event\.preventDefault\(\)/);
   assert.match(ui, /if \(state\.status === "success"\) onSuccess\(state\.message\)/);
@@ -105,7 +107,7 @@ test("Repair Order dialog prevents duplicates and preserves accessible pending, 
   assert.match(ui, /REPAIR_ORDER_EMAIL_SUCCESS_DURATION_MS = 5_000/);
   assert.match(ui, /setTimeout\(\(\) => setSuccess\(null\), REPAIR_ORDER_EMAIL_SUCCESS_DURATION_MS\)/);
   assert.match(ui, /state\.status === "error" && !errorDismissed \? state\.message \|\| fallbackError/);
-  assert.match(ui, /Repair Order could not be emailed\. Please try again\./);
+  assert.match(ui, /Estimate could not be emailed\. Please try again\./);
   assert.match(ui, /role="alert" className="text-sm font-medium text-red-700"/);
   assert.match(ui, /if \(!pending\) onClose\(\)/);
   assert.match(ui, /event\.key === "Escape"/);
@@ -113,8 +115,11 @@ test("Repair Order dialog prevents duplicates and preserves accessible pending, 
 });
 
 test("Repair Order action returns safe expected messages", () => {
-  assert.match(action, /Enter a valid recipient email address\./);
+  assert.match(action, /Add a valid customer email address before sending\./);
   assert.match(action, /Repair Order not found for this shop\./);
-  assert.match(action, /Repair Order emailed successfully\./);
-  assert.doesNotMatch(action + delivery, /console\.|recipient@example|RESEND_API_KEY|process\.env/);
+  assert.match(action, /Estimate emailed successfully\./);
+  assert.match(action, /mode !== "authorization"/);
+  assert.match(action, /isRepairOrderReadyForAuthorization/);
+  assert.match(action, /revokeRepairOrderAuthorizationRequest/);
+  assert.doesNotMatch(action + delivery, /console\.|recipient@example|RESEND_API_KEY|EMAIL_PASSWORD/);
 });

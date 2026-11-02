@@ -21,6 +21,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1, life
         ? {
             OR: [
               { displayName: { contains: query, mode: "insensitive" } },
+              { firstName: { contains: query, mode: "insensitive" } },
               { phone: { contains: query } },
               { phone2: { contains: query } },
             ],
@@ -33,6 +34,7 @@ export async function getCustomersForCurrentShop(search?: string, page = 1, life
     select: {
       id: true,
       displayName: true,
+      firstName: true,
       email: true,
       phone: true,
       acquisitionSource: true,
@@ -60,6 +62,7 @@ export async function getCustomerForCurrentShop(id: string) {
     select: {
       id: true,
       displayName: true,
+      firstName: true,
       email: true,
       phone: true,
       phone2: true,
@@ -124,6 +127,7 @@ export async function getCustomerForEdit(id: string) {
     select: {
       id: true,
       displayName: true,
+      firstName: true,
       legacyCustno: true,
       legacySourceTable: true,
       phone: true,

@@ -9,6 +9,7 @@ import { resolveLegacySource } from "./legacy-source.mjs";
 
 const CUTOVER_SOURCE_FILES = Object.freeze([
   "Cust.DBF",
+  "Cust.FPT",
   "vehicles.DBF",
   "FINAL.DBF",
   "laborfinal.DBF",

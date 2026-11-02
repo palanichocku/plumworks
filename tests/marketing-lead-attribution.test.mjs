@@ -86,7 +86,10 @@ test("proxy initializes attribution only on public marketing page entry requests
   const proxy = await readFile(new URL("../src/proxy.ts", import.meta.url), "utf8");
   assert.match(proxy, /request\.method === "GET" \|\| request\.method === "HEAD"/);
   for (const route of ["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services/:path*"]) assert.match(proxy, new RegExp(`"${route.replace(/[/*]/g, "\\$&")}"`));
-  for (const excluded of ["/_next", "/api/", "/robots.txt", "/sitemap.xml", "/favicon.ico"]) assert.doesNotMatch(proxy, new RegExp(`"${excluded.replace(/[/*]/g, "\\$&")}`));
+  const marketingPaths = proxy.match(/const publicMarketingPaths = new Set\([^\n]+/)[0];
+  for (const excluded of ["/api/", "/robots.txt", "/sitemap.xml", "/favicon.ico"]) assert.doesNotMatch(marketingPaths, new RegExp(`"${excluded.replace(/[/*]/g, "\\$&")}`));
+  assert.match(proxy, /function isFrameworkAsset\(pathname: string\)[\s\S]*pathname\.startsWith\("\/_next\/"\)/);
+  assert.match(proxy, /if \(isFrameworkAsset\(pathname\)\) return NextResponse\.next\(\)/);
 });
 
 test("attribution absence cannot block lead data construction", () => {

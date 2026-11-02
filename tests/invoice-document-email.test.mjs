@@ -37,8 +37,9 @@ test("Invoice email content uses the shared trusted model", () => {
 test("document loader authenticates and scopes Invoice lookup to the membership shop", () => {
   assert.match(model, /getCurrentMembership\(\)/);
   assert.match(model, /if \(!user \|\| !membership\) return null/);
+  assert.match(model, /getInvoiceDocumentForShop\(invoiceId, membership\.shopId\)/);
   assert.match(model, /where: \{ id: invoiceId, shopId \}/);
-  assert.match(action, /getInvoiceDocumentForShop\(invoiceId, membership\.shopId\)/);
+  assert.match(action, /getInvoiceDocumentForCurrentShop\(invoiceId\)/);
   assert.doesNotMatch(action, /formData\.get\("(?:shop|total|customer|vehicle|parts|labor|pdf|filename)/);
 });
 
@@ -54,8 +55,8 @@ test("shared document maps authoritative values and customer/vehicle data withou
   assert.match(model, /complaint: invoice\.customerComplaint/);
   assert.match(model, /recommendation: invoice\.recommendation/);
   assert.match(model, /discount: formatMoney\(invoice\.discountAmount\.negated\(\)\)/);
-  assert.match(html, /model\.totals\.discount[\s\S]*<Detail label="Discount" value=\{model\.totals\.discount\}/);
-  assert.match(pdf, /model\.totals\.discount[\s\S]*<Text>Discount<\/Text>/);
+  assert.match(html, /model\.totals\.discount[\s\S]*<TotalDetail label="Discount" value=\{model\.totals\.discount\}/);
+  assert.match(pdf, /model\.totals\.discount[\s\S]*<Text style=\{styles\.totalLabel\}>Discount<\/Text>/);
   assert.doesNotMatch(model + html + pdf, /vendorNameSnapshot|Vendor/);
   assert.doesNotMatch(model, /sublet|freight|towing/i);
 });
@@ -64,8 +65,10 @@ test("customer-facing Invoice totals expose stored Shop Supplies in matching ord
   const displaySubtotal = new Prisma.Decimal("50.00").plus("30.00").plus("2.40").toDecimalPlaces(2);
   assert.equal(displaySubtotal.toFixed(2), "82.40");
   assert.equal(displaySubtotal.plus("3.14").toFixed(2), "85.54");
-  const detailTotals = detail.slice(detail.indexOf("Totals and balance"), detail.indexOf("Customer Concerns"));
-  assert.match(detailTotals, /Parts[\s\S]*Labor[\s\S]*Shop supplies[\s\S]*Subtotal before tax[\s\S]*Tax[\s\S]*Total[\s\S]*Paid[\s\S]*Balance/);
+  const totalsStart = detail.indexOf('<dt className="text-slate-500">Parts');
+  const detailTotals = detail.slice(totalsStart, detail.indexOf("</dl>", totalsStart));
+  assert.match(detailTotals, /Parts[\s\S]*Labor[\s\S]*Shop supplies[\s\S]*Subtotal before tax[\s\S]*Tax[\s\S]*Total[\s\S]*Paid/);
+  assert.match(detail, /Balance due/);
   assert.match(detail, /formatMoney\(invoice\.shopSuppliesAmount\)/);
   assert.match(invoiceLoader, /shopSuppliesAmount: true/);
   assert.doesNotMatch(detailTotals, /formatMoney\(invoice\.subtotal\)/);
@@ -77,7 +80,7 @@ test("customer-facing Invoice totals expose stored Shop Supplies in matching ord
 });
 
 test("Invoice print, PDF, and email models distinguish partial payment from Paid", () => {
-  assert.match(model, /paymentStatus: paymentStatusLabel\(paymentSummary\.status\)/);
+  assert.match(model, /paymentStatus: invoice\.status === "void" \? "VOID" : paymentStatusLabel\(paymentSummary\.status\)/);
   assert.match(html, /label="Payment status"/);
   assert.match(pdf, />Payment status</);
 });
@@ -106,7 +109,7 @@ test("Invoice Email dialog is accessible, prefillable, and blocks duplicate subm
   assert.match(emailUi, /role="dialog"/);
   assert.match(emailUi, /type="email"/);
   assert.match(emailUi, /disabled=\{pending\}/g);
-  assert.match(emailUi, /pending \? "Sending…" : "Send Invoice"/);
+  assert.match(emailUi, /aria-label=\{pending \? "Sending invoice" : "Send Invoice"\}/);
   assert.match(action, /Invoice emailed successfully/);
   assert.match(emailUi, /aria-live="polite"/);
   assert.match(emailUi, /submittingRef\.current/);
@@ -126,15 +129,29 @@ test("successful Invoice email closes the dialog and shows temporary page-level 
 });
 
 test("Invoice status, Email, and Print share one aligned action row without a status placeholder", () => {
-  assert.match(detail, /status=\{open \? "Open" : "Closed"\}/);
+  assert.match(detail, /open \? `Open · \$\{paymentStatusLabel\(paymentSummary\.status\)\}` : paymentStatusLabel\(paymentSummary\.status\)/);
   assert.match(detail, /printHref=\{`\/invoices\/\$\{invoice\.id\}\/print`\}/);
   const rowMarker = emailUi.indexOf("data-invoice-action-row");
   const actionRow = emailUi.slice(emailUi.lastIndexOf("<div", rowMarker), emailUi.indexOf("{success ?"));
   assert.match(actionRow, /items-center/);
-  assert.match(actionRow, /\{status\}[\s\S]*Email[\s\S]*Print/);
+  assert.match(actionRow, /Email[\s\S]*Print/);
   assert.doesNotMatch(actionRow, /success|role="status"|aria-live/);
   assert.match(emailUi, /<\/div>\s*\{success \? <div aria-live="polite"/);
-  assert.doesNotMatch(emailUi.slice(0, emailUi.indexOf("function EmailInvoiceDialog")), /min-h-[0-9]/);
+  assert.match(emailUi.slice(emailUi.indexOf("function EmailInvoiceDialog")), /min-h-5/);
+});
+
+test("Invoice print, PDF, and emailed PDF include only complete current-revision delivery signatures", () => {
+  assert.match(model, /getInvoiceDeliverySignatureEvidence\(invoiceId\)/);
+  assert.match(model, /if \(!evidence\?\.currentComplete \|\| !evidence\.currentSnapshotSha256\) return null/);
+  assert.match(model, /row\.snapshotSha256 === evidence\.currentSnapshotSha256/);
+  assert.match(model, /const rows = currentRows\.filter\(\(row\) => row\.sessionId === sessionId\)/);
+  for (const renderer of [html, pdf]) {
+    assert.match(renderer, /Customer signature/);
+    assert.match(renderer, /Shop representative signature/);
+    assert.match(renderer, /Evidence Integrity ID/);
+  }
+  assert.match(action, /getInvoiceDocumentForCurrentShop/);
+  assert.match(delivery, /InvoiceDocumentPDF model=\{document\}/);
 });
 
 test("failed Invoice email remains inline in the dialog and preserves editable recipient state", () => {

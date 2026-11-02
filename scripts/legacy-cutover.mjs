@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { reconcileCustomerVehicleRows } from "./lib/customer-vehicle-transform.mjs";
+import { reconcileLegacyCustomerFields } from "./lib/legacy-customer-field-reconciliation.mjs";
+import { legacyCustomerMemo } from "./lib/legacy-customer-contact.mjs";
 import {
   executeCutoverCustomerRecovery,
   planCutoverCustomerRecovery,
@@ -81,7 +83,7 @@ import {
 
 const CONFIRMATION = LEGACY_CUTOVER_CONFIRMATION;
 const REQUIRED_SOURCES = [
-  "Cust.DBF", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF",
+  "Cust.DBF", "Cust.FPT", "vehicles.DBF", "FINAL.DBF", "laborfinal.DBF",
   "laborfinal.FPT", "ar.DBF", "orders.DBF", "LABORorder.DBF",
   "finalsold.DBF", "finalsold.FPT",
 ];
@@ -199,7 +201,7 @@ async function sourceCounts(sourceDirectory) {
   let reconciliation = null;
   if (validationIssues === 0) {
     const [customerSource, vehicleSource, finalSource, laborSource, arSource, orderPartSource, orderLaborSource, finalizedHeaders] = await Promise.all([
-      readDbfForReconciliation(sourceDirectory.files["Cust.DBF"]),
+      readDbfForReconciliation(sourceDirectory.files["Cust.DBF"], sourceDirectory.files["Cust.FPT"]),
       readDbfForReconciliation(sourceDirectory.files["vehicles.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["FINAL.DBF"]),
       readDbfForReconciliation(sourceDirectory.files["laborfinal.DBF"]),
@@ -260,8 +262,8 @@ function legacyIdentifier(rawData, candidates) {
   return entry?.[1] == null ? null : String(entry[1]).trim() || null;
 }
 
-async function readDbfForReconciliation(path) {
-  const file = await readFile(path);
+async function readDbfForReconciliation(path, memoPath = null) {
+  const [file, memoFile] = await Promise.all([readFile(path), memoPath ? readFile(memoPath) : null]);
   const recordCount = file.readUInt32LE(4);
   const headerLength = file.readUInt16LE(8);
   const recordLength = file.readUInt16LE(10);
@@ -279,7 +281,7 @@ async function readDbfForReconciliation(path) {
     const rawData = {};
     for (const field of fields) {
       const bytes = record.subarray(field.recordOffset, field.recordOffset + field.length);
-      rawData[field.name] = dbfValue(bytes, field.type);
+      rawData[field.name] = field.type === "M" && memoFile ? legacyCustomerMemo(bytes, memoFile) : dbfValue(bytes, field.type);
     }
     rows.push({
       rawData,
@@ -387,6 +389,8 @@ function reportReconciliation(source) {
       persistentContextSourceValues: reconciliation.persistentContext.customerSourceValues,
       persistentContextDestinationValues: reconciliation.persistentContext.customerDestinationValues,
       persistentContextMismatches: reconciliation.persistentContext.customerMismatches,
+      firstNameSourceValues: reconciliation.customers.filter((row) => row.firstName !== null).length,
+      notesSourceValues: reconciliation.customers.filter((row) => row.notes !== null).length,
     },
     vehicles: {
       raw: vehicleRaw, expectedClean: expected.vehicles, skipped: vehicleRaw - expected.vehicles,
@@ -1519,6 +1523,15 @@ async function main() {
       const result = await verify(prisma, shop.id, preservedBefore, completedPaymentContext);
       runSummary.reload.counts = result.counts;
       applyVerificationSummary(result, true);
+      const importedCustomers = await prisma.customer.findMany({
+        where: { shopId: shop.id, legacySourceTable: "Cust.DBF" },
+        select: { legacyCustno: true, firstName: true, notes: true },
+      });
+      const customerFields = reconcileLegacyCustomerFields(source.reconciliation.customers, importedCustomers, {
+        sourceAmbiguous: source.reconciliation.reasons.duplicateCustomerId,
+      });
+      runSummary.verification.customerFields = customerFields;
+      if (customerFields.blockingIssues) runSummary.criticalIssues.push(`Customer first-name/NOTE reconciliation failed with ${customerFields.blockingIssues} blocking issue(s).`);
       const expected = runSummary.source.expectedCleanCounts;
       for (const table of [
         "customers", "recoveredCustomers", "customerAliases", "vehicles", "invoices", "invoice_parts", "invoice_labor",

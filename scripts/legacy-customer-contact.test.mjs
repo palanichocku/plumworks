@@ -17,7 +17,7 @@ test("valid formatted legacy phones normalize without fabrication", () => {
 
 test("Customer contact projection carries every representable source field", () => {
   const row = { legacyCustno: "SYNTHETIC", rawData: { CUSTOMER: "Example Customer", PHONE: "(248) 555-0101", PHONE2: "586 555 0100", EMAIL: "PERSON@EXAMPLE.COM", ADDRESS: "1 Main St", ADDRESS2: "Suite 2", CITY: "Detroit", STATE: "mi", ZIP: "48201", NOTE: "line one\r\nline two", MESSAGE: "Call first" } };
-  assert.deepEqual(customerData(row), { legacyCustno: "SYNTHETIC", displayName: "Example Customer", phone: "(248) 555-0101", phone2: "(586) 555-0100", email: "person@example.com", addressLine1: "1 Main St", addressLine2: "Suite 2", city: "Detroit", state: "MI", postalCode: "48201", notes: "line one\r\nline two", message: "Call first", legacySourceTable: "Cust.DBF" });
+  assert.deepEqual(customerData(row), { legacyCustno: "SYNTHETIC", displayName: "Example Customer", firstName: null, phone: "(248) 555-0101", phone2: "(586) 555-0100", email: "person@example.com", addressLine1: "1 Main St", addressLine2: "Suite 2", city: "Detroit", state: "MI", postalCode: "48201", notes: "line one\r\nline two", message: "Call first", legacySourceTable: "Cust.DBF" });
   assert.deepEqual(customerContactIssues(row), { phone: null, phone2: null, email: null });
   assert.equal(legacyEmail("not-an-email").issue, "invalid-email");
 });

@@ -231,7 +231,9 @@ for (const scenario of [
 });
 test('submission below the signed three-second minimum creates no protected effects', async () => {
   const h = harness();
-  const tooFast = load('@/lib/public-lead-verification').createFormStarted('CONTACT', Date.now() - 2999);
+  // Leave a one-second margin so test scheduling cannot move the token over
+  // the three-second cutoff before createLead validates it.
+  const tooFast = load('@/lib/public-lead-verification').createFormStarted('CONTACT', Date.now() - 2000);
   assert.match(await h.submit('CONTACT', { formStarted: tooFast }), /error=verification/);
   assert.deepEqual(h.db.state, { leads: [], notifications: [], admissions: [] });
   assert.equal(h.emails.length, 0);

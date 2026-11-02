@@ -364,6 +364,7 @@ model Customer {
   id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId             String                @map("shop_id") @db.Uuid
   displayName        String                @map("display_name")
+  firstName          String?               @map("first_name")
   email              String?
   phone              String?
   phone2             String?
@@ -950,4 +951,20 @@ model PublicLeadSubmission {
   @@index([shopId, phoneHash, createdAt])
   @@index([shopId, createdAt])
   @@map("public_lead_submissions")
+}
+
+// Created by SQL migration because line identity spans both detail tables.
+// Keep it represented in Prisma so backup/security inventory includes it.
+model RepairOrderLinePosition {
+  shopId        String   @map("shop_id") @db.Uuid
+  repairOrderId String   @map("repair_order_id") @db.Uuid
+  lineType      String   @map("line_type")
+  legacyLineKey String   @map("legacy_line_key")
+  sortOrder     Int      @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  @@id([shopId, lineType, legacyLineKey])
+  @@index([shopId, repairOrderId, lineType, sortOrder], map: "repair_order_line_positions_order_idx")
+  @@map("repair_order_line_positions")
 }

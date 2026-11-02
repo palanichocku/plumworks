@@ -1,18 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { loadExpectedPublicTables } from "./lib/public-db-backup.mjs";
 
-const tables = [
-  "shops", "canned_services", "audit_logs", "staff_invites", "shop_memberships",
-  "customers", "vehicles", "repair_orders", "repair_order_parts", "repair_order_labor",
-  "invoices", "invoice_parts", "invoice_labor", "payments", "accounts_receivable",
-  "employees", "legacy_import_runs", "raw_legacy_customers", "raw_legacy_vehicles",
-  "raw_legacy_final", "raw_legacy_labor_final", "raw_legacy_ar",
-  "raw_legacy_order_parts", "raw_legacy_order_labor", "legacy_import_errors",
-  "marketing_leads",
-  "marketing_settings", "marketing_pages", "marketing_services", "marketing_coupons",
-  "marketing_testimonials", "marketing_gallery_items",
-];
+const expectedTables = await loadExpectedPublicTables(resolve("prisma/schema.prisma"));
+const tables = expectedTables.filter((table) => table !== "_prisma_migrations");
 const baselinePath = "/tmp/plumworks-rls-row-counts.json";
 const migrationPath = "prisma/migrations/20260715143000_harden_public_table_access/migration.sql";
 const databaseUrl = process.env.DATABASE_URL;
@@ -43,6 +36,7 @@ try {
     const rlsTables = new Set(catalog.filter((row) => row.rls_enabled).map((row) => row.table_name));
     const grantedTables = new Set(grants.map((row) => row.table_name));
     const protectedTables = tables.filter((table) => rlsTables.has(table) && !grantedTables.has(table));
+    const missingTables = tables.filter((table) => !catalog.some((row) => row.table_name === table));
     const prismaRoleWorks = runtimeRole.length === 1 && (runtimeRole[0].bypass_rls || runtimeRole[0].owns_tables);
     const shopQueryWorks = Boolean(await prisma.shop.findFirst({ select: { id: true } }).then(() => true));
     const authSchemaUntouched = !/(?:"auth"|\bauth)\s*\./i.test(migrationSql);
@@ -54,12 +48,14 @@ try {
       countsUnchanged = 0;
     }
 
-    console.log(`application tables reviewed: ${tables.length}`);
-    console.log(`tables with RLS and API privileges revoked: ${protectedTables.length}`);
+    console.log(`application tables reviewed: ${tables.length} (schema-derived plus SQL-managed)`);
+    console.log(`tables with RLS and API privileges revoked: ${protectedTables.length}/${tables.length}`);
+    console.log(`expected tables present: ${tables.length - missingTables.length}/${tables.length}`);
     console.log(`Prisma runtime role remains eligible: ${Number(prismaRoleWorks)}`);
     console.log(`Prisma server query works: ${Number(shopQueryWorks)}`);
     console.log(`Supabase Auth schema untouched: ${Number(authSchemaUntouched)}`);
     console.log(`data row counts unchanged: ${countsUnchanged}`);
+    if (missingTables.length || protectedTables.length !== tables.length) process.exitCode = 1;
   }
 } finally {
   await prisma.$disconnect();

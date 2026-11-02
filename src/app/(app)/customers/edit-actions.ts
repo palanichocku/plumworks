@@ -41,7 +41,7 @@ export async function updateCustomer(formData: FormData) {
   await prisma.$transaction(async (transaction) => {
     const result = await transaction.customer.updateMany({
       where: { id: customerId, shopId: membership.shopId, archivedAt: null },
-      data: { displayName, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
+      data: { displayName, firstName, phone: storedPhone, phone2: storedPhone2, email: email || null, addressLine1: addressLine1 || null, city: city || null, state: state || null, postalCode: postalCode || null },
     });
     if (result.count !== 1) throw new Error("Customer was not found.");
     await writeAuditEntry(transaction, auditEntry(membership.shopId, user?.id, "customer_updated", "customer", customerId, { source: "web" }, { actorEmail: user?.email, actorRole: membership.role, entityLabel: displayName, entityHref: `/customers/${customerId}`, contextSummary: "Customer record updated" }), { category: "operational", enabled: membership.shop.auditLoggingEnabled });

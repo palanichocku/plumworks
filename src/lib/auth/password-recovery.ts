@@ -18,7 +18,6 @@ type RecoveryRequestClient = {
 
 type RecoveryUpdateClient = {
   auth: {
-    getUser(): Promise<{ data: { user: { id: string } | null }; error?: unknown }>;
     updateUser(attributes: { password: string }): Promise<{ error: unknown }>;
   };
 };
@@ -28,6 +27,7 @@ export function passwordRecoveryRedirect(origin: string) {
   if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
     throw new Error("Password recovery requires an HTTPS application origin.");
   }
+  url.searchParams.set("flow", "recovery");
   url.searchParams.set("next", "/update-password");
   return url.href;
 }
@@ -64,10 +64,6 @@ export async function updateRecoveredPassword(
   const validationError = validateRecoveredPassword(input.password, input.confirmation);
   if (validationError) return { status: "error", message: validationError };
 
-  const { data, error: userError } = await client.auth.getUser();
-  if (userError || !data.user) {
-    return { status: "error", message: "This password recovery link is invalid or has expired." };
-  }
   const { error } = await client.auth.updateUser({ password: input.password });
   if (error) {
     return { status: "error", message: "The password could not be updated. Request a new recovery link and try again." };
