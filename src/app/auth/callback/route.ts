@@ -17,35 +17,40 @@ export async function GET(request: NextRequest) {
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const forgotPassword = new URL("/forgot-password?error=invalid", request.url);
   const inviteError = new URL("/login?invite=invalid", request.url);
-  const cookieStore = await cookies();
-  cookieStore.delete(RECOVERY_CONTEXT_COOKIE);
-  if (!flow) return callbackRedirect(request.nextUrl.searchParams.get("flow") === "invite" ? inviteError : forgotPassword);
+
+  if (!flow) {
+    return callbackRedirect(request.nextUrl.searchParams.get("flow") === "invite" ? inviteError : forgotPassword);
+  }
 
   try {
     const supabase = await createClient();
+
     if (flow === "invite") {
       if (!tokenHash) return callbackRedirect(inviteError);
       const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "invite" });
       if (error) return callbackRedirect(inviteError);
-    } else {
-      if (!code) return callbackRedirect(forgotPassword);
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) return callbackRedirect(forgotPassword);
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return callbackRedirect(inviteError);
+
+      return callbackRedirect(new URL("/invite", request.url));
     }
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) return callbackRedirect(flow === "invite" ? inviteError : forgotPassword);
+
+    if (!code) return callbackRedirect(forgotPassword);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return callbackRedirect(forgotPassword);
+
+    const cookieStore = await cookies();
+    cookieStore.set(RECOVERY_CONTEXT_COOKIE, "1", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: request.nextUrl.protocol === "https:",
+      path: "/",
+      maxAge: 15 * 60,
+    });
+
+    return callbackRedirect(new URL("/update-password", request.url));
   } catch {
     return callbackRedirect(flow === "invite" ? inviteError : forgotPassword);
   }
-
-  if (flow === "invite") return callbackRedirect(new URL("/invite", request.url));
-
-  cookieStore.set(RECOVERY_CONTEXT_COOKIE, "1", {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: request.nextUrl.protocol === "https:",
-    path: "/",
-    maxAge: 15 * 60,
-  });
-  return callbackRedirect(new URL("/update-password", request.url));
 }
