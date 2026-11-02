@@ -41,9 +41,9 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <AuthorizationEvidenceBackButton fallbackHref={`/repair-orders/${id}`} />
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">Authorization Evidence</p>
+        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-brand-primary">View Authorization</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-950">RO #{report.order.repairOrderNumber ?? "—"}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">Audit record of customer authorization decisions. Each event is tied to the exact Repair Order revision that existed when the decision was recorded.</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">Authorization history and audit evidence for this Repair Order. Each decision below is tied to the exact Repair Order revision that existed when it was recorded.</p>
       </div>
       <AuthorizationEvidencePrintButton />
     </header>
@@ -151,7 +151,7 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
     })}
 
     <footer className="border-t border-slate-200 pt-4 text-xs text-slate-500">
-      This report is generated from immutable authorization events and Repair Order revision snapshots stored by PlumWorks. The Evidence Integrity ID is the SHA-256 cryptographic fingerprint of the exact snapshot associated with each authorization decision.
+      This report combines authorization history with immutable audit evidence and Repair Order revision snapshots stored by PlumWorks. The Evidence Integrity ID is the SHA-256 cryptographic fingerprint of the exact snapshot associated with each authorization decision.
     </footer>
   </div>;
 }

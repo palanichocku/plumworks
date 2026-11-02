@@ -5,6 +5,7 @@ import { customerNameParts } from "@/lib/customer-name";
 type CustomerEditValues = {
   id: string;
   displayName: string;
+  firstName: string | null;
   legacyCustno?: string | null;
   legacySourceTable?: string | null;
   phone: string | null;
