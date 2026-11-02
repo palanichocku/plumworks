@@ -28,6 +28,7 @@ export function passwordRecoveryRedirect(origin: string) {
   if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
     throw new Error("Password recovery requires an HTTPS application origin.");
   }
+  url.searchParams.set("flow", "recovery");
   url.searchParams.set("next", "/update-password");
   return url.href;
 }
