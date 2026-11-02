@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { customerPhoneForStorage } from "@/lib/customer-phone";
@@ -78,7 +79,7 @@ export async function preflightRepairOrderCheckIn(formData: FormData): Promise<R
     const phone = customerPhoneForStorage(String(formData.get("phone") ?? "").trim());
     const email = normalizedEmail(formData.get("email"));
 
-    const or: Array<Record<string, unknown>> = [];
+    const or: Prisma.CustomerWhereInput[] = [];
     if (phone) or.push({ phone });
     if (email) or.push({ email: { equals: email, mode: "insensitive" } });
     if (displayName && (phone || email)) or.push({ displayName: { equals: displayName, mode: "insensitive" } });
