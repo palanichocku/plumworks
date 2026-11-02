@@ -1,5 +1,6 @@
 export type CustomerNameSource = {
   displayName: string;
+  firstName?: string | null;
   legacyCustno?: string | null;
   legacySourceTable?: string | null;
 };
@@ -12,8 +13,21 @@ export function customerNameParts(customer: CustomerNameSource) {
   const displayName = customer.displayName.trim();
   if (!displayName) return { firstName: "", lastName: "" };
 
+  const storedFirstName = customer.firstName?.trim() ?? "";
+  if (storedFirstName) {
+    const prefix = `${storedFirstName} `;
+    if (displayName.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())) {
+      return {
+        firstName: storedFirstName,
+        lastName: displayName.slice(prefix.length).trim(),
+      };
+    }
+
+    return { firstName: storedFirstName, lastName: displayName };
+  }
+
   // Imported Shopman customers historically contain a single legacy name value.
-  // Preserve it exactly as the last-name value instead of guessing how to split it.
+  // Preserve it exactly as the last-name value until a real first name is saved.
   if (customer.legacyCustno || customer.legacySourceTable) {
     return { firstName: "", lastName: displayName };
   }
