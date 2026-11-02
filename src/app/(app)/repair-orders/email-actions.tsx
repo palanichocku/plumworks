@@ -42,10 +42,7 @@ export async function getRepairOrderEmailRecipientAction(repairOrderId: string) 
 export async function getRepairOrderEmailDeliveryStatusAction(repairOrderId: string): Promise<AuthorizationEmailDeliveryState | null> {
   const { user, membership } = await getCurrentMembership();
   if (!user || !membership) return null;
-  const state = await getRepairOrderAuthorizationEmailDeliveryState(membership.shopId, repairOrderId).catch(() => null);
-  // "sent" only means Resend accepted the request. Do not present it as customer delivery.
-  // Keep polling until Resend confirms delivery or reports a terminal/delayed state.
-  return state?.deliveryStatus === "sent" ? null : state;
+  return getRepairOrderAuthorizationEmailDeliveryState(membership.shopId, repairOrderId).catch(() => null);
 }
 
 export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, formData: FormData): Promise<RepairOrderEmailState> {
@@ -92,7 +89,7 @@ export async function sendRepairOrderEmailAction(_state: RepairOrderEmailState, 
     acceptedByProvider = true;
     await markRepairOrderAuthorizationRequestSent(request.requestId, result.subject);
     await markAuthorizationEmailProvider(request.requestId, result.id);
-    return { status: "success", message: `Approval email submitted to ${recipient}. Checking delivery status…` };
+    return { status: "success", message: `Approval email accepted by the email service for ${recipient}. Waiting for delivery confirmation…` };
   } catch {
     if (request && !acceptedByProvider) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
     return { status: "error", message: acceptedByProvider
