@@ -7,6 +7,7 @@ export type ExternalMonitorSummary = {
   tone: MonitorTone;
   value: string;
   detail: string;
+  checks?: Array<{ name: string; type: string; target?: string; status: string; checkedAt?: string }>;
 };
 
 export type ResendUsageSummary = ExternalMonitorSummary & {
@@ -70,6 +71,9 @@ async function readBetterStack(): Promise<ExternalMonitorSummary> {
           status?: string;
           paused?: boolean;
           last_checked_at?: string | null;
+          pronounceable_name?: string | null;
+          url?: string | null;
+          monitor_type?: string | null;
         };
       }>;
     };
@@ -87,9 +91,26 @@ async function readBetterStack(): Promise<ExternalMonitorSummary> {
 
     return {
       name: "Better Stack",
-      tone: down > 0 ? "bad" : warning > 0 ? "warn" : active.length > 0 ? "good" : "neutral",
+      tone: down > 0 ? "bad" : warning > 0 || up < active.length ? "warn" : active.length > 0 ? "good" : "neutral",
       value: active.length > 0 ? `${up} / ${active.length} monitors up` : "No active monitors",
       detail: `${down > 0 ? `${down} down · ` : ""}${warning > 0 ? `${warning} pending/recovering · ` : ""}${latest ? `last checked ${formatDate(latest)}` : "no recent check timestamp"}`,
+      checks: active.map((monitor) => {
+        const attrs = monitor.attributes;
+        const type = attrs?.monitor_type ?? "monitor";
+        return {
+          name: attrs?.pronounceable_name?.trim() || attrs?.url?.trim() || "Unnamed monitor",
+          type: type === "status" ? "HTTP uptime" : type === "expected_status_code" ? "HTTP response code" : type === "keyword" ? "Page content" : type === "playwright" ? "Browser scenario" : type,
+          // Only show the hostname and path; URL querystrings can contain sensitive tokens.
+          target: (() => {
+            const raw = attrs?.url;
+            if (!raw) return undefined;
+            try { const url = new URL(raw); return url.protocol === "https:" || url.protocol === "http:" ? url.host + url.pathname : undefined; }
+            catch { return undefined; }
+          })(),
+          status: attrs?.status === "up" ? "Passing" : attrs?.status === "down" ? "Failing" : attrs?.status ?? "Unknown",
+          checkedAt: attrs?.last_checked_at ? formatDate(attrs.last_checked_at) ?? undefined : undefined,
+        };
+      }),
     };
   } catch {
     return {
@@ -129,9 +150,21 @@ async function readCheckly(): Promise<ExternalMonitorSummary> {
 
     return {
       name: "Checkly",
-      tone: failed > 0 ? "bad" : active.length > 0 ? "good" : "neutral",
-      value: active.length > 0 ? `${active.length} active checks` : "No active checks",
-      detail: failed > 0 ? `${failed} checks report a failure` : "Synthetic monitoring configuration is active.",
+      tone: failed > 0 ? "bad" : "neutral",
+      value: active.length > 0 ? `${active.length} configured active ${active.length === 1 ? "check" : "checks"}` : "No active checks",
+      detail: failed > 0 ? `${failed} checks report a failure` : "Enabled checks listed below; latest run success is not verified by this API response.",
+      checks: active.map((check) => ({
+        name: typeof check.name === "string" && check.name.trim() ? check.name.trim() : "Unnamed check",
+        type: typeof check.checkType === "string" ? check.checkType.replaceAll("_", " ") : "Synthetic check",
+        target: (() => {
+          const request = check.request && typeof check.request === "object" ? check.request as Record<string, unknown> : null;
+          const urlValue = request?.url;
+          if (typeof urlValue !== "string") return undefined;
+          try { const url = new URL(urlValue); return url.protocol === "https:" || url.protocol === "http:" ? url.host + url.pathname : undefined; }
+          catch { return undefined; }
+        })(),
+        status: typeof check.status === "string" && ["failed", "failing", "down"].includes(check.status.toLowerCase()) ? "Reported failing" : "Enabled · latest run unverified",
+      })),
     };
   } catch {
     return {
@@ -195,8 +228,8 @@ async function readResend(): Promise<ResendUsageSummary> {
   };
 }
 
-const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack"], { revalidate: CACHE_SECONDS });
-const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly"], { revalidate: CACHE_SECONDS });
+const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack-detail-v4"], { revalidate: CACHE_SECONDS });
+const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-detail-v4"], { revalidate: CACHE_SECONDS });
 const cachedResend = unstable_cache(readResend, ["system-health-resend"], { revalidate: CACHE_SECONDS });
 
 export async function getExternalHealth() {
