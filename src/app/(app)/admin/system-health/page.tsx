@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
-import { getExternalHealth, type MonitorTone } from "@/lib/system-health/external";
+import { getExternalHealth, getBackupHealth, type MonitorTone } from "@/lib/system-health/external";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -234,6 +234,10 @@ async function getHealthData(): Promise<HealthData> {
       FROM pg_stat_statements
       WHERE mean_exec_time >= 500
         AND query NOT ILIKE '%pg_stat_statements%'
+        -- Heuristic scope: PostgreSQL aggregates by DB role, not request origin.
+        AND calls >= 2
+        AND query ~* '(customers|vehicles|repair_orders|repair_order_parts|repair_order_labor|invoices|invoice_parts|invoice_labor|payments|accounts_receivable|marketing_leads|marketing_lead_notifications|audit_logs|shops|shop_memberships|canned_services|vendors|employees)'
+        AND query !~* '(raw_legacy|legacy_|_prisma_migrations|system_health_snapshots|pg_catalog|information_schema|pg_stat_|pg_database_size|shopman|cutover|import_runs|import_errors|ordtemps)'
         AND (
           UPPER(LEFT(LTRIM(query), 6)) = 'SELECT'
           OR UPPER(LEFT(LTRIM(query), 6)) = 'DELETE'
@@ -381,24 +385,11 @@ function toneClasses(tone: MonitorTone) {
 }
 
 async function ProtectionMonitoring() {
-  const { betterStack, checkly, resend } = await getExternalHealth();
-  const backupAt = process.env.SYSTEM_HEALTH_LAST_BACKUP_AT;
-  const backupDate = backupAt ? new Date(backupAt) : null;
-  const backupValid = backupDate && !Number.isNaN(backupDate.getTime());
-  const backupAgeHours = backupValid ? (Date.now() - backupDate.getTime()) / 3_600_000 : null;
-  const backupTone: MonitorTone = backupAgeHours === null ? "neutral" : backupAgeHours > 48 ? "bad" : backupAgeHours > 30 ? "warn" : "good";
-
-  const cards = [
-    betterStack,
-    checkly,
-    {
-      name: "Backup",
-      tone: backupTone,
-      value: backupValid ? `Last backup ${formatTimestamp(backupDate)}` : "Status not connected",
-      detail: backupValid ? `${Math.round(backupAgeHours ?? 0)} hours ago` : "Backup status is kept separate from restore testing; provider metadata is not configured yet.",
-    },
-    resend,
-  ];
+  const [{ betterStack, checkly, resend }, backup] = await Promise.all([
+    getExternalHealth(),
+    getBackupHealth(),
+  ]);
+  const cards = [betterStack, checkly, backup, resend];
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -436,7 +427,8 @@ export default async function SystemHealthPage() {
   const updatedAt = new Date();
   const environment = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? "local";
-  const configuredCapacityGb = Number(process.env.SYSTEM_HEALTH_DB_CAPACITY_GB ?? "");
+  const plan = process.env.SYSTEM_HEALTH_SUPABASE_PLAN === "pro" ? "pro" : process.env.SYSTEM_HEALTH_SUPABASE_PLAN === "free" ? "free" : process.env.VERCEL_ENV === "production" ? "pro" : "free";
+  const configuredCapacityGb = Number(process.env.SYSTEM_HEALTH_DB_CAPACITY_GB ?? (plan === "free" ? "0.5" : "8"));
   const configuredCapacityBytes = Number.isFinite(configuredCapacityGb) && configuredCapacityGb > 0 ? configuredCapacityGb * 1024 ** 3 : null;
   const storagePercent = health.databaseSizeBytes !== null && configuredCapacityBytes ? health.databaseSizeBytes / configuredCapacityBytes * 100 : null;
   const storageTone: MonitorTone = storagePercent === null ? "neutral" : storagePercent >= 85 ? "bad" : storagePercent >= 70 ? "warn" : "good";
@@ -473,7 +465,7 @@ export default async function SystemHealthPage() {
         <MetricCard
           label="Database storage"
           value={health.databaseSizeBytes === null ? "Unavailable" : `${formatBytes(health.databaseSizeBytes)} / ${configuredCapacityBytes ? formatBytes(configuredCapacityBytes) : "—"}`}
-          detail={storagePercent !== null ? `${storagePercent.toFixed(1)}% used · warn at 70% · critical at 85%` : "Usage is live; set the project capacity to enable limit warnings"}
+          detail={storagePercent !== null ? `${storagePercent.toFixed(1)}% of ${plan === "free" ? "Free DB allowance" : "Pro included disk reference"} · warn at 70% · critical at 85%` : "Usage is live; set the project capacity to enable limit warnings"}
           tone={storageTone}
         />
         <MetricCard
@@ -490,7 +482,7 @@ export default async function SystemHealthPage() {
           <div className="mb-3 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-black text-slate-900">Database capacity</h2>
-              <p className="text-sm font-medium text-slate-500">Designed to give warning before storage becomes an outage risk.</p>
+              <p className="text-sm font-medium text-slate-500">{plan === "free" ? "Free database-size allowance (not physical disk utilization)." : "Pro reference is the included 8 GB disk; actual disk usage and autoscaling are tracked in Supabase."}</p>
             </div>
             <div className="text-sm font-black text-slate-700">{storagePercent.toFixed(1)}%</div>
           </div>

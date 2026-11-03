@@ -208,3 +208,83 @@ export async function getExternalHealth() {
 
   return { betterStack, checkly, resend };
 }
+
+
+async function readBackup(): Promise<ExternalMonitorSummary> {
+  // On Free, Supabase does not provide managed automatic database backups.
+  const plan = process.env.SYSTEM_HEALTH_SUPABASE_PLAN === "pro"
+    ? "pro"
+    : process.env.SYSTEM_HEALTH_SUPABASE_PLAN === "free"
+      ? "free"
+      : process.env.VERCEL_ENV === "production" ? "pro" : "free";
+  if (plan === "free") {
+    return {
+      name: "Backup",
+      tone: "neutral",
+      value: "Not included on Free",
+      detail: "Automatic Supabase backups are a paid-plan feature. This is expected for DEV.",
+    };
+  }
+
+  const token = process.env.SUPABASE_MANAGEMENT_TOKEN;
+  const ref = process.env.SYSTEM_HEALTH_SUPABASE_PROJECT_REF;
+  if (!token || !ref) {
+    return {
+      name: "Backup",
+      tone: "neutral",
+      value: "API access not configured",
+      detail: "Add a Supabase fine-grained backups_read token and project ref to see actual Pro backups.",
+    };
+  }
+
+  try {
+    const payload = await fetchJson(
+      `https://api.supabase.com/v1/projects/${encodeURIComponent(ref)}/database/backups`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    ) as {
+      backups?: Array<{ status?: string; inserted_at?: string | null }>;
+      pitr_enabled?: boolean;
+      physical_backup_data?: { latest_physical_backup_date_unix?: number | null };
+    };
+
+    const completed = (payload.backups ?? [])
+      .filter((backup) => backup.status?.toUpperCase() === "COMPLETED" && backup.inserted_at)
+      .map((backup) => new Date(backup.inserted_at!))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime());
+    const physicalUnix = payload.physical_backup_data?.latest_physical_backup_date_unix;
+    if (typeof physicalUnix === "number" && Number.isFinite(physicalUnix) && physicalUnix > 0) {
+      completed.push(new Date(physicalUnix * 1000));
+      completed.sort((a, b) => b.getTime() - a.getTime());
+    }
+    const latest = completed[0];
+    if (!latest) {
+      return {
+        name: "Backup",
+        tone: "warn",
+        value: "No completed backup reported",
+        detail: payload.pitr_enabled
+          ? "PITR is enabled; no completed backup timestamp returned by this endpoint."
+          : "Check Supabase backup settings and project status.",
+      };
+    }
+    const hours = Math.max(0, (Date.now() - latest.getTime()) / 3_600_000);
+    return {
+      name: "Backup",
+      tone: hours >= 48 ? "bad" : hours >= 30 ? "warn" : "good",
+      value: `Last backup ${formatDate(latest.toISOString()) ?? "available"}`,
+      detail: `${Math.round(hours)} hours ago${payload.pitr_enabled ? " · PITR enabled" : ""}`,
+    };
+  } catch {
+    return {
+      name: "Backup",
+      tone: "neutral",
+      value: "Status unavailable",
+      detail: "Supabase backup status could not be retrieved. App operation is unaffected.",
+    };
+  }
+}
+const cachedBackup = unstable_cache(readBackup, ["system-health-supabase-backup-v3"], { revalidate: CACHE_SECONDS });
+export async function getBackupHealth() {
+  return cachedBackup();
+}
