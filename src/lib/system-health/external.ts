@@ -135,36 +135,75 @@ async function readCheckly(): Promise<ExternalMonitorSummary> {
   }
 
   try {
-    const json = await fetchJson("https://api.checklyhq.com/v1/checks", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "X-Checkly-Account": accountId,
-      },
-    });
-    const checks = Array.isArray(json) ? json as Array<Record<string, unknown>> : [];
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "X-Checkly-Account": accountId,
+    };
+    // Read configuration and reported check statuses concurrently: neither request
+    // needs to block application routes; each request has a 2-second timeout.
+    const [checksResponse, statusesResponse] = await Promise.allSettled([
+      fetchJson("https://api.checklyhq.com/v1/checks", { headers }),
+      fetchJson("https://api.checklyhq.com/v1/check-statuses", { headers }),
+    ]);
+    if (checksResponse.status !== "fulfilled" || !Array.isArray(checksResponse.value)) {
+      throw new Error("Unable to retrieve configured checks");
+    }
+    const checks = checksResponse.value as Array<Record<string, unknown>>;
     const active = checks.filter((check) => check.activated !== false);
-    const failed = active.filter((check) => {
-      const status = typeof check.status === "string" ? check.status.toLowerCase() : "";
-      return status === "failed" || status === "failing" || status === "down";
-    }).length;
+    const statuses = statusesResponse.status === "fulfilled" && Array.isArray(statusesResponse.value)
+      ? statusesResponse.value as Array<Record<string, unknown>>
+      : [];
+    const statusesById = new Map(
+      statuses
+        .filter((status) => typeof status.checkId === "string")
+        .map((status) => [status.checkId as string, status]),
+    );
 
-    return {
-      name: "Checkly",
-      tone: failed > 0 ? "bad" : "neutral",
-      value: active.length > 0 ? `${active.length} configured active ${active.length === 1 ? "check" : "checks"}` : "No active checks",
-      detail: failed > 0 ? `${failed} checks report a failure` : "Enabled checks listed below; latest run success is not verified by this API response.",
-      checks: active.map((check) => ({
+    const results = active.map((check) => {
+      const id = typeof check.id === "string" ? check.id : "";
+      const status = statusesById.get(id);
+      const updated = status && typeof status.updated_at === "string" ? formatDate(status.updated_at) : null;
+      const hasResult = Boolean(status && status.lastCheckRunId);
+      const isFailed = status?.hasFailures === true || status?.hasErrors === true;
+      const isDegraded = status?.isDegraded === true;
+      const latestStatus = !hasResult ? "Last result unavailable" : isFailed ? "Failed" : isDegraded ? "Degraded" : "Passed";
+      const request = check.request && typeof check.request === "object"
+        ? check.request as Record<string, unknown>
+        : null;
+      const urlValue = request?.url;
+      let target: string | undefined;
+      if (typeof urlValue === "string") {
+        try {
+          const url = new URL(urlValue);
+          if (url.protocol === "https:" || url.protocol === "http:") target = url.host + url.pathname;
+        } catch {
+          // A configured target need not be a URL.
+        }
+      }
+      return {
         name: typeof check.name === "string" && check.name.trim() ? check.name.trim() : "Unnamed check",
         type: typeof check.checkType === "string" ? check.checkType.replaceAll("_", " ") : "Synthetic check",
-        target: (() => {
-          const request = check.request && typeof check.request === "object" ? check.request as Record<string, unknown> : null;
-          const urlValue = request?.url;
-          if (typeof urlValue !== "string") return undefined;
-          try { const url = new URL(urlValue); return url.protocol === "https:" || url.protocol === "http:" ? url.host + url.pathname : undefined; }
-          catch { return undefined; }
-        })(),
-        status: typeof check.status === "string" && ["failed", "failing", "down"].includes(check.status.toLowerCase()) ? "Reported failing" : "Enabled · latest run unverified",
-      })),
+        target,
+        status: latestStatus,
+        checkedAt: hasResult && updated ? updated : undefined,
+      };
+    });
+    const failing = results.filter((result) => result.status === "Failed").length;
+    const degraded = results.filter((result) => result.status === "Degraded").length;
+    const passing = results.filter((result) => result.status === "Passed").length;
+    const unknown = results.filter((result) => result.status === "Last result unavailable").length;
+    return {
+      name: "Checkly",
+      tone: failing ? "bad" : degraded ? "warn" : passing && unknown === 0 ? "good" : "neutral",
+      value: active.length === 0
+        ? "No active checks"
+        : unknown === 0
+          ? `${passing} passed · ${failing} failed${degraded ? ` · ${degraded} degraded` : ""}`
+          : `${passing} passed · ${failing} failed · ${unknown} unknown`,
+      detail: statusesResponse.status === "rejected"
+        ? "Latest status API unavailable; configured checks remain visible."
+        : "Latest reported status from Checkly; independently cached for 5 minutes.",
+      checks: results,
     };
   } catch {
     return {
@@ -229,7 +268,7 @@ async function readResend(): Promise<ResendUsageSummary> {
 }
 
 const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack-detail-v4"], { revalidate: CACHE_SECONDS });
-const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-detail-v4"], { revalidate: CACHE_SECONDS });
+const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-latest-status-v5"], { revalidate: CACHE_SECONDS });
 const cachedResend = unstable_cache(readResend, ["system-health-resend"], { revalidate: CACHE_SECONDS });
 
 export async function getExternalHealth() {
