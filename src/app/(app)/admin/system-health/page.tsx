@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 import { getExternalHealth, getBackupHealth, type MonitorTone } from "@/lib/system-health/external";
@@ -315,21 +315,32 @@ function StatusDot({ tone }: { tone: MonitorTone }) {
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} aria-hidden="true" />;
 }
 
-function MetricCard({ label, value, detail, tone = "neutral" }: {
+function MetricCard({ label, value, detail, tone = "neutral", children }: {
   label: string;
   value: string;
   detail: string;
   tone?: MonitorTone;
+  children?: ReactNode;
 }) {
+  const status = { good: "Healthy", warn: "Warning", bad: "Critical", neutral: "Info" }[tone];
+  const statusStyle = {
+    good: "bg-emerald-50 text-emerald-800",
+    warn: "bg-amber-50 text-amber-800",
+    bad: "bg-red-50 text-red-800",
+    neutral: "bg-slate-100 text-slate-600",
+  }[tone];
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
-        <StatusDot tone={tone} />
-        {label}
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <span className="text-xs font-bold text-slate-600">{label}</span>
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold ${statusStyle}`}>
+          <StatusDot tone={tone} />{status}
+        </span>
       </div>
-      <div className="text-2xl font-black tracking-tight text-slate-900">{value}</div>
-      <div className="mt-1 text-sm font-medium text-slate-500">{detail}</div>
-    </div>
+      <div className="mt-3 break-words text-[clamp(1.3rem,2.4vw,1.8rem)] font-black tracking-tight text-slate-950 tabular-nums">{value}</div>
+      <div className="mt-2 text-xs font-medium leading-5 text-slate-600">{detail}</div>
+      {children}
+    </article>
   );
 }
 
@@ -390,37 +401,37 @@ async function ProtectionMonitoring() {
     getBackupHealth(),
   ]);
   const cards = [betterStack, checkly, backup, resend];
-
+  const statusNames: Record<MonitorTone, string> = {
+    good: "Passing", warn: "Attention", bad: "Failing", neutral: "Unavailable / info",
+  };
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section id="monitoring" aria-labelledby="monitor-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4">
-        <h2 className="text-base font-black text-slate-900">Protection & monitoring</h2>
-        <p className="text-sm font-medium text-slate-500">External checks are cached for 5 minutes, run only on this page, and time out after 2 seconds without affecting PlumWorks workflows.</p>
+        <h2 id="monitor-heading" className="text-base font-black tracking-tight text-slate-950">Protection & monitoring</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Live provider statuses, cached for five minutes. These checks never block normal shop workflows.</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="divide-y divide-slate-200">
         {cards.map((card) => (
-          <div key={card.name} className={`rounded-xl border p-4 ${toneClasses(card.tone)}`}>
-            <div className="flex items-center gap-2 text-sm font-black">
-              <StatusDot tone={card.tone} />
-              {card.name}
+          <div key={card.name} className="py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-bold text-sm text-slate-900">{card.name}</h3>
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-bold ${toneClasses(card.tone)}`}>
+                <StatusDot tone={card.tone} />
+                {statusNames[card.tone]}
+              </span>
             </div>
-            <div className="mt-2 text-lg font-black">{card.value}</div>
-            <div className="mt-1 text-xs font-semibold opacity-75">{card.detail}</div>
+            <p className="mt-1 text-sm font-extrabold leading-5 text-slate-900">{card.value}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">{card.detail}</p>
             {card.checks && card.checks.length > 0 && (
-              <div className="mt-3 space-y-2 border-t border-current/10 pt-3">
-                <div className="text-[11px] font-black uppercase tracking-wider opacity-70">
-                  {card.name === "Better Stack" ? "What is monitored" : "Configured checks"}
-                </div>
+              <div className="mt-3 space-y-2">
                 {card.checks.map((check, index) => (
-                  <div key={index} className="rounded-lg border border-current/10 bg-white/70 p-2.5 text-xs">
-                    <div className="flex flex-wrap items-start justify-between gap-1.5">
-                      <span className="font-bold break-words">{check.name}</span>
-                      <span className="shrink-0 font-semibold">{check.status}</span>
+                  <div key={index} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                      <span className="min-w-0 flex-1 break-words font-bold text-slate-800">{check.name}</span>
+                      <span className="font-bold text-slate-700">{check.status}</span>
                     </div>
-                    <div className="mt-1 opacity-75">
-                      {check.type}{check.target ? ` · ${check.target}` : ""}
-                    </div>
-                    {check.checkedAt && <div className="mt-1 opacity-70">{card.name === "Checkly" ? "Status updated" : "Last checked"}: {check.checkedAt}</div>}
+                    <p className="mt-1 break-all leading-5 text-slate-600">{check.type}{check.target ? ` · ${check.target}` : ""}</p>
+                    {check.checkedAt && <p className="mt-1 text-slate-500">{card.name === "Checkly" ? "Status updated" : "Checked"}: {check.checkedAt}</p>}
                   </div>
                 ))}
               </div>
@@ -458,146 +469,190 @@ export default async function SystemHealthPage() {
   const columns = monthColumns();
   const monthSnapshots = monthlyLatestSnapshots(health.snapshots);
 
-  return (
-    <div className="space-y-6 animate-fadeIn">
-      <PageHeading
-        eyebrow="Operations"
-        title="System Health"
-        description="Early-warning signals for availability, database capacity, monitoring, and performance."
-      />
 
-      <section className={`flex flex-col gap-2 rounded-2xl border px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${toneClasses(globalTone)}`}>
-        <div className="flex items-center gap-2 text-sm font-bold">
-          <StatusDot tone={globalTone} />
-          {globalLabel}
+  const actionableQueries = health.slowQueries?.filter((query) => ["Action", "Priority", "Investigate"].includes(queryAction(query).label)) ?? [];
+  const attentionCount = actionableQueries.length + (globalTone !== "good" ? 1 : 0);
+  const overallTone: MonitorTone = globalTone === "bad" ? "bad" : attentionCount > 0 ? "warn" : "good";
+  const maxTableBytes = Math.max(1, ...health.largestTables.map((table) => table.sizeBytes));
+  const legacyTableBytes = health.largestTables.filter((table) => table.name.startsWith("raw_legacy_")).reduce((sum, table) => sum + table.sizeBytes, 0);
+  const legacyPercent = health.databaseSizeBytes && legacyTableBytes > 0 ? legacyTableBytes / health.databaseSizeBytes * 100 : null;
+  const hasMonthlyGrowth = health.largestTables.some((table) =>
+    columns.some((column, index) => {
+      const current = monthSnapshots.get(column.key)?.tableSizes[table.name];
+      const prior = new Date();
+      prior.setDate(1);
+      prior.setMonth(prior.getMonth() - (columns.length - index));
+      return growthPercent(current, monthSnapshots.get(monthKey(prior))?.tableSizes[table.name]) !== null;
+    }),
+  );
+  const totalListedTime = health.slowQueries?.reduce((sum, query) => sum + query.totalMs, 0) ?? 0;
+  const maxListedTime = Math.max(1, ...((health.slowQueries ?? []).map((query) => query.totalMs)));
+
+  return (
+    <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5 pb-8 animate-fadeIn sm:space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeading
+          eyebrow="Operations / Admin diagnostics"
+          title="System Health"
+          description="Availability, capacity, external monitoring and query performance at a glance."
+        />
+        <div className="flex flex-wrap items-center gap-2 self-start text-xs text-slate-600">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-2 font-bold uppercase tracking-wide">{environment}</span>
+          <span className="font-medium">Updated {formatTimestamp(updatedAt)}</span>
+          <a href="/admin/system-health" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">↻ Refresh</a>
         </div>
-        <div className="text-xs font-semibold opacity-70">{environment} · Updated {formatTimestamp(updatedAt)}</div>
+      </div>
+
+      <section aria-label="Health summary" className={`flex flex-col gap-3 rounded-2xl border p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between ${toneClasses(overallTone)}`}>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <StatusDot tone={overallTone} />
+            <h2 className="text-lg font-black tracking-tight">{globalTone === "bad" ? "Core system needs attention" : attentionCount > 0 ? "Core available · review recommended" : "Core systems healthy"}</h2>
+          </div>
+          <p className="mt-1 text-sm leading-5">{health.databaseOk ? "Database reachable. Provider details are reported independently below." : "Database connectivity has failed; investigate immediately."}</p>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {actionableQueries.length > 0 && <a href="#slow-queries" className="inline-flex min-h-11 items-center rounded-lg border border-current/20 bg-white/85 px-3 py-2 text-xs font-extrabold text-amber-900 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2">{actionableQueries.length} slow {actionableQueries.length === 1 ? "query" : "queries"} to review ↘</a>}
+          <a href="#monitoring" className="inline-flex min-h-11 items-center rounded-lg border border-current/20 bg-white/85 px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2">Monitoring details ↘</a>
+        </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Database and deployment metrics" className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Database"
+          label="Database connection"
           value={health.databaseOk ? "Connected" : "Unavailable"}
-          detail={health.databaseLatencyMs !== null ? `${health.databaseLatencyMs} ms connectivity check` : "Connection check failed"}
+          detail={health.databaseLatencyMs !== null ? `Connectivity check · ${health.databaseLatencyMs} ms` : "Connection check failed"}
           tone={health.databaseOk ? "good" : "bad"}
         />
         <MetricCard
           label="Database storage"
           value={health.databaseSizeBytes === null ? "Unavailable" : `${formatBytes(health.databaseSizeBytes)} / ${configuredCapacityBytes ? formatBytes(configuredCapacityBytes) : "—"}`}
-          detail={storagePercent !== null ? `${storagePercent.toFixed(1)}% of ${plan === "free" ? "Free DB allowance" : "Pro included disk reference"} · warn at 70% · critical at 85%` : "Usage is live; set the project capacity to enable limit warnings"}
+          detail={storagePercent === null ? "Set the applicable capacity to enable alerts" : `${storagePercent.toFixed(1)}% of ${plan === "free" ? "Free database-size allowance" : "Pro included disk reference"}`}
           tone={storageTone}
-        />
+        >
+          {storagePercent !== null && <div className="mt-3">
+            <div className="relative h-2.5 rounded-full bg-slate-100" role="progressbar" aria-label="Database capacity percentage" aria-valuenow={Math.min(100, Math.round(storagePercent))} aria-valuemin={0} aria-valuemax={100}>
+              <div className={`h-full rounded-full ${storageTone === "bad" ? "bg-red-500" : storageTone === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, Math.max(0, storagePercent))}%` }} />
+              <div className="absolute -top-1 h-[18px] w-[2px] bg-amber-600" style={{ left: "70%" }} title="Warn at 70%" />
+              <div className="absolute -top-1 h-[18px] w-[2px] bg-red-600" style={{ left: "85%" }} title="Critical at 85%" />
+            </div>
+            <div className="mt-2 flex justify-between gap-2 text-[11px] font-semibold text-slate-600"><span>70% warning</span><span>85% critical</span></div>
+            {plan === "pro" && <p className="mt-2 text-[11px] leading-4 text-slate-500">Included disk reference, not actual Pro disk utilization or a hard quota.</p>}
+          </div>}
+        </MetricCard>
         <MetricCard
           label="Database sessions"
           value={health.sessions ? `${health.sessions.total} / ${health.sessions.max}` : "Unavailable"}
-          detail={health.sessions ? `${health.sessions.active} active · ${health.sessions.idle} idle` : "Session statistics are restricted"}
+          detail={health.sessions ? `${health.sessions.active} active · ${health.sessions.idle} idle` : "Session statistics unavailable"}
           tone={sessionTone}
-        />
+        >
+          {sessionPercent !== null && <div className="mt-3 h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, Math.max(0, sessionPercent))}%` }} /></div>}
+        </MetricCard>
         <MetricCard label="Deployment" value={commitSha} detail={`${environment} release`} tone="neutral" />
       </section>
 
-      {storagePercent !== null && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-black text-slate-900">Database capacity</h2>
-              <p className="text-sm font-medium text-slate-500">{plan === "free" ? "Free database-size allowance (not physical disk utilization)." : "Pro reference is the included 8 GB disk; actual disk usage and autoscaling are tracked in Supabase."}</p>
-            </div>
-            <div className="text-sm font-black text-slate-700">{storagePercent.toFixed(1)}%</div>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
+        <section aria-labelledby="tables-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4">
+            <h2 id="tables-heading" className="text-base font-black tracking-tight text-slate-950">Largest database tables</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Current table sizes, including indexes. Bars are scaled to the largest listed table.</p>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-            <div className={`h-full rounded-full ${storageTone === "bad" ? "bg-red-500" : storageTone === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(storagePercent, 100)}%` }} />
-          </div>
+          {legacyPercent !== null && <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-700">
+            <strong>Legacy staging:</strong> the displayed raw_legacy_* tables account for approximately <strong>{legacyPercent.toFixed(0)}%</strong> of the current database size. Retain them until the cutover and retention runbook approves a change.
+          </div>}
+          {health.largestTables.length ? (
+            <>
+              <div className="space-y-0.5">
+                {health.largestTables.map((table) => {
+                  const isLegacy = table.name.startsWith("raw_legacy_");
+                  return (
+                    <div key={table.name} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(120px,1fr)_minmax(90px,1.15fr)_auto] sm:items-center">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="break-all font-mono text-xs font-semibold text-slate-800">{table.name}</span>
+                        {isLegacy && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">Legacy</span>}
+                      </div>
+                      <div className="col-span-2 sm:col-span-1 sm:col-start-2">
+                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full rounded-full ${isLegacy ? "bg-slate-500" : "bg-blue-600"}`} style={{ width: `${Math.max(1, table.sizeBytes / maxTableBytes * 100)}%` }} />
+                        </div>
+                      </div>
+                      <div className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-extrabold tabular-nums text-slate-900 sm:col-start-3">{table.prettySize || formatBytes(table.sizeBytes)}</div>
+                      {hasMonthlyGrowth && <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:col-span-3">
+                        {columns.map((column, index) => {
+                          const current = monthSnapshots.get(column.key)?.tableSizes[table.name];
+                          const previousDate = new Date();
+                          previousDate.setDate(1);
+                          previousDate.setMonth(previousDate.getMonth() - (columns.length - index));
+                          const previous = monthSnapshots.get(monthKey(previousDate))?.tableSizes[table.name];
+                          return <span key={column.key} className="inline-flex gap-1">{column.label}: <GrowthValue value={growthPercent(current, previous)} /></span>;
+                        })}
+                      </div>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[11px] text-slate-600">
+                {hasMonthlyGrowth ? <span>Rolling three-month growth shown below each table.</span> : <span>Monthly growth history is collecting; percentages will appear when comparable snapshots are available.</span>}
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-blue-600" />Application / other</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-slate-500" />Legacy staging</span>
+              </div>
+            </>
+          ) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Table-size diagnostics are unavailable for this database role.</p>}
         </section>
-      )}
+        <Suspense fallback={<ProtectionMonitoringFallback />}>
+          <ProtectionMonitoring />
+        </Suspense>
+      </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-base font-black text-slate-900">Largest database tables</h2>
-          <p className="text-sm font-medium text-slate-500">Current size plus month-over-month growth. History begins when snapshots are collected; prior months are never estimated.</p>
-        </div>
-        {health.largestTables.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] text-left text-sm">
-              <thead className="border-b border-slate-200 text-xs font-black uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="pb-3 pr-4">Table</th>
-                  <th className="pb-3 pr-4 text-right">Current</th>
-                  {columns.map((column) => <th key={column.key} className="pb-3 pl-4 text-right">{column.label} growth</th>)}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {health.largestTables.map((table) => (
-                  <tr key={table.name}>
-                    <td className="py-3 pr-4 font-semibold text-slate-700">{table.name}</td>
-                    <td className="py-3 pr-4 text-right font-black text-slate-900">{table.prettySize || formatBytes(table.sizeBytes)}</td>
-                    {columns.map((column, index) => {
-                      const current = monthSnapshots.get(column.key)?.tableSizes[table.name];
-                      const previousDate = new Date();
-                      previousDate.setDate(1);
-                      previousDate.setMonth(previousDate.getMonth() - (columns.length - index));
-                      const previous = monthSnapshots.get(monthKey(previousDate))?.tableSizes[table.name];
-                      return <td key={column.key} className="py-3 pl-4 text-right"><GrowthValue value={growthPercent(current, previous)} /></td>;
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {health.snapshots.length < 2 && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-500">Growth history is collecting now. At least two month-end periods are required before a true month-over-month percentage appears.</p>}
+      <section id="slow-queries" aria-labelledby="slow-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="px-4 py-5 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="slow-heading" className="text-base font-black tracking-tight text-slate-950">Slow database queries</h2>
+            {health.slowQueries && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{health.slowQueries.length} listed · ≥500 ms avg</span>}
           </div>
-        ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm font-medium text-slate-500">Table-size diagnostics are unavailable for this database role.</p>
-        )}
-      </section>
-
-      <Suspense fallback={<ProtectionMonitoringFallback />}>
-        <ProtectionMonitoring />
-      </Suspense>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-base font-black text-slate-900">Slow database queries</h2>
-          <p className="text-sm font-medium text-slate-500">SELECT and DELETE statements averaging at least 500 ms. Prioritize average latency, frequency, and total database time together.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Application-table SELECT and DELETE statements, ranked by total DB time. Results are cumulative PostgreSQL statistics and can include past maintenance using the same database role.</p>
         </div>
-        {health.slowQueries === null ? (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm font-medium text-slate-500">Slow-query statistics are unavailable. pg_stat_statements may be disabled or restricted.</p>
-        ) : health.slowQueries.length === 0 ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">No SELECT or DELETE queries currently average 500 ms or more.</div>
-        ) : (
-          <div className="space-y-2">
+        {health.slowQueries === null ? <p className="mx-4 mb-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 sm:mx-5">Slow-query statistics unavailable. pg_stat_statements may be restricted.</p> :
+          health.slowQueries.length === 0 ? <p className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 sm:mx-5">No matching SELECT or DELETE queries averaging 500 ms or more.</p> :
+          <div className="divide-y divide-slate-200 border-t border-slate-200">
             {health.slowQueries.map((query, index) => {
               const action = queryAction(query);
+              const share = totalListedTime > 0 ? query.totalMs / totalListedTime * 100 : 0;
               return (
-                <details key={`${query.operation}-${index}`} className="group rounded-xl border border-slate-200 bg-white open:bg-slate-50">
-                  <summary className="cursor-pointer list-none p-4">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:items-center">
-                      <div className={`w-fit rounded-lg border px-2 py-1 text-xs font-black ${toneClasses(query.operation === "DELETE" ? "warn" : "neutral")}`}>{query.operation}</div>
-                      <div><div className="text-xs font-bold uppercase text-slate-400">Average</div><div className="font-black text-slate-900">{formatDuration(query.meanMs)}</div></div>
-                      <div><div className="text-xs font-bold uppercase text-slate-400">Calls</div><div className="font-black text-slate-900">{query.calls.toLocaleString()}</div></div>
-                      <div><div className="text-xs font-bold uppercase text-slate-400">Total DB time</div><div className="font-black text-slate-900">{formatDuration(query.totalMs)}</div></div>
-                      <div className="flex items-center justify-between gap-3 sm:justify-end"><span className={`rounded-lg border px-2 py-1 text-xs font-black ${toneClasses(action.tone)}`}>{action.label}</span><span className="text-slate-400 transition-transform group-open:rotate-180">⌄</span></div>
+                <details key={`${query.operation}-${index}`} className="group open:bg-slate-50/70">
+                  <summary className="cursor-pointer list-none px-4 py-4 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600 sm:px-5">
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 md:grid-cols-[86px_90px_70px_minmax(120px,1fr)_94px_20px] md:items-center">
+                      <div><span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${toneClasses(query.operation === "DELETE" ? "warn" : "neutral")}`}>{query.operation}</span></div>
+                      <div><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Average</span><span className="text-sm font-extrabold tabular-nums text-slate-900">{formatDuration(query.meanMs)}</span></div>
+                      <div className="md:col-start-3"><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Calls</span><span className="text-sm font-extrabold tabular-nums text-slate-900">{query.calls.toLocaleString()}</span></div>
+                      <div className="col-span-2 md:col-span-1 md:col-start-4">
+                        <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Total DB time · {share.toFixed(0)}% of listed</span>
+                        <div className="flex items-center gap-3">
+                          <span className="whitespace-nowrap text-sm font-extrabold tabular-nums text-slate-900">{formatDuration(query.totalMs)}</span>
+                          <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div className={`h-full rounded-full ${action.tone === "bad" ? "bg-red-600" : action.tone === "warn" ? "bg-amber-500" : "bg-slate-500"}`} style={{ width: `${Math.max(1, query.totalMs / maxListedTime * 100)}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 md:col-start-5"><span className={`rounded-lg border px-2 py-1 text-xs font-bold ${toneClasses(action.tone)}`}>{action.label}</span></div>
+                      <span className="col-start-2 row-start-1 text-right text-slate-600 transition-transform group-open:rotate-180 md:col-start-6">⌄</span>
                     </div>
                   </summary>
-                  <div className="border-t border-slate-200 px-4 pb-4 pt-3">
-                    <p className="mb-3 text-xs font-semibold text-slate-600">{action.advice}</p>
-                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-100">{query.query}</pre>
+                  <div className="min-w-0 border-t border-slate-200 px-4 pb-4 pt-3 sm:px-5">
+                    <p className="mb-3 text-xs leading-5 text-slate-700">{action.advice}</p>
+                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-100">{query.query}</pre>
+                    <p className="mt-2 text-[11px] text-slate-600">{share.toFixed(1)}% of total time among the displayed queries; not a percentage of all database activity.</p>
                   </div>
                 </details>
               );
             })}
-          </div>
-        )}
-        <div className="mt-4 grid gap-2 text-xs font-semibold text-slate-500 sm:grid-cols-4">
-          <div className="rounded-lg bg-slate-50 p-2">Under 500 ms: hidden</div>
-          <div className="rounded-lg bg-slate-50 p-2">500 ms–1 s: watch frequency</div>
-          <div className="rounded-lg bg-amber-50 p-2 text-amber-700">1–3 s: investigate</div>
-          <div className="rounded-lg bg-red-50 p-2 text-red-700">3 s+: priority</div>
+          </div>}
+        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 px-4 py-3 text-[11px] font-semibold text-slate-600 sm:px-5">
+          <span>Under 500 ms: hidden</span><span>500 ms–1 s: watch</span><span>1–3 s: investigate</span><span>3 s+: priority</span>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-500">
-        Safety: this page is read-mostly and isolated from customer workflows. External providers are loaded separately, cached for five minutes, and hard-timeout after two seconds. A provider outage cannot block Repair Orders, invoices, leads, the public website, or the core System Health database view.
-      </section>
+      <p className="px-1 text-xs leading-5 text-slate-500">System Health is restricted to Admin access. External provider checks are isolated, cached for five minutes and time out after two seconds. A failed provider API cannot block Repair Orders, invoices or other shop workflows.</p>
     </div>
   );
 }
