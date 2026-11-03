@@ -406,6 +406,25 @@ async function ProtectionMonitoring() {
             </div>
             <div className="mt-2 text-lg font-black">{card.value}</div>
             <div className="mt-1 text-xs font-semibold opacity-75">{card.detail}</div>
+            {card.checks && card.checks.length > 0 && (
+              <div className="mt-3 space-y-2 border-t border-current/10 pt-3">
+                <div className="text-[11px] font-black uppercase tracking-wider opacity-70">
+                  {card.name === "Better Stack" ? "What is monitored" : "Configured checks"}
+                </div>
+                {card.checks.map((check, index) => (
+                  <div key={index} className="rounded-lg border border-current/10 bg-white/70 p-2.5 text-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-1.5">
+                      <span className="font-bold break-words">{check.name}</span>
+                      <span className="shrink-0 font-semibold">{check.status}</span>
+                    </div>
+                    <div className="mt-1 opacity-75">
+                      {check.type}{check.target ? ` · ${check.target}` : ""}
+                    </div>
+                    {check.checkedAt && <div className="mt-1 opacity-70">Last checked: {check.checkedAt}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
