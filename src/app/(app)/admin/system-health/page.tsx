@@ -315,21 +315,32 @@ function StatusDot({ tone }: { tone: MonitorTone }) {
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} aria-hidden="true" />;
 }
 
-function MetricCard({ label, value, detail, tone = "neutral" }: {
+function MetricCard({ label, value, detail, tone = "neutral", children }: {
   label: string;
   value: string;
   detail: string;
   tone?: MonitorTone;
+  children?: React.ReactNode;
 }) {
+  const status = { good: "Healthy", warn: "Warning", bad: "Critical", neutral: "Info" }[tone];
+  const statusStyle = {
+    good: "bg-emerald-50 text-emerald-800",
+    warn: "bg-amber-50 text-amber-800",
+    bad: "bg-red-50 text-red-800",
+    neutral: "bg-slate-100 text-slate-600",
+  }[tone];
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
-        <StatusDot tone={tone} />
-        {label}
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <span className="text-xs font-bold text-slate-600">{label}</span>
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold ${statusStyle}`}>
+          <StatusDot tone={tone} />{status}
+        </span>
       </div>
-      <div className="text-2xl font-black tracking-tight text-slate-900">{value}</div>
-      <div className="mt-1 text-sm font-medium text-slate-500">{detail}</div>
-    </div>
+      <div className="mt-3 break-words text-[clamp(1.3rem,2.4vw,1.8rem)] font-black tracking-tight text-slate-950 tabular-nums">{value}</div>
+      <div className="mt-2 text-xs font-medium leading-5 text-slate-600">{detail}</div>
+      {children}
+    </article>
   );
 }
 
@@ -390,37 +401,37 @@ async function ProtectionMonitoring() {
     getBackupHealth(),
   ]);
   const cards = [betterStack, checkly, backup, resend];
-
+  const statusNames: Record<MonitorTone, string> = {
+    good: "Passing", warn: "Attention", bad: "Failing", neutral: "Unavailable / info",
+  };
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section id="monitoring" aria-labelledby="monitor-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4">
-        <h2 className="text-base font-black text-slate-900">Protection & monitoring</h2>
-        <p className="text-sm font-medium text-slate-500">External checks are cached for 5 minutes, run only on this page, and time out after 2 seconds without affecting PlumWorks workflows.</p>
+        <h2 id="monitor-heading" className="text-base font-black tracking-tight text-slate-950">Protection & monitoring</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Live provider statuses, cached for five minutes. These checks never block normal shop workflows.</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="divide-y divide-slate-200">
         {cards.map((card) => (
-          <div key={card.name} className={`rounded-xl border p-4 ${toneClasses(card.tone)}`}>
-            <div className="flex items-center gap-2 text-sm font-black">
-              <StatusDot tone={card.tone} />
-              {card.name}
+          <div key={card.name} className="py-4 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-bold text-sm text-slate-900">{card.name}</h3>
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-bold ${toneClasses(card.tone)}`}>
+                <StatusDot tone={card.tone} />
+                {statusNames[card.tone]}
+              </span>
             </div>
-            <div className="mt-2 text-lg font-black">{card.value}</div>
-            <div className="mt-1 text-xs font-semibold opacity-75">{card.detail}</div>
+            <p className="mt-1 text-sm font-extrabold leading-5 text-slate-900">{card.value}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">{card.detail}</p>
             {card.checks && card.checks.length > 0 && (
-              <div className="mt-3 space-y-2 border-t border-current/10 pt-3">
-                <div className="text-[11px] font-black uppercase tracking-wider opacity-70">
-                  {card.name === "Better Stack" ? "What is monitored" : "Configured checks"}
-                </div>
+              <div className="mt-3 space-y-2">
                 {card.checks.map((check, index) => (
-                  <div key={index} className="rounded-lg border border-current/10 bg-white/70 p-2.5 text-xs">
-                    <div className="flex flex-wrap items-start justify-between gap-1.5">
-                      <span className="font-bold break-words">{check.name}</span>
-                      <span className="shrink-0 font-semibold">{check.status}</span>
+                  <div key={index} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                      <span className="min-w-0 flex-1 break-words font-bold text-slate-800">{check.name}</span>
+                      <span className="font-bold text-slate-700">{check.status}</span>
                     </div>
-                    <div className="mt-1 opacity-75">
-                      {check.type}{check.target ? ` · ${check.target}` : ""}
-                    </div>
-                    {check.checkedAt && <div className="mt-1 opacity-70">{card.name === "Checkly" ? "Status updated" : "Last checked"}: {check.checkedAt}</div>}
+                    <p className="mt-1 break-all leading-5 text-slate-600">{check.type}{check.target ? ` · ${check.target}` : ""}</p>
+                    {check.checkedAt && <p className="mt-1 text-slate-500">{card.name === "Checkly" ? "Status updated" : "Checked"}: {check.checkedAt}</p>}
                   </div>
                 ))}
               </div>
