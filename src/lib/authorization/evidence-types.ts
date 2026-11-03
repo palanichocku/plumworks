@@ -7,6 +7,7 @@ export type VerbalAuthorizationInput = {
   repairOrderId: string;
   authorizerName: string;
   authorizerRelationship?: string;
+  decision: "APPROVED" | "DECLINED";
   amountAuthorized: string;
   totalDiscussed: string;
   notes?: string;

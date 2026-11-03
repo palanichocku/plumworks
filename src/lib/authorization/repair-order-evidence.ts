@@ -262,28 +262,45 @@ export async function recordVerbalRepairOrderAuthorization(input: VerbalAuthoriz
   if (!user || !membership) throw new Error("You must be signed in to record authorization.");
   if (!UUID.test(input.repairOrderId)) throw new Error("Repair order is invalid.");
   const authorizerName = input.authorizerName.trim();
-  if (authorizerName.length < 2 || authorizerName.length > 120) throw new Error("Enter the name of the person who authorized the work.");
+  if (authorizerName.length < 2 || authorizerName.length > 120) throw new Error("Enter the name of the person who made the decision.");
+  if (input.decision !== "APPROVED" && input.decision !== "DECLINED") throw new Error("Select Approved or Declined.");
   const relationship = input.authorizerRelationship?.trim() || null;
   if (relationship && relationship.length > 120) throw new Error("Relationship/role is too long.");
   const notes = input.notes?.trim() || null;
   if (notes && notes.length > 1000) throw new Error("Notes must be 1,000 characters or fewer.");
-  const amountAuthorized = decimalInput(input.amountAuthorized, "Amount authorized");
-  const totalDiscussed = decimalInput(input.totalDiscussed, "Total discussed");
+  const amountAuthorized = input.decision === "APPROVED" ? decimalInput(input.amountAuthorized, "Amount authorized") : null;
+  const totalDiscussed = input.decision === "APPROVED" ? decimalInput(input.totalDiscussed, "Total discussed") : null;
   const revision = await ensureCurrentRepairOrderRevision(membership.shopId, input.repairOrderId);
   if (!revision) throw new Error("Repair order was not found or cannot be authorized.");
 
-  const inserted = await prisma.$queryRaw<Array<{ id: string; occurredAt: Date }>>`
-    INSERT INTO authorization_events (
-      shop_id, document_revision_id, method, decision, authorizer_name, authorizer_relationship,
-      amount_authorized, total_discussed, notes, staff_user_id, staff_user_email
-    ) VALUES (
-      ${membership.shopId}::uuid, ${revision.id}::uuid,
-      'PHONE'::"AuthorizationMethod", 'APPROVED'::"AuthorizationDecision",
-      ${authorizerName}, ${relationship}, ${amountAuthorized}::decimal, ${totalDiscussed}::decimal,
-      ${notes}, ${user.id}::uuid, ${user.email ?? null}
-    )
-    RETURNING id, occurred_at AS "occurredAt"
-  `;
+  // Invalidate old pending email links when a phone decision is recorded.
+  // Keep the decision and invalidation atomic so a stale link cannot override a decline.
+  const inserted = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.repairOrderId}))`;
+    await tx.$executeRaw`
+      UPDATE authorization_requests ar
+      SET status = 'SUPERSEDED'::"AuthorizationRequestStatus", superseded_at = CURRENT_TIMESTAMP
+      FROM document_revisions dr
+      WHERE ar.document_revision_id = dr.id
+        AND ar.shop_id = ${membership.shopId}::uuid
+        AND dr.shop_id = ${membership.shopId}::uuid
+        AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
+        AND dr.document_id = ${input.repairOrderId}::uuid
+        AND ar.status = 'PENDING'::"AuthorizationRequestStatus"
+    `;
+    return tx.$queryRaw<Array<{ id: string; occurredAt: Date }>>`
+      INSERT INTO authorization_events (
+        shop_id, document_revision_id, method, decision, authorizer_name, authorizer_relationship,
+        amount_authorized, total_discussed, notes, staff_user_id, staff_user_email
+      ) VALUES (
+        ${membership.shopId}::uuid, ${revision.id}::uuid,
+        'PHONE'::"AuthorizationMethod", ${input.decision}::"AuthorizationDecision",
+        ${authorizerName}, ${relationship}, ${amountAuthorized}::decimal, ${totalDiscussed}::decimal,
+        ${notes}, ${user.id}::uuid, ${user.email ?? null}
+      )
+      RETURNING id, occurred_at AS "occurredAt"
+    `;
+  });
   if (!inserted[0]) throw new Error("Authorization could not be recorded.");
   return { id: inserted[0].id, occurredAt: inserted[0].occurredAt, revision: revision.revision, snapshotSha256: revision.snapshotSha256 };
 }
