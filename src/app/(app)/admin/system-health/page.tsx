@@ -420,7 +420,7 @@ async function ProtectionMonitoring() {
                     <div className="mt-1 opacity-75">
                       {check.type}{check.target ? ` · ${check.target}` : ""}
                     </div>
-                    {check.checkedAt && <div className="mt-1 opacity-70">Last checked: {check.checkedAt}</div>}
+                    {check.checkedAt && <div className="mt-1 opacity-70">{card.name === "Checkly" ? "Status updated" : "Last checked"}: {check.checkedAt}</div>}
                   </div>
                 ))}
               </div>
