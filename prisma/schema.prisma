@@ -970,3 +970,32 @@ model RepairOrderLinePosition {
   @@index([shopId, repairOrderId, lineType, sortOrder], map: "repair_order_line_positions_order_idx")
   @@map("repair_order_line_positions")
 }
+
+ 
+// Platform-only DB telemetry. No shop-scoped relation, not exposed via client APIs.
+model SystemHealthQuerySnapshot {
+  id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  capturedAt   DateTime                  @default(now()) @map("captured_at") @db.Timestamptz(6)
+  statsResetAt DateTime                  @map("stats_reset_at") @db.Timestamptz(6)
+  samples      SystemHealthQuerySample[]
+  
+  @@index([capturedAt(sort: Desc)], map: "system_health_query_snapshots_captured_at_idx")
+  @@map("system_health_query_snapshots")
+}
+
+model SystemHealthQuerySample {
+  snapshotId    String                    @map("snapshot_id") @db.Uuid
+  dbId          BigInt                    @map("db_id")
+  userId        BigInt                    @map("user_id")
+  queryId       String                    @map("query_id")
+  operation     String
+  classification String
+  queryText     String                    @map("query_text")
+  calls         BigInt
+  totalExecMs   Float                     @map("total_exec_ms")
+  snapshot      SystemHealthQuerySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@id([snapshotId, dbId, userId, queryId])
+  @@index([dbId, userId, queryId], map: "system_health_query_samples_query_idx")
+  @@map("system_health_query_samples")
+}
