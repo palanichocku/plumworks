@@ -643,7 +643,7 @@ export default async function SystemHealthPage() {
           </div>
         )}
         <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
-          Sampling is manual until an hourly DEV scheduler is connected. Stale after 2½ hours; coverage gaps over 90 minutes are flagged. For SQL plans, use Supabase Query Performance.
+          Samples may come from manual capture or the separate DEV scheduler when configured. Stale after 2½ hours; coverage gaps over 90 minutes are flagged. For SQL plans, use Supabase Query Performance.
         </div>
       </section>
 
