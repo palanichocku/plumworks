@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 import { getExternalHealth, getBackupHealth, type MonitorTone } from "@/lib/system-health/external";
+import { getRecentQueryPerformance, type RecentQuery } from "@/lib/system-health/query-performance";
+import { captureSystemHealthQuerySnapshot } from "./query-actions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,13 +27,6 @@ type TableSizeRow = {
   pretty_size: string;
 };
 
-type SlowQueryRow = {
-  query: string;
-  mean_exec_time: number;
-  total_exec_time: number;
-  calls: bigint;
-};
-
 type SnapshotRow = {
   snapshot_date: string;
   database_size_bytes: bigint;
@@ -42,14 +37,6 @@ type TableInfo = {
   name: string;
   sizeBytes: number;
   prettySize: string;
-};
-
-type SlowQuery = {
-  operation: "SELECT" | "DELETE";
-  query: string;
-  meanMs: number;
-  totalMs: number;
-  calls: number;
 };
 
 type Snapshot = {
@@ -71,7 +58,6 @@ type HealthData = {
     max: number;
   } | null;
   largestTables: TableInfo[];
-  slowQueries: SlowQuery[] | null;
   snapshots: Snapshot[];
 };
 
@@ -186,7 +172,6 @@ async function getHealthData(): Promise<HealthData> {
       databasePrettySize: null,
       sessions: null,
       largestTables: [],
-      slowQueries: null,
       snapshots: [],
     };
   }
@@ -196,9 +181,8 @@ async function getHealthData(): Promise<HealthData> {
   let databasePrettySize: string | null = null;
   let sessions: HealthData["sessions"] = null;
   let largestTables: TableInfo[] = [];
-  let slowQueries: SlowQuery[] | null = null;
 
-  const [databaseSizeResult, sessionsResult, tablesResult, slowQueriesResult] = await Promise.allSettled([
+  const [databaseSizeResult, sessionsResult, tablesResult] = await Promise.allSettled([
     prisma.$queryRaw<DatabaseSizeRow[]>`
       SELECT
         current_database() AS database_name,
@@ -224,26 +208,6 @@ async function getHealthData(): Promise<HealthData> {
       WHERE relname <> 'system_health_snapshots'
       ORDER BY pg_total_relation_size(relid) DESC
       LIMIT 10
-    `,
-    prisma.$queryRaw<SlowQueryRow[]>`
-      SELECT
-        regexp_replace(query, '\\s+', ' ', 'g') AS query,
-        mean_exec_time::float8 AS mean_exec_time,
-        total_exec_time::float8 AS total_exec_time,
-        calls::bigint AS calls
-      FROM pg_stat_statements
-      WHERE mean_exec_time >= 500
-        AND query NOT ILIKE '%pg_stat_statements%'
-        -- Heuristic scope: PostgreSQL aggregates by DB role, not request origin.
-        AND calls >= 2
-        AND query ~* '(customers|vehicles|repair_orders|repair_order_parts|repair_order_labor|invoices|invoice_parts|invoice_labor|payments|accounts_receivable|marketing_leads|marketing_lead_notifications|audit_logs|shops|shop_memberships|canned_services|vendors|employees)'
-        AND query !~* '(raw_legacy|legacy_|_prisma_migrations|system_health_snapshots|pg_catalog|information_schema|pg_stat_|pg_database_size|shopman|cutover|import_runs|import_errors|ordtemps)'
-        AND (
-          UPPER(LEFT(LTRIM(query), 6)) = 'SELECT'
-          OR UPPER(LEFT(LTRIM(query), 6)) = 'DELETE'
-        )
-      ORDER BY total_exec_time DESC
-      LIMIT 12
     `,
   ]);
 
@@ -276,20 +240,6 @@ async function getHealthData(): Promise<HealthData> {
     }));
   }
 
-  if (slowQueriesResult.status === "fulfilled") {
-    slowQueries = slowQueriesResult.value.map((row) => {
-      const normalized = row.query.trim();
-      const operation = normalized.slice(0, 6).toUpperCase() === "DELETE" ? "DELETE" as const : "SELECT" as const;
-      return {
-        operation,
-        query: normalized,
-        meanMs: Number(row.mean_exec_time),
-        totalMs: Number(row.total_exec_time),
-        calls: toNumber(row.calls),
-      };
-    });
-  }
-
   const snapshots = await saveAndReadSnapshots(databaseSizeBytes, largestTables);
 
   return {
@@ -300,7 +250,6 @@ async function getHealthData(): Promise<HealthData> {
     databasePrettySize,
     sessions,
     largestTables,
-    slowQueries,
     snapshots,
   };
 }
@@ -379,11 +328,12 @@ function GrowthValue({ value }: { value: number | null }) {
   return <span className={`font-bold ${tone}`}>{value >= 0 ? "+" : ""}{value.toFixed(1)}%</span>;
 }
 
-function queryAction(query: SlowQuery) {
-  if (query.meanMs >= 3_000) return { label: "Priority", tone: "bad" as const, advice: "Review the execution plan and indexing before this query becomes an outage risk." };
-  if (query.meanMs >= 1_000 || query.totalMs >= 60_000) return { label: "Action", tone: "warn" as const, advice: "Check indexes and the execution plan; frequency makes this query operationally significant." };
-  if (query.calls >= 50) return { label: "Investigate", tone: "warn" as const, advice: "The query is moderately slow and frequent. Optimize if it appears in a customer-facing workflow." };
-  return { label: "Watch", tone: "neutral" as const, advice: "Slow, but currently low-frequency. Revisit if calls or total database time rise." };
+function recentQueryPriority(query: RecentQuery) {
+  if (query.classification === "maintenance") return { label: "Maintenance", tone: "neutral" as const };
+  if (query.meanMs >= 3_000) return { label: "Priority", tone: "bad" as const };
+  if (query.meanMs >= 1_000 && query.calls >= 3) return { label: "Action", tone: "warn" as const };
+  if (query.meanMs >= 500 && query.calls >= 3) return { label: "Watch", tone: "neutral" as const };
+  return { label: "Normal", tone: "good" as const };
 }
 
 function toneClasses(tone: MonitorTone) {
@@ -453,7 +403,7 @@ function ProtectionMonitoringFallback() {
 }
 
 export default async function SystemHealthPage() {
-  const health = await getHealthData();
+  const [health, queryWindow] = await Promise.all([getHealthData(), getRecentQueryPerformance()]);
   const updatedAt = new Date();
   const environment = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? "local";
@@ -470,7 +420,11 @@ export default async function SystemHealthPage() {
   const monthSnapshots = monthlyLatestSnapshots(health.snapshots);
 
 
-  const actionableQueries = health.slowQueries?.filter((query) => ["Action", "Priority", "Investigate"].includes(queryAction(query).label)) ?? [];
+  const applicationActivity = queryWindow.queries.filter((query) => query.classification === "application");
+  const maintenanceActivity = queryWindow.queries.filter((query) => query.classification === "maintenance");
+  const actionableQueries = queryWindow.status === "ready"
+    ? applicationActivity.filter((query) => ["Action", "Priority"].includes(recentQueryPriority(query).label))
+    : [];
   const attentionCount = actionableQueries.length + (globalTone !== "good" ? 1 : 0);
   const overallTone: MonitorTone = globalTone === "bad" ? "bad" : attentionCount > 0 ? "warn" : "good";
   const maxTableBytes = Math.max(1, ...health.largestTables.map((table) => table.sizeBytes));
@@ -485,8 +439,9 @@ export default async function SystemHealthPage() {
       return growthPercent(current, monthSnapshots.get(monthKey(prior))?.tableSizes[table.name]) !== null;
     }),
   );
-  const totalListedTime = health.slowQueries?.reduce((sum, query) => sum + query.totalMs, 0) ?? 0;
-  const maxListedTime = Math.max(1, ...((health.slowQueries ?? []).map((query) => query.totalMs)));
+  const slowAppQueries = applicationActivity.filter((query) => query.meanMs >= 500).sort((a,b) => b.totalMs - a.totalMs);
+  const totalListedTime = slowAppQueries.reduce((sum, query) => sum + query.totalMs, 0);
+  const maxListedTime = Math.max(1, ...slowAppQueries.map((query) => query.totalMs));
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5 pb-8 animate-fadeIn sm:space-y-6">
@@ -605,50 +560,79 @@ export default async function SystemHealthPage() {
       </div>
 
       <section id="slow-queries" aria-labelledby="slow-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="px-4 py-5 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="slow-heading" className="text-base font-black tracking-tight text-slate-950">Slow database queries</h2>
-            {health.slowQueries && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{health.slowQueries.length} listed · ≥500 ms avg</span>}
+        <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+          <div>
+            <h2 id="slow-heading" className="text-base font-black tracking-tight text-slate-950">Application query performance</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Recent observed query executions only. November 3 cutover totals do not count as current issues.
+              Query origin classification is heuristic while maintenance and app connections share the same database role.
+            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-700">{queryWindow.detail}</p>
+            {queryWindow.from && <p className="mt-1 text-xs text-slate-500">
+              Observed window: {formatTimestamp(new Date(queryWindow.from))}
+              {queryWindow.to ? ` → ${formatTimestamp(new Date(queryWindow.to))}` : " (baseline only)"}
+            </p>}
           </div>
-          <p className="mt-1 text-xs leading-5 text-slate-600">Application-table SELECT and DELETE statements, ranked by total DB time. Results are cumulative PostgreSQL statistics and can include past maintenance using the same database role.</p>
+          {process.env.VERCEL_ENV !== "production" && (
+            <form action={captureSystemHealthQuerySnapshot}>
+              <button type="submit" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 px-4 text-sm font-bold text-slate-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                Capture DEV sample
+              </button>
+            </form>
+          )}
         </div>
-        {health.slowQueries === null ? <p className="mx-4 mb-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 sm:mx-5">Slow-query statistics unavailable. pg_stat_statements may be restricted.</p> :
-          health.slowQueries.length === 0 ? <p className="mx-4 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 sm:mx-5">No matching SELECT or DELETE queries averaging 500 ms or more.</p> :
-          <div className="divide-y divide-slate-200 border-t border-slate-200">
-            {health.slowQueries.map((query, index) => {
-              const action = queryAction(query);
-              const share = totalListedTime > 0 ? query.totalMs / totalListedTime * 100 : 0;
-              return (
-                <details key={`${query.operation}-${index}`} className="group open:bg-slate-50/70">
-                  <summary className="cursor-pointer list-none px-4 py-4 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600 sm:px-5">
-                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 md:grid-cols-[86px_90px_70px_minmax(120px,1fr)_94px_20px] md:items-center">
-                      <div><span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${toneClasses(query.operation === "DELETE" ? "warn" : "neutral")}`}>{query.operation}</span></div>
-                      <div><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Average</span><span className="text-sm font-extrabold tabular-nums text-slate-900">{formatDuration(query.meanMs)}</span></div>
-                      <div className="md:col-start-3"><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Calls</span><span className="text-sm font-extrabold tabular-nums text-slate-900">{query.calls.toLocaleString()}</span></div>
-                      <div className="col-span-2 md:col-span-1 md:col-start-4">
-                        <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Total DB time · {share.toFixed(0)}% of listed</span>
-                        <div className="flex items-center gap-3">
-                          <span className="whitespace-nowrap text-sm font-extrabold tabular-nums text-slate-900">{formatDuration(query.totalMs)}</span>
-                          <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
-                            <div className={`h-full rounded-full ${action.tone === "bad" ? "bg-red-600" : action.tone === "warn" ? "bg-amber-500" : "bg-slate-500"}`} style={{ width: `${Math.max(1, query.totalMs / maxListedTime * 100)}%` }} />
-                          </div>
+        {queryWindow.status !== "ready" ? (
+          <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 sm:mx-5">
+            <span className="font-bold">{queryWindow.status === "collecting" ? "Collecting baseline" : queryWindow.status === "reset" ? "Statistics reset" : "Collection unavailable"}</span>
+            <p className="mt-1">No current query-health conclusion is possible until two valid samples exist. A missing baseline is not a green performance result.</p>
+          </div>
+        ) : (
+          <div className="border-t border-slate-200">
+            <div className="grid grid-cols-1 gap-3 bg-slate-50 px-4 py-4 sm:grid-cols-3 sm:px-5">
+              <div><p className="text-xs text-slate-500">Recent slow application SQL</p><p className="text-2xl font-black tabular-nums text-slate-900">{slowAppQueries.length}</p></div>
+              <div><p className="text-xs text-slate-500">Observed application calls</p><p className="text-2xl font-black tabular-nums text-slate-900">{applicationActivity.reduce((sum,q)=>sum+q.calls,0).toLocaleString()}</p></div>
+              <div><p className="text-xs text-slate-500">Maintenance calls (separate)</p><p className="text-2xl font-black tabular-nums text-slate-900">{maintenanceActivity.reduce((sum,q)=>sum+q.calls,0).toLocaleString()}</p></div>
+            </div>
+            {slowAppQueries.length === 0 ? (
+              <p className="m-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700 sm:m-5">
+                No application query averaging 500 ms or more was observed between the available snapshots. This is not a full-day guarantee.
+              </p>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {slowAppQueries.slice(0, 12).map((query,index) => {
+                  const action = recentQueryPriority(query);
+                  const share = totalListedTime > 0 ? query.totalMs / totalListedTime * 100 : 0;
+                  return <details key={index} className="group open:bg-slate-50">
+                    <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
+                      <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-[100px_100px_80px_minmax(0,1fr)_90px] md:items-center">
+                        <span className="text-xs font-black text-slate-800">{query.operation}</span>
+                        <span className="text-sm font-bold tabular-nums text-slate-900">{formatDuration(query.meanMs)} avg</span>
+                        <span className="text-xs tabular-nums text-slate-700">{query.calls} new calls</span>
+                        <div className="col-span-2 md:col-span-1"><div className="mb-1 text-xs text-slate-700">{formatDuration(query.totalMs)} total · {share.toFixed(0)}% of listed</div>
+                          <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${Math.max(1,query.totalMs/maxListedTime*100)}%`}} /></div>
                         </div>
+                        <span className={`w-fit rounded-lg border px-2 py-1 text-xs font-bold ${toneClasses(action.tone)}`}>{action.label} ▾</span>
                       </div>
-                      <div className="flex items-center gap-2 md:col-start-5"><span className={`rounded-lg border px-2 py-1 text-xs font-bold ${toneClasses(action.tone)}`}>{action.label}</span></div>
-                      <span className="col-start-2 row-start-1 text-right text-slate-600 transition-transform group-open:rotate-180 md:col-start-6">⌄</span>
-                    </div>
-                  </summary>
-                  <div className="min-w-0 border-t border-slate-200 px-4 pb-4 pt-3 sm:px-5">
-                    <p className="mb-3 text-xs leading-5 text-slate-700">{action.advice}</p>
-                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-100">{query.query}</pre>
-                    <p className="mt-2 text-[11px] text-slate-600">{share.toFixed(1)}% of total time among the displayed queries; not a percentage of all database activity.</p>
-                  </div>
-                </details>
-              );
-            })}
-          </div>}
-        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 px-4 py-3 text-[11px] font-semibold text-slate-600 sm:px-5">
-          <span>Under 500 ms: hidden</span><span>500 ms–1 s: watch</span><span>1–3 s: investigate</span><span>3 s+: priority</span>
+                    </summary>
+                    <div className="px-4 pb-4 sm:px-5"><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-white">{query.sql}</pre></div>
+                  </details>;
+                })}
+              </div>
+            )}
+            {maintenanceActivity.length > 0 && (
+              <details className="border-t border-slate-200 px-4 py-4 sm:px-5">
+                <summary className="cursor-pointer text-sm font-bold text-slate-800">Maintenance / unusual bulk activity · {maintenanceActivity.length} query patterns</summary>
+                <p className="mt-2 text-xs text-amber-800">These new executions are excluded from normal performance alerts but should be reviewed if they were not planned.</p>
+                {maintenanceActivity.slice(0,10).map((query,index) => <div key={index} className="mt-2 rounded-lg bg-slate-50 p-3 text-xs">
+                  <div className="font-bold">{query.operation} · {query.calls} new calls · {formatDuration(query.meanMs)} avg</div>
+                  <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words">{query.sql}</pre>
+                </div>)}
+              </details>
+            )}
+          </div>
+        )}
+        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
+          Samples are DEV manual validation until scheduling is configured. For detailed SQL plans, use Supabase Query Performance.
         </div>
       </section>
 
