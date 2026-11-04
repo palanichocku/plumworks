@@ -22,7 +22,7 @@ export type QueryPerformanceWindow = {
 type Snapshot = { id: string; captured_at: Date; stats_reset_at: Date };
 type Sample = {
   db_id: bigint; user_id: bigint; query_id: string;
-  operation: string; classification: string; query_text: string;
+  operation: string; classification: string; query_text: string | null;
   calls: bigint; total_exec_ms: number;
 };
 
@@ -51,7 +51,7 @@ export async function captureQueryPerformanceSample() {
     if (!id) throw new Error("Query statistics extension is not available.");
     await tx.$executeRaw`
       INSERT INTO system_health_query_samples
-        (snapshot_id, db_id, user_id, query_id, operation, classification, query_text, calls, total_exec_ms)
+        (snapshot_id, db_id, user_id, query_id, operation, classification, calls, total_exec_ms)
       SELECT
         ${id}::uuid, dbid::bigint, userid::bigint, queryid::text,
         CASE
@@ -65,7 +65,7 @@ export async function captureQueryPerformanceSample() {
             OR query ~* '^\\s*DELETE\\s+FROM\\s+("?public"?\\.)?"?(vehicles|customers|invoices)"?\\s+WHERE\\s+.*shop_id'
           THEN 'maintenance' ELSE 'application'
         END,
-        left(query, 4000), calls, total_exec_time::float8
+        calls, total_exec_time::float8
       FROM pg_stat_statements
       WHERE queryid IS NOT NULL
         AND dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
@@ -115,9 +115,13 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
     }
     const rows = await prisma.$queryRaw<(Sample & { previous_calls: bigint | null; previous_total_ms: number | null })[]>`
       SELECT n.db_id, n.user_id, n.query_id, n.operation, n.classification,
-             n.query_text, n.calls, n.total_exec_ms,
+             left(stats.query, 4000) AS query_text, n.calls, n.total_exec_ms,
              p.calls AS previous_calls, p.total_exec_ms AS previous_total_ms
       FROM system_health_query_samples n
+      LEFT JOIN pg_stat_statements stats
+        ON stats.dbid::bigint = n.db_id
+       AND stats.userid::bigint = n.user_id
+       AND stats.queryid::text = n.query_id
       LEFT JOIN system_health_query_samples p
         ON p.snapshot_id = ${baseline.id}::uuid
        AND p.db_id = n.db_id AND p.user_id = n.user_id AND p.query_id = n.query_id
@@ -132,7 +136,7 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
       const meanMs = totalMs / calls;
       if (!Number.isFinite(meanMs)) return [];
       return [{
-        sql: row.query_text,
+        sql: row.query_text ?? "(Normalized SQL no longer available)",
         operation: row.operation,
         classification: row.classification === "maintenance" ? "maintenance" as const : "application" as const,
         calls, meanMs, totalMs,
