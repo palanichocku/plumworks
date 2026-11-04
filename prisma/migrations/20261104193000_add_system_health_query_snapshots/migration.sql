@@ -22,3 +22,6 @@ CREATE INDEX "system_health_query_samples_query_idx"
  ON "system_health_query_samples" ("db_id", "user_id", "query_id");
 -- Sample rows are platform operational telemetry; do not expose them to shop clients.
 REVOKE ALL ON TABLE "system_health_query_snapshots", "system_health_query_samples" FROM PUBLIC, anon, authenticated;
+
+ALTER TABLE "system_health_query_snapshots" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "system_health_query_samples" ENABLE ROW LEVEL SECURITY;
