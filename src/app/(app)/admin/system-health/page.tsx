@@ -408,7 +408,7 @@ async function ProtectionMonitoring() {
     <section id="monitoring" aria-labelledby="monitor-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4">
         <h2 id="monitor-heading" className="text-base font-black tracking-tight text-slate-950">Protection & monitoring</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-600">Live provider statuses, cached for five minutes. These checks never block normal shop workflows.</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Provider statuses are cached for 1–5 minutes and retrieved with a five-second timeout. These checks never block normal shop workflows.</p>
       </div>
       <div className="divide-y divide-slate-200">
         {cards.map((card) => (
@@ -652,7 +652,7 @@ export default async function SystemHealthPage() {
         </div>
       </section>
 
-      <p className="px-1 text-xs leading-5 text-slate-500">System Health is restricted to Admin access. External provider checks are isolated, cached for five minutes and time out after two seconds. A failed provider API cannot block Repair Orders, invoices or other shop workflows.</p>
+      <p className="px-1 text-xs leading-5 text-slate-500">System Health is restricted to Admin access. External provider checks are isolated, cached for one to five minutes and time out after five seconds. A failed provider API cannot block Repair Orders, invoices or other shop workflows.</p>
     </div>
   );
 }
