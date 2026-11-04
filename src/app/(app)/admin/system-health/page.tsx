@@ -586,8 +586,18 @@ export default async function SystemHealthPage() {
           </div>
           {process.env.VERCEL_ENV !== "production" && (
             <form action={captureSystemHealthQuerySnapshot}>
-              <button type="submit" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 px-4 text-sm font-bold text-slate-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-                Capture DEV sample
+              <button
+                type="submit"
+                aria-label="Capture sample"
+                title="Capture sample"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 text-slate-700 shadow-sm hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M20 11a8 8 0 0 0-14.7-4.4L3 9" />
+                  <path d="M3 3v6h6" />
+                  <path d="M4 13a8 8 0 0 0 14.7 4.4L21 15" />
+                  <path d="M15 15h6v6" />
+                </svg>
               </button>
             </form>
           )}
