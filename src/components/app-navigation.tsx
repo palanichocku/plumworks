@@ -136,27 +136,29 @@ function NavigationLink({
   );
 }
 
-function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean) {
-  return navigation.filter((item) => (item.module === null || businessProfile.modules[item.module]) && (item.href !== "/reports" || canViewReports) && (![PUBLIC_WEBSITE_URL, "/admin"].includes(item.href) || canViewAdmin));
+function allowedNavigation(canViewReports: boolean, canViewAdmin: boolean, websiteHref = PUBLIC_WEBSITE_URL) {
+  return navigation
+    .filter((item) => (item.module === null || businessProfile.modules[item.module]) && (item.href !== "/reports" || canViewReports) && (![PUBLIC_WEBSITE_URL, "/admin"].includes(item.href) || canViewAdmin))
+    .map((item) => item.href === PUBLIC_WEBSITE_URL ? { ...item, href: websiteHref } : item);
 }
 
-export function DesktopNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {
+export function DesktopNavigation({ canViewReports, canViewAdmin, websiteHref }: { canViewReports: boolean; canViewAdmin: boolean; websiteHref?: string }) {
   return (
     <nav id="desktop-sidebar-navigation" className="desktop-navigation -mr-2 mt-8 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-2" aria-label="Primary navigation">
-      {allowedNavigation(canViewReports, canViewAdmin).map((item) => (
+      {allowedNavigation(canViewReports, canViewAdmin, websiteHref).map((item) => (
         <NavigationLink key={item.href} {...item} />
       ))}
     </nav>
   );
 }
 
-export function MobileNavigation({ canViewReports, canViewAdmin }: { canViewReports: boolean; canViewAdmin: boolean }) {
+export function MobileNavigation({ canViewReports, canViewAdmin, websiteHref }: { canViewReports: boolean; canViewAdmin: boolean; websiteHref?: string }) {
   return (
     <nav
       className="flex gap-1 overflow-x-auto border-t border-slate-200 px-3 py-2"
       aria-label="Mobile navigation"
     >
-      {allowedNavigation(canViewReports, canViewAdmin).map((item) => (
+      {allowedNavigation(canViewReports, canViewAdmin, websiteHref).map((item) => (
         <NavigationLink key={item.href} {...item} mobile />
       ))}
     </nav>
