@@ -109,6 +109,8 @@ export async function getInvoiceForCurrentShop(id: string) {
       laborTotal: true,
       subtotal: true,
       discountAmount: true,
+      partsDiscountAmount: true,
+      laborDiscountAmount: true,
       shopSuppliesAmount: true,
       taxTotal: true,
       total: true,

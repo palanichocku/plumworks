@@ -45,6 +45,8 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
       customerComplaint: invoice.customerComplaint,
       recommendation: invoice.recommendation,
       discountAmount: invoice.discountAmount.toFixed(2),
+      partsDiscountAmount: invoice.partsDiscountAmount?.toFixed(2) ?? null,
+      laborDiscountAmount: invoice.laborDiscountAmount?.toFixed(2) ?? null,
       totals: {
         parts: invoice.partsTotal.toFixed(2), labor: invoice.laborTotal.toFixed(2), shopSupplies: invoice.shopSuppliesAmount.toFixed(2),
         subtotalBeforeTax: subtotalBeforeTax.toFixed(2), discount: invoice.discountAmount.toFixed(2), tax: invoice.taxTotal.toFixed(2), total: invoice.total.toFixed(2),
