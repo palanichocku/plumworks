@@ -20,6 +20,29 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref, voi
   const [open, setOpen] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const moreMenuRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const menu = moreMenuRef.current;
+      if (menu?.open && !menu.contains(event.target as Node)) {
+        menu.open = false;
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      const menu = moreMenuRef.current;
+      if (event.key === "Escape" && menu?.open) {
+        menu.open = false;
+        menu.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   useEffect(() => {
     if (!success) return;
@@ -69,7 +92,7 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref, voi
       >
         Email
       </button>
-      <details className="group relative">
+      <details ref={moreMenuRef} className="group relative">
         <summary
           aria-label="More invoice actions"
           title="More invoice actions"
