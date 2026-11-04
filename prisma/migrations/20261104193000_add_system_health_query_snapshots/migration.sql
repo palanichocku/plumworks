@@ -14,7 +14,6 @@ CREATE TABLE "system_health_query_samples" (
   "query_id" text NOT NULL,
   "operation" text NOT NULL,
   "classification" text NOT NULL,
-  "query_text" text NOT NULL,
   "calls" bigint NOT NULL,
   "total_exec_ms" double precision NOT NULL,
   PRIMARY KEY ("snapshot_id", "db_id", "user_id", "query_id")
