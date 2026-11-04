@@ -17,7 +17,8 @@ export type ResendUsageSummary = ExternalMonitorSummary & {
   monthlyLimit?: number | null;
 };
 
-const EXTERNAL_TIMEOUT_MS = 2_000;
+const EXTERNAL_TIMEOUT_MS = 5_000;
+const RETRY_CACHE_SECONDS = 60;
 const CACHE_SECONDS = 300;
 
 async function fetchJson(url: string, init: RequestInit) {
@@ -36,6 +37,20 @@ async function fetchJson(url: string, init: RequestInit) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function safeProviderError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return "Provider request exceeded the five-second limit. External monitoring continues independently.";
+  }
+  const status = /^HTTP (\d{3})$/.exec(message)?.[1];
+  if (status === "401" || status === "403") {
+    return "Provider rejected the dashboard API token (HTTP " + status + "). Check token and read permissions.";
+  }
+  if (status === "429") return "Provider rate limit reached (HTTP 429). Dashboard status will retry shortly.";
+  if (status) return "Provider API returned HTTP " + status + ". Dashboard status will retry shortly.";
+  return "Provider API could not be reached. Dashboard status will retry shortly; monitoring remains independent.";
 }
 
 function formatDate(value: unknown) {
@@ -112,12 +127,12 @@ async function readBetterStack(): Promise<ExternalMonitorSummary> {
         };
       }),
     };
-  } catch {
+  } catch (error) {
     return {
       name: "Better Stack",
       tone: "neutral",
       value: "Status unavailable",
-      detail: "The provider did not respond within the dashboard timeout. PlumWorks is unaffected.",
+      detail: safeProviderError(error),
     };
   }
 }
@@ -250,6 +265,7 @@ async function readResend(): Promise<ResendUsageSummary> {
     };
   }
 
+  let lastError: unknown;
   for (const key of keys) {
     try {
       const json = await fetchJson("https://api.resend.com/usage", {
@@ -278,8 +294,9 @@ async function readResend(): Promise<ResendUsageSummary> {
         monthlyUsed,
         monthlyLimit,
       };
-    } catch {
-      // Try the next server-side key. Never expose keys or provider errors to the UI.
+    } catch (error) {
+      // Try the next server-side key. Never expose token values to the UI.
+      lastError = error;
     }
   }
 
@@ -287,13 +304,13 @@ async function readResend(): Promise<ResendUsageSummary> {
     name: "Resend",
     tone: "neutral",
     value: "Usage unavailable",
-    detail: "The Usage API could not be read within the dashboard timeout. Email sending is unaffected.",
+    detail: safeProviderError(lastError) + " Email sending is unaffected.",
   };
 }
 
-const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack-detail-v4"], { revalidate: CACHE_SECONDS });
+const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack-v7"], { revalidate: RETRY_CACHE_SECONDS });
 const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-results-v6"], { revalidate: CACHE_SECONDS });
-const cachedResend = unstable_cache(readResend, ["system-health-resend"], { revalidate: CACHE_SECONDS });
+const cachedResend = unstable_cache(readResend, ["system-health-resend-v7"], { revalidate: RETRY_CACHE_SECONDS });
 
 export async function getExternalHealth() {
   const [betterStack, checkly, resend] = await Promise.all([
