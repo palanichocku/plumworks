@@ -21,6 +21,7 @@ import {
   type ComplimentaryEditActionState,
 } from "@/app/(app)/invoices/complimentary-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { InvoiceDiscountForm } from "@/components/invoice-discount-form";
 import { HistoricalDescriptionCombobox, ReadOnlyDescriptionPreview } from "@/components/historical-description-combobox";
 import { PendingIcon, TrashIcon } from "@/components/line-item-layout";
 import { VendorCombobox, type VendorOption } from "@/components/vendor-combobox";
@@ -36,6 +37,8 @@ type InvoiceEditModel = {
   customerComplaint: string | null;
   recommendation: string | null;
   discountAmount: string;
+  partsDiscountAmount: string | null;
+  laborDiscountAmount: string | null;
   totals: InvoiceEditPreview;
   vendors: VendorOption[];
   services: CommonService[];
@@ -217,10 +220,10 @@ function AddLineItem({ invoice }: { invoice: InvoiceEditModel }) {
 }
 
 function FinancialSummary({ invoice }: { invoice: InvoiceEditModel }) {
-  const [discount, setDiscount] = useState(invoice.discountAmount);
-  const [state, action, pending] = useActionState(updateInvoiceDiscountWithState, idle);
+  const categorized = invoice.partsDiscountAmount !== null;
+  
   const row = (label: string, value: string, strong = false) => <><dt className={strong ? "border-t border-slate-200 pt-3 font-semibold text-slate-950" : "text-slate-500"}>{label}</dt><dd className={`text-right tabular-nums ${strong ? "border-t border-slate-200 pt-3 font-semibold text-slate-950" : "text-slate-800"}`}>{money(value)}</dd></>;
-  return <aside className="self-start lg:sticky lg:top-6"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Balance due</p><p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{money(invoice.totals.balance)}</p><dl className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 text-sm">{row("Parts", invoice.totals.parts)}{row("Labor", invoice.totals.labor)}{row("Shop supplies", invoice.totals.shopSupplies)}{row("Discount", `-${invoice.totals.discount}`)}{row("Tax", invoice.totals.tax)}{row("Total", invoice.totals.total, true)}{row("Paid", invoice.totals.paid)}{row("Balance", invoice.totals.balance, true)}</dl><form action={action} className="mt-5 border-t border-slate-200 pt-4"><input type="hidden" name="invoiceId" value={invoice.id} /><label className="text-xs font-bold uppercase tracking-wider text-slate-500">Discount<input required name="discountAmount" type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} className={`${fieldClass} mt-1.5`} /></label><FormSubmitButton disabled={pending || Number(discount) === Number(invoice.discountAmount)} pendingLabel="Saving…" className="mt-2 w-full rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Save Discount</FormSubmitButton>{state.status === "success" ? <p className="mt-2 text-xs font-medium text-emerald-700">Discount saved.</p> : state.status === "error" ? <p className="mt-2 text-xs font-medium text-red-700">{state.message}</p> : null}</form></section></aside>;
+  return <aside className="self-start lg:sticky lg:top-6"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Balance due</p><p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{money(invoice.totals.balance)}</p><dl className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 text-sm">{row("Parts", invoice.totals.parts)}{row("Labor", invoice.totals.labor)}{row("Shop supplies", invoice.totals.shopSupplies)}{categorized ? <>{row("Parts discount", `-${invoice.partsDiscountAmount}`)}{row("Labor discount", `-${invoice.laborDiscountAmount}`)}</> : row("Discount (proportional)", `-${invoice.totals.discount}`)}{row("Tax", invoice.totals.tax)}{row("Total", invoice.totals.total, true)}{row("Paid", invoice.totals.paid)}{row("Balance", invoice.totals.balance, true)}</dl><InvoiceDiscountForm invoiceId={invoice.id} partsDiscountAmount={invoice.partsDiscountAmount} laborDiscountAmount={invoice.laborDiscountAmount} legacyDiscountAmount={invoice.discountAmount} /></section></aside>;
 }
 
 export function InvoiceEditWorkspaceV3({ invoice }: { invoice: InvoiceEditModel }) {
