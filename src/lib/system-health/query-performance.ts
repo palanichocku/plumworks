@@ -12,11 +12,15 @@ export type RecentQuery = {
   totalMs: number;
 };
 export type QueryPerformanceWindow = {
-  status: "collecting" | "ready" | "unavailable" | "reset";
+  status: "collecting" | "ready" | "unavailable" | "reset" | "stale";
   from: Date | null;
   to: Date | null;
   queries: RecentQuery[];
   detail: string;
+  latestAt: Date | null;
+  sampleCount: number;
+  maximumGapMinutes: number | null;
+  observedHours: number;
 };
 
 type Snapshot = { id: string; captured_at: Date; stats_reset_at: Date };
@@ -84,7 +88,27 @@ export async function captureQueryPerformanceSample() {
 }
 
 export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindow> {
+  const empty = { latestAt: null, sampleCount: 0, maximumGapMinutes: null, observedHours: 0 };
   try {
+    const history = await prisma.$queryRaw<{ captured_at: Date }[]>`
+      SELECT captured_at FROM system_health_query_snapshots
+      WHERE captured_at >= now() - interval '24 hours'
+      ORDER BY captured_at ASC LIMIT 144
+    `;
+    const stampTimes = history.map((row) => new Date(row.captured_at).getTime());
+    const maxGapMinutes = stampTimes.length >= 2
+      ? Math.max(...stampTimes.slice(1).map((stamp, i) => (stamp - stampTimes[i]) / 60_000))
+      : null;
+    const observedHours = stampTimes.length >= 2
+      ? (stampTimes[stampTimes.length - 1] - stampTimes[0]) / 3_600_000
+      : 0;
+    const metrics = {
+      latestAt: history.length ? history[history.length - 1].captured_at : null,
+      sampleCount: history.length,
+      maximumGapMinutes: maxGapMinutes,
+      observedHours,
+    };
+
     const current = await prisma.$queryRaw<Snapshot[]>`
       SELECT id, captured_at, stats_reset_at
       FROM system_health_query_snapshots
@@ -95,6 +119,7 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
     if (!latest) return {
       status: "collecting", from: null, to: null, queries: [],
       detail: "No valid baseline yet. Capture the first sample to begin.",
+      ...metrics,
     };
     const before = await prisma.$queryRaw<Snapshot[]>`
       SELECT id, captured_at, stats_reset_at
@@ -106,11 +131,20 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
     if (!baseline) return {
       status: "collecting", from: latest.captured_at, to: null, queries: [],
       detail: "Baseline captured. A second sample is needed to measure new executions.",
+      ...metrics,
     };
     if (new Date(latest.stats_reset_at).getTime() !== new Date(baseline.stats_reset_at).getTime()) {
       return {
         status: "reset", from: baseline.captured_at, to: latest.captured_at, queries: [],
         detail: "PostgreSQL query statistics were reset during this window. Capture a fresh baseline.",
+        ...metrics,
+      };
+    }
+    if (Date.now() - new Date(latest.captured_at).getTime() > 150 * 60_000) {
+      return {
+        status: "stale", from: baseline.captured_at, to: latest.captured_at, queries: [],
+        detail: "Collection is stale: no sample in the last 2½ hours. Verify the hourly scheduler. Historical values are not current alerts.",
+        ...metrics,
       };
     }
     const rows = await prisma.$queryRaw<(Sample & { previous_calls: bigint | null; previous_total_ms: number | null })[]>`
@@ -145,11 +179,13 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
     return {
       status: "ready", from: baseline.captured_at, to: latest.captured_at, queries,
       detail: "Measured changes between actual samples; historical November 3 calls are excluded.",
+      ...metrics,
     };
   } catch {
     return {
       status: "unavailable", from: null, to: null, queries: [],
       detail: "Query snapshots are unavailable. Confirm the DEV migration is applied; app operation is unaffected.",
+      ...empty,
     };
   }
 }

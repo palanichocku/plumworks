@@ -568,6 +568,17 @@ export default async function SystemHealthPage() {
               Query origin classification is heuristic while maintenance and app connections share the same database role.
             </p>
             <p className="mt-2 text-xs font-semibold text-slate-700">{queryWindow.detail}</p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-700">
+              <span><strong>Last sample:</strong> {queryWindow.latestAt ? formatTimestamp(new Date(queryWindow.latestAt)) : "None"}</span>
+              <span><strong>Last 24h:</strong> {queryWindow.sampleCount} samples</span>
+              <span><strong>Observed span:</strong> {queryWindow.observedHours.toFixed(1)}h / 24h</span>
+              {queryWindow.maximumGapMinutes !== null && <span><strong>Longest gap:</strong> {Math.round(queryWindow.maximumGapMinutes)} min</span>}
+            </div>
+            {queryWindow.status === "ready" && (queryWindow.observedHours < 23 || (queryWindow.maximumGapMinutes !== null && queryWindow.maximumGapMinutes > 90)) && (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                Partial 24-hour coverage. Results reflect only the recorded observation period; gaps can conceal unobserved query activity.
+              </p>
+            )}
             {queryWindow.from && <p className="mt-1 text-xs text-slate-500">
               Observed window: {formatTimestamp(new Date(queryWindow.from))}
               {queryWindow.to ? ` → ${formatTimestamp(new Date(queryWindow.to))}` : " (baseline only)"}
@@ -583,8 +594,8 @@ export default async function SystemHealthPage() {
         </div>
         {queryWindow.status !== "ready" ? (
           <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 sm:mx-5">
-            <span className="font-bold">{queryWindow.status === "collecting" ? "Collecting baseline" : queryWindow.status === "reset" ? "Statistics reset" : "Collection unavailable"}</span>
-            <p className="mt-1">No current query-health conclusion is possible until two valid samples exist. A missing baseline is not a green performance result.</p>
+            <span className="font-bold">{queryWindow.status === "collecting" ? "Collecting baseline" : queryWindow.status === "reset" ? "Statistics reset" : queryWindow.status === "stale" ? "Collection stale" : "Collection unavailable"}</span>
+            <p className="mt-1">No current query-health conclusion is possible with missing, reset, or stale samples. A missing or stale baseline is not a green performance result.</p>
           </div>
         ) : (
           <div className="border-t border-slate-200">
@@ -632,7 +643,7 @@ export default async function SystemHealthPage() {
           </div>
         )}
         <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
-          Samples are DEV manual validation until scheduling is configured. For detailed SQL plans, use Supabase Query Performance.
+          Samples may come from manual capture or the separate DEV scheduler when configured. Stale after 2½ hours; coverage gaps over 90 minutes are flagged. For SQL plans, use Supabase Query Performance.
         </div>
       </section>
 
