@@ -30,6 +30,7 @@ export function AppShell({
   const shopInitials = shopName.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "S";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const system: "DEV" | "PROD" = process.env.VERCEL_ENV === "production" && !siteUrl.includes("dev.") ? "PROD" : "DEV";
+  const websiteHref = system === "DEV" ? "/" : "https://www.subbuscardoc.com";
 
   return (
     <LeadNotificationProvider sessionKey={notificationSessionKey} enabled={canManageLeads}>
@@ -54,7 +55,7 @@ export function AppShell({
             </form>
           </div>
         </div>
-        <div className="lg:hidden"><MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} /></div>
+        <div className="lg:hidden"><MobileNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} websiteHref={websiteHref} /></div>
       </header>
 
       <aside className="app-shell-chrome app-shell-sidebar fixed inset-y-0 left-0 hidden h-dvh min-h-0 w-64 overflow-hidden border-r p-6 print:hidden lg:flex lg:flex-col">
@@ -88,7 +89,7 @@ export function AppShell({
           />
         </form>
 
-        <DesktopNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} />
+        <DesktopNavigation canViewReports={canViewReports} canViewAdmin={canViewAdmin} websiteHref={websiteHref} />
 
         <div className="sidebar-account mt-4 shrink-0 rounded-xl border border-slate-100 bg-slate-50 p-3.5">
           <div className="flex items-center justify-between gap-2.5">
