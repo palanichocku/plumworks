@@ -39,3 +39,14 @@ test("desktop and mobile share the customer-requested navigation order", async (
   assert.match(source, /item\.module === null \|\| businessProfile\.modules\[item\.module\]/);
   assert.equal((source.match(/allowedNavigation\(canViewReports, canViewAdmin\)\.map/g) ?? []).length, 2);
 });
+
+test("website globe uses the local marketing homepage in dev and retains the production destination", async () => {
+  const [shell, navigation] = await Promise.all([
+    read("src/components/app-shell.tsx"),
+    read("src/components/app-navigation.tsx"),
+  ]);
+  assert.match(shell, /websiteHref = system === "DEV" \? "\/" : "https:\/\/www\.subbuscardoc\.com"/);
+  assert.match(shell, /<DesktopNavigation[^>]*websiteHref=\{websiteHref\}/);
+  assert.match(shell, /<MobileNavigation[^>]*websiteHref=\{websiteHref\}/);
+  assert.match(navigation, /item\.href === PUBLIC_WEBSITE_URL \? \{ \.\.\.item, href: websiteHref \} : item/);
+});
