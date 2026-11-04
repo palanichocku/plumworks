@@ -17,6 +17,7 @@ import { hasPermission } from "@/lib/permissions";
 import { InvoiceDeliverySignaturePanel } from "@/components/invoice-delivery-signature-panel";
 import { getInvoiceDeliverySignatureEvidence } from "@/lib/authorization/invoice-signature-evidence";
 import { snapshotString } from "@/lib/invoice-snapshots";
+import { InvoiceDiscountForm } from "@/components/invoice-discount-form";
 
 type InvoiceDetail = NonNullable<
   Awaited<ReturnType<typeof getInvoiceForCurrentShop>>
@@ -138,12 +139,16 @@ export default async function InvoiceDetailPage({
               <dt className="text-slate-500">Labor</dt><dd className="text-right">{formatMoney(invoice.laborTotal)}</dd>
               <dt className="text-slate-500">Shop supplies</dt><dd className="text-right">{formatMoney(invoice.shopSuppliesAmount)}</dd>
               <dt className="text-slate-500">Subtotal before tax</dt><dd className="text-right">{formatMoney(displaySubtotalBeforeTax)}</dd>
-              {!invoice.discountAmount.isZero() ? <><dt className="text-slate-500">Discount</dt><dd className="text-right">{formatMoney(invoice.discountAmount.negated())}</dd></> : null}
+              {invoice.partsDiscountAmount !== null ? <>
+  {!invoice.partsDiscountAmount.isZero() ? <><dt className="text-slate-500">Parts discount</dt><dd className="text-right">{formatMoney(invoice.partsDiscountAmount.negated())}</dd></> : null}
+  {invoice.laborDiscountAmount && !invoice.laborDiscountAmount.isZero() ? <><dt className="text-slate-500">Labor discount</dt><dd className="text-right">{formatMoney(invoice.laborDiscountAmount.negated())}</dd></> : null}
+ </> : !invoice.discountAmount.isZero() ? <><dt className="text-slate-500">Discount (proportional)</dt><dd className="text-right">{formatMoney(invoice.discountAmount.negated())}</dd></> : null}
               <dt className="text-slate-500">Tax</dt><dd className="text-right">{formatMoney(invoice.taxTotal)}</dd>
               <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-950">{voided ? "Original total" : "Total"}</dt><dd className="border-t border-slate-200 pt-3 text-right font-semibold text-slate-950">{formatMoney(invoice.total)}</dd>
               <dt className="text-slate-500">Paid</dt><dd className="text-right">{formatMoney(invoice.paidTotal)}</dd>
             </dl>
-            {open && receivable?.balance.greaterThan(0) ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice stays open until the remaining balance is paid.</p> : null}
+            {open && membership && hasPermission(membership.role, "edit_draft_repair_order") ? <InvoiceDiscountForm invoiceId={invoice.id} partsDiscountAmount={invoice.partsDiscountAmount?.toFixed(2) ?? null} laborDiscountAmount={invoice.laborDiscountAmount?.toFixed(2) ?? null} legacyDiscountAmount={invoice.discountAmount.toFixed(2)} /> : null}
+ {open && receivable?.balance.greaterThan(0) ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice stays open until the remaining balance is paid.</p> : null}
           </section>
         </div>
 
