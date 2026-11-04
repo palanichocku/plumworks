@@ -37,7 +37,7 @@ test("desktop and mobile share the customer-requested navigation order", async (
   assert.match(source, /label: terminology\.workOrderPlural/);
   assert.match(source, /label: terminology\.assetPlural/);
   assert.match(source, /item\.module === null \|\| businessProfile\.modules\[item\.module\]/);
-  assert.equal((source.match(/allowedNavigation\(canViewReports, canViewAdmin\)\.map/g) ?? []).length, 2);
+  assert.equal((source.match(/allowedNavigation\(canViewReports, canViewAdmin, websiteHref\)\.map/g) ?? []).length, 2);
 });
 
 test("website globe uses the local marketing homepage in dev and retains the production destination", async () => {
