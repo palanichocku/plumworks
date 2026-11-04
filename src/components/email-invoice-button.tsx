@@ -5,15 +5,17 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { sendInvoiceEmailAction } from "@/app/(app)/invoices/email-actions";
 import type { InvoiceEmailState } from "@/lib/email/invoice-email-core";
+import { VoidInvoiceButton } from "@/components/void-invoice-button";
 
 const initialState: InvoiceEmailState = { status: "idle" };
 export const INVOICE_EMAIL_SUCCESS_DURATION_MS = 5_000;
 const fallbackError = "Invoice could not be emailed. Please try again.";
 
-export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref }: {
+export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref, voidAction }: {
   invoiceId: string;
   defaultRecipient: string;
   printHref: string;
+  voidAction?: { invoiceNumber: string; originalTotal: string };
 }) {
   const [open, setOpen] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -67,12 +69,28 @@ export function EmailInvoiceButton({ invoiceId, defaultRecipient, printHref }: {
       >
         Email
       </button>
-      <Link
-        href={printHref}
-        className="rounded-lg bg-brand-primary px-3 py-2 text-sm font-semibold text-white hover:bg-brand-primary"
-      >
-        Print
-      </Link>
+      <details className="group relative">
+        <summary
+          aria-label="More invoice actions"
+          title="More invoice actions"
+          className="flex h-9 min-w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xl font-bold leading-none text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-primary/20 [&::-webkit-details-marker]:hidden"
+        >
+          <span aria-hidden="true">⋯</span>
+        </summary>
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+          <Link
+            href={printHref}
+            className="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            Print
+          </Link>
+          {voidAction ? (
+            <div className="border-t border-slate-100 pt-1.5 [&_button]:w-full [&_button]:text-left">
+              <VoidInvoiceButton invoiceId={invoiceId} invoiceNumber={voidAction.invoiceNumber} originalTotal={voidAction.originalTotal} />
+            </div>
+          ) : null}
+        </div>
+      </details>
     </div>
     {success ? <div aria-live="polite" aria-atomic="true" className="text-right">
       <p role="status" className="text-sm font-medium text-emerald-700">{success}</p>
