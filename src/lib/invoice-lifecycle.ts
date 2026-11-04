@@ -24,6 +24,8 @@ type TransactionTotalsInput = {
   laborTaxable: boolean;
   shopSuppliesTaxable: boolean;
   discountAmount?: DecimalInput;
+  partsDiscountAmount?: DecimalInput | null;
+  laborDiscountAmount?: DecimalInput | null;
 };
 
 function calculateNativeTransactionTotals(input: TransactionTotalsInput) {
@@ -37,8 +39,13 @@ function calculateNativeTransactionTotals(input: TransactionTotalsInput) {
   const discountAmount = new Prisma.Decimal(input.discountAmount ?? 0).toDecimalPlaces(2);
   if (discountAmount.lessThan(0)) throw new Error("Discount cannot be negative.");
   if (discountAmount.greaterThan(subtotal)) throw new Error("Discount cannot exceed Parts and Labor.");
-  const partsDiscount = subtotal.isZero() ? zero : discountAmount.mul(partsTotal).div(subtotal).toDecimalPlaces(2);
-  const laborDiscount = discountAmount.minus(partsDiscount).toDecimalPlaces(2);
+  // Keep proportional allocation for legacy invoices with null category fields.
+  const categorized = input.partsDiscountAmount != null && input.laborDiscountAmount != null;
+  const partsDiscount = categorized ? new Prisma.Decimal(input.partsDiscountAmount!).toDecimalPlaces(2) : subtotal.isZero() ? zero : discountAmount.mul(partsTotal).div(subtotal).toDecimalPlaces(2);
+  const laborDiscount = categorized ? new Prisma.Decimal(input.laborDiscountAmount!).toDecimalPlaces(2) : discountAmount.minus(partsDiscount).toDecimalPlaces(2);
+  if (partsDiscount.lessThan(0) || partsDiscount.greaterThan(partsTotal)) throw new Error("Parts discount cannot exceed Parts.");
+  if (laborDiscount.lessThan(0) || laborDiscount.greaterThan(laborTotal)) throw new Error("Labor discount cannot exceed Labor.");
+  if (categorized && !partsDiscount.plus(laborDiscount).equals(discountAmount)) throw new Error("Discount amounts must equal the invoice discount.");
   const discountedParts = partsTotal.minus(partsDiscount).toDecimalPlaces(2);
   const discountedLabor = laborTotal.minus(laborDiscount).toDecimalPlaces(2);
   const taxable = (input.partsTaxable ? discountedParts : zero)

@@ -158,3 +158,18 @@ test("visible creation wording is Create Invoice and no Finalize/Create label re
   assert.doesNotMatch(pages, /Finalize\s*\/\s*Create Invoice|Finalize and create invoice/);
   assert.match(pages, /Open Invoice/);
 });
+
+test("categorized Labor discount leaves Parts tax and shop supplies unchanged", () => {
+ const x = { parts: [{ quantity: "1", unitPrice: "200" }], labor: [{ hours: "1", hourlyRate: "150" }], shopSuppliesEnabled: true, shopSuppliesRate: "0.10", shopSuppliesCap: "15", taxRate: "0.06", partsTaxable: true, laborTaxable: false, shopSuppliesTaxable: false };
+ const original = calculateEditableInvoiceTotals(x);
+ const labor = calculateEditableInvoiceTotals({ ...x, discountAmount: "25", partsDiscountAmount: "0", laborDiscountAmount: "25" });
+ const parts = calculateEditableInvoiceTotals({ ...x, discountAmount: "25", partsDiscountAmount: "25", laborDiscountAmount: "0" });
+ assert.equal(original.total.toFixed(2), "377.00");
+ assert.equal(labor.total.toFixed(2), "352.00");
+ assert.equal(labor.taxTotal.toFixed(2), "12.00");
+ assert.equal(labor.shopSuppliesAmount.toFixed(2), "15.00");
+ assert.equal(parts.taxTotal.toFixed(2), "10.50");
+ assert.equal(parts.total.toFixed(2), "350.50");
+ assert.throws(() => calculateEditableInvoiceTotals({ ...x, discountAmount: "151", partsDiscountAmount: "0", laborDiscountAmount: "151" }), /Labor discount/);
+ assert.throws(() => calculateEditableInvoiceTotals({ ...x, discountAmount: "25", partsDiscountAmount: "10", laborDiscountAmount: "10" }), /must equal/);
+});

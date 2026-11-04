@@ -148,6 +148,8 @@ export function InvoiceDocumentPDF({ model }: { model: InvoiceDocumentModel }) {
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Labor</Text><Text style={styles.totalValue}>{model.totals.labor}</Text></View>
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Shop supplies</Text><Text style={styles.totalValue}>{model.totals.shopSupplies}</Text></View>
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal before tax</Text><Text style={styles.totalValue}>{model.totals.displaySubtotalBeforeTax}</Text></View>
+          {model.totals.partsDiscount && model.totals.partsDiscount !== "$0.00" && model.totals.partsDiscount !== "-$0.00" ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Parts discount</Text><Text style={styles.totalValue}>{model.totals.partsDiscount}</Text></View> : null}
+          {model.totals.laborDiscount && model.totals.laborDiscount !== "$0.00" && model.totals.laborDiscount !== "-$0.00" ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Labor discount</Text><Text style={styles.totalValue}>{model.totals.laborDiscount}</Text></View> : null}
           {model.totals.discount !== "$0.00" && model.totals.discount !== "-$0.00" ? <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={styles.totalValue}>{model.totals.discount}</Text></View> : null}
           {model.legacyCharges.map((charge) => <View key={charge.label} style={styles.totalRow}><Text style={styles.totalLabel}>{charge.label}</Text><Text style={styles.totalValue}>{charge.amount}</Text></View>)}
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>{model.totals.tax}</Text></View>
