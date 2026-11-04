@@ -11,7 +11,6 @@ import { isEditableOpenInvoice } from "@/lib/invoice-lifecycle";
 import { EmailInvoiceButton } from "@/components/email-invoice-button";
 import { normalizeEmailRecipient } from "@/lib/email/invoice-email-core";
 import { invoicePaymentSummary, paymentMethodLabel, paymentPayerLabel, paymentStatusLabel } from "@/lib/invoice-payments";
-import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { hasPermission } from "@/lib/permissions";
 import { InvoiceDeliverySignaturePanel } from "@/components/invoice-delivery-signature-panel";
@@ -98,8 +97,8 @@ export default async function InvoiceDetailPage({
             invoiceId={invoice.id}
             defaultRecipient={normalizeEmailRecipient(invoice.customer.email ?? "") ?? ""}
             printHref={`/invoices/${invoice.id}/print`}
+            voidAction={canVoid ? { invoiceNumber: String(invoice.repairOrderNumber), originalTotal: formatMoney(invoice.total) } : undefined}
           />
-          {canVoid ? <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={String(invoice.repairOrderNumber)} originalTotal={formatMoney(invoice.total)} /> : null}
         </div>
       </header>
 
