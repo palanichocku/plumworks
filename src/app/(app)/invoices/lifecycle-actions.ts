@@ -42,6 +42,8 @@ export async function previewInvoiceEditTotals(invoiceId: string, lines: {
       shopSuppliesTaxableSnapshot: true,
       shopSnapshot: true,
       discountAmount: true,
+      partsDiscountAmount: true,
+      laborDiscountAmount: true,
     },
   });
   if (!invoice) return null;
@@ -60,7 +62,7 @@ export async function previewInvoiceEditTotals(invoiceId: string, lines: {
       partsTaxable: shop.partsTaxable ?? true,
       laborTaxable: shop.laborTaxable ?? false,
       shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true,
-      discountAmount: money(lines.discountAmount),
+      discountAmount: invoice.discountAmount, partsDiscountAmount: invoice.partsDiscountAmount, laborDiscountAmount: invoice.laborDiscountAmount,
     });
     const payments = await prisma.payment.aggregate({ where: { invoiceId, shopId: membership.shopId }, _sum: { amount: true } });
     const paid = payments._sum.amount ?? new Prisma.Decimal(0);
@@ -82,11 +84,11 @@ export async function previewInvoiceEditTotals(invoiceId: string, lines: {
 
 async function refreshInvoice(transaction: Prisma.TransactionClient, shopId: string, invoiceId: string) {
   const invoice = await transaction.invoice.findFirstOrThrow({ where: { id: invoiceId, shopId, status: "open", legacySourceTable: null }, select: {
-    id: true, total: true, paidTotal: true, discountAmount: true, shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,
+    id: true, total: true, paidTotal: true, discountAmount: true, partsDiscountAmount: true, laborDiscountAmount: true, shopSuppliesEnabledSnapshot: true, shopSuppliesRateSnapshot: true, shopSuppliesCapSnapshot: true, shopSuppliesTaxableSnapshot: true, shopSnapshot: true,
     parts: { select: { quantity: true, unitPrice: true } }, labor: { where: { complimentary: false }, select: { hours: true, hourlyRate: true, shopSuppliesEligible: true } }, accountsReceivable: { take: 1, select: { id: true } },
   } });
   const shop = (invoice.shopSnapshot ?? {}) as { defaultTaxRate?: string | number; partsTaxable?: boolean; laborTaxable?: boolean };
-  const totals = calculateEditableInvoiceTotals({ parts: invoice.parts, labor: invoice.labor, shopSuppliesEnabled: invoice.shopSuppliesEnabledSnapshot ?? false, shopSuppliesRate: invoice.shopSuppliesRateSnapshot ?? 0, shopSuppliesCap: invoice.shopSuppliesCapSnapshot ?? 0, taxRate: shop.defaultTaxRate ?? 0, partsTaxable: shop.partsTaxable ?? true, laborTaxable: shop.laborTaxable ?? false, shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true, discountAmount: invoice.discountAmount });
+  const totals = calculateEditableInvoiceTotals({ parts: invoice.parts, labor: invoice.labor, shopSuppliesEnabled: invoice.shopSuppliesEnabledSnapshot ?? false, shopSuppliesRate: invoice.shopSuppliesRateSnapshot ?? 0, shopSuppliesCap: invoice.shopSuppliesCapSnapshot ?? 0, taxRate: shop.defaultTaxRate ?? 0, partsTaxable: shop.partsTaxable ?? true, laborTaxable: shop.laborTaxable ?? false, shopSuppliesTaxable: invoice.shopSuppliesTaxableSnapshot ?? true, discountAmount: invoice.discountAmount, partsDiscountAmount: invoice.partsDiscountAmount, laborDiscountAmount: invoice.laborDiscountAmount });
   const paid = await transaction.payment.aggregate({ where: { invoiceId, shopId }, _sum: { amount: true } });
   const paidTotal = paid._sum.amount ?? new Prisma.Decimal(0);
   const balance = invoiceBalance(totals.total, paidTotal);
@@ -158,10 +160,24 @@ export async function updateInvoiceDiscount(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const discountAmount = money(formData.get("discountAmount"));
   await mutateOpenInvoice(invoiceId, async (transaction) => {
-    await transaction.invoice.update({ where: { id: invoiceId }, data: { discountAmount } });
+    await transaction.invoice.update({ where: { id: invoiceId }, data: { discountAmount, partsDiscountAmount: null, laborDiscountAmount: null } });
   });
 }
 
+
+export async function updateInvoiceCategorizedDiscountWithState(_state: InvoiceEditActionState, formData: FormData): Promise<InvoiceEditActionState> {
+ try {
+  const invoiceId = String(formData.get("invoiceId") ?? "");
+  const partsDiscountAmount = money(formData.get("partsDiscountAmount"));
+  const laborDiscountAmount = money(formData.get("laborDiscountAmount"));
+  await mutateOpenInvoice(invoiceId, async transaction => {
+   await transaction.invoice.update({ where: { id: invoiceId }, data: {
+    partsDiscountAmount, laborDiscountAmount, discountAmount: partsDiscountAmount.plus(laborDiscountAmount),
+   }});
+  });
+  return { status: "success" };
+ } catch(error) { return { status: "error", message: error instanceof Error ? error.message : "Discounts could not be saved." }; }
+}
 export async function addInvoicePart(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") ?? ""); const description = String(formData.get("description") ?? "").trim(); const quantity = money(formData.get("quantity")); const unitPrice = money(formData.get("unitPrice"));
   if (!description || description.length > 500 || !quantity.greaterThan(0)) throw new Error("Invalid part.");
