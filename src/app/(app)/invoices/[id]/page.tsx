@@ -147,7 +147,7 @@ export default async function InvoiceDetailPage({
               <dt className="border-t border-slate-200 pt-3 font-semibold text-slate-950">{voided ? "Original total" : "Total"}</dt><dd className="border-t border-slate-200 pt-3 text-right font-semibold text-slate-950">{formatMoney(invoice.total)}</dd>
               <dt className="text-slate-500">Paid</dt><dd className="text-right">{formatMoney(invoice.paidTotal)}</dd>
             </dl>
-            {open && membership && hasPermission(membership.role, "edit_draft_repair_order") ? <InvoiceDiscountForm invoiceId={invoice.id} partsDiscountAmount={invoice.partsDiscountAmount?.toFixed(2) ?? null} laborDiscountAmount={invoice.laborDiscountAmount?.toFixed(2) ?? null} legacyDiscountAmount={invoice.discountAmount.toFixed(2)} /> : null}
+
  {open && receivable?.balance.greaterThan(0) ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice stays open until the remaining balance is paid.</p> : null}
           </section>
         </div>
@@ -194,6 +194,36 @@ export default async function InvoiceDetailPage({
             {lineCount === 0 ? <li className="px-5 py-5 text-sm text-slate-600">No line items are recorded for this invoice.</li> : null}
           </ul>
         </section>
+
+        {open && membership && hasPermission(membership.role, "edit_draft_repair_order") ? (
+          <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5 [&::-webkit-details-marker]:hidden">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Discounts</h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  {invoice.partsDiscountAmount !== null
+                    ? `Labor ${formatMoney(invoice.laborDiscountAmount ?? 0)} · Parts ${formatMoney(invoice.partsDiscountAmount)}`
+                    : !invoice.discountAmount.isZero()
+                      ? `Existing proportional discount ${formatMoney(invoice.discountAmount)}`
+                      : "No discounts applied"}
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-primary">
+                <span className="group-open:hidden">Edit discounts</span>
+                <span className="hidden group-open:inline">Close discounts</span>
+                <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-180">⌄</span>
+              </span>
+            </summary>
+            <div className="max-w-xl border-t border-slate-200 px-4 pb-5 sm:px-5">
+              <InvoiceDiscountForm
+                invoiceId={invoice.id}
+                partsDiscountAmount={invoice.partsDiscountAmount?.toFixed(2) ?? null}
+                laborDiscountAmount={invoice.laborDiscountAmount?.toFixed(2) ?? null}
+                legacyDiscountAmount={invoice.discountAmount.toFixed(2)}
+              />
+            </div>
+          </details>
+        ) : null}
 
         {canRecordPayment ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
