@@ -9,8 +9,8 @@ CREATE INDEX "system_health_query_snapshots_captured_at_idx"
 
 CREATE TABLE "system_health_query_samples" (
   "snapshot_id" uuid NOT NULL REFERENCES "system_health_query_snapshots" ("id") ON DELETE CASCADE,
-  "db_id" oid NOT NULL,
-  "user_id" oid NOT NULL,
+  "db_id" bigint NOT NULL,
+  "user_id" bigint NOT NULL,
   "query_id" text NOT NULL,
   "operation" text NOT NULL,
   "classification" text NOT NULL,
