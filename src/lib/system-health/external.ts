@@ -130,79 +130,103 @@ async function readCheckly(): Promise<ExternalMonitorSummary> {
       name: "Checkly",
       tone: "neutral",
       value: "API access not configured",
-      detail: "Synthetic checks continue independently; add read credentials to surface them here.",
+      detail: "Synthetic monitoring continues separately; add read credentials to surface results here.",
     };
   }
 
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "X-Checkly-Account": accountId,
+  };
+
   try {
-    const headers = {
-      Authorization: `Bearer ${apiKey}`,
-      "X-Checkly-Account": accountId,
-    };
-    // Read configuration and reported check statuses concurrently: neither request
-    // needs to block application routes; each request has a 2-second timeout.
-    const [checksResponse, statusesResponse] = await Promise.allSettled([
-      fetchJson("https://api.checklyhq.com/v1/checks", { headers }),
-      fetchJson("https://api.checklyhq.com/v1/check-statuses", { headers }),
-    ]);
-    if (checksResponse.status !== "fulfilled" || !Array.isArray(checksResponse.value)) {
-      throw new Error("Unable to retrieve configured checks");
-    }
-    const checks = checksResponse.value as Array<Record<string, unknown>>;
-    const active = checks.filter((check) => check.activated !== false);
-    const statuses = statusesResponse.status === "fulfilled" && Array.isArray(statusesResponse.value)
-      ? statusesResponse.value as Array<Record<string, unknown>>
+    const checksResponse = await fetchJson("https://api.checklyhq.com/v1/checks", { headers });
+    const checks = Array.isArray(checksResponse)
+      ? checksResponse as Array<Record<string, unknown>>
       : [];
-    const statusesById = new Map(
-      statuses
-        .filter((status) => typeof status.checkId === "string")
-        .map((status) => [status.checkId as string, status]),
+    const active = checks.filter((check) => check.activated !== false);
+
+    // Fetch only one FINAL result per configured check. The results endpoint
+    // exposes completed execution outcomes; enabled configuration alone does not.
+    // Provider calls are parallel, individually timeout-bounded, and only run here.
+    const latestResponses = await Promise.allSettled(
+      active.slice(0, 10).map((check) => {
+        const id = typeof check.id === "string" ? check.id : "";
+        if (!id) return Promise.reject(new Error("Missing check ID"));
+        return fetchJson(
+          `https://api.checklyhq.com/v2/check-results/${encodeURIComponent(id)}?limit=1&resultType=FINAL`,
+          { headers },
+        );
+      }),
     );
 
-    const results = active.map((check) => {
-      const id = typeof check.id === "string" ? check.id : "";
-      const status = statusesById.get(id);
-      const updated = status && typeof status.updated_at === "string" ? formatDate(status.updated_at) : null;
-      const hasResult = Boolean(status && status.lastCheckRunId);
-      const isFailed = status?.hasFailures === true || status?.hasErrors === true;
-      const isDegraded = status?.isDegraded === true;
-      const latestStatus = !hasResult ? "Last result unavailable" : isFailed ? "Failed" : isDegraded ? "Degraded" : "Passed";
+    const results = active.map((check, index) => {
+      const response = latestResponses[index];
+      const payload: unknown = response?.status === "fulfilled" ? response.value : null;
+      const items = payload && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as { entries?: unknown }).entries
+        : null;
+      const first = Array.isArray(items) ? items[0] : null;
+      const result: Record<string, unknown> | null =
+        first && typeof first === "object" && !Array.isArray(first)
+          ? first as Record<string, unknown>
+          : null;
+
+      const hasCompleteResult = Boolean(
+        result &&
+        typeof result.hasFailures === "boolean" &&
+        typeof result.hasErrors === "boolean" &&
+        typeof result.startedAt === "string",
+      );
+      const date = hasCompleteResult ? new Date(result!.startedAt as string) : null;
+      const timestampValid = date !== null && !Number.isNaN(date.getTime());
+      // The check currently runs hourly. A several-hour-old result should
+      // not be presented as live green health if monitoring stopped.
+      const ageMs = timestampValid ? Date.now() - date!.getTime() : null;
+      const stale = ageMs !== null && (ageMs > 3 * 60 * 60 * 1000 || ageMs < -5 * 60 * 1000);
+      const outcome = !hasCompleteResult || !timestampValid
+        ? "Result unavailable"
+        : stale ? "Stale result"
+        : result!.hasFailures === true || result!.hasErrors === true || result!.isCancelled === true
+          ? "Failed"
+          : result!.isDegraded === true ? "Degraded" : "Passed";
+
       const request = check.request && typeof check.request === "object"
         ? check.request as Record<string, unknown>
         : null;
-      const urlValue = request?.url;
       let target: string | undefined;
-      if (typeof urlValue === "string") {
+      if (typeof request?.url === "string") {
         try {
-          const url = new URL(urlValue);
-          if (url.protocol === "https:" || url.protocol === "http:") target = url.host + url.pathname;
-        } catch {
-          // A configured target need not be a URL.
-        }
+          const url = new URL(request.url);
+          if (url.protocol === "https:" || url.protocol === "http:") {
+            target = url.host + url.pathname; // Never include secret query parameters
+          }
+        } catch { /* Browser checks may not have a URL target. */ }
       }
+
       return {
         name: typeof check.name === "string" && check.name.trim() ? check.name.trim() : "Unnamed check",
         type: typeof check.checkType === "string" ? check.checkType.replaceAll("_", " ") : "Synthetic check",
         target,
-        status: latestStatus,
-        checkedAt: hasResult && updated ? updated : undefined,
+        status: outcome,
+        checkedAt: timestampValid ? formatDate(date!.toISOString()) ?? undefined : undefined,
       };
     });
-    const failing = results.filter((result) => result.status === "Failed").length;
+
+    const passed = results.filter((result) => result.status === "Passed").length;
+    const failed = results.filter((result) => result.status === "Failed").length;
     const degraded = results.filter((result) => result.status === "Degraded").length;
-    const passing = results.filter((result) => result.status === "Passed").length;
-    const unknown = results.filter((result) => result.status === "Last result unavailable").length;
+    const stale = results.filter((result) => result.status === "Stale result").length;
+    const unknown = results.filter((result) => result.status === "Result unavailable").length;
+    const complete = results.length > 0 && unknown === 0 && stale === 0;
     return {
       name: "Checkly",
-      tone: failing ? "bad" : degraded ? "warn" : passing && unknown === 0 ? "good" : "neutral",
-      value: active.length === 0
-        ? "No active checks"
-        : unknown === 0
-          ? `${passing} passed · ${failing} failed${degraded ? ` · ${degraded} degraded` : ""}`
-          : `${passing} passed · ${failing} failed · ${unknown} unknown`,
-      detail: statusesResponse.status === "rejected"
-        ? "Latest status API unavailable; configured checks remain visible."
-        : "Latest reported status from Checkly; independently cached for 5 minutes.",
+      tone: failed ? "bad" : degraded || stale ? "warn" : complete && passed === results.length ? "good" : "neutral",
+      value: results.length === 0 ? "No active checks"
+        : `${passed} passed · ${failed} failed${degraded ? ` · ${degraded} degraded` : ""}${stale ? ` · ${stale} stale` : ""}${unknown ? ` · ${unknown} unknown` : ""}`,
+      detail: active.length > 10
+        ? "Showing the first 10 active checks; remaining checks not retrieved."
+        : "Latest completed Checkly run per check · results cached for 5 minutes.",
       checks: results,
     };
   } catch {
@@ -210,7 +234,7 @@ async function readCheckly(): Promise<ExternalMonitorSummary> {
       name: "Checkly",
       tone: "neutral",
       value: "Status unavailable",
-      detail: "The provider did not respond within the dashboard timeout. PlumWorks is unaffected.",
+      detail: "Checkly API could not be read within the dashboard timeout. PlumWorks is unaffected.",
     };
   }
 }
@@ -268,7 +292,7 @@ async function readResend(): Promise<ResendUsageSummary> {
 }
 
 const cachedBetterStack = unstable_cache(readBetterStack, ["system-health-better-stack-detail-v4"], { revalidate: CACHE_SECONDS });
-const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-latest-status-v5"], { revalidate: CACHE_SECONDS });
+const cachedCheckly = unstable_cache(readCheckly, ["system-health-checkly-results-v6"], { revalidate: CACHE_SECONDS });
 const cachedResend = unstable_cache(readResend, ["system-health-resend"], { revalidate: CACHE_SECONDS });
 
 export async function getExternalHealth() {
