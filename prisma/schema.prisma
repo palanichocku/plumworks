@@ -990,7 +990,6 @@ model SystemHealthQuerySample {
   queryId       String                    @map("query_id")
   operation     String
   classification String
-  queryText     String                    @map("query_text")
   calls         BigInt
   totalExecMs   Float                     @map("total_exec_ms")
   snapshot      SystemHealthQuerySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
