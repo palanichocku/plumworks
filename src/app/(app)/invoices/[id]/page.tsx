@@ -109,6 +109,7 @@ export default async function InvoiceDetailPage({
 
       <div className="transaction-workspace-width mt-6 min-w-0 space-y-5">
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+          <div className="min-w-0 space-y-5">
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-base font-semibold text-slate-950">Job summary</h2>
             <dl className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
@@ -130,7 +131,24 @@ export default async function InvoiceDetailPage({
               {invoice.recommendation ? <div><h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shop recommendation</h3><p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{invoice.recommendation}</p></div> : null}
             </div> : null}
           </section>
-
+        {canRecordPayment ? (
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Record payment</h2>
+                <p className="mt-1 text-sm text-slate-600">Payments cannot exceed the current balance of {formatMoney(receivable?.balance)}.</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Balance due</p>
+                <p className="mt-0.5 text-lg font-semibold text-slate-950">{formatMoney(receivable?.balance)}</p>
+              </div>
+            </div>
+            <InvoicePaymentForm key={paymentAmount} invoiceId={invoice.id} remainingBalance={paymentAmount} paymentDate={today} />
+          </section>
+        ) : invoice.legacySourceTable ? (
+          <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">Imported legacy invoice — payment recording is read-only.</p>
+        ) : null}
+          </div>
           <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Balance due</p>
             <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{voided ? "$0.00" : receivable ? formatMoney(receivable.balance) : "Unavailable"}</p>
@@ -148,7 +166,36 @@ export default async function InvoiceDetailPage({
               <dt className="text-slate-500">Paid</dt><dd className="text-right">{formatMoney(invoice.paidTotal)}</dd>
             </dl>
 
- {open && receivable?.balance.greaterThan(0) ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice stays open until the remaining balance is paid.</p> : null}
+            {open && membership && hasPermission(membership.role, "edit_draft_repair_order") ? (
+              <details className="group mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60">
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-3 py-3 [&::-webkit-details-marker]:hidden">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">Discounts</h2>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {invoice.partsDiscountAmount !== null
+                        ? `Labor ${formatMoney(invoice.laborDiscountAmount ?? 0)} · Parts ${formatMoney(invoice.partsDiscountAmount)}`
+                        : !invoice.discountAmount.isZero()
+                          ? `Existing proportional discount ${formatMoney(invoice.discountAmount)}`
+                          : "No discounts applied"}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-primary">
+                    <span className="group-open:hidden">Edit discounts</span>
+                    <span className="hidden group-open:inline">Close discounts</span>
+                    <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-180">⌄</span>
+                  </span>
+                </summary>
+                <div className="border-t border-slate-200 bg-white px-3 pb-4">
+                  <InvoiceDiscountForm
+                    invoiceId={invoice.id}
+                    partsDiscountAmount={invoice.partsDiscountAmount?.toFixed(2) ?? null}
+                    laborDiscountAmount={invoice.laborDiscountAmount?.toFixed(2) ?? null}
+                    legacyDiscountAmount={invoice.discountAmount.toFixed(2)}
+                  />
+                </div>
+              </details>
+            ) : null}
+            {open && receivable?.balance.greaterThan(0) ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">This invoice stays open until the remaining balance is paid.</p> : null}
           </section>
         </div>
 
@@ -194,54 +241,6 @@ export default async function InvoiceDetailPage({
             {lineCount === 0 ? <li className="px-5 py-5 text-sm text-slate-600">No line items are recorded for this invoice.</li> : null}
           </ul>
         </section>
-
-        {open && membership && hasPermission(membership.role, "edit_draft_repair_order") ? (
-          <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5 [&::-webkit-details-marker]:hidden">
-              <div>
-                <h2 className="text-base font-semibold text-slate-950">Discounts</h2>
-                <p className="mt-1 text-xs text-slate-600">
-                  {invoice.partsDiscountAmount !== null
-                    ? `Labor ${formatMoney(invoice.laborDiscountAmount ?? 0)} · Parts ${formatMoney(invoice.partsDiscountAmount)}`
-                    : !invoice.discountAmount.isZero()
-                      ? `Existing proportional discount ${formatMoney(invoice.discountAmount)}`
-                      : "No discounts applied"}
-                </p>
-              </div>
-              <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-primary">
-                <span className="group-open:hidden">Edit discounts</span>
-                <span className="hidden group-open:inline">Close discounts</span>
-                <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-180">⌄</span>
-              </span>
-            </summary>
-            <div className="max-w-xl border-t border-slate-200 px-4 pb-5 sm:px-5">
-              <InvoiceDiscountForm
-                invoiceId={invoice.id}
-                partsDiscountAmount={invoice.partsDiscountAmount?.toFixed(2) ?? null}
-                laborDiscountAmount={invoice.laborDiscountAmount?.toFixed(2) ?? null}
-                legacyDiscountAmount={invoice.discountAmount.toFixed(2)}
-              />
-            </div>
-          </details>
-        ) : null}
-
-        {canRecordPayment ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-950">Record payment</h2>
-                <p className="mt-1 text-sm text-slate-600">Payments cannot exceed the current balance of {formatMoney(receivable?.balance)}.</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Balance due</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-950">{formatMoney(receivable?.balance)}</p>
-              </div>
-            </div>
-            <InvoicePaymentForm key={paymentAmount} invoiceId={invoice.id} remainingBalance={paymentAmount} paymentDate={today} />
-          </section>
-        ) : invoice.legacySourceTable ? (
-          <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">Imported legacy invoice — payment recording is read-only.</p>
-        ) : null}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
