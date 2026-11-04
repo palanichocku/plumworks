@@ -5,6 +5,10 @@ import { softwareBrandName } from "@/lib/branding";
 export const metadata: Metadata = {
   title: `${softwareBrandName} Shop Management`,
   description: "A cloud-first workspace for auto repair shops.",
+  icons: {
+    icon: [{ url: "/icon.png?v=plumworks-20261104", type: "image/png" }],
+    shortcut: "/icon.png?v=plumworks-20261104",
+  },
 };
 
 export default function RootLayout({
