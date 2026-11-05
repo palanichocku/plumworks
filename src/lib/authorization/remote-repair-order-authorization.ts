@@ -233,6 +233,7 @@ export async function decidePublicRepairOrderAuthorization(input: {
         dr.total::text AS total,
         ar.recipient_name AS "recipientName",
         ar.recipient_email AS "recipientEmail",
+        ar.channel AS channel,
         ar.status::text AS status,
         ar.sent_at AS "sentAt",
         ar.expires_at AS "expiresAt",
