@@ -18,15 +18,34 @@ SMS_DEV_SEND_ENABLED=false
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_SMS_FROM=
+SMS_DEV_ALLOWED_TO=
+# For the restricted trial, use the predefined sample message identifier:
+SMS_DEV_TEST_BODY=sms_appointment_reminders
 ```
 
 Twilio trial restrictions may prevent sending custom authorization text, even to verified test numbers. A paid and appropriately registered sender may be required before end-to-end live SMS can be tested.
+
+## Safe provider connectivity smoke test
+
+After rotating the exposed Auth Token, configure the above variables in the existing local `.env.development.local` (do not commit the file). Set `SMS_DEV_ALLOWED_TO` to **your own verified phone**, never to a customer. Leave `SMS_DEV_SEND_ENABLED=false` until actively conducting a test.
+
+To intentionally submit one development test message:
+
+```bash
+cd ~/Projects/Web/plumworks
+git fetch origin
+git switch feature/dev-sms-estimate-authorization
+SMS_DEV_SEND_ENABLED=true node --env-file=.env.development.local scripts/test-dev-sms.mjs
+```
+
+The command reports acceptance by the provider, NOT actual delivery. The `sms_appointment_reminders` template identifier is only for the restricted trial, and is **not** a custom estimate message.
 
 ## Foundation status
 
 - [x] Provider-independent SMS sender interface.
 - [x] Twilio adapter with API response handling and no sensitive response logging.
 - [x] Explicit development-only real-send guard.
+- [x] Manual, opt-in Twilio API connectivity test script (not executed against real credentials).
 - [ ] Dedicated authorization request channel and source metadata in the database. **Important:** the current public authorization decision records `EMAIL_LINK` unconditionally. Do not reuse it for SMS until it properly records `SMS_LINK`.
 - [ ] Per-shop sender configuration and opt-in/opt-out record.
 - [ ] Request lifecycle, idempotency, protected sending server action, rate limiting and spend caps.
