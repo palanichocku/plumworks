@@ -70,6 +70,19 @@ export async function sendRepairOrderSmsAuthorizationAction(
     return error("You do not have permission to send SMS estimates.");
   }
 
+  // Development spend/abuse guard: at most 5 accepted SMS requests per shop/day.
+  // Additional provider-side rate limits should be added before commercial launch.
+  const { prisma } = await import("@/lib/prisma");
+  const counts = await prisma.$queryRaw<Array<{ total: bigint }>>`
+    SELECT COUNT(*)::bigint AS total FROM authorization_requests
+    WHERE shop_id = ${membership.shopId}::uuid
+      AND channel = 'SMS'
+      AND sent_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
+  `;
+  if (Number(counts[0]?.total ?? 0) >= 5) {
+    return error("Dev SMS limit reached: five accepted messages per shop per 24 hours.");
+  }
+
   const model = await getRepairOrderDocumentForShop(repairOrderId, membership.shopId);
   if (!model || model.status === "void") return error("Repair Order not found or voided.");
   if (!(await isRepairOrderReadyForAuthorization(membership.shopId, repairOrderId))) {
