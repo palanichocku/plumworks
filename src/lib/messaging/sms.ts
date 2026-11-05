@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SmsDeliveryRequest, SmsDeliveryResult, SmsProvider } from "./types";
 
-const E164 = /^\\+[1-9]\\d{7,14}$/;
+const E164 = /^\+[1-9]\d{7,14}$/;
 
 /**
  * Real SMS is intentionally disabled unless specifically enabled in a
