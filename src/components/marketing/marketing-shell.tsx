@@ -5,7 +5,9 @@ import { AttributionLink } from "@/components/marketing/attribution-link";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 
 const primaryLinks = [["Home", "/"], ["Services", "/services"], ["About", "/about"], ["Contact", "/contact"]] as const;
-const appLoginUrl = `${(process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.subbuscardoc.com").replace(/\/$/, "")}/login`;
+const appLoginUrl = process.env.VERCEL_ENV === "preview"
+  ? "/login"
+  : `${(process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.subbuscardoc.com").replace(/\/$/, "")}/login`;
 
 const linkFocus = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/25 focus-visible:ring-offset-2";
 
