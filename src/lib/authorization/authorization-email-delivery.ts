@@ -79,6 +79,7 @@ export async function getRepairOrderAuthorizationEmailDeliveryState(shopId: stri
       ar.email_delivery_status AS "deliveryStatus"
     FROM authorization_requests ar
     WHERE ar.shop_id = ${shopId}::uuid
+      AND ar.channel = 'EMAIL'
       AND ar.document_revision_id = ${revision.id}::uuid
       AND ar.sent_at IS NOT NULL
       AND ar.status IN ('PENDING'::"AuthorizationRequestStatus", 'EXPIRED'::"AuthorizationRequestStatus")
