@@ -60,3 +60,34 @@ The command reports acceptance by the provider, NOT actual delivery. The `sms_ap
 ## Go-live rule
 
 A merge into `main` is NOT authorization to send production SMS. Feature must fail closed until explicitly activated after owner approval. Do not migrate test numbers, messages, or development credentials into production.
+
+
+## Integrated Text Estimate development workflow (November 5)
+
+The feature branch contains a **Dev-only** `Text Estimate (Dev)` button, a protected server action, and a migration for SMS authorization provenance. This is NOT a production-ready messaging service.
+
+1. Migrate only the **development** database with `npm run db:dev:migrate` after confirming the dev project fingerprint.
+2. For local development, add the following entries to `.env.development.local`:
+
+```dotenv
+NEXT_PUBLIC_SMS_DEV_UI_ENABLED=true
+SMS_DEV_SEND_ENABLED=false
+SMS_DEV_ALLOWED_TO=+1YOUR_OWN_VERIFIED_NUMBER
+SMS_DEV_APPROVAL_ORIGIN=https://YOUR-REACHABLE-DEV-HOST
+TWILIO_SMS_FROM=+17372583478
+```
+
+3. `SMS_DEV_APPROVAL_ORIGIN` must resolve to the application **using the same development database**, including its new migration. Local `http://localhost:3000` is fine for desktop-only click-through checks, but **cannot be opened on the phone** as localhost refers to the phone. Use a development-only HTTPS origin with proper access controls and test access.
+4. Start `npm run dev`. Use a synthetic RO and verify the original Email and Verbal buttons remain functional.
+5. Explicitly set `SMS_DEV_SEND_ENABLED=true` in the local development environment **only for an intended custom-message SMS test**, then restart dev.
+6. In the RO panel, choose Text Estimate (Dev), replace the customer's number with your allowlisted personal verified number, confirm the consent checkbox, then send. Only the exact allowlisted number is permitted.
+7. A restricted Twilio trial may reject the actual approval-link text. **Do not treat the predefined appointment reminder template as a passing end-to-end SMS test.**
+8. If accepted, open the link on your phone, approve/decline the exact synthetic RO, and check View Authorization shows `SMS_LINK`.
+9. Keep `SMS_DEV_SEND_ENABLED=false` whenever not actively testing. Do not copy any credentials or dev phone numbers into production.
+10. Before production release: add webhook-verified delivery state, opt-out/consent enforcement, concurrency-safe rate limiting, provider registration and number provisioning, reviewed rollout, and full regression tests.
+
+**Known limits:** Developer-only fixed recipient, accepted-by-provider status only (not delivery confirmed), and a per-shop cap of five accepted messages per 24 hours. These are deliberate development safeguards, not commercial behavior. The sender API is still provider-neutral, but this branch implements only the Twilio adapter.
+
+## Current verification
+
+Code committed to isolated branch. Twilio trial sample-template API delivery confirmed by developer. The integrated UI, dev migration, custom SMS content, browser journey, and TypeScript/build checks are not yet confirmed.
