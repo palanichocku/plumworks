@@ -180,7 +180,7 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
         SELECT captured_at,
                MAX((new_ms / NULLIF(new_calls, 0))::float8)
                  FILTER (WHERE classification = 'application') AS max_mean_ms,
-               SUM(new_calls)::bigint FILTER (WHERE classification = 'application') AS app_calls,
+               (SUM(new_calls) FILTER (WHERE classification = 'application'))::bigint AS app_calls,
                MAX(gap_minutes)::float8 AS gap_minutes
         FROM deltas
         GROUP BY captured_at
