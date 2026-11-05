@@ -6,6 +6,7 @@ import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-o
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
 import { hasPermission } from "@/lib/permissions";
 import { assertDevelopmentSmsEnabled, createDevelopmentSmsProvider } from "@/lib/messaging/sms";
+import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
 import {
   createRepairOrderSmsAuthorizationRequest,
   markRepairOrderSmsRequestAccepted,
@@ -54,13 +55,13 @@ export async function sendRepairOrderSmsAuthorizationAction(
   }
 
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
-  const recipientPhone = String(formData.get("recipientPhone") ?? "").trim();
-  const allowed = process.env.SMS_DEV_ALLOWED_TO?.trim();
+  const recipientPhone = normalizeUsSmsPhone(String(formData.get("recipientPhone") ?? ""));
+  const allowed = normalizeUsSmsPhone(process.env.SMS_DEV_ALLOWED_TO ?? "");
 
   // Explicit consent checkbox applies to this developer-only test, not commercial customer opt-in.
   if (formData.get("testConsent") !== "yes") return error("Confirm this is your own opted-in development test number.");
-  if (!allowed || recipientPhone !== allowed || !/^\+[1-9]\d{7,14}$/.test(recipientPhone)) {
-    return error("Dev SMS can only be sent to your allowlisted test number in +1XXXXXXXXXX format.");
+  if (!allowed || !recipientPhone || recipientPhone !== allowed) {
+    return error("Enter a valid US phone number matching your approved Dev test phone.");
   }
   const sender = process.env.TWILIO_SMS_FROM?.trim();
   if (!sender) return error("Configure the Twilio development sender number.");
