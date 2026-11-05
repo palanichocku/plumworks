@@ -21,6 +21,9 @@ export type QueryPerformanceWindow = {
   sampleCount: number;
   maximumGapMinutes: number | null;
   observedHours: number;
+  coveredHours: number;
+  intervals: Array<{ from: string; to: string; gapMinutes: number }>;
+  trend: Array<{ timestamp: string; maxMeanMs: number; calls: number; gapMinutes: number }>;
 };
 
 type Snapshot = { id: string; captured_at: Date; stats_reset_at: Date };
@@ -88,85 +91,107 @@ export async function captureQueryPerformanceSample() {
 }
 
 export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindow> {
-  const empty = { latestAt: null, sampleCount: 0, maximumGapMinutes: null, observedHours: 0 };
+  const empty = {
+    latestAt: null, sampleCount: 0, maximumGapMinutes: null, observedHours: 0,
+    coveredHours: 0, intervals: [], trend: [],
+  };
   try {
-    const history = await prisma.$queryRaw<{ captured_at: Date }[]>`
-      SELECT captured_at FROM system_health_query_snapshots
+    const history = await prisma.$queryRaw<{ id: string; captured_at: Date; stats_reset_at: Date }[]>`
+      SELECT id, captured_at, stats_reset_at
+      FROM system_health_query_snapshots
       WHERE captured_at >= now() - interval '24 hours'
       ORDER BY captured_at ASC LIMIT 144
     `;
     const stampTimes = history.map((row) => new Date(row.captured_at).getTime());
-    const maxGapMinutes = stampTimes.length >= 2
-      ? Math.max(...stampTimes.slice(1).map((stamp, i) => (stamp - stampTimes[i]) / 60_000))
-      : null;
+    const gaps = stampTimes.slice(1).map((stamp, i) => (stamp - stampTimes[i]) / 60_000);
+    const maximumGapMinutes = gaps.length ? Math.max(...gaps) : null;
     const observedHours = stampTimes.length >= 2
-      ? (stampTimes[stampTimes.length - 1] - stampTimes[0]) / 3_600_000
-      : 0;
+      ? (stampTimes[stampTimes.length - 1] - stampTimes[0]) / 3_600_000 : 0;
+    // Do not treat gaps >90 min or a stats-reset crossing as observed coverage.
+    const validIntervals = history.slice(1).flatMap((current, i) => {
+      const prior = history[i];
+      const gapMinutes = gaps[i];
+      if (gapMinutes <= 0 || gapMinutes > 90
+        || new Date(current.stats_reset_at).getTime() !== new Date(prior.stats_reset_at).getTime()) return [];
+      return [{ from: prior.captured_at.toISOString(), to: current.captured_at.toISOString(), gapMinutes }];
+    });
+    const coveredHours = validIntervals.reduce((sum, interval) => sum + interval.gapMinutes / 60, 0);
     const metrics = {
       latestAt: history.length ? history[history.length - 1].captured_at : null,
-      sampleCount: history.length,
-      maximumGapMinutes: maxGapMinutes,
-      observedHours,
+      sampleCount: history.length, maximumGapMinutes, observedHours,
+      coveredHours, intervals: validIntervals, trend: [] as QueryPerformanceWindow["trend"],
     };
 
-    const current = await prisma.$queryRaw<Snapshot[]>`
-      SELECT id, captured_at, stats_reset_at
-      FROM system_health_query_snapshots
-      WHERE captured_at >= now() - interval '24 hours'
-      ORDER BY captured_at DESC LIMIT 1
-    `;
-    const latest = current[0];
+    const latest = history[history.length - 1];
+    const baseline = history[0];
     if (!latest) return {
       status: "collecting", from: null, to: null, queries: [],
-      detail: "No valid baseline yet. Capture the first sample to begin.",
-      ...metrics,
+      detail: "No samples yet. Capture a baseline to begin monitoring.", ...metrics,
     };
-    const before = await prisma.$queryRaw<Snapshot[]>`
-      SELECT id, captured_at, stats_reset_at
-      FROM system_health_query_snapshots
-      WHERE captured_at >= now() - interval '24 hours' AND captured_at < ${latest.captured_at}
-      ORDER BY captured_at ASC LIMIT 1
-    `;
-    const baseline = before[0];
-    if (!baseline) return {
+    if (!baseline || latest.id === baseline.id) return {
       status: "collecting", from: latest.captured_at, to: null, queries: [],
-      detail: "Baseline captured. A second sample is needed to measure new executions.",
-      ...metrics,
+      detail: "Baseline captured. A second snapshot is required.", ...metrics,
     };
-    if (new Date(latest.stats_reset_at).getTime() !== new Date(baseline.stats_reset_at).getTime()) {
-      return {
-        status: "reset", from: baseline.captured_at, to: latest.captured_at, queries: [],
-        detail: "PostgreSQL query statistics were reset during this window. Capture a fresh baseline.",
-        ...metrics,
-      };
-    }
-    if (Date.now() - new Date(latest.captured_at).getTime() > 150 * 60_000) {
-      return {
-        status: "stale", from: baseline.captured_at, to: latest.captured_at, queries: [],
-        detail: "Collection is stale: no sample in the last 2½ hours. Verify the hourly scheduler. Historical values are not current alerts.",
-        ...metrics,
-      };
-    }
-    const rows = await prisma.$queryRaw<(Sample & { previous_calls: bigint | null; previous_total_ms: number | null })[]>`
-      SELECT n.db_id, n.user_id, n.query_id, n.operation, n.classification,
-             left(stats.query, 4000) AS query_text, n.calls, n.total_exec_ms,
-             p.calls AS previous_calls, p.total_exec_ms AS previous_total_ms
-      FROM system_health_query_samples n
-      LEFT JOIN pg_stat_statements stats
-        ON stats.dbid::bigint = n.db_id
-       AND stats.userid::bigint = n.user_id
-       AND stats.queryid::text = n.query_id
-      LEFT JOIN system_health_query_samples p
-        ON p.snapshot_id = ${baseline.id}::uuid
-       AND p.db_id = n.db_id AND p.user_id = n.user_id AND p.query_id = n.query_id
-      WHERE n.snapshot_id = ${latest.id}::uuid
-    `;
+    if (new Date(latest.stats_reset_at).getTime() !== new Date(baseline.stats_reset_at).getTime()) return {
+      status: "reset", from: baseline.captured_at, to: latest.captured_at, queries: [],
+      detail: "PostgreSQL statistics were reset. Capture a new baseline after the reset.", ...metrics,
+    };
+
+    // Only compare matching counters from the oldest and newest snapshots;
+    // historical November 3 activity predating the baseline is excluded.
+    const [rows, trendRows] = await Promise.all([
+      prisma.$queryRaw<(Sample & { previous_calls: bigint | null; previous_total_ms: number | null })[]>`
+        SELECT n.db_id, n.user_id, n.query_id, n.operation, n.classification,
+               left(stats.query, 4000) AS query_text, n.calls, n.total_exec_ms,
+               p.calls AS previous_calls, p.total_exec_ms AS previous_total_ms
+        FROM system_health_query_samples n
+        LEFT JOIN pg_stat_statements stats
+          ON stats.dbid::bigint = n.db_id AND stats.userid::bigint = n.user_id
+         AND stats.queryid::text = n.query_id
+        LEFT JOIN system_health_query_samples p
+          ON p.snapshot_id = ${baseline.id}::uuid
+         AND p.db_id = n.db_id AND p.user_id = n.user_id AND p.query_id = n.query_id
+        WHERE n.snapshot_id = ${latest.id}::uuid
+      `,
+      prisma.$queryRaw<{ captured_at: Date; max_mean_ms: number | null; app_calls: bigint | null; gap_minutes: number }[]>`
+        WITH ordered AS (
+          SELECT id, captured_at, stats_reset_at,
+                 lag(id) OVER (ORDER BY captured_at) AS previous_id,
+                 lag(captured_at) OVER (ORDER BY captured_at) AS previous_at,
+                 lag(stats_reset_at) OVER (ORDER BY captured_at) AS previous_reset
+          FROM system_health_query_snapshots
+          WHERE captured_at >= now() - interval '24 hours'
+        ), deltas AS (
+          SELECT o.captured_at, EXTRACT(EPOCH FROM (o.captured_at - o.previous_at)) / 60 AS gap_minutes,
+                 n.classification,
+                 (n.calls - p.calls) AS new_calls,
+                 (n.total_exec_ms - p.total_exec_ms) AS new_ms
+          FROM ordered o
+          JOIN system_health_query_samples n ON n.snapshot_id = o.id
+          JOIN system_health_query_samples p
+            ON p.snapshot_id = o.previous_id
+           AND p.db_id = n.db_id AND p.user_id = n.user_id AND p.query_id = n.query_id
+          WHERE o.previous_id IS NOT NULL
+            AND o.stats_reset_at = o.previous_reset
+            AND o.captured_at > o.previous_at
+            AND o.captured_at - o.previous_at <= interval '90 minutes'
+            AND n.calls > p.calls AND n.total_exec_ms >= p.total_exec_ms
+        )
+        SELECT captured_at,
+               MAX((new_ms / NULLIF(new_calls, 0))::float8)
+                 FILTER (WHERE classification = 'application') AS max_mean_ms,
+               (SUM(new_calls) FILTER (WHERE classification = 'application'))::bigint AS app_calls,
+               MAX(gap_minutes)::float8 AS gap_minutes
+        FROM deltas
+        GROUP BY captured_at
+        ORDER BY captured_at ASC
+      `,
+    ]);
     const queries: RecentQuery[] = rows.flatMap((row) => {
-      // A query not in the baseline may predate it; don't invent its past execution count.
       if (row.previous_calls === null || row.previous_total_ms === null) return [];
       const calls = Number(row.calls - row.previous_calls);
       const totalMs = Number(row.total_exec_ms) - Number(row.previous_total_ms);
-      if (calls <= 0 || totalMs < 0) return []; // counter reset/replacement
+      if (calls <= 0 || totalMs < 0) return [];
       const meanMs = totalMs / calls;
       if (!Number.isFinite(meanMs)) return [];
       return [{
@@ -176,15 +201,24 @@ export async function getRecentQueryPerformance(): Promise<QueryPerformanceWindo
         calls, meanMs, totalMs,
       }];
     }).sort((a,b) => b.totalMs - a.totalMs);
+    const trend = trendRows.filter(r => r.max_mean_ms !== null).map(row => ({
+      timestamp: row.captured_at.toISOString(),
+      maxMeanMs: Math.max(0, row.max_mean_ms ?? 0),
+      calls: Number(row.app_calls ?? 0),
+      gapMinutes: row.gap_minutes,
+    }));
+    const stale = Date.now() - new Date(latest.captured_at).getTime() > 150 * 60_000;
     return {
-      status: "ready", from: baseline.captured_at, to: latest.captured_at, queries,
-      detail: "Measured changes between actual samples; historical November 3 calls are excluded.",
-      ...metrics,
+      status: stale ? "stale" : "ready",
+      from: baseline.captured_at, to: latest.captured_at, queries,
+      detail: stale ? "Latest sample is older than 2½ hours; these measurements are historical."
+        : "Recent query deltas only. Coverage and origin classification have limitations.",
+      ...metrics, trend,
     };
   } catch {
     return {
       status: "unavailable", from: null, to: null, queries: [],
-      detail: "Query snapshots are unavailable. Confirm the DEV migration is applied; app operation is unaffected.",
+      detail: "Query performance measurements are unavailable; other application workflows are unaffected.",
       ...empty,
     };
   }
