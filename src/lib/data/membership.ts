@@ -14,7 +14,9 @@ export const getCurrentMembership = cache(async () => {
     return { user: null, membership: null };
   }
 
-  const membership = await prisma.shopMembership.findFirst({
+  let membership;
+  try {
+    membership = await prisma.shopMembership.findFirst({
     where: { userId: user.id },
     orderBy: { createdAt: "asc" },
     select: {
@@ -33,7 +35,15 @@ export const getCurrentMembership = cache(async () => {
         },
       },
     },
-  });
+    });
+  } catch (error) {
+    if (process.env.VERCEL_ENV === "preview" &&
+        process.env.VERCEL_GIT_COMMIT_REF === "feature/dev-sms-estimate-authorization") {
+      const { logSmsFeaturePreviewDatabaseDiagnostics } = await import("@/lib/monitoring/sms-preview-db-diagnostics");
+      await logSmsFeaturePreviewDatabaseDiagnostics().catch(() => undefined);
+    }
+    throw error;
+  }
 
   return { user, membership };
 });
