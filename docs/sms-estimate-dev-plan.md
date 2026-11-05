@@ -91,3 +91,20 @@ TWILIO_SMS_FROM=+17372583478
 ## Current verification
 
 Code committed to isolated branch. Twilio trial sample-template API delivery confirmed by developer. The integrated UI, dev migration, custom SMS content, browser journey, and TypeScript/build checks are not yet confirmed.
+
+
+## US phone formatting fix (November 5)
+
+The Text Estimate dialog now displays phone numbers in `(586) 530-0797` format. The server normalizes this (or `5865300797`, `586-530-0797`, `+15865300797`) to E.164 `+15865300797` **before** comparing it to `SMS_DEV_ALLOWED_TO` and calling the messaging adapter. Invalid and unsupported international formats are rejected. These changes do not alter stored customer data or other modules.
+
+Run the phone regression tests with a Node version that supports TypeScript type stripping:
+
+```bash
+node --experimental-strip-types --test tests/sms-phone.test.mjs
+```
+
+## Phone-accessible approval URL — deployment decision required
+
+The phone cannot open `http://localhost:3000` on the Mac. Before setting `SMS_DEV_SEND_ENABLED=true`, provision an HTTPS hostname for the **Dev** app (one that uses the Dev Supabase project, including the SMS migration). Either use an existing Dev Vercel deployment if its environment isolation, accessibility, and database fingerprint are confirmed, or configure a separately controlled Dev hostname. **Do not point this URL at Car Doc production and do not add real Twilio credentials to Vercel Production.** On Vercel, `NODE_ENV=production` deliberately disables this *local-development* sending adapter even for Preview. To conduct real custom-message sending, run the local Dev server behind a securely configured temporary HTTPS tunnel that reaches the local app and Dev DB, or implement and review a separate Preview-only adapter guarded by a strict environment allowlist. This is not yet configured.
+
+Keep `SMS_DEV_SEND_ENABLED=false` until the reachable URL is verified on a phone and the approval page is confirmed to read the Dev database.
