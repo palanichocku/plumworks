@@ -2,8 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 import { getExternalHealth, getBackupHealth, type MonitorTone } from "@/lib/system-health/external";
-import { getRecentQueryPerformance, type RecentQuery } from "@/lib/system-health/query-performance";
-import { captureSystemHealthQuerySnapshot } from "./query-actions";
+import { getRecentQueryPerformance } from "@/lib/system-health/query-performance";
+import { QueryPerformanceCard } from "./query-performance-card";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -328,14 +328,6 @@ function GrowthValue({ value }: { value: number | null }) {
   return <span className={`font-bold ${tone}`}>{value >= 0 ? "+" : ""}{value.toFixed(1)}%</span>;
 }
 
-function recentQueryPriority(query: RecentQuery) {
-  if (query.classification === "maintenance") return { label: "Maintenance", tone: "neutral" as const };
-  if (query.meanMs >= 3_000) return { label: "Priority", tone: "bad" as const };
-  if (query.meanMs >= 1_000 && query.calls >= 3) return { label: "Action", tone: "warn" as const };
-  if (query.meanMs >= 500 && query.calls >= 3) return { label: "Watch", tone: "neutral" as const };
-  return { label: "Normal", tone: "good" as const };
-}
-
 function toneClasses(tone: MonitorTone) {
   return {
     good: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -420,10 +412,8 @@ export default async function SystemHealthPage() {
   const monthSnapshots = monthlyLatestSnapshots(health.snapshots);
 
 
-  const applicationActivity = queryWindow.queries.filter((query) => query.classification === "application");
-  const maintenanceActivity = queryWindow.queries.filter((query) => query.classification === "maintenance");
   const actionableQueries = queryWindow.status === "ready"
-    ? applicationActivity.filter((query) => ["Action", "Priority"].includes(recentQueryPriority(query).label))
+    ? queryWindow.queries.filter((query) => query.classification === "application" && query.meanMs >= 500)
     : [];
   const attentionCount = actionableQueries.length + (globalTone !== "good" ? 1 : 0);
   const overallTone: MonitorTone = globalTone === "bad" ? "bad" : attentionCount > 0 ? "warn" : "good";
@@ -439,9 +429,6 @@ export default async function SystemHealthPage() {
       return growthPercent(current, monthSnapshots.get(monthKey(prior))?.tableSizes[table.name]) !== null;
     }),
   );
-  const slowAppQueries = applicationActivity.filter((query) => query.meanMs >= 500).sort((a,b) => b.totalMs - a.totalMs);
-  const totalListedTime = slowAppQueries.reduce((sum, query) => sum + query.totalMs, 0);
-  const maxListedTime = Math.max(1, ...slowAppQueries.map((query) => query.totalMs));
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5 pb-8 animate-fadeIn sm:space-y-6">
@@ -559,103 +546,12 @@ export default async function SystemHealthPage() {
         </Suspense>
       </div>
 
-      <section id="slow-queries" aria-labelledby="slow-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
-          <div>
-            <h2 id="slow-heading" className="text-base font-black tracking-tight text-slate-950">Application query performance</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Recent observed query executions only. November 3 cutover totals do not count as current issues.
-              Query origin classification is heuristic while maintenance and app connections share the same database role.
-            </p>
-            <p className="mt-2 text-xs font-semibold text-slate-700">{queryWindow.detail}</p>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-700">
-              <span><strong>Last sample:</strong> {queryWindow.latestAt ? formatTimestamp(new Date(queryWindow.latestAt)) : "None"}</span>
-              <span><strong>Last 24h:</strong> {queryWindow.sampleCount} samples</span>
-              <span><strong>Observed span:</strong> {queryWindow.observedHours.toFixed(1)}h / 24h</span>
-              {queryWindow.maximumGapMinutes !== null && <span><strong>Longest gap:</strong> {Math.round(queryWindow.maximumGapMinutes)} min</span>}
-            </div>
-            {queryWindow.status === "ready" && (queryWindow.observedHours < 23 || (queryWindow.maximumGapMinutes !== null && queryWindow.maximumGapMinutes > 90)) && (
-              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                Partial 24-hour coverage. Results reflect only the recorded observation period; gaps can conceal unobserved query activity.
-              </p>
-            )}
-            {queryWindow.from && <p className="mt-1 text-xs text-slate-500">
-              Observed window: {formatTimestamp(new Date(queryWindow.from))}
-              {queryWindow.to ? ` → ${formatTimestamp(new Date(queryWindow.to))}` : " (baseline only)"}
-            </p>}
-          </div>
-          {process.env.VERCEL_ENV !== "production" && (
-            <form action={captureSystemHealthQuerySnapshot}>
-              <button
-                type="submit"
-                aria-label="Capture sample"
-                title="Capture sample"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 text-slate-700 shadow-sm hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M20 11a8 8 0 0 0-14.7-4.4L3 9" />
-                  <path d="M3 3v6h6" />
-                  <path d="M4 13a8 8 0 0 0 14.7 4.4L21 15" />
-                  <path d="M15 15h6v6" />
-                </svg>
-              </button>
-            </form>
-          )}
-        </div>
-        {queryWindow.status !== "ready" ? (
-          <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 sm:mx-5">
-            <span className="font-bold">{queryWindow.status === "collecting" ? "Collecting baseline" : queryWindow.status === "reset" ? "Statistics reset" : queryWindow.status === "stale" ? "Collection stale" : "Collection unavailable"}</span>
-            <p className="mt-1">No current query-health conclusion is possible with missing, reset, or stale samples. A missing or stale baseline is not a green performance result.</p>
-          </div>
-        ) : (
-          <div className="border-t border-slate-200">
-            <div className="grid grid-cols-1 gap-3 bg-slate-50 px-4 py-4 sm:grid-cols-3 sm:px-5">
-              <div><p className="text-xs text-slate-500">Recent slow application SQL</p><p className="text-2xl font-black tabular-nums text-slate-900">{slowAppQueries.length}</p></div>
-              <div><p className="text-xs text-slate-500">Observed application calls</p><p className="text-2xl font-black tabular-nums text-slate-900">{applicationActivity.reduce((sum,q)=>sum+q.calls,0).toLocaleString()}</p></div>
-              <div><p className="text-xs text-slate-500">Maintenance calls (separate)</p><p className="text-2xl font-black tabular-nums text-slate-900">{maintenanceActivity.reduce((sum,q)=>sum+q.calls,0).toLocaleString()}</p></div>
-            </div>
-            {slowAppQueries.length === 0 ? (
-              <p className="m-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700 sm:m-5">
-                No application query averaging 500 ms or more was observed between the available snapshots. This is not a full-day guarantee.
-              </p>
-            ) : (
-              <div className="divide-y divide-slate-200">
-                {slowAppQueries.slice(0, 12).map((query,index) => {
-                  const action = recentQueryPriority(query);
-                  const share = totalListedTime > 0 ? query.totalMs / totalListedTime * 100 : 0;
-                  return <details key={index} className="group open:bg-slate-50">
-                    <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
-                      <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-[100px_100px_80px_minmax(0,1fr)_90px] md:items-center">
-                        <span className="text-xs font-black text-slate-800">{query.operation}</span>
-                        <span className="text-sm font-bold tabular-nums text-slate-900">{formatDuration(query.meanMs)} avg</span>
-                        <span className="text-xs tabular-nums text-slate-700">{query.calls} new calls</span>
-                        <div className="col-span-2 md:col-span-1"><div className="mb-1 text-xs text-slate-700">{formatDuration(query.totalMs)} total · {share.toFixed(0)}% of listed</div>
-                          <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${Math.max(1,query.totalMs/maxListedTime*100)}%`}} /></div>
-                        </div>
-                        <span className={`w-fit rounded-lg border px-2 py-1 text-xs font-bold ${toneClasses(action.tone)}`}>{action.label} ▾</span>
-                      </div>
-                    </summary>
-                    <div className="px-4 pb-4 sm:px-5"><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-white">{query.sql}</pre></div>
-                  </details>;
-                })}
-              </div>
-            )}
-            {maintenanceActivity.length > 0 && (
-              <details className="border-t border-slate-200 px-4 py-4 sm:px-5">
-                <summary className="cursor-pointer text-sm font-bold text-slate-800">Maintenance / unusual bulk activity · {maintenanceActivity.length} query patterns</summary>
-                <p className="mt-2 text-xs text-amber-800">These new executions are excluded from normal performance alerts but should be reviewed if they were not planned.</p>
-                {maintenanceActivity.slice(0,10).map((query,index) => <div key={index} className="mt-2 rounded-lg bg-slate-50 p-3 text-xs">
-                  <div className="font-bold">{query.operation} · {query.calls} new calls · {formatDuration(query.meanMs)} avg</div>
-                  <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words">{query.sql}</pre>
-                </div>)}
-              </details>
-            )}
-          </div>
-        )}
-        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
-          Samples may come from manual capture or the separate DEV scheduler when configured. Stale after 2½ hours; coverage gaps over 90 minutes are flagged. For SQL plans, use Supabase Query Performance.
-        </div>
-      </section>
+      <QueryPerformanceCard
+        window={queryWindow}
+        nowIso={updatedAt.toISOString()}
+        allowCapture={process.env.VERCEL_ENV !== "production"}
+        supabaseUrl="https://supabase.com/dashboard/projects"
+      />
 
       <p className="px-1 text-xs leading-5 text-slate-500">System Health is restricted to Admin access. External provider checks are isolated, cached for one to five minutes and time out after five seconds. A failed provider API cannot block Repair Orders, invoices or other shop workflows.</p>
     </div>
