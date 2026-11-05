@@ -75,6 +75,10 @@ function formatBytes(bytes: number) {
   return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
 }
 
+function formatTableMB(bytes: number) {
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
 function formatDuration(ms: number) {
   if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)} min`;
   if (ms >= 1_000) return `${(ms / 1_000).toFixed(1)} s`;
@@ -495,31 +499,51 @@ export default async function SystemHealthPage() {
 
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
         <section aria-labelledby="tables-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4">
-            <h2 id="tables-heading" className="text-base font-black tracking-tight text-slate-950">Largest database tables</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Current table sizes, including indexes. Bars are scaled to the largest listed table.</p>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="tables-heading" className="text-base font-black tracking-tight text-slate-950">Largest database tables</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Current table sizes, including indexes. Bars are relative to the largest listed table.</p>
+              {!hasMonthlyGrowth && <p className="mt-1 text-[11px] text-slate-500" title="Growth requires comparable monthly snapshots; no values are estimated.">ⓘ Monthly growth: collecting history</p>}
+            </div>
+            <div aria-label="Table categories" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-600">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />Application / other</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-slate-500" />Legacy staging</span>
+            </div>
           </div>
-          {legacyPercent !== null && <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-700">
-            <strong>Legacy staging:</strong> the displayed raw_legacy_* tables account for approximately <strong>{legacyPercent.toFixed(0)}%</strong> of the current database size. Retain them until the cutover and retention runbook approves a change.
+          {legacyPercent !== null && <div role="note" className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950">
+            <span aria-hidden="true" className="mt-0.5 text-amber-700">⚠</span>
+            <p><strong>Legacy data footprint:</strong> Listed <code className="font-mono">raw_legacy_*</code> tables occupy <strong>~{legacyPercent.toFixed(0)}%</strong> of the current database size. Do not delete until the cutover and retention runbook authorizes cleanup.</p>
           </div>}
           {health.largestTables.length ? (
             <>
-              <div className="space-y-0.5">
+              <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(100px,1fr)_80px_64px] items-center gap-3 border-b border-slate-200 pb-2 text-[10px] font-extrabold uppercase tracking-wide text-slate-500 sm:grid">
+                <span>Table name</span><span>Size allocation</span><span className="text-right">Total size</span><span className="text-right" title="Share of entire database, not just the ten tables shown">% of DB</span>
+              </div>
+              <div className="divide-y divide-slate-200">
                 {health.largestTables.map((table) => {
                   const isLegacy = table.name.startsWith("raw_legacy_");
+                  const databaseShare = health.databaseSizeBytes && health.databaseSizeBytes > 0
+                    ? table.sizeBytes / health.databaseSizeBytes * 100 : null;
                   return (
-                    <div key={table.name} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(120px,1fr)_minmax(90px,1.15fr)_auto] sm:items-center">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="break-all font-mono text-xs font-semibold text-slate-800">{table.name}</span>
-                        {isLegacy && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">Legacy</span>}
-                      </div>
-                      <div className="col-span-2 sm:col-span-1 sm:col-start-2">
-                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                          <div className={`h-full rounded-full ${isLegacy ? "bg-slate-500" : "bg-blue-600"}`} style={{ width: `${Math.max(1, table.sizeBytes / maxTableBytes * 100)}%` }} />
+                    <div key={table.name} className="min-w-0 py-3">
+                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(100px,1fr)_80px_64px]">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="min-w-0 break-all font-mono text-xs font-semibold text-slate-900">{table.name}</span>
+                          {isLegacy && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">Legacy</span>}
+                        </div>
+                        <div className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                          <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+                            <div className={`h-full rounded-full ${isLegacy ? "bg-slate-500" : "bg-blue-600"}`} style={{ width: `${Math.max(1, table.sizeBytes / maxTableBytes * 100)}%` }} />
+                          </div>
+                        </div>
+                        <div className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-extrabold tabular-nums text-slate-950 sm:col-start-3">{formatTableMB(table.sizeBytes)}</div>
+                        <div className="col-span-2 row-start-3 text-right text-[11px] font-bold tabular-nums text-slate-600 sm:col-span-1 sm:col-start-4 sm:row-start-1">
+                          {databaseShare === null ? "—" : databaseShare.toFixed(1) + "%"}
+                          <span className="ml-1 font-normal sm:hidden">of DB</span>
                         </div>
                       </div>
-                      <div className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-extrabold tabular-nums text-slate-900 sm:col-start-3">{table.prettySize || formatBytes(table.sizeBytes)}</div>
-                      {hasMonthlyGrowth && <div className="col-span-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:col-span-3">
+                      {hasMonthlyGrowth && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+                        <span className="font-bold text-slate-500">Monthly growth:</span>
                         {columns.map((column, index) => {
                           const current = monthSnapshots.get(column.key)?.tableSizes[table.name];
                           const previousDate = new Date();
@@ -533,11 +557,10 @@ export default async function SystemHealthPage() {
                   );
                 })}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[11px] text-slate-600">
-                {hasMonthlyGrowth ? <span>Rolling three-month growth shown below each table.</span> : <span>Monthly growth history is collecting; percentages will appear when comparable snapshots are available.</span>}
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-blue-600" />Application / other</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-slate-500" />Legacy staging</span>
-              </div>
+              <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-5 text-slate-500">
+                {hasMonthlyGrowth ? "Monthly growth uses actual snapshots; missing months show —." : "Monthly growth appears after comparable snapshots become available."}
+                {" "}All sizes use MB (1 MB = 1,048,576 bytes). Percentages compare each table to the entire current database, not only these ten tables.
+              </p>
             </>
           ) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Table-size diagnostics are unavailable for this database role.</p>}
         </section>
