@@ -7,6 +7,7 @@ import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationR
 import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
+import { formatUsSmsPhone } from "@/lib/messaging/phone";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
 const initialEmail: RepairOrderEmailState = { status: "idle" };
@@ -200,7 +201,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   async function openSmsConfirmation() {
     if (saveRequired) return;
     const phone = await getRepairOrderSmsRecipientAction(repairOrderId).catch(() => "");
-    setSmsRecipient(phone);
+    setSmsRecipient(formatUsSmsPhone(phone));
     setSmsOpen(true);
   }
 
@@ -294,8 +295,8 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         <p className="mt-2 text-sm text-slate-600">Only your verified development test phone is permitted. Twilio trial restrictions may reject a custom estimate link.</p>
         <form action={smsAction} className="mt-5 space-y-4">
           <input type="hidden" name="repairOrderId" value={repairOrderId} />
-          <label className="block text-sm font-semibold">Test recipient (+1…)
-            <input type="tel" name="recipientPhone" required value={smsRecipient} onChange={(event) => setSmsRecipient(event.target.value)} placeholder="+15865550123" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          <label className="block text-sm font-semibold">Test recipient
+            <input type="tel" name="recipientPhone" required value={smsRecipient} onChange={(event) => setSmsRecipient(event.target.value)} onBlur={() => setSmsRecipient(formatUsSmsPhone(smsRecipient))} placeholder="(586) 555-0123" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
           </label>
           <label className="flex gap-2 text-sm"><input type="checkbox" name="testConsent" value="yes" required />I confirm this is my own test phone and I consent to receive the test text.</label>
           {smsState.status === "error" ? <p role="alert" className="text-sm text-red-700">{smsState.message}</p> : null}
