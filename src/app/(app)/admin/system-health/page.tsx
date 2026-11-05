@@ -350,40 +350,57 @@ async function ProtectionMonitoring() {
   const statusNames: Record<MonitorTone, string> = {
     good: "Passing", warn: "Attention", bad: "Failing", neutral: "Unavailable / info",
   };
+  const passing = cards.filter((card) => card.tone === "good").length;
+  const failing = cards.filter((card) => card.tone === "bad").length;
   return (
     <section id="monitoring" aria-labelledby="monitor-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4">
-        <h2 id="monitor-heading" className="text-base font-black tracking-tight text-slate-950">Protection & monitoring</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-600">Provider statuses are cached for 1–5 minutes and retrieved with a five-second timeout. These checks never block normal shop workflows.</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="monitor-heading" className="text-base font-black tracking-tight text-slate-950">Protection & monitoring</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Latest provider results · cached 1–5 minutes · isolated from shop workflows</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-emerald-800">{passing} passing</span>
+          {failing > 0 && <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1.5 text-red-800">{failing} failing</span>}
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-600">{cards.length - passing - failing} other / unavailable</span>
+        </div>
       </div>
-      <div className="divide-y divide-slate-200">
-        {cards.map((card) => (
-          <div key={card.name} className="py-4 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-bold text-sm text-slate-900">{card.name}</h3>
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-bold ${toneClasses(card.tone)}`}>
-                <StatusDot tone={card.tone} />
-                {statusNames[card.tone]}
-              </span>
-            </div>
-            <p className="mt-1 text-sm font-extrabold leading-5 text-slate-900">{card.value}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">{card.detail}</p>
-            {card.checks && card.checks.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {card.checks.map((check, index) => (
-                  <div key={index} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
-                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                      <span className="min-w-0 flex-1 break-words font-bold text-slate-800">{check.name}</span>
-                      <span className="font-bold text-slate-700">{check.status}</span>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:grid-cols-2">
+        {cards.map((card) => {
+          const expanded = card.name === "Better Stack" || card.name === "Checkly";
+          return (
+            <details key={card.name} open={expanded ? true : undefined} className="group min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white open:border-slate-300">
+              <summary className="flex min-h-16 cursor-pointer list-none items-start justify-between gap-2 p-3.5 marker:hidden [&::-webkit-details-marker]:hidden">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-extrabold text-slate-950">{card.name}</h3>
+                  <p className="mt-1 break-words text-xs font-semibold leading-5 text-slate-700">{card.value}</p>
+                  {!expanded && <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">{card.detail}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-bold ${toneClasses(card.tone)}`}>
+                    <StatusDot tone={card.tone} />{statusNames[card.tone]}
+                  </span>
+                  <svg aria-hidden="true" className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+              </summary>
+              <div className="space-y-2 border-t border-slate-100 px-3.5 pb-3.5 pt-2.5">
+                <p className="text-[11px] leading-4 text-slate-500">{card.detail}</p>
+                {card.checks && card.checks.length > 0 ? card.checks.map((check, index) => (
+                  <div key={index} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      <span className="min-w-0 break-words font-bold text-slate-800">{check.name}</span>
+                      <span className="shrink-0 font-semibold text-slate-700">{check.status}</span>
                     </div>
-                    <p className="mt-1 break-all leading-5 text-slate-600">{check.type}{check.target ? ` · ${check.target}` : ""}</p>
-                    {check.checkedAt && <p className="mt-1 text-slate-500">{card.name === "Checkly" ? "Status updated" : "Checked"}: {check.checkedAt}</p>}
+                    <p className="mt-1 break-all text-[11px] leading-4 text-slate-600">{check.type}{check.target ? ` · ${check.target}` : ""}</p>
+                    {check.checkedAt && <p className="mt-0.5 text-[11px] text-slate-500">{card.name === "Checkly" ? "Status updated" : "Checked"}: {check.checkedAt}</p>}
                   </div>
-                ))}
+                )) : <p className="text-[11px] text-slate-500">No individual checks are available for this provider.</p>}
               </div>
-            )}
-          </div>
-        ))}
+            </details>
+          );
+        })}
       </div>
     </section>
   );
@@ -497,8 +514,11 @@ export default async function SystemHealthPage() {
         <MetricCard label="Deployment" value={commitSha} detail={`${environment} release`} tone="neutral" />
       </section>
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
-        <section aria-labelledby="tables-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <Suspense fallback={<ProtectionMonitoringFallback />}>
+        <ProtectionMonitoring />
+      </Suspense>
+
+      <section aria-labelledby="tables-heading" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id="tables-heading" className="text-base font-black tracking-tight text-slate-950">Largest database tables</h2>
@@ -564,10 +584,6 @@ export default async function SystemHealthPage() {
             </>
           ) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Table-size diagnostics are unavailable for this database role.</p>}
         </section>
-        <Suspense fallback={<ProtectionMonitoringFallback />}>
-          <ProtectionMonitoring />
-        </Suspense>
-      </div>
 
       <QueryPerformanceCard
         window={queryWindow}
