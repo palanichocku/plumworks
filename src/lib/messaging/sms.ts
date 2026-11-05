@@ -11,6 +11,7 @@ const E164 = /^\+[1-9]\d{7,14}$/;
  */
 export function assertDevelopmentSmsEnabled() {
   if (process.env.VERCEL_ENV === "production" ||
+      process.env.NODE_ENV === "production" ||
       process.env.SMS_DEV_SEND_ENABLED !== "true") {
     throw new Error("Development SMS sending is disabled.");
   }
@@ -31,6 +32,12 @@ class TwilioSmsProvider implements SmsProvider {
   async send(request: SmsDeliveryRequest): Promise<SmsDeliveryResult> {
     assertDevelopmentSmsEnabled();
     validateSmsRequest(request);
+    if (!process.env.SMS_DEV_ALLOWED_TO || request.to !== process.env.SMS_DEV_ALLOWED_TO) {
+      throw new Error("Recipient is not the allowed development test number.");
+    }
+    if (!process.env.TWILIO_SMS_FROM || request.from !== process.env.TWILIO_SMS_FROM) {
+      throw new Error("Sender must match the configured development number.");
+    }
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
