@@ -142,7 +142,7 @@ export async function generateRepairOrderSmsTestLinkAction(
     if (!raw) throw new Error("missing origin");
     const url = new URL(raw);
     if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash || url.username || url.password ||
-        !/^[a-z0-9-]+\\.vercel\\.app$/.test(url.hostname) ||
+        !/^[a-z0-9-]+\.vercel\.app$/.test(url.hostname) ||
         !url.hostname.startsWith("plumworks-cardoc-")) throw new Error("invalid preview origin");
     origin = url.origin;
   } catch {
