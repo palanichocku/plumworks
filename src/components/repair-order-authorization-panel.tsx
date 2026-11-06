@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
+import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, generateRepairOrderSmsTestLinkAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
@@ -90,6 +90,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [revisionReady, setRevisionReady] = useState(false);
   const [readinessChecked, setReadinessChecked] = useState(false);
   const [delivery, setDelivery] = useState<EmailDeliveryState | null>(null);
+  const [pendingRemoteAuthorization, setPendingRemoteAuthorization] = useState(false);
   const [deliveryPopup, setDeliveryPopup] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
@@ -103,7 +104,10 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const previousDecline = summary.status === "DECLINED_PREVIOUS_REVISION";
   const declineEvidence = history.find((item) => item.decision === "DECLINED") ?? null;
   const saveRequired = !readinessChecked || saveStateBlocked || !revisionReady;
-  const waitingForEmailApproval = Boolean(delivery?.requestStatus === "PENDING") || (emailState.status === "success" && !authorized && !declined);
+  const waitingForRemoteApproval = !authorized && !declined && (
+    pendingRemoteAuthorization || delivery?.requestStatus === "PENDING" ||
+    emailState.status === "success" || smsState.status === "success" || Boolean(linkState.link)
+  );
 
   useEffect(() => {
     let active = true;
@@ -145,10 +149,14 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
     let active = true;
     let popupTimer: number | undefined;
     const refreshDelivery = async () => {
-      const result = await getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null);
+      const [result, remotePending] = await Promise.all([
+        getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null),
+        hasPendingRemoteRepairOrderAuthorizationAction(repairOrderId).catch(() => false),
+      ]);
       if (!active) return;
       setClock(Date.now());
       setDelivery(result as EmailDeliveryState | null);
+      setPendingRemoteAuthorization(remotePending);
       if (result && failedDelivery(result.deliveryStatus)) {
         const key = `${result.recipientEmail ?? "customer"}:${result.deliveryStatus}`;
         if (shownDeliveryFailure.current !== key) {
@@ -166,7 +174,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
       window.clearInterval(interval);
       if (popupTimer) window.clearTimeout(popupTimer);
     };
-  }, [repairOrderId, emailState.status]);
+  }, [repairOrderId, emailState.status, smsState.status, linkState.link]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -174,7 +182,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   }, []);
 
   useEffect(() => {
-    if (!waitingForEmailApproval) return;
+    if (!waitingForRemoteApproval) return;
 
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
@@ -186,7 +194,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [router, waitingForEmailApproval]);
+  }, [router, waitingForRemoteApproval]);
 
   async function openEmailConfirmation() {
     if (recipientLoading || saveRequired) return;
@@ -279,11 +287,11 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
                 ? <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Approval email accepted by the email service{delivery.recipientEmail ? ` for ${delivery.recipientEmail}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
                 : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
           : null}
-        {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">{delivery?.deliveryStatus === "delivered" ? "Waiting for customer approval · this page updates automatically." : "Waiting for email delivery confirmation · this page updates automatically."}</p> : null}
+        {waitingForRemoteApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer decision · this page updates automatically for email or SMS approval links.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>View Authorization</Link> : null}
-        {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : emailPending ? "Sending…" : declined ? "Send again" : waitingForEmailApproval ? "Resend" : "Send"}</button> : null}
+        {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : emailPending ? "Sending…" : declined ? "Send again" : waitingForRemoteApproval && delivery?.requestStatus === "PENDING" ? "Resend" : "Send"}</button> : null}
         {editable && !authorized && process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true" ? <button type="button" disabled={smsPending || saveRequired} onClick={() => void openSmsConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50">Text Estimate (Dev)</button> : null}
         {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => void openVerbalAuthorization()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400"><MicIcon />Verbal</button> : null}
       </div>
