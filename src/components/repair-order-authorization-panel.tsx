@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
-import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
+import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, generateRepairOrderSmsTestLinkAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
 import { formatUsSmsPhone } from "@/lib/messaging/phone";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
@@ -94,6 +94,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [clock, setClock] = useState(() => Date.now());
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
   const [smsState, smsAction, smsPending] = useActionState(sendRepairOrderSmsAuthorizationAction, initialSms);
+  const [linkState, linkAction, linkPending] = useActionState(generateRepairOrderSmsTestLinkAction, initialSms);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const shownDeliveryFailure = useRef<string | null>(null);
@@ -300,9 +301,17 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
           </label>
           <label className="flex gap-2 text-sm"><input type="checkbox" name="testConsent" value="yes" required />I confirm this is my own test phone and I consent to receive the test text.</label>
           {smsState.status === "error" ? <p role="alert" className="text-sm text-red-700">{smsState.message}</p> : null}
+          {linkState.status === "error" ? <p role="alert" className="text-sm text-red-700">{linkState.message}</p> : null}
+          {linkState.link ? <div role="status" className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+            <p className="font-semibold">Dev approval link created — no SMS sent.</p>
+            <p>Copy this private link to your iPhone. Anyone with it can approve the synthetic Repair Order; don't share it publicly.</p>
+            <input aria-label="Private Development approval link" readOnly value={linkState.link} onFocus={(event) => event.currentTarget.select()} className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs text-slate-900" />
+            <a target="_blank" rel="noopener noreferrer" href={linkState.link} className="inline-block font-semibold underline">Open approval page on this device</a>
+          </div> : null}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setSmsOpen(false)} disabled={smsPending} className="rounded-lg border px-4 py-2">Cancel</button>
-            <button type="submit" disabled={smsPending} className="rounded-lg bg-brand-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{smsPending ? "Sending…" : "Send Test SMS"}</button>
+            <button type="submit" formAction={linkAction} disabled={linkPending || smsPending} className="rounded-lg border border-brand-primary px-3 py-2 font-semibold text-brand-primary disabled:opacity-50">{linkPending ? "Generating…" : "Generate Test Link"}</button>
+            <button type="submit" disabled={smsPending || linkPending} className="rounded-lg bg-brand-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{smsPending ? "Sending…" : "Send Test SMS"}</button>
           </div>
         </form>
       </section>
