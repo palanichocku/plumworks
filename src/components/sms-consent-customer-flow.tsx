@@ -19,7 +19,7 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
   const [pending, startTransition] = useTransition();
 
   const verify = () => {
-    if (!/^\\d{6}$/.test(pin)) return;
+    if (!/^\d{6}$/.test(pin)) return;
     startTransition(async () => {
       const ok = await verifySmsConsentPinAction(token, pin);
       if (ok) { setVerified(true); setPinError(false); }
@@ -39,7 +39,7 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
         <label className="mt-7 block text-sm font-semibold" htmlFor="consent-pin">Six-digit security code</label>
         <input id="consent-pin" type="text" autoComplete="one-time-code" inputMode="numeric"
           pattern="[0-9]*" maxLength={6} value={pin}
-          onChange={e => { setPin(e.target.value.replace(/\\D/g,"").slice(0,6)); setPinError(false); }}
+          onChange={e => { setPin(e.target.value.replace(/\D/g,"").slice(0,6)); setPinError(false); }}
           className="mt-2 block min-h-16 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-4 text-center font-mono text-3xl tracking-[0.4em] focus:border-slate-800 focus:outline-none"
           placeholder="••••••" aria-describedby={pinError ? "pin-error" : undefined} />
         {pinError ? <p id="pin-error" role="alert" className="mt-3 text-sm font-semibold text-red-700">That code did not match, or your link expired. Check with the shop for a new code if needed.</p> : null}
@@ -59,7 +59,7 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
           <input type="hidden" name="token" value={token} />
           {phonePath ? <input type="hidden" name="pin" value={pin} /> : null}
           <label className="block text-sm font-semibold">Your full name
-            <input name="customerName" required minLength={2} maxLength={120} autoComplete="name"
+            <input name="customerName" minLength={2} maxLength={120} autoComplete="name"
               className="mt-2 block min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
           </label>
           <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6">
