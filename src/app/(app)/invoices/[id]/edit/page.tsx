@@ -14,7 +14,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
 
   return <div className="invoice-edit-fullwidth">
     <style>{`
-      @media (min-width: 64rem) {
+      @media (min-width: 80rem) {
         .invoice-edit-fullwidth > div > div.grid {
           grid-template-columns: minmax(0, 1fr) 20rem !important;
           align-items: start;
