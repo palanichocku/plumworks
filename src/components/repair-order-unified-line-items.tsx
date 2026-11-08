@@ -52,7 +52,7 @@ export function RepairOrderUnifiedLineItems({ repairOrderId, partsTotal, laborTo
       </div>
       <p className="text-sm font-semibold text-slate-700">Parts {money(Number(partsTotal))} <span className="mx-1 text-slate-300">·</span> Labor {money(Number(laborTotal))}</p>
     </div>
-    <div className="hidden grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 lg:grid sm:px-5">
+    <div className="hidden grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 xl:grid sm:px-5">
       <span>Type</span><span>Description</span><span>Vendor / service</span><span className="text-right">Qty / hrs</span><span className="text-right">Price / rate</span><span className="text-right">Amount</span><span />
     </div>
     <div className="divide-y divide-slate-200">
@@ -85,7 +85,7 @@ function ReorderControls({ repairOrderId, lineId, lineType, canMoveUp, canMoveDo
 }
 
 function DisplayRow({ type, description, secondary, qty, rate, amount, actions, reorder }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode; reorder?: React.ReactNode }) {
-  return <div className="grid gap-2 px-4 py-3 text-sm lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-center lg:gap-3 sm:px-5">
+  return <div className="grid gap-2 px-4 py-3 text-sm xl:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] xl:items-center xl:gap-3 sm:px-5">
     <div className="flex items-center gap-1"><TypeBadge type={type} />{reorder}</div>
     <ReadOnlyDescriptionPreview value={description} />
     <div className="text-slate-500">{secondary}</div>
@@ -124,7 +124,7 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
   useEffect(() => { if (state.status === "success") onClose(); }, [state.status, onClose]);
   return <form action={action} className="bg-blue-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} />
-    <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[6.5rem_minmax(13rem,1fr)_minmax(9rem,.65fr)_5.5rem_7rem_7rem_4.5rem] xl:items-end">
       <div><TypeBadge type="part" /></div>
       <HistoricalDescriptionCombobox kind="part" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
       <VendorCombobox vendors={vendors} defaultVendor={line.vendor} />
@@ -204,7 +204,7 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
   return <form action={action} className="bg-emerald-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={clearPreset} />
-    <div className="grid gap-3 lg:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[6.5rem_minmax(18rem,1.7fr)_5.5rem_7rem_7rem_4.5rem] xl:items-end">
       <div><TypeBadge type="labor" /></div>
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
       <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
@@ -229,7 +229,7 @@ function ComplimentaryEditRow({ repairOrderId, line, onClose }: { repairOrderId:
   useEffect(() => { if (state.status === "success") onClose(); }, [state.status, onClose]);
   return <form action={action} className="bg-violet-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(22rem,1.8fr)_7rem_4.5rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[10rem_minmax(22rem,1.8fr)_7rem_4.5rem] xl:items-end">
       <div><TypeBadge type="complimentary" /></div>
       <HistoricalDescriptionCombobox kind="labor" rowKey={`edit-comp-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
       <div className="pb-2 text-right font-semibold">{money(0)}</div>
@@ -272,7 +272,7 @@ function DraftPart({ repairOrderId, vendors, type, setType, onSaved }: { repairO
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(17rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[10rem_minmax(17rem,1.45fr)_minmax(11rem,.8fr)_5.5rem_7rem_7rem] xl:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="part" rowKey="draft-unified-part" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Part description" multiline autoGrow />
       <VendorCombobox vendors={vendors} />
@@ -312,14 +312,14 @@ function DraftLabor({ repairOrderId, services, defaultRate, type, setType, onSav
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <DraftHeader pending={pending} />
     <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={clearPreset} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[10rem_minmax(24rem,2fr)_5.5rem_7rem_7rem] xl:items-end">
       <TypeSelect value={type} onChange={setType} />
       <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-labor" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Labor description" multiline autoGrow /></div>
       <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
       <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
       <AmountField value={money(Number(hours) * Number(rate))} />
     </div>
-    <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 lg:ml-[10.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
+    <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700 xl:ml-[10.75rem]"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
   </form>;
 }
@@ -331,7 +331,7 @@ function DraftComplimentary({ repairOrderId, type, setType, onSaved }: { repairO
   return <form action={action}>
     <input type="hidden" name="repairOrderId" value={repairOrderId} />
     <DraftHeader pending={pending} />
-    <div className="grid gap-3 lg:grid-cols-[10rem_minmax(28rem,2fr)_7rem] lg:items-end">
+    <div className="grid gap-3 xl:grid-cols-[10rem_minmax(28rem,2fr)_7rem] xl:items-end">
       <TypeSelect value={type} onChange={setType} />
       <HistoricalDescriptionCombobox kind="labor" rowKey="draft-unified-complimentary" value={description} onChange={setDescription} inputClass={descriptionClass} placeholder="Complimentary service description" multiline autoGrow />
       <AmountField value={money(0)} />
