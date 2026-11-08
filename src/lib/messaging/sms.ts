@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SmsDeliveryRequest, SmsDeliveryResult, SmsProvider } from "./types";
+import { normalizeUsSmsPhone } from "./phone";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -10,9 +11,14 @@ const E164 = /^\+[1-9]\d{7,14}$/;
  * NOT the shop-facing authorization workflow.
  */
 export function assertDevelopmentSmsEnabled() {
+  // Vercel Preview uses NODE_ENV=production. Allow only the isolated dev
+  // branch preview, never Production or arbitrary feature-branch previews.
+  const local = !process.env.VERCEL_ENV && process.env.NODE_ENV === "development";
+  const devPreview = process.env.VERCEL_ENV === "preview" &&
+    process.env.VERCEL_GIT_COMMIT_REF === "dev";
   if (process.env.VERCEL_ENV === "production" ||
-      process.env.NODE_ENV === "production" ||
-      process.env.SMS_DEV_SEND_ENABLED !== "true") {
+      process.env.SMS_DEV_SEND_ENABLED !== "true" ||
+      !(local || devPreview)) {
     throw new Error("Development SMS sending is disabled.");
   }
 }
@@ -32,16 +38,19 @@ class TwilioSmsProvider implements SmsProvider {
   async send(request: SmsDeliveryRequest): Promise<SmsDeliveryResult> {
     assertDevelopmentSmsEnabled();
     validateSmsRequest(request);
-    if (!process.env.SMS_DEV_ALLOWED_TO || request.to !== process.env.SMS_DEV_ALLOWED_TO) {
+    if (!process.env.SMS_DEV_ALLOWED_TO || request.to !== normalizeUsSmsPhone(process.env.SMS_DEV_ALLOWED_TO)) {
       throw new Error("Recipient is not the allowed development test number.");
     }
-    if (!process.env.TWILIO_SMS_FROM || request.from !== process.env.TWILIO_SMS_FROM) {
+    if (!process.env.TWILIO_SMS_FROM || request.from !== normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM)) {
       throw new Error("Sender must match the configured development number.");
     }
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    if (!accountSid || !/^AC[a-f0-9]{32}$/i.test(accountSid) || !authToken) {
+    const apiKeySid = process.env.TWILIO_API_KEY_SID;
+    const apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
+    const apiCredentials = Boolean(apiKeySid && /^SK[a-f0-9]{32}$/i.test(apiKeySid) && apiKeySecret);
+    if (!accountSid || !/^AC[a-f0-9]{32}$/i.test(accountSid) || (!apiCredentials && !authToken)) {
       return { ok: false, errorCode: "not_configured", message: "Twilio development credentials are missing." };
     }
 
@@ -50,6 +59,7 @@ class TwilioSmsProvider implements SmsProvider {
       To: request.to,
       Body: request.body,
     });
+    if (request.statusCallbackUrl) form.set("StatusCallback", request.statusCallbackUrl);
 
     try {
       const response = await fetch(
@@ -57,7 +67,7 @@ class TwilioSmsProvider implements SmsProvider {
         {
           method: "POST",
           headers: {
-            Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+            Authorization: `Basic ${Buffer.from(apiCredentials ? `${apiKeySid}:${apiKeySecret}` : `${accountSid}:${authToken}`).toString("base64")}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: form.toString(),
