@@ -11,6 +11,7 @@ export default function SmsConsentExample() {
  <div className="mt-5 space-y-4 opacity-90">
  <p className="text-sm">Mobile number: (***) ***-1234</p>
  <div className="rounded-lg border border-slate-300 px-3 py-3 text-slate-500">Customer full name (example)</div>
+ <div className="rounded-lg border border-slate-300 px-3 py-3 text-slate-500">Customer mobile phone number (example)</div>
  <div className="rounded-lg border border-slate-300 px-3 py-3 text-slate-500">One-time PIN (example)</div>
  <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6"><input type="checkbox" disabled defaultChecked={false} className="mt-1 h-5 w-5" /><span>{smsConsentText("Car Doc LLC")}</span></label>
  <div className="text-xs"><Link href="/privacy" className="underline">Privacy Policy</Link> · <Link href="/sms-terms" className="underline">SMS Terms &amp; Conditions</Link></div>
