@@ -75,7 +75,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         {order.status === "void" ? <section className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"><h2 className="font-bold">This repair order was voided and is retained for audit history.</h2><dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]"><dt className="font-semibold">Void reason</dt><dd>{repairOrderVoidReasonLabel(order.voidReason)}</dd>{order.voidNote ? <><dt className="font-semibold">Explanation</dt><dd className="whitespace-pre-wrap">{order.voidNote}</dd></> : null}<dt className="font-semibold">Voided</dt><dd>{formatDate(order.voidedAt)}</dd></dl></section> : !editable ? <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p> : null}
       </header>
 
-      {canEditCustomerVehicle ? <CustomerSmsConsentPanel customerId={order.customer.id} initialStatus={smsConsentStatus} /> : null}
+      {canEditCustomerVehicle ? <CustomerSmsConsentPanel customerId={order.customer.id} initialStatus={smsConsentStatus} initialPhone={order.customer.phone} /> : null}
       {authorizationSummary ? <RepairOrderAuthorizationPanel
         repairOrderId={order.id}
         estimatedTotal={Number(order.estimatedTotal).toFixed(2)}
