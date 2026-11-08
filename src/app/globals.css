@@ -67,7 +67,7 @@
   gap: 1.5rem;
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 80rem) {
   .ro-line-workbench {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

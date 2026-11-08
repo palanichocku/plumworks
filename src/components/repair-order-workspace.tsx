@@ -58,12 +58,12 @@ export function RepairOrderWorkspace({ overview, concerns, parts, labor, totals,
           grid-template-columns: minmax(0, 1fr) 20rem !important;
         }
       }
-      @media (min-width: 64rem) {
+      @media (min-width: 80rem) {
         .ro-line-items-surface [data-ro-section="parts"] {
           border-right: 1px solid #cbd5e1;
         }
       }
-      @media (max-width: 63.999rem) {
+      @media (max-width: 79.999rem) {
         .ro-line-items-surface [data-ro-section="labor"] {
           border-top: 1px solid #cbd5e1;
         }
