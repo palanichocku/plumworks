@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getConsentPage, SMS_CONSENT_TEXT } from "@/lib/messaging/sms-consent";
+import { getConsentPage } from "@/lib/messaging/sms-consent";
 import { submitSmsConsent } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export default async function SmsConsentPage({ params, searchParams }: {
         </label>
         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6">
           <input type="checkbox" name="smsOptIn" value="yes" className="mt-1 h-5 w-5 shrink-0" />
-          <span>{SMS_CONSENT_TEXT}</span>
+          <span>{session.disclosure}</span>
         </label>
         <p className="text-sm text-slate-600">You may leave the checkbox unchecked. Declining text messages will not affect your repair service.</p>
         <p className="text-xs leading-5 text-slate-600"><Link href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">Privacy Policy</Link> · <Link href="/sms-terms" target="_blank" rel="noopener noreferrer" className="underline">SMS Terms & Conditions</Link></p>
