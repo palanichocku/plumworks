@@ -109,7 +109,7 @@ export async function submitConsent(input: {
   token: string; pin?: string; checked: boolean; customerName: string; staff?: ConsentStaff;
 }) {
   assertSmsConsentDev();
-  if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin) ||
+  if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin ?? "") ||
     input.customerName.trim().length < 2 || input.customerName.trim().length > 120) {
     return { ok: false as const, reason: "invalid" as const };
   }
