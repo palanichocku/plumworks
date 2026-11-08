@@ -7,6 +7,7 @@ import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/r
 import { hasPermission } from "@/lib/permissions";
 import { assertDevelopmentSmsEnabled, createDevelopmentSmsProvider } from "@/lib/messaging/sms";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
+import { assertSmsRecipientConsented } from "@/lib/messaging/sms-consent";
 import {
   createRepairOrderSmsAuthorizationRequest,
   markRepairOrderSmsRequestAccepted,
@@ -92,6 +93,12 @@ export async function sendRepairOrderSmsAuthorizationAction(
   const summary = await getRepairOrderAuthorizationSummaryForShop(membership.shopId, repairOrderId);
   if (summary?.status === "AUTHORIZED") return error("This Repair Order revision is already authorized.");
 
+  try {
+    await assertSmsRecipientConsented(membership.shopId, model.customer.id, recipientPhone);
+  } catch {
+    return error("SMS is blocked: valid customer consent for this mobile number is missing or the number has opted out.");
+  }
+
   // Trial accounts may reject custom text. Do not substitute template messages: they omit
   // the unique authorization link and would incorrectly represent the approval workflow.
   let request: Awaited<ReturnType<typeof createRepairOrderSmsAuthorizationRequest>> | null = null;
@@ -103,6 +110,7 @@ export async function sendRepairOrderSmsAuthorizationAction(
     });
     const link = `${origin}/authorize/repair-order/${encodeURIComponent(request.token)}`;
     const body = `${model.shop.name}: Review and authorize estimate #${model.repairOrderNumber}: ${link} Reply STOP to opt out.`;
+    await assertSmsRecipientConsented(membership.shopId, model.customer.id, recipientPhone);
     const response = await provider.send({ to: recipientPhone, from: sender, body });
     if (!response.ok) {
       await revokeRepairOrderAuthorizationRequest(request.requestId);
