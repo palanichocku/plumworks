@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
 
 export const SMS_CONSENT_VERSION = "2026-11-08-service-v1";
-export const SMS_CONSENT_TEXT = "I agree to receive text messages from the repair shop shown above about repair estimates and vehicle service updates at the mobile number shown. Message frequency varies by service activity. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Consent is optional and is not a condition of purchase.";
+export function smsConsentText(shopName: string) {\n  return `I agree to receive text messages from ${shopName} about repair estimates and vehicle service updates at the mobile number shown. Message frequency varies by service activity. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Consent is optional and is not a condition of purchase.`;\n}
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,100}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -73,7 +73,7 @@ export async function getConsentPage(token: string) {
   assertSmsConsentDev();
   const row = await findSession(token);
   if (!active(row) || !row) return null;
-  return { shopName: row.shopName, phone: masked(row.phone), expiresAt: row.expiresAt };
+  return { shopName: row.shopName, phone: masked(row.phone), disclosure: smsConsentText(row.shopName), expiresAt: row.expiresAt };
 }
 
 export async function submitConsent(input: {
@@ -115,7 +115,7 @@ export async function submitConsent(input: {
          disclosure_version, disclosure_text, customer_name)
         VALUES (${current.shopId}::uuid, ${current.customerId}::uuid,
           ${current.id}::uuid, ${current.phone}, 'OPT_IN', ${current.method},
-          ${SMS_CONSENT_VERSION}, ${SMS_CONSENT_TEXT}, ${input.customerName.trim()})`;
+          ${SMS_CONSENT_VERSION}, ${smsConsentText(current.shopName)}, ${input.customerName.trim()})`;
     }
     return { ok: true as const, consented: input.checked };
   });
