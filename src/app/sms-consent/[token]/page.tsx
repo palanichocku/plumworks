@@ -17,14 +17,11 @@ export default async function SmsConsentPage({ params, searchParams }: {
       <p className="text-sm font-bold uppercase tracking-wide text-brand-primary">Text message consent</p>
       <h1 className="mt-2 text-2xl font-bold">{session.shopName}</h1>
       <p className="mt-3 text-sm text-slate-700">Mobile number: <strong>{session.phone}</strong>. Check that these last four digits are yours before signing up.</p>
-      {error ? <p role="alert" className="mt-3 text-sm font-semibold text-red-700">The PIN was incorrect or this session is no longer available. Try again or ask staff for a new link.</p> : null}
+      {error ? <p role="alert" className="mt-3 text-sm font-semibold text-red-700">The security PIN did not match or this session could not be completed. Check the PIN or ask staff for a fresh link.</p> : null}
       <form action={submitSmsConsent} className="mt-6 space-y-5">
         <input type="hidden" name="token" value={token} />
         <label className="block text-sm font-semibold">Your full name
           <input name="customerName" required minLength={2} maxLength={120} autoComplete="name" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
-        </label>
-        <label className="block text-sm font-semibold">Your mobile phone number
-          <input name="phoneInput" type="tel" inputMode="tel" required autoComplete="tel" placeholder="(586) 555-0123" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
         </label>
         <label className="block text-sm font-semibold">One-time security PIN from shop staff
           <input name="pin" required inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} autoComplete="off" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-mono text-lg tracking-wider" />
