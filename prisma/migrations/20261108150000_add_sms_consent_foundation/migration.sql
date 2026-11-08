@@ -13,6 +13,7 @@ CREATE TABLE sms_consent_sessions (
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
   cancelled_at timestamptz,
+  failed_pin_attempts integer NOT NULL DEFAULT 0 CHECK (failed_pin_attempts BETWEEN 0 AND 5),
   CONSTRAINT sms_consent_sessions_expiration CHECK (expires_at > created_at)
 );
 CREATE INDEX sms_consent_sessions_customer_idx
@@ -25,7 +26,7 @@ CREATE TABLE sms_consent_events (
   session_id uuid REFERENCES sms_consent_sessions(id) ON DELETE SET NULL,
   phone_e164 text NOT NULL CHECK (left(phone_e164, 1) = '+' AND substring(phone_e164 from 2) ~ '^[1-9][0-9]{7,14}$'),
   event_type text NOT NULL CHECK (event_type IN ('OPT_IN', 'OPT_OUT')),
-  method text NOT NULL CHECK (method IN ('IN_SHOP_QR', 'TWILIO_STOP', 'STAFF_VERIFIED')),
+  method text NOT NULL CHECK (method IN ('IN_SHOP_QR', 'IN_SHOP_IPAD', 'TWILIO_STOP', 'STAFF_VERIFIED')),
   disclosure_version varchar(80),
   disclosure_text text,
   customer_name text,
