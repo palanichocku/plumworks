@@ -109,8 +109,8 @@ export async function submitConsent(input: {
   token: string; pin?: string; checked: boolean; customerName: string; staff?: ConsentStaff;
 }) {
   assertSmsConsentDev();
-  if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin ?? "") ||
-    input.customerName.trim().length < 2 || input.customerName.trim().length > 120) {
+  if (!TOKEN_RE.test(input.token) ||
+    (input.checked && input.customerName.trim().length < 2) || input.customerName.trim().length > 120) {
     return { ok: false as const, reason: "invalid" as const };
   }
   const row = await findSession(input.token);
@@ -118,7 +118,7 @@ export async function submitConsent(input: {
   if (row.method === "IN_SHOP_IPAD" &&
     (input.staff?.shopId !== row.shopId || input.staff?.userId !== row.createdByUserId))
     return { ok: false as const, reason: "invalid" as const };
-  if (row.method === "IN_SHOP_QR" && !/^\\d{6}$/.test(input.pin ?? ""))
+  if (row.method === "IN_SHOP_QR" && !/^\d{6}$/.test(input.pin ?? ""))
     return { ok: false as const, reason: "invalid" as const };
 
   // Lock the session and customer together: once used, even concurrent submissions fail.
