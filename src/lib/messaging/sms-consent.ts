@@ -93,7 +93,7 @@ export async function getConsentPage(token: string, staff?: ConsentStaff) {
 /** PIN step for customer-owned phones. Checking it does not create consent. */
 export async function verifyConsentPin(token: string, pin: string): Promise<boolean> {
   assertSmsConsentDev();
-  if (!TOKEN_RE.test(token) || !/^\\d{6}$/.test(pin)) return false;
+  if (!TOKEN_RE.test(token) || !/^\d{6}$/.test(pin)) return false;
   const row = await findSession(token);
   if (!active(row) || !row || row.method !== "IN_SHOP_QR") return false;
   const matches = timingSafeEqual(Buffer.from(row.pinHash, "hex"), Buffer.from(digest(pin), "hex"));
