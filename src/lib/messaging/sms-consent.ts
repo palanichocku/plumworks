@@ -21,13 +21,13 @@ export function assertSmsConsentDev() {
 
 type SessionRow = {
   id: string; shopId: string; customerId: string; phone: string; tokenHash: string;
-  pinHash: string; version: string; expiresAt: Date; consumedAt: Date | null;
+  pinHash: string; version: string; method: "IN_SHOP_IPAD" | "IN_SHOP_QR"; expiresAt: Date; consumedAt: Date | null;
   cancelledAt: Date | null; attempts: number; shopName: string; customerPhone: string | null;
   archivedAt: Date | null;
 };
 const sessionSelect = `SELECT s.id, s.shop_id AS "shopId", s.customer_id AS "customerId",
 s.phone_e164 AS phone, s.token_sha256 AS "tokenHash", s.staff_pin_sha256 AS "pinHash",
-s.disclosure_version AS version, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
+s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
 s.cancelled_at AS "cancelledAt", s.failed_pin_attempts AS attempts, sh.name AS "shopName",
 c.phone AS "customerPhone", c.archived_at AS "archivedAt"
 FROM sms_consent_sessions s JOIN shops sh ON sh.id=s.shop_id
@@ -49,9 +49,9 @@ export async function createConsentSession(input: {
   const expiresAt = new Date(Date.now() + 10 * 60_000);
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     INSERT INTO sms_consent_sessions (shop_id, customer_id, phone_e164,
-      token_sha256, staff_pin_sha256, disclosure_version, created_by_user_id, expires_at)
+      token_sha256, staff_pin_sha256, disclosure_version, collection_method, created_by_user_id, expires_at)
     VALUES (${input.shopId}::uuid, ${input.customerId}::uuid, ${phone},
-      ${digest(token)}, ${digest(pin)}, ${SMS_CONSENT_VERSION}, ${input.staffId}::uuid, ${expiresAt})
+      ${digest(token)}, ${digest(pin)}, ${SMS_CONSENT_VERSION}, ${input.method}, ${input.staffId}::uuid, ${expiresAt})
     RETURNING id`;
   return { id: rows[0].id, token, pin, expiresAt, phone: masked(phone), method: input.method };
 }
@@ -77,7 +77,7 @@ export async function getConsentPage(token: string) {
 }
 
 export async function submitConsent(input: {
-  token: string; pin: string; checked: boolean; customerName: string; method: "IN_SHOP_IPAD" | "IN_SHOP_QR";
+  token: string; pin: string; checked: boolean; customerName: string;
 }) {
   assertSmsConsentDev();
   if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin) ||
@@ -114,7 +114,7 @@ export async function submitConsent(input: {
         (shop_id, customer_id, session_id, phone_e164, event_type, method,
          disclosure_version, disclosure_text, customer_name)
         VALUES (${current.shopId}::uuid, ${current.customerId}::uuid,
-          ${current.id}::uuid, ${current.phone}, 'OPT_IN', ${input.method},
+          ${current.id}::uuid, ${current.phone}, 'OPT_IN', ${current.method},
           ${SMS_CONSENT_VERSION}, ${SMS_CONSENT_TEXT}, ${input.customerName.trim()})`;
     }
     return { ok: true as const, consented: input.checked };
