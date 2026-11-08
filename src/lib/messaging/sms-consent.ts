@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
 
 export const SMS_CONSENT_VERSION = "2026-11-08-service-v1";
-export function smsConsentText(shopName: string) {\n  return `I agree to receive text messages from ${shopName} about repair estimates and vehicle service updates at the mobile number shown. Message frequency varies by service activity. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Consent is optional and is not a condition of purchase.`;\n}
+export function smsConsentText(shopName: string) {
+  return `I agree to receive text messages from ${shopName} about repair estimates and vehicle service updates at the mobile number shown. Message frequency varies by service activity. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Consent is optional and is not a condition of purchase.`;
+}
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,100}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
