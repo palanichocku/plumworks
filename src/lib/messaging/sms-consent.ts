@@ -79,7 +79,7 @@ export async function getConsentPage(token: string) {
 }
 
 export async function submitConsent(input: {
-  token: string; pin: string; checked: boolean; customerName: string;
+  token: string; pin: string; phoneInput: string; checked: boolean; customerName: string;
 }) {
   assertSmsConsentDev();
   if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin) ||
@@ -89,7 +89,7 @@ export async function submitConsent(input: {
   const row = await findSession(input.token);
   if (!active(row) || !row) return { ok: false as const, reason: "expired" as const };
   const known = Buffer.from(row.pinHash, "hex"), candidate = Buffer.from(digest(input.pin), "hex");
-  if (!timingSafeEqual(known, candidate)) {
+  if (!timingSafeEqual(known, candidate) || normalizeUsSmsPhone(input.phoneInput) !== row.phone) {
     await prisma.$executeRaw`UPDATE sms_consent_sessions
       SET failed_pin_attempts=LEAST(failed_pin_attempts+1,5)
       WHERE id=${row.id}::uuid AND consumed_at IS NULL AND cancelled_at IS NULL`;
@@ -108,7 +108,7 @@ export async function submitConsent(input: {
       JOIN customers c ON c.id=s.customer_id AND c.shop_id=s.shop_id
       WHERE s.id=${row.id}::uuid FOR UPDATE OF s, c`;
     const current = sessions[0];
-    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate))
+    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate) || normalizeUsSmsPhone(input.phoneInput) !== current.phone)
       return { ok: false as const, reason: "expired" as const };
     await tx.$executeRaw`UPDATE sms_consent_sessions SET consumed_at=CURRENT_TIMESTAMP WHERE id=${current.id}::uuid`;
     if (input.checked) {
