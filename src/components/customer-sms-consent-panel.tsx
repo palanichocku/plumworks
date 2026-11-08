@@ -32,7 +32,8 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
   const [state, action, pending] = useActionState(startSmsConsentSessionAction, initial);
   const [status, setStatus] = useState<SmsConsentStatus>(initialStatus);
   const [method, setMethod] = useState<"IN_SHOP_IPAD" | "IN_SHOP_QR">("IN_SHOP_IPAD");
-  const [collecting, setCollecting] = useState(initialStatus !== "CONSENTED" && initialStatus !== "OPTED_OUT");
+  const [expanded, setExpanded] = useState(initialStatus === "MISSING");
+  const [collecting, setCollecting] = useState(initialStatus === "MISSING");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<Item[]>([]);
   const [dismissedId, setDismissedId] = useState<string | null>(null);
@@ -42,7 +43,6 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
   const session = state.status === "ready" && state.sessionId !== dismissedId ? state : null;
   const visibleSession = session && session.method === method ? session : null;
   const secondsLeft = Math.max(0, Math.ceil(((visibleSession?.expiresAt ? Date.parse(visibleSession.expiresAt) : 0) - clock)/1000));
-  const awaiting = Boolean(session && session.expiresAt && Date.parse(session.expiresAt)>clock && progress === "PENDING");
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -60,7 +60,9 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
         setHistory(result.history);
         setProgress(result.progress ?? "PENDING");
         if (result.progress === "COMPLETED") {
-          setCollecting(result.status !== "CONSENTED" && result.status !== "OPTED_OUT");
+          setCollecting(false);
+          setExpanded(false);
+          setHistoryOpen(false);
         }
       } catch { /* retry next poll */ }
     };
@@ -93,21 +95,31 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
   const color = status === "CONSENTED" ? "bg-emerald-100 text-emerald-800" :
     status === "OPTED_OUT" ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-700";
 
-  return <section className="mt-6 min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-bold text-slate-950">Text message consent</h2>
-        <p className="mt-1 text-sm text-slate-600">Needed before texting estimates. This does not approve repair work.</p>
-      </div>
-      <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-sm font-semibold ${color}`}>
-        {status === "CONSENTED" ? "✓ " : ""}{label} · {displayPhone(initialPhone)}
-      </span>
-    </div>
+  const toggle = () => {
+    setExpanded(open => {
+      if (open) setHistoryOpen(false);
+      return !open;
+    });
+  };
 
-    {status === "CONSENTED" && !collecting ? <div className="mt-4 flex flex-wrap items-center gap-3">
+  return <section className="mt-6 min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <button type="button" aria-expanded={expanded} onClick={toggle}
+      aria-label={`Text message consent: ${label}. ${expanded ? "Collapse" : "Expand"} details`}
+      className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-800 sm:px-5">
+      <span className="min-w-0 text-sm font-bold text-slate-950 sm:text-base">Text message consent</span>
+      <span className="ml-auto flex shrink-0 items-center gap-3">
+        <span className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-xs font-semibold sm:text-sm ${color}`}>
+          {status === "CONSENTED" ? "✓ " : ""}{label} · {displayPhone(initialPhone)}
+        </span>
+        <span aria-hidden="true" className="text-lg font-medium text-slate-500">{expanded ? "⌃" : "⌄"}</span>
+      </span>
+    </button>
+    {expanded ? <div className="border-t border-slate-200 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+      <p className="text-xs text-slate-600">Needed before texting estimates. This does not approve repair work.</p>
+    {(status === "CONSENTED" || status === "DECLINED") && !collecting ? <div className="mt-4 flex flex-wrap items-center gap-3">
       <button type="button" onClick={checkHistory} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">{historyOpen ? "Hide history" : "View history"}</button>
-      <button type="button" onClick={() => { setCollecting(true); setDismissedId(null); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">Recollect consent</button>
-      <span className="text-xs text-slate-500">Valid consent applies across Repair Orders for this number.</span>
+      <button type="button" onClick={() => { setCollecting(true); setDismissedId(session?.sessionId ?? null); setHistoryOpen(false); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">Recollect consent</button>
+      <span className="text-xs text-slate-500">Consent decisions are stored on the customer record and apply across Repair Orders for the same number.</span>
     </div> : null}
 
     {status === "OPTED_OUT" ? <div className="mt-4">
@@ -171,7 +183,7 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
           <p className="mt-2 text-sm text-amber-800">That session ended. Start a new request.</p> : null}
       </>}
       {state.status === "error" ? <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{state.message}</p> : null}
-      {status==="CONSENTED" ? <button type="button" className="mt-4 text-sm font-semibold text-slate-600 underline"
+      {(status==="CONSENTED" || status==="DECLINED") ? <button type="button" className="mt-4 text-sm font-semibold text-slate-600 underline"
         onClick={()=>setCollecting(false)}>Done collecting</button> : null}
       <button type="button" onClick={checkHistory} className="mt-4 ml-4 text-sm font-semibold text-slate-600 underline">{historyOpen ? "Hide history" : "View history"}</button>
     </> : null}
@@ -186,6 +198,7 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
             {new Date(item.occurredAt).toLocaleString()} {item.customerName ? `· ${item.customerName}` : ""}
           </span>
         </li>)}</ul> : <p className="mt-2 text-sm text-slate-600">No consent decisions recorded.</p>}
+    </div> : null}
     </div> : null}
   </section>;
 }
