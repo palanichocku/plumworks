@@ -2,10 +2,17 @@
 
 Source branch: `feature/dev-sms-estimate-authorization`. This branch is isolated from `main` and must not be merged before UAT and explicit production approval.
 
+## Tablet-first in-shop flow
+
+- Staff may select **Collect on this iPad** after verifying the customer and mobile number. An authenticated staff member creates a single-use, ten-minute, shop/customer/phone-bound session, then hands over the iPad displaying only a minimal public consent form. No customer login or SMS is needed. The staff-facing shell and customer record should not be visible while handed over. After submission, show a neutral completion page, not shop controls.
+- Alternatively choose **Show QR**, allowing the customer to scan from their own phone. QR flow requires the separate short PIN handed to the verified person; a QR token alone is not identity proof.
+- Both routes write identical consent evidence and use the same authoritative send eligibility checks. Do not rely on client-side UI state for authorization.
+- Optimize for 11-inch and 13-inch iPads in portrait and landscape, iPad Safari zoom and on-screen keyboard, touch targets >=44px, no clipped amounts or controls, and accessible checkbox labels. Never auto-check the box.
+
 ## In-shop flow
 
 1. Staff opens an existing customer, verifies identity in person, and confirms the customer's mobile number.
-2. Authorized staff chooses **SMS consent → Show QR**. Server creates a fresh 10-minute, single-use token bound to shop, customer, and normalized phone; the QR contains only a non-identifying token URL. A separate short PIN is displayed to the employee, who gives it to the verified customer. Cancel or expiry invalidates the session.
+2. Authorized staff chooses **Collect on this iPad** or **SMS consent → Show QR**. Server creates a fresh 10-minute, single-use token bound to shop, customer, and normalized phone; the QR contains only a non-identifying token URL. A separate short PIN is displayed to the employee, who gives it to the verified customer. Cancel or expiry invalidates the session.
 3. Customer scans on their own phone, enters the PIN, sees shop name and masked phone number, and an **unchecked** optional checkbox covering *only* service and estimate SMS notifications. Consent is independent from repair authorization and independent from agreeing to general terms.
 4. On checked submission, server atomically validates token hash, expiry, unused status, PIN hash, exact customer/shop/phone binding, and current phone; it records a versioned opt-in event with disclosure text and timestamp and consumes the token. Unchecked submission consumes without opting in. Do not collect or log the QR token.
 5. Staff sees a refreshed **Consented / Not consented / Opted out** state. A changed customer phone requires new opt-in for the new phone. No prior consent is imported from Windows.
