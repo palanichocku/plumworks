@@ -79,7 +79,7 @@ export async function getConsentPage(token: string) {
 }
 
 export async function submitConsent(input: {
-  token: string; pin: string; phoneInput: string; checked: boolean; customerName: string;
+  token: string; pin: string; checked: boolean; customerName: string;
 }) {
   assertSmsConsentDev();
   if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin) ||
@@ -89,7 +89,7 @@ export async function submitConsent(input: {
   const row = await findSession(input.token);
   if (!active(row) || !row) return { ok: false as const, reason: "expired" as const };
   const known = Buffer.from(row.pinHash, "hex"), candidate = Buffer.from(digest(input.pin), "hex");
-  if (!timingSafeEqual(known, candidate) || normalizeUsSmsPhone(input.phoneInput) !== row.phone) {
+  if (!timingSafeEqual(known, candidate)) {
     await prisma.$executeRaw`UPDATE sms_consent_sessions
       SET failed_pin_attempts=LEAST(failed_pin_attempts+1,5)
       WHERE id=${row.id}::uuid AND consumed_at IS NULL AND cancelled_at IS NULL`;
@@ -101,14 +101,14 @@ export async function submitConsent(input: {
     const sessions = await tx.$queryRaw<SessionRow[]>`
       SELECT s.id, s.shop_id AS "shopId", s.customer_id AS "customerId",
       s.phone_e164 AS phone, s.token_sha256 AS "tokenHash", s.staff_pin_sha256 AS "pinHash",
-      s.disclosure_version AS version, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
+      s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
       s.cancelled_at AS "cancelledAt", s.failed_pin_attempts AS attempts,
       sh.name AS "shopName", c.phone AS "customerPhone", c.archived_at AS "archivedAt"
       FROM sms_consent_sessions s JOIN shops sh ON sh.id=s.shop_id
       JOIN customers c ON c.id=s.customer_id AND c.shop_id=s.shop_id
       WHERE s.id=${row.id}::uuid FOR UPDATE OF s, c`;
     const current = sessions[0];
-    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate) || normalizeUsSmsPhone(input.phoneInput) !== current.phone)
+    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate)
       return { ok: false as const, reason: "expired" as const };
     await tx.$executeRaw`UPDATE sms_consent_sessions SET consumed_at=CURRENT_TIMESTAMP WHERE id=${current.id}::uuid`;
     if (input.checked) {
