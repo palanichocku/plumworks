@@ -1,5 +1,6 @@
 "use client";
 import { useActionState, useState, useTransition } from "react";
+import { SecureSmsQr } from "@/components/secure-sms-qr";
 import { startSmsConsentSessionAction, getCustomerSmsConsentStatusAction, type SmsConsentSessionState } from "@/app/(app)/customers/sms-consent-actions";
 
 const initial: SmsConsentSessionState = { status: "idle", message: "" };
@@ -30,8 +31,9 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus }: {
       <p className="text-sm font-semibold text-slate-900">{state.message}</p>
       <p className="mt-2 text-sm">One-time security PIN: <strong className="font-mono text-xl tracking-widest">{state.pin}</strong></p>
       <p className="mt-1 text-xs text-slate-600">Give the PIN only to the verified customer. Do not share the private link publicly.</p>
+      <SecureSmsQr link={state.link} />
       <a href={state.link} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-brand-primary px-4 text-sm font-bold text-white">Open private consent form</a>
-      <p className="mt-2 break-all text-xs text-slate-600">For a separate customer device, use the secure link below. QR display is not yet enabled in this build.</p>
+      <p className="mt-2 break-all text-xs text-slate-600">For a separate customer device, scan the QR code or use the private URL below.</p>
       <div className="mt-1 select-all break-all rounded-lg bg-white p-2 font-mono text-xs text-slate-700">{state.link}</div>
     </div> : null}
   </section>;
