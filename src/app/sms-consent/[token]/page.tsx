@@ -23,6 +23,9 @@ export default async function SmsConsentPage({ params, searchParams }: {
         <label className="block text-sm font-semibold">Your full name
           <input name="customerName" required minLength={2} maxLength={120} autoComplete="name" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
         </label>
+        <label className="block text-sm font-semibold">Your mobile phone number
+          <input name="phoneInput" type="tel" inputMode="tel" required autoComplete="tel" placeholder="(586) 555-0123" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
+        </label>
         <label className="block text-sm font-semibold">One-time security PIN from shop staff
           <input name="pin" required inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} autoComplete="off" className="mt-2 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-mono text-lg tracking-wider" />
         </label>
