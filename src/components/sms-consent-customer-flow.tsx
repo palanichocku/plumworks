@@ -59,7 +59,7 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
           <input type="hidden" name="token" value={token} />
           {phonePath ? <input type="hidden" name="pin" value={pin} /> : null}
           <label className="block text-sm font-semibold">Your full name
-            <input name="customerName" minLength={2} maxLength={120} autoComplete="name"
+            <input name="customerName" required={agreed} minLength={2} maxLength={120} autoComplete="name"
               className="mt-2 block min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
           </label>
           <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6">
