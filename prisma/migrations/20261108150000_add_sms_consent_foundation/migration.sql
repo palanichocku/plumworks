@@ -56,3 +56,23 @@ ALTER TABLE sms_consent_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sms_consent_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sms_phone_suppressions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON sms_consent_sessions, sms_consent_events, sms_phone_suppressions FROM anon, authenticated;
+
+-- Scoped inbound sender routing; no hard-coded tenant selection from public requests.
+CREATE TABLE sms_sender_numbers (
+  phone_e164 text PRIMARY KEY CHECK (left(phone_e164, 1)='+' AND substring(phone_e164 from 2) ~ '^[1-9][0-9]{7,14}$'),
+  shop_id uuid NOT NULL REFERENCES shops(id) ON DELETE CASCADE
+);
+CREATE INDEX sms_sender_numbers_shop_idx ON sms_sender_numbers(shop_id);
+
+-- Inbound webhook processing is idempotent by Twilio MessageSid per shop.
+CREATE TABLE sms_inbound_events (
+  shop_id uuid NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  message_sid text NOT NULL,
+  phone_e164 text NOT NULL,
+  keyword text NOT NULL CHECK (keyword IN ('STOP','HELP')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (shop_id, message_sid)
+);
+ALTER TABLE sms_sender_numbers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_inbound_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON sms_sender_numbers, sms_inbound_events FROM anon, authenticated;
