@@ -54,11 +54,18 @@ class TwilioSmsProvider implements SmsProvider {
       return { ok: false, errorCode: "not_configured", message: "Twilio development credentials are missing." };
     }
 
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+    if (messagingServiceSid && !/^MG[a-f0-9]{32}$/i.test(messagingServiceSid)) {
+      return { ok: false, errorCode: "invalid_service", message: "Configured Twilio Messaging Service SID is invalid." };
+    }
+    // Prefer the registered Messaging Service for A2P campaigns. Its sender
+    // pool must contain only the Development-approved Car Doc number.
     const form = new URLSearchParams({
-      From: request.from,
       To: request.to,
       Body: request.body,
     });
+    if (messagingServiceSid) form.set("MessagingServiceSid", messagingServiceSid);
+    else form.set("From", request.from);
     if (request.statusCallbackUrl) form.set("StatusCallback", request.statusCallbackUrl);
 
     try {
