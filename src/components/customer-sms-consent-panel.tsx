@@ -52,14 +52,16 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
   useEffect(() => {
     if (!session?.sessionId) return;
     let active = true;
+    let completed = false;
     const refresh = async () => {
       try {
         const result = await getCustomerSmsConsentOverviewAction(customerId, session.sessionId);
-        if (!active || !result) return;
+        if (!active || !result || completed) return;
         setStatus(result.status);
         setHistory(result.history);
         setProgress(result.progress ?? "PENDING");
         if (result.progress === "COMPLETED") {
+          completed = true;
           setCollecting(false);
           setExpanded(false);
           setHistoryOpen(false);
