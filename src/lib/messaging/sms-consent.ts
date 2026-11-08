@@ -22,14 +22,14 @@ export function assertSmsConsentDev() {
 }
 
 type SessionRow = {
-  id: string; shopId: string; customerId: string; phone: string; tokenHash: string;
+  id: string; shopId: string; customerId: string; createdByUserId: string; phone: string; tokenHash: string;
   pinHash: string; version: string; method: "IN_SHOP_IPAD" | "IN_SHOP_QR"; expiresAt: Date; consumedAt: Date | null;
   cancelledAt: Date | null; attempts: number; shopName: string; customerPhone: string | null;
   archivedAt: Date | null;
 };
 const sessionSelect = `SELECT s.id, s.shop_id AS "shopId", s.customer_id AS "customerId",
 s.phone_e164 AS phone, s.token_sha256 AS "tokenHash", s.staff_pin_sha256 AS "pinHash",
-s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
+s.created_by_user_id AS "createdByUserId", s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
 s.cancelled_at AS "cancelledAt", s.failed_pin_attempts AS attempts, sh.name AS "shopName",
 c.phone AS "customerPhone", c.archived_at AS "archivedAt"
 FROM sms_consent_sessions s JOIN shops sh ON sh.id=s.shop_id
@@ -49,12 +49,18 @@ export async function createConsentSession(input: {
   const token = randomBytes(32).toString("base64url");
   const pin = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + 10 * 60_000);
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+  const rows = await prisma.$transaction(async tx => {
+    // A fresh collection supersedes other unused codes for this customer.
+    await tx.$executeRaw`UPDATE sms_consent_sessions SET cancelled_at=CURRENT_TIMESTAMP
+      WHERE shop_id=${input.shopId}::uuid AND customer_id=${input.customerId}::uuid
+      AND consumed_at IS NULL AND cancelled_at IS NULL`;
+    return tx.$queryRaw<Array<{ id: string }>>`
     INSERT INTO sms_consent_sessions (shop_id, customer_id, phone_e164,
       token_sha256, staff_pin_sha256, disclosure_version, collection_method, created_by_user_id, expires_at)
     VALUES (${input.shopId}::uuid, ${input.customerId}::uuid, ${phone},
       ${digest(token)}, ${digest(pin)}, ${SMS_CONSENT_VERSION}, ${input.method}, ${input.staffId}::uuid, ${expiresAt})
     RETURNING id`;
+  });
   return { id: rows[0].id, token, pin, expiresAt, phone: masked(phone), method: input.method };
 }
 
@@ -71,15 +77,36 @@ function active(row: SessionRow | null) {
     !row.archivedAt && normalizeUsSmsPhone(row.customerPhone ?? "") === row.phone);
 }
 
-export async function getConsentPage(token: string) {
+export type ConsentStaff = { shopId: string; userId: string };
+
+export async function getConsentPage(token: string, staff?: ConsentStaff) {
   assertSmsConsentDev();
   const row = await findSession(token);
   if (!active(row) || !row) return null;
-  return { shopName: row.shopName, phone: masked(row.phone), disclosure: smsConsentText(row.shopName), expiresAt: row.expiresAt };
+  if (row.method === "IN_SHOP_IPAD") {
+    if (!staff || staff.shopId !== row.shopId || staff.userId !== row.createdByUserId) return null;
+  }
+  return { shopName: row.shopName, phone: masked(row.phone), disclosure: smsConsentText(row.shopName),
+    expiresAt: row.expiresAt.toISOString(), method: row.method };
+}
+
+/** PIN step for customer-owned phones. Checking it does not create consent. */
+export async function verifyConsentPin(token: string, pin: string): Promise<boolean> {
+  assertSmsConsentDev();
+  if (!TOKEN_RE.test(token) || !/^\\d{6}$/.test(pin)) return false;
+  const row = await findSession(token);
+  if (!active(row) || !row || row.method !== "IN_SHOP_QR") return false;
+  const matches = timingSafeEqual(Buffer.from(row.pinHash, "hex"), Buffer.from(digest(pin), "hex"));
+  if (!matches) {
+    await prisma.$executeRaw`UPDATE sms_consent_sessions SET failed_pin_attempts=LEAST(failed_pin_attempts+1,5)
+      WHERE id=${row.id}::uuid AND consumed_at IS NULL AND cancelled_at IS NULL
+      AND expires_at > CURRENT_TIMESTAMP AND failed_pin_attempts < 5`;
+  }
+  return matches;
 }
 
 export async function submitConsent(input: {
-  token: string; pin: string; checked: boolean; customerName: string;
+  token: string; pin?: string; checked: boolean; customerName: string; staff?: ConsentStaff;
 }) {
   assertSmsConsentDev();
   if (!TOKEN_RE.test(input.token) || !/^\d{6}$/.test(input.pin) ||
@@ -88,13 +115,11 @@ export async function submitConsent(input: {
   }
   const row = await findSession(input.token);
   if (!active(row) || !row) return { ok: false as const, reason: "expired" as const };
-  const known = Buffer.from(row.pinHash, "hex"), candidate = Buffer.from(digest(input.pin), "hex");
-  if (!timingSafeEqual(known, candidate)) {
-    await prisma.$executeRaw`UPDATE sms_consent_sessions
-      SET failed_pin_attempts=LEAST(failed_pin_attempts+1,5)
-      WHERE id=${row.id}::uuid AND consumed_at IS NULL AND cancelled_at IS NULL`;
+  if (row.method === "IN_SHOP_IPAD" &&
+    (input.staff?.shopId !== row.shopId || input.staff?.userId !== row.createdByUserId))
     return { ok: false as const, reason: "invalid" as const };
-  }
+  if (row.method === "IN_SHOP_QR" && !/^\\d{6}$/.test(input.pin ?? ""))
+    return { ok: false as const, reason: "invalid" as const };
 
   // Lock the session and customer together: once used, even concurrent submissions fail.
   return prisma.$transaction(async tx => {
@@ -108,15 +133,24 @@ export async function submitConsent(input: {
       JOIN customers c ON c.id=s.customer_id AND c.shop_id=s.shop_id
       WHERE s.id=${row.id}::uuid FOR UPDATE OF s, c`;
     const current = sessions[0];
-    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate))
-      return { ok: false as const, reason: "expired" as const };
+    if (!current || !active(current)) return { ok: false as const, reason: "expired" as const };
+    if (current.method === "IN_SHOP_IPAD" &&
+      (input.staff?.shopId !== current.shopId || input.staff?.userId !== current.createdByUserId))
+      return { ok: false as const, reason: "invalid" as const };
+    if (current.method === "IN_SHOP_QR" &&
+      !timingSafeEqual(Buffer.from(current.pinHash, "hex"), Buffer.from(digest(input.pin ?? ""), "hex"))) {
+      await tx.$executeRaw`UPDATE sms_consent_sessions SET failed_pin_attempts=LEAST(failed_pin_attempts+1,5)
+        WHERE id=${current.id}::uuid`;
+      return { ok: false as const, reason: "invalid" as const };
+    }
     await tx.$executeRaw`UPDATE sms_consent_sessions SET consumed_at=CURRENT_TIMESTAMP WHERE id=${current.id}::uuid`;
-    if (input.checked) {
+    {
+      const decision = input.checked ? "OPT_IN" : "DECLINED";
       await tx.$executeRaw`INSERT INTO sms_consent_events
         (shop_id, customer_id, session_id, phone_e164, event_type, method,
          disclosure_version, disclosure_text, customer_name)
         VALUES (${current.shopId}::uuid, ${current.customerId}::uuid,
-          ${current.id}::uuid, ${current.phone}, 'OPT_IN', ${current.method},
+          ${current.id}::uuid, ${current.phone}, ${decision}, ${current.method},
           ${SMS_CONSENT_VERSION}, ${smsConsentText(current.shopName)}, ${input.customerName.trim()})`;
     }
     return { ok: true as const, consented: input.checked };
@@ -126,14 +160,49 @@ export async function submitConsent(input: {
 export async function getSmsConsentStatus(shopId: string, customerId: string, phoneValue: string | null) {
   const phone = normalizeUsSmsPhone(phoneValue ?? "");
   if (!phone || !uuid.test(shopId) || !uuid.test(customerId)) return "MISSING" as const;
-  const rows = await prisma.$queryRaw<Array<{ eventType: "OPT_IN" | "OPT_OUT" | null; suppressed: boolean }>>`
+  const rows = await prisma.$queryRaw<Array<{ eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | null; suppressed: boolean }>>`
     SELECT (SELECT event_type FROM sms_consent_events
       WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
         AND phone_e164=${phone} ORDER BY occurred_at DESC, id DESC LIMIT 1) AS "eventType",
       EXISTS(SELECT 1 FROM sms_phone_suppressions
         WHERE shop_id=${shopId}::uuid AND phone_e164=${phone}) AS suppressed`;
   return rows[0]?.suppressed ? "OPTED_OUT" as const :
-    rows[0]?.eventType === "OPT_IN" ? "CONSENTED" as const : "MISSING" as const;
+    rows[0]?.eventType === "OPT_IN" ? "CONSENTED" as const :
+    rows[0]?.eventType === "DECLINED" ? "DECLINED" as const : "MISSING" as const;
+}
+
+export type ConsentHistoryItem = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED";
+  method: string; customerName: string | null; phone: string; occurredAt: string };
+
+export async function getSmsConsentHistory(shopId: string, customerId: string): Promise<ConsentHistoryItem[]> {
+  if (!uuid.test(shopId) || !uuid.test(customerId)) return [];
+  const rows = await prisma.$queryRaw<Array<{
+    id: string; eventType: ConsentHistoryItem["eventType"]; method: string;
+    customerName: string | null; phone: string; occurredAt: Date;
+  }>>`SELECT id, event_type AS "eventType", method, customer_name AS "customerName",
+    phone_e164 AS phone, occurred_at AS "occurredAt" FROM sms_consent_events
+    WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+    ORDER BY occurred_at DESC, id DESC LIMIT 12`;
+  return rows.map(r => ({ ...r, phone: masked(r.phone), occurredAt: r.occurredAt.toISOString() }));
+}
+
+export async function getSmsConsentSessionProgress(shopId: string, customerId: string, sessionId: string) {
+  if (![shopId, customerId, sessionId].every(v => uuid.test(v))) return "INVALID" as const;
+  const rows = await prisma.$queryRaw<Array<{consumedAt: Date | null; cancelledAt: Date | null; expiresAt: Date}>>`
+    SELECT consumed_at AS "consumedAt", cancelled_at AS "cancelledAt", expires_at AS "expiresAt"
+    FROM sms_consent_sessions WHERE id=${sessionId}::uuid AND shop_id=${shopId}::uuid
+    AND customer_id=${customerId}::uuid LIMIT 1`;
+  const row = rows[0];
+  return !row ? "INVALID" as const : row.consumedAt ? "COMPLETED" as const :
+    row.cancelledAt ? "CANCELLED" as const : row.expiresAt.getTime() <= Date.now() ?
+    "EXPIRED" as const : "PENDING" as const;
+}
+
+export async function cancelSmsConsentSession(shopId: string, customerId: string, sessionId: string) {
+  if (![shopId, customerId, sessionId].every(v => uuid.test(v))) return;
+  await prisma.$executeRaw`UPDATE sms_consent_sessions SET cancelled_at=CURRENT_TIMESTAMP
+    WHERE id=${sessionId}::uuid AND shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+    AND consumed_at IS NULL AND cancelled_at IS NULL`;
 }
 
 export async function assertSmsRecipientConsented(shopId: string, customerId: string, phone: string) {
