@@ -51,3 +51,31 @@ export async function recordVerbalAuthorizationAction(
     return { status: "error", message: error instanceof Error ? error.message : "Authorization could not be recorded." };
   }
 }
+
+
+/**
+ * Communication-neutral status check for a customer-facing approval link.
+ * Email and SMS authorization requests share the same PENDING lifecycle and
+ * the same public approval/decline decision handler.
+ */
+export async function hasPendingRemoteRepairOrderAuthorizationAction(repairOrderId: string): Promise<boolean> {
+  const { membership } = await getCurrentMembership();
+  if (!membership || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(repairOrderId)) {
+    return false;
+  }
+  const { prisma } = await import("@/lib/prisma");
+  const rows = await prisma.$queryRaw<Array<{ pending: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM authorization_requests ar
+      JOIN document_revisions dr ON dr.id = ar.document_revision_id AND dr.shop_id = ar.shop_id
+      WHERE ar.shop_id = ${membership.shopId}::uuid
+        AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
+        AND dr.document_id = ${repairOrderId}::uuid
+        AND ar.status = 'PENDING'::"AuthorizationRequestStatus"
+        AND ar.expires_at > CURRENT_TIMESTAMP
+        AND ar.channel IN ('EMAIL', 'SMS')
+    ) AS pending
+  `;
+  return rows[0]?.pending === true;
+}

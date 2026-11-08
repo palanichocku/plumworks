@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
+import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
+import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, generateRepairOrderSmsTestLinkAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
+import { formatUsSmsPhone } from "@/lib/messaging/phone";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
 const initialEmail: RepairOrderEmailState = { status: "idle" };
+const initialSms: SmsAuthorizationState = { status: "idle", message: "" };
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
 
 type AuthorizationStatus = "NOT_AUTHORIZED" | "AUTHORIZED" | "DECLINED" | "DECLINED_PREVIOUS_REVISION";
@@ -76,6 +79,8 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsRecipient, setSmsRecipient] = useState("");
   const [recipient, setRecipient] = useState("");
   const [recipientLoading, setRecipientLoading] = useState(false);
   const [authorizerName, setAuthorizerName] = useState("");
@@ -85,9 +90,12 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [revisionReady, setRevisionReady] = useState(false);
   const [readinessChecked, setReadinessChecked] = useState(false);
   const [delivery, setDelivery] = useState<EmailDeliveryState | null>(null);
+  const [pendingRemoteAuthorization, setPendingRemoteAuthorization] = useState(false);
   const [deliveryPopup, setDeliveryPopup] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
+  const [smsState, smsAction, smsPending] = useActionState(sendRepairOrderSmsAuthorizationAction, initialSms);
+  const [linkState, linkAction, linkPending] = useActionState(generateRepairOrderSmsTestLinkAction, initialSms);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const shownDeliveryFailure = useRef<string | null>(null);
@@ -96,7 +104,10 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const previousDecline = summary.status === "DECLINED_PREVIOUS_REVISION";
   const declineEvidence = history.find((item) => item.decision === "DECLINED") ?? null;
   const saveRequired = !readinessChecked || saveStateBlocked || !revisionReady;
-  const waitingForEmailApproval = Boolean(delivery?.requestStatus === "PENDING") || (emailState.status === "success" && !authorized && !declined);
+  const waitingForRemoteApproval = !authorized && !declined && (
+    pendingRemoteAuthorization || delivery?.requestStatus === "PENDING" ||
+    emailState.status === "success" || smsState.status === "success" || Boolean(linkState.link)
+  );
 
   useEffect(() => {
     let active = true;
@@ -131,13 +142,21 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   }, [emailState.status]);
 
   useEffect(() => {
+    if (smsState.status === "success") { setSmsOpen(false); router.refresh(); }
+  }, [smsState.status, router]);
+
+  useEffect(() => {
     let active = true;
     let popupTimer: number | undefined;
     const refreshDelivery = async () => {
-      const result = await getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null);
+      const [result, remotePending] = await Promise.all([
+        getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null),
+        hasPendingRemoteRepairOrderAuthorizationAction(repairOrderId).catch(() => false),
+      ]);
       if (!active) return;
       setClock(Date.now());
       setDelivery(result as EmailDeliveryState | null);
+      setPendingRemoteAuthorization(remotePending);
       if (result && failedDelivery(result.deliveryStatus)) {
         const key = `${result.recipientEmail ?? "customer"}:${result.deliveryStatus}`;
         if (shownDeliveryFailure.current !== key) {
@@ -155,7 +174,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
       window.clearInterval(interval);
       if (popupTimer) window.clearTimeout(popupTimer);
     };
-  }, [repairOrderId, emailState.status]);
+  }, [repairOrderId, emailState.status, smsState.status, linkState.link]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -163,7 +182,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   }, []);
 
   useEffect(() => {
-    if (!waitingForEmailApproval) return;
+    if (!waitingForRemoteApproval) return;
 
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
@@ -175,7 +194,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [router, waitingForEmailApproval]);
+  }, [router, waitingForRemoteApproval]);
 
   async function openEmailConfirmation() {
     if (recipientLoading || saveRequired) return;
@@ -186,6 +205,13 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
     } finally {
       setRecipientLoading(false);
     }
+  }
+
+  async function openSmsConfirmation() {
+    if (saveRequired) return;
+    const phone = await getRepairOrderSmsRecipientAction(repairOrderId).catch(() => "");
+    setSmsRecipient(formatUsSmsPhone(phone));
+    setSmsOpen(true);
   }
 
   async function openVerbalAuthorization() {
@@ -249,6 +275,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         {!readinessChecked ? <p role="status" className="mt-1 text-xs font-medium text-slate-600">Checking saved Repair Order revision…</p> : null}
         {declined && !saveRequired ? <p className="mt-1 text-xs font-medium text-red-800">The declined estimate remains preserved as evidence. An invoice may still be created for diagnostic or other charges actually due.</p> : null}
         {previousDecline && !saveRequired ? <p className="mt-1 text-xs font-medium text-orange-800">The earlier decline remains preserved as evidence for the prior revision.</p> : null}
+        {smsState.status !== "idle" ? <p role={smsState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${smsState.status === "error" ? "text-red-700" : "text-slate-700"}`}>{smsState.message}</p> : null}
         {emailState.status !== "idle" && (emailState.status === "error" || !delivery) ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-slate-600"}`}>{emailState.message}</p> : null}
         {!authorized && !declined && delivery ? delivery.requestStatus === "EXPIRED" || expiryText === "expired"
           ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval link expired. Send a new authorization request.</p>
@@ -260,16 +287,45 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
                 ? <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Approval email accepted by the email service{delivery.recipientEmail ? ` for ${delivery.recipientEmail}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
                 : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
           : null}
-        {waitingForEmailApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">{delivery?.deliveryStatus === "delivered" ? "Waiting for customer approval · this page updates automatically." : "Waiting for email delivery confirmation · this page updates automatically."}</p> : null}
+        {waitingForRemoteApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer decision · this page updates automatically for email or SMS approval links.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>View Authorization</Link> : null}
-        {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : emailPending ? "Sending…" : declined ? "Send again" : waitingForEmailApproval ? "Resend" : "Send"}</button> : null}
+        {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : emailPending ? "Sending…" : declined ? "Send again" : waitingForRemoteApproval && delivery?.requestStatus === "PENDING" ? "Resend" : "Send"}</button> : null}
+        {editable && !authorized && process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true" ? <button type="button" disabled={smsPending || saveRequired} onClick={() => void openSmsConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50">Text Estimate (Dev)</button> : null}
         {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => void openVerbalAuthorization()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400"><MicIcon />Verbal</button> : null}
       </div>
     </div>
 
-    {emailOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><button type="button" aria-label="Cancel estimate approval email" disabled={emailPending} onClick={() => setEmailOpen(false)} className="absolute inset-0 bg-slate-950/50" /><section role="dialog" aria-modal="true" aria-labelledby="estimate-approval-email-title" className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"><h2 id="estimate-approval-email-title" className="text-xl font-bold text-slate-950">{declined ? "Send estimate approval again" : waitingForEmailApproval ? "Resend estimate approval" : "Send estimate approval"}</h2><form action={emailAction} onSubmit={() => setEmailOpen(false)} className="mt-5"><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="mode" value="authorization" /><label className="text-sm font-semibold text-slate-700">Send email to</label><input name="recipient" type="email" required maxLength={254} autoComplete="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} disabled={emailPending} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10 disabled:opacity-60" />{waitingForEmailApproval || declined ? <p className="mt-2 text-xs font-medium text-amber-800">Sending a new request will invalidate any previous active approval link. Existing decision evidence remains under View Authorization.</p> : null}{emailState.status === "error" ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{emailState.message}</p> : null}<div className="mt-5 flex justify-end gap-3"><button type="button" disabled={emailPending} onClick={() => setEmailOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Cancel</button><button type="submit" disabled={emailPending} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{emailPending ? "Sending…" : "Send"}</button></div></form></section></div> : null}
+    {smsOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button type="button" aria-label="Cancel test SMS" disabled={smsPending} onClick={() => setSmsOpen(false)} className="absolute inset-0 bg-slate-950/50" />
+      <section role="dialog" aria-modal="true" aria-labelledby="sms-test-title" className="relative w-full max-w-md rounded-2xl border bg-white p-6 text-slate-900 shadow-2xl">
+        <h2 id="sms-test-title" className="text-xl font-bold">Text Estimate — Dev Test</h2>
+        <p className="mt-2 text-sm text-slate-600">Only your verified development test phone is permitted. Twilio trial restrictions may reject a custom estimate link.</p>
+        <form action={smsAction} className="mt-5 space-y-4">
+          <input type="hidden" name="repairOrderId" value={repairOrderId} />
+          <label className="block text-sm font-semibold">Test recipient
+            <input type="tel" name="recipientPhone" required value={smsRecipient} onChange={(event) => setSmsRecipient(event.target.value)} onBlur={() => setSmsRecipient(formatUsSmsPhone(smsRecipient))} placeholder="(586) 555-0123" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          </label>
+          <label className="flex gap-2 text-sm"><input type="checkbox" name="testConsent" value="yes" required />I confirm this is my own test phone and I consent to receive the test text.</label>
+          {smsState.status === "error" ? <p role="alert" className="text-sm text-red-700">{smsState.message}</p> : null}
+          {linkState.status === "error" ? <p role="alert" className="text-sm text-red-700">{linkState.message}</p> : null}
+          {linkState.link ? <div role="status" className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+            <p className="font-semibold">Dev approval link created — no SMS sent.</p>
+            <p>Copy this private link to your iPhone. Anyone with it can approve the synthetic Repair Order; don't share it publicly.</p>
+            <input aria-label="Private Development approval link" readOnly value={linkState.link} onFocus={(event) => event.currentTarget.select()} className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs text-slate-900" />
+            <a target="_blank" rel="noopener noreferrer" href={linkState.link} className="inline-block font-semibold underline">Open approval page on this device</a>
+          </div> : null}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setSmsOpen(false)} disabled={smsPending} className="rounded-lg border px-4 py-2">Cancel</button>
+            <button type="submit" formAction={linkAction} disabled={linkPending || smsPending} className="rounded-lg border border-brand-primary px-3 py-2 font-semibold text-brand-primary disabled:opacity-50">{linkPending ? "Generating…" : "Generate Test Link"}</button>
+            <button type="submit" disabled={smsPending || linkPending} className="rounded-lg bg-brand-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{smsPending ? "Sending…" : "Send Test SMS"}</button>
+          </div>
+        </form>
+      </section>
+    </div> : null}
+
+    {emailOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><button type="button" aria-label="Cancel estimate approval email" disabled={emailPending} onClick={() => setEmailOpen(false)} className="absolute inset-0 bg-slate-950/50" /><section role="dialog" aria-modal="true" aria-labelledby="estimate-approval-email-title" className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl"><h2 id="estimate-approval-email-title" className="text-xl font-bold text-slate-950">{declined ? "Send estimate approval again" : waitingForRemoteApproval ? "Resend estimate approval" : "Send estimate approval"}</h2><form action={emailAction} onSubmit={() => setEmailOpen(false)} className="mt-5"><input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="mode" value="authorization" /><label className="text-sm font-semibold text-slate-700">Send email to</label><input name="recipient" type="email" required maxLength={254} autoComplete="email" value={recipient} onChange={(event) => setRecipient(event.target.value)} disabled={emailPending} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal focus:border-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/10 disabled:opacity-60" />{waitingForRemoteApproval || declined ? <p className="mt-2 text-xs font-medium text-amber-800">Sending a new request will invalidate any previous active approval link. Existing decision evidence remains under View Authorization.</p> : null}{emailState.status === "error" ? <p role="alert" className="mt-2 text-sm font-medium text-red-700">{emailState.message}</p> : null}<div className="mt-5 flex justify-end gap-3"><button type="button" disabled={emailPending} onClick={() => setEmailOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Cancel</button><button type="submit" disabled={emailPending} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{emailPending ? "Sending…" : "Send"}</button></div></form></section></div> : null}
 
     {open ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><button type="button" aria-label="Cancel authorization" disabled={pending} onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-950/50" /><section role="dialog" aria-modal="true" aria-labelledby="verbal-auth-title" className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 id="verbal-auth-title" className="text-xl font-bold text-slate-950">Record Phone Authorization</h2><p className="mt-2 text-sm leading-6 text-slate-600">Record the customer’s phone decision for this exact Repair Order revision. The record is preserved as audit evidence.</p><form action={submit} className="mt-5 space-y-4"><input type="hidden" name="repairOrderId" value={repairOrderId} /><fieldset className="rounded-lg border border-slate-200 p-3"><legend className="px-1 text-sm font-semibold text-slate-800">Customer decision</legend><div className="flex gap-6"><label className="flex items-center gap-2 text-sm font-medium"><input type="radio" name="decision" value="APPROVED" checked={phoneDecision === "APPROVED"} onChange={() => setPhoneDecision("APPROVED")} />Approved</label><label className="flex items-center gap-2 text-sm font-medium"><input type="radio" name="decision" value="DECLINED" checked={phoneDecision === "DECLINED"} onChange={() => setPhoneDecision("DECLINED")} />Declined</label></div></fieldset><label className="block text-sm font-semibold text-slate-800">Person contacted<input name="authorizerName" required minLength={2} maxLength={120} value={authorizerName} onChange={(event) => setAuthorizerName(event.target.value)} className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label><label className="block text-sm font-semibold text-slate-800">Relationship / role <span className="font-normal text-slate-500">(optional)</span><input name="authorizerRelationship" maxLength={120} placeholder="Customer, spouse, fleet manager…" className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>{phoneDecision === "APPROVED" ? <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-semibold text-slate-800">Amount authorized<input name="amountAuthorized" type="number" min="0" step="0.01" required defaultValue={estimatedTotal} className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label><label className="block text-sm font-semibold text-slate-800">Total discussed<input name="totalDiscussed" type="number" min="0" step="0.01" required defaultValue={estimatedTotal} className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label></div> : null}<label className="block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span><textarea name="notes" maxLength={1000} rows={3} placeholder={phoneDecision === "DECLINED" ? "Optional: reason for decline, phone number, or other details" : "Phone number used, special limits, or other verification details"} className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>{state.status === "error" ? <p role="alert" className="text-sm font-medium text-red-700">{state.message}</p> : null}<div className="flex justify-end gap-3 pt-2"><button type="button" disabled={pending} onClick={() => setOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" disabled={pending || saveRequired} className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Recording…" : phoneDecision === "DECLINED" ? "Record Decline" : "Record Approval"}</button></div></form></section></div> : null}
   </section>;
