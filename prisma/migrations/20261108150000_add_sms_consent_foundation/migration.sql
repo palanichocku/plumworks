@@ -8,6 +8,7 @@ CREATE TABLE sms_consent_sessions (
   token_sha256 char(64) NOT NULL UNIQUE,
   staff_pin_sha256 char(64) NOT NULL,
   disclosure_version varchar(80) NOT NULL,
+  collection_method text NOT NULL CHECK (collection_method IN ('IN_SHOP_IPAD', 'IN_SHOP_QR')),
   created_by_user_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
