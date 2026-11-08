@@ -12,7 +12,7 @@ type Item = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED";
   method: string; customerName: string | null; phone: string; occurredAt: string };
 
 function displayPhone(value?: string | null) {
-  const digits = (value || "").replace(/\\D/g, "");
+  const digits = (value || "").replace(/\D/g, "");
   return digits.length >= 10 ? `(***) ***-${digits.slice(-4)}` : "Primary mobile";
 }
 function statusLabel(status: SmsConsentStatus) {
