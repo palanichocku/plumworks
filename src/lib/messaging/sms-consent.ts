@@ -108,7 +108,7 @@ export async function submitConsent(input: {
       JOIN customers c ON c.id=s.customer_id AND c.shop_id=s.shop_id
       WHERE s.id=${row.id}::uuid FOR UPDATE OF s, c`;
     const current = sessions[0];
-    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate)
+    if (!active(current) || !current || !timingSafeEqual(Buffer.from(current.pinHash, "hex"), candidate))
       return { ok: false as const, reason: "expired" as const };
     await tx.$executeRaw`UPDATE sms_consent_sessions SET consumed_at=CURRENT_TIMESTAMP WHERE id=${current.id}::uuid`;
     if (input.checked) {
