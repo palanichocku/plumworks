@@ -16,7 +16,7 @@ const masked = (number: string) => `(***) ***-${number.slice(-4)}`;
 export function assertSmsConsentDev() {
   if (process.env.VERCEL_ENV === "production" ||
       (process.env.NODE_ENV !== "development" && process.env.VERCEL_GIT_COMMIT_REF !== "dev" &&
-       process.env.VERCEL_GIT_COMMIT_REF !== "feature/dev-digital-sms-consent")) {
+       process.env.VERCEL_GIT_COMMIT_REF !== "feature/dev-sms-consent-ux-handoff")) {
     throw new Error("SMS consent collection is not enabled in this environment.");
   }
 }
