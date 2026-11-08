@@ -4,6 +4,8 @@ export type SmsDeliveryRequest = {
   from: string;
   /** Include the secure approval URL; never send an approval token in logs. */
   body: string;
+  /** Per-request webhook endpoint for delivery and failure reconciliation. */
+  statusCallbackUrl?: string;
 };
 
 export type SmsDeliveryResult =

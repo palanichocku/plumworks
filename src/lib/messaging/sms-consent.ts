@@ -216,16 +216,39 @@ export async function assertSmsRecipientConsented(shopId: string, customerId: st
     throw new Error("SMS number must match the customer's currently consented mobile number.");
 }
 
-/** STOP suppresses every customer record in this shop for the same number. */
+/** STOP suppresses the normalized number across all customer records in this shop. */
 export async function recordSmsStop(shopId: string, phone: string) {
-  if (!uuid.test(shopId) || !normalizeUsSmsPhone(phone)) return;
-  const matches = await prisma.customer.findMany({ where: { shopId, OR: [{ phone }, { phone2: phone }] }, select: { id: true } });
+  const normalized = normalizeUsSmsPhone(phone);
+  if (!uuid.test(shopId) || !normalized) return;
+  const matches = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM customers
+    WHERE shop_id=${shopId}::uuid AND (
+      CASE WHEN length(regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g')) = 11
+        THEN right(regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g'), 10)
+        ELSE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') END
+        = right(${normalized}, 10)
+      OR
+      CASE WHEN length(regexp_replace(coalesce(phone2, ''), '[^0-9]', '', 'g')) = 11
+        THEN right(regexp_replace(coalesce(phone2, ''), '[^0-9]', '', 'g'), 10)
+        ELSE regexp_replace(coalesce(phone2, ''), '[^0-9]', '', 'g') END
+        = right(${normalized}, 10)
+    )`;
   await prisma.$transaction(async tx => {
     await tx.$executeRaw`INSERT INTO sms_phone_suppressions(shop_id,phone_e164,source)
-      VALUES(${shopId}::uuid,${phone},'TWILIO_STOP') ON CONFLICT (shop_id, phone_e164)
+      VALUES(${shopId}::uuid,${normalized},'TWILIO_STOP') ON CONFLICT (shop_id, phone_e164)
       DO UPDATE SET suppressed_at=CURRENT_TIMESTAMP, source='TWILIO_STOP'`;
-    for (const customer of matches) await tx.$executeRaw`
-      INSERT INTO sms_consent_events(shop_id,customer_id,phone_e164,event_type,method)
-      VALUES (${shopId}::uuid,${customer.id}::uuid,${phone},'OPT_OUT','TWILIO_STOP')`;
+    // Only record a new customer history entry for the first received STOP.
+    for (const customer of matches) {
+      const previous = await tx.$queryRaw<Array<{ eventType: string }>>`
+        SELECT event_type AS "eventType" FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customer.id}::uuid
+          AND phone_e164=${normalized}
+        ORDER BY occurred_at DESC, id DESC LIMIT 1`;
+      if (previous[0]?.eventType !== "OPT_OUT") {
+        await tx.$executeRaw`
+          INSERT INTO sms_consent_events(shop_id,customer_id,phone_e164,event_type,method)
+          VALUES (${shopId}::uuid,${customer.id}::uuid,${normalized},'OPT_OUT','TWILIO_STOP')`;
+      }
+    }
   });
 }

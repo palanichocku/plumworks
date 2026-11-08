@@ -162,8 +162,11 @@ export async function createRepairOrderSmsAuthorizationRequest(input: {
 export async function markRepairOrderSmsRequestAccepted(requestId: string, providerId: string) {
   await prisma.$executeRaw`
     UPDATE authorization_requests
-    SET sent_at = CURRENT_TIMESTAMP, sms_provider_id = ${providerId}, sms_delivery_status = 'accepted'
+    SET sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
+        sms_provider_id = COALESCE(sms_provider_id, ${providerId}),
+        sms_delivery_status = COALESCE(sms_delivery_status, 'accepted')
     WHERE id = ${requestId}::uuid AND channel = 'SMS'
+      AND (sms_provider_id IS NULL OR sms_provider_id = ${providerId})
       AND status = 'PENDING'::"AuthorizationRequestStatus"
   `;
 }

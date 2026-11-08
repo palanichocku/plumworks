@@ -64,7 +64,7 @@ export async function sendRepairOrderSmsAuthorizationAction(
   if (!allowed || !recipientPhone || recipientPhone !== allowed) {
     return error("Enter a valid US phone number matching your approved Dev test phone.");
   }
-  const sender = process.env.TWILIO_SMS_FROM?.trim();
+  const sender = normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM ?? "");
   if (!sender) return error("Configure the Twilio development sender number.");
 
   const { user, membership } = await getCurrentMembership();
@@ -111,7 +111,12 @@ export async function sendRepairOrderSmsAuthorizationAction(
     const link = `${origin}/authorize/repair-order/${encodeURIComponent(request.token)}`;
     const body = `${model.shop.name}: Review and authorize estimate #${model.repairOrderNumber}: ${link} Reply STOP to opt out.`;
     await assertSmsRecipientConsented(membership.shopId, model.customer.id, recipientPhone);
-    const response = await provider.send({ to: recipientPhone, from: sender, body });
+    const callbackBase = process.env.SMS_TWILIO_STATUS_URL;
+    if (callbackBase !== "https://dev.subbuscardoc.com/api/sms/status") {
+      throw new Error("Dev Twilio status callback is not configured.");
+    }
+    const statusCallbackUrl = `${callbackBase}?requestId=${encodeURIComponent(request.requestId)}`;
+    const response = await provider.send({ to: recipientPhone, from: sender, body, statusCallbackUrl });
     if (!response.ok) {
       await revokeRepairOrderAuthorizationRequest(request.requestId);
       return error(`Twilio did not accept the custom estimate SMS (code: ${response.errorCode}). Trial-template limitations may apply.`);
