@@ -29,7 +29,7 @@ type SessionRow = {
 };
 const sessionSelect = `SELECT s.id, s.shop_id AS "shopId", s.customer_id AS "customerId",
 s.phone_e164 AS phone, s.token_sha256 AS "tokenHash", s.staff_pin_sha256 AS "pinHash",
-s.created_by_user_id AS "createdByUserId", s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
+s.created_by_user_id AS "createdByUserId", s.created_by_user_id AS "createdByUserId", s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
 s.cancelled_at AS "cancelledAt", s.failed_pin_attempts AS attempts, sh.name AS "shopName",
 c.phone AS "customerPhone", c.archived_at AS "archivedAt"
 FROM sms_consent_sessions s JOIN shops sh ON sh.id=s.shop_id
@@ -126,7 +126,7 @@ export async function submitConsent(input: {
     const sessions = await tx.$queryRaw<SessionRow[]>`
       SELECT s.id, s.shop_id AS "shopId", s.customer_id AS "customerId",
       s.phone_e164 AS phone, s.token_sha256 AS "tokenHash", s.staff_pin_sha256 AS "pinHash",
-      s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
+      s.created_by_user_id AS "createdByUserId", s.disclosure_version AS version, s.collection_method AS method, s.expires_at AS "expiresAt", s.consumed_at AS "consumedAt",
       s.cancelled_at AS "cancelledAt", s.failed_pin_attempts AS attempts,
       sh.name AS "shopName", c.phone AS "customerPhone", c.archived_at AS "archivedAt"
       FROM sms_consent_sessions s JOIN shops sh ON sh.id=s.shop_id
