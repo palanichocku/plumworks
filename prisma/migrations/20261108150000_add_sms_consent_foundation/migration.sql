@@ -4,7 +4,7 @@ CREATE TABLE sms_consent_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id uuid NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
   customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  phone_e164 text NOT NULL CHECK (left(phone_e164, 1) = '+' AND substring(phone_e164 from 2) ~ '^[1-9][0-9]{7,14}$'),
   token_sha256 char(64) NOT NULL UNIQUE,
   staff_pin_sha256 char(64) NOT NULL,
   disclosure_version varchar(80) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE sms_consent_events (
   shop_id uuid NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
   customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   session_id uuid REFERENCES sms_consent_sessions(id) ON DELETE SET NULL,
-  phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  phone_e164 text NOT NULL CHECK (left(phone_e164, 1) = '+' AND substring(phone_e164 from 2) ~ '^[1-9][0-9]{7,14}$'),
   event_type text NOT NULL CHECK (event_type IN ('OPT_IN', 'OPT_OUT')),
   method text NOT NULL CHECK (method IN ('IN_SHOP_QR', 'TWILIO_STOP', 'STAFF_VERIFIED')),
   disclosure_version varchar(80),
@@ -43,7 +43,7 @@ CREATE INDEX sms_consent_events_phone_idx
 -- Never infer consent from an existing phone number or legacy import.
 CREATE TABLE sms_phone_suppressions (
   shop_id uuid NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  phone_e164 text NOT NULL CHECK (left(phone_e164, 1) = '+' AND substring(phone_e164 from 2) ~ '^[1-9][0-9]{7,14}$'),
   suppressed_at timestamptz NOT NULL DEFAULT now(),
   source text NOT NULL,
   PRIMARY KEY (shop_id, phone_e164)
