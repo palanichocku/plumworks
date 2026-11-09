@@ -16,6 +16,7 @@ function money(value: string | null | undefined) {
 function methodLabel(method: string) {
   if (method === "PHONE") return "Verbal / Phone";
   if (method === "EMAIL_LINK") return "Secure Email Link";
+  if (method === "SMS_LINK") return "Secure Text Link";
   if (method === "IN_PERSON_SIGNATURE") return "In-Person Signature";
   return method;
 }
@@ -106,8 +107,16 @@ export default async function AuthorizationEvidencePage({ params }: { params: Pr
           <div>
             <h2 className="text-base font-bold text-slate-950">Request / electronic evidence</h2>
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-slate-500">Recipient email</dt><dd className="break-all">{record.recipientEmail ?? "Not applicable"}</dd>
-              <dt className="text-slate-500">Email subject</dt><dd>{record.method === "EMAIL_LINK" ? (record.emailSubject ?? "Not recorded for this earlier request") : "Not applicable"}</dd>
+              {record.method === "SMS_LINK"
+                ? <>
+                    <dt className="text-slate-500">Recipient phone</dt><dd>{record.recipientPhone ?? "Not recorded"}</dd>
+                    <dt className="text-slate-500">SMS delivery status</dt><dd>{record.smsDeliveryStatus ?? "Not recorded"}</dd>
+                    <dt className="text-slate-500">Twilio message ID</dt><dd className="break-all text-xs">{record.smsProviderId ?? "Not recorded"}</dd>
+                  </>
+                : <>
+                    <dt className="text-slate-500">Recipient email</dt><dd className="break-all">{record.recipientEmail ?? "Not applicable"}</dd>
+                    <dt className="text-slate-500">Email subject</dt><dd>{record.method === "EMAIL_LINK" ? (record.emailSubject ?? "Not recorded for this earlier request") : "Not applicable"}</dd>
+                  </>}
               <dt className="text-slate-500">Request status</dt><dd>{record.requestStatus ?? "Not applicable"}</dd>
               <dt className="text-slate-500">Sent</dt><dd>{record.sentAt?.toLocaleString() ?? "Not applicable"}</dd>
               <dt className="text-slate-500">Decision time</dt><dd>{record.decidedAt?.toLocaleString() ?? record.occurredAt.toLocaleString()}</dd>
