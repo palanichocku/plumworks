@@ -15,7 +15,7 @@ import {
   revokeRepairOrderAuthorizationRequest,
 } from "@/lib/authorization/remote-repair-order-authorization";
 
-export type SmsAuthorizationState = { status: "idle" | "success" | "error"; message: string; link?: string };
+export type SmsAuthorizationState = { status: "idle" | "success" | "error"; message: string; link?: string; requestId?: string };
 const error = (message: string): SmsAuthorizationState => ({ status: "error", message });
 
 function checkSmsSetup() {
@@ -123,7 +123,7 @@ export async function sendRepairOrderSmsAuthorizationAction(
     }
     accepted = true;
     await markRepairOrderSmsRequestAccepted(request.requestId, response.providerMessageId);
-    return { status: "success", message: "Estimate SMS accepted by Twilio. Check your test phone; delivery is not yet confirmed." };
+    return { status: "success", message: "Estimate SMS accepted by Twilio. Check your test phone; delivery is not yet confirmed.", requestId: request.requestId };
   } catch {
     if (request && !accepted) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
     return error(accepted
