@@ -7,6 +7,7 @@ import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/r
 import { hasPermission } from "@/lib/permissions";
 import { assertDevelopmentSmsEnabled, createDevelopmentSmsProvider } from "@/lib/messaging/sms";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
+import { isDevelopmentSmsRecipientAllowed } from "@/lib/messaging/dev-recipient-allowlist";
 import { assertSmsRecipientConsented } from "@/lib/messaging/sms-consent";
 import {
   createRepairOrderSmsAuthorizationRequest,
@@ -57,12 +58,11 @@ export async function sendRepairOrderSmsAuthorizationAction(
 
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const recipientPhone = normalizeUsSmsPhone(String(formData.get("recipientPhone") ?? ""));
-  const allowed = normalizeUsSmsPhone(process.env.SMS_DEV_ALLOWED_TO ?? "");
 
   // Explicit consent checkbox applies to this developer-only test, not commercial customer opt-in.
   if (formData.get("testConsent") !== "yes") return error("Confirm this is your own opted-in development test number.");
-  if (!allowed || !recipientPhone || recipientPhone !== allowed) {
-    return error("Enter a valid US phone number matching your approved Dev test phone.");
+  if (!recipientPhone || !isDevelopmentSmsRecipientAllowed(recipientPhone)) {
+    return error("Enter a valid US phone number on the approved Development test allowlist.");
   }
   const sender = normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM ?? "");
   if (!sender) return error("Configure the Twilio development sender number.");
@@ -162,10 +162,9 @@ export async function generateRepairOrderSmsTestLinkAction(
     return error("Set SMS_DEV_APPROVAL_ORIGIN to the verified Dev Vercel Preview HTTPS origin.");
   }
 
-  const allowed = normalizeUsSmsPhone(process.env.SMS_DEV_ALLOWED_TO ?? "");
   const recipientPhone = normalizeUsSmsPhone(String(formData.get("recipientPhone") ?? ""));
   if (formData.get("testConsent") !== "yes" ||
-      !allowed || !recipientPhone || allowed !== recipientPhone) {
+      !recipientPhone || !isDevelopmentSmsRecipientAllowed(recipientPhone)) {
     return error("Confirm your own allowlisted test phone and consent first.");
   }
 
