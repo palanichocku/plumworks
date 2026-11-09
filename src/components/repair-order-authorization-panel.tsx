@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
-import { getRepairOrderEmailDeliveryStatusAction, getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
+import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, getRepairOrderRemoteDeliveryStatusAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
+import { getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
-import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, generateRepairOrderSmsTestLinkAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
+import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
 import { formatUsSmsPhone } from "@/lib/messaging/phone";
 
 const initial: VerbalAuthorizationActionState = { status: "idle" };
@@ -15,10 +15,12 @@ const initialSms: SmsAuthorizationState = { status: "idle", message: "" };
 const REPAIR_ORDER_SAVE_STATE_EVENT = "plumworks:repair-order-save-state";
 
 type AuthorizationStatus = "NOT_AUTHORIZED" | "AUTHORIZED" | "DECLINED" | "DECLINED_PREVIOUS_REVISION";
-type EmailDeliveryStatus = "sent" | "delivered" | "delivery_delayed" | "bounced" | "suppressed" | "failed";
+type EmailDeliveryStatus = string;
 type EmailDeliveryState = {
   requestStatus: "PENDING" | "EXPIRED";
   recipientEmail: string | null;
+  recipientPhone: string | null;
+  channel: "EMAIL" | "SMS";
   sentAt: string | null;
   expiresAt: string;
   deliveryStatus: EmailDeliveryStatus | null;
@@ -95,7 +97,6 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const [clock, setClock] = useState(() => Date.now());
   const [emailState, emailAction, emailPending] = useActionState(sendRepairOrderEmailAction, initialEmail);
   const [smsState, smsAction, smsPending] = useActionState(sendRepairOrderSmsAuthorizationAction, initialSms);
-  const [linkState, linkAction, linkPending] = useActionState(generateRepairOrderSmsTestLinkAction, initialSms);
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const shownDeliveryFailure = useRef<string | null>(null);
@@ -106,7 +107,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const saveRequired = !readinessChecked || saveStateBlocked || !revisionReady;
   const waitingForRemoteApproval = !authorized && !declined && (
     pendingRemoteAuthorization || delivery?.requestStatus === "PENDING" ||
-    emailState.status === "success" || smsState.status === "success" || Boolean(linkState.link)
+    emailState.status === "success" || smsState.status === "success"
   );
 
   useEffect(() => {
@@ -150,14 +151,14 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
     let popupTimer: number | undefined;
     const refreshDelivery = async () => {
       const [result, remotePending] = await Promise.all([
-        getRepairOrderEmailDeliveryStatusAction(repairOrderId).catch(() => null),
+        getRepairOrderRemoteDeliveryStatusAction(repairOrderId).catch(() => null),
         hasPendingRemoteRepairOrderAuthorizationAction(repairOrderId).catch(() => false),
       ]);
       if (!active) return;
       setClock(Date.now());
       setDelivery(result as EmailDeliveryState | null);
       setPendingRemoteAuthorization(remotePending);
-      if (result && failedDelivery(result.deliveryStatus)) {
+      if (result && result.channel === "EMAIL" && failedDelivery(result.deliveryStatus)) {
         const key = `${result.recipientEmail ?? "customer"}:${result.deliveryStatus}`;
         if (shownDeliveryFailure.current !== key) {
           shownDeliveryFailure.current = key;
@@ -174,7 +175,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
       window.clearInterval(interval);
       if (popupTimer) window.clearTimeout(popupTimer);
     };
-  }, [repairOrderId, emailState.status, smsState.status, linkState.link]);
+  }, [repairOrderId, emailState.status, smsState.status]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -248,7 +249,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const declineDetail = declineEvidence
     ? `${declineEvidence.authorizerName || "Customer"} on ${new Date(declineEvidence.occurredAt).toLocaleString()}`
     : "customer";
-  const deliveryFailure = delivery ? failedDelivery(delivery.deliveryStatus) : false;
+  const deliveryFailure = delivery ? (delivery.channel === "SMS" ? ["failed", "undelivered"].includes(delivery.deliveryStatus ?? "") : failedDelivery(delivery.deliveryStatus)) : false;
   const expiryText = delivery ? remainingApprovalTime(delivery.expiresAt, clock) : null;
   const expiresAtText = delivery ? new Date(delivery.expiresAt).toLocaleString() : null;
 
@@ -279,47 +280,46 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         {emailState.status !== "idle" && (emailState.status === "error" || !delivery) ? <p role={emailState.status === "error" ? "alert" : "status"} className={`mt-1 text-xs font-medium ${emailState.status === "error" ? "text-red-700" : "text-slate-600"}`}>{emailState.message}</p> : null}
         {!authorized && !declined && delivery ? delivery.requestStatus === "EXPIRED" || expiryText === "expired"
           ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval link expired. Send a new authorization request.</p>
-          : deliveryFailure
-            ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Approval email was not delivered to {delivery.recipientEmail ?? "the customer"}. Check the email address and resend.</p>
-            : delivery.deliveryStatus === "delivery_delayed"
-              ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval email delivery is delayed; the email service is retrying. Link expires {expiresAtText} · {expiryText}.</p>
-              : delivery.deliveryStatus === "sent" || !delivery.deliveryStatus
-                ? <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Approval email accepted by the email service{delivery.recipientEmail ? ` for ${delivery.recipientEmail}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
-                : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link valid for 7 days · expires {expiresAtText} · {expiryText}.</p>
+          : delivery.channel === "SMS"
+            ? deliveryFailure
+              ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Estimate text could not be delivered. Check the recipient phone number before sending again.</p>
+              : delivery.deliveryStatus === "delivered"
+                ? <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Estimate text delivered{delivery.recipientPhone ? ` to ${formatUsSmsPhone(delivery.recipientPhone)}` : ""}. Awaiting customer authorization. Link expires {expiresAtText} · {expiryText}.</p>
+                : <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Estimate text {delivery.deliveryStatus === "sent" ? "sent" : "accepted for delivery"}{delivery.recipientPhone ? ` to ${formatUsSmsPhone(delivery.recipientPhone)}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
+            : deliveryFailure
+              ? <p role="alert" className="mt-1 text-xs font-bold text-red-700">Approval email was not delivered to {delivery.recipientEmail ?? "the customer"}. Check the email address and resend.</p>
+              : delivery.deliveryStatus === "delivery_delayed"
+                ? <p role="status" className="mt-1 text-xs font-bold text-amber-800">Approval email delivery is delayed; the email service is retrying. Link expires {expiresAtText} · {expiryText}.</p>
+                : delivery.deliveryStatus === "sent" || !delivery.deliveryStatus
+                  ? <p role="status" className="mt-1 text-xs font-semibold text-slate-700">Approval email accepted by the email service{delivery.recipientEmail ? ` for ${delivery.recipientEmail}` : ""}. Delivery has not been confirmed yet. Link expires {expiresAtText} · {expiryText}.</p>
+                  : <p role="status" className="mt-1 text-xs font-semibold text-emerald-700">Approval email delivered{delivery.recipientEmail ? ` to ${delivery.recipientEmail}` : ""} · Link expires {expiresAtText} · {expiryText}.</p>
           : null}
         {waitingForRemoteApproval && !deliveryFailure ? <p className="mt-1 text-xs font-medium text-slate-600">Waiting for customer decision · this page updates automatically for email or SMS approval links.</p> : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>View Authorization</Link> : null}
         {editable && !authorized ? <button type="button" disabled={emailPending || recipientLoading || saveRequired} title={saveRequired ? "Save draft before requesting customer authorization." : undefined} onClick={() => void openEmailConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"><MailIcon />{recipientLoading ? "Loading…" : emailPending ? "Sending…" : declined ? "Send again" : waitingForRemoteApproval && delivery?.requestStatus === "PENDING" ? "Resend" : "Send"}</button> : null}
-        {editable && !authorized && process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true" ? <button type="button" disabled={smsPending || saveRequired} onClick={() => void openSmsConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50">Text Estimate (Dev)</button> : null}
+        {editable && !authorized && process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true" ? <button type="button" disabled={smsPending || saveRequired} onClick={() => void openSmsConfirmation()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary disabled:opacity-50">Text Estimate</button> : null}
         {editable && !authorized ? <button type="button" disabled={saveRequired} title={saveRequired ? "Save draft before recording customer authorization." : undefined} onClick={() => void openVerbalAuthorization()} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-subtle disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-400"><MicIcon />Verbal</button> : null}
       </div>
     </div>
 
     {smsOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" aria-label="Cancel test SMS" disabled={smsPending} onClick={() => setSmsOpen(false)} className="absolute inset-0 bg-slate-950/50" />
-      <section role="dialog" aria-modal="true" aria-labelledby="sms-test-title" className="relative w-full max-w-md rounded-2xl border bg-white p-6 text-slate-900 shadow-2xl">
-        <h2 id="sms-test-title" className="text-xl font-bold">Text Estimate — Dev Test</h2>
-        <p className="mt-2 text-sm text-slate-600">Only your verified development test phone is permitted. Twilio trial restrictions may reject a custom estimate link.</p>
+      <button type="button" aria-label="Cancel text estimate" disabled={smsPending} onClick={() => setSmsOpen(false)} className="absolute inset-0 bg-slate-950/50" />
+      <section role="dialog" aria-modal="true" aria-labelledby="sms-estimate-title" className="relative w-full max-w-md rounded-2xl border bg-white p-6 text-slate-900 shadow-2xl">
+        <h2 id="sms-estimate-title" className="text-xl font-bold">Text Estimate</h2>
+        <p className="mt-2 text-sm text-slate-600">Send the repair estimate and secure authorization link to the customer's mobile number.</p>
         <form action={smsAction} className="mt-5 space-y-4">
           <input type="hidden" name="repairOrderId" value={repairOrderId} />
-          <label className="block text-sm font-semibold">Test recipient
-            <input type="tel" name="recipientPhone" required value={smsRecipient} onChange={(event) => setSmsRecipient(event.target.value)} onBlur={() => setSmsRecipient(formatUsSmsPhone(smsRecipient))} placeholder="(586) 555-0123" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          <input type="hidden" name="testConsent" value="yes" />
+          <label className="block text-sm font-semibold">Recipient
+            <input type="tel" name="recipientPhone" required readOnly value={smsRecipient} className="mt-1 block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5" />
           </label>
-          <label className="flex gap-2 text-sm"><input type="checkbox" name="testConsent" value="yes" required />I confirm this is my own test phone and I consent to receive the test text.</label>
+          <p className="text-sm text-slate-600">SMS consent is checked before sending. To change the recipient, edit the customer's phone number.</p>
           {smsState.status === "error" ? <p role="alert" className="text-sm text-red-700">{smsState.message}</p> : null}
-          {linkState.status === "error" ? <p role="alert" className="text-sm text-red-700">{linkState.message}</p> : null}
-          {linkState.link ? <div role="status" className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
-            <p className="font-semibold">Dev approval link created — no SMS sent.</p>
-            <p>Copy this private link to your iPhone. Anyone with it can approve the synthetic Repair Order; don't share it publicly.</p>
-            <input aria-label="Private Development approval link" readOnly value={linkState.link} onFocus={(event) => event.currentTarget.select()} className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs text-slate-900" />
-            <a target="_blank" rel="noopener noreferrer" href={linkState.link} className="inline-block font-semibold underline">Open approval page on this device</a>
-          </div> : null}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setSmsOpen(false)} disabled={smsPending} className="rounded-lg border px-4 py-2">Cancel</button>
-            <button type="submit" formAction={linkAction} disabled={linkPending || smsPending} className="rounded-lg border border-brand-primary px-3 py-2 font-semibold text-brand-primary disabled:opacity-50">{linkPending ? "Generating…" : "Generate Test Link"}</button>
-            <button type="submit" disabled={smsPending || linkPending} className="rounded-lg bg-brand-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{smsPending ? "Sending…" : "Send Test SMS"}</button>
+            <button type="submit" disabled={smsPending || !smsRecipient.trim()} className="rounded-lg bg-brand-primary px-4 py-2 font-semibold text-white disabled:opacity-50">{smsPending ? "Sending…" : "Send Text"}</button>
           </div>
         </form>
       </section>
