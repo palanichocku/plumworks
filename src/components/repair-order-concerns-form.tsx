@@ -118,9 +118,11 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
 
   useEffect(() => {
     if (state.status !== "success") return;
+    // Success can follow success when the owner saves a second or later RO
+    // revision. The revision-specific message changes for each new save.
     setRevisionReady(true);
     setReadinessChecked(true);
-  }, [state.status]);
+  }, [state.status, state.message]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(REPAIR_ORDER_SAVE_STATE_EVENT, {
