@@ -41,9 +41,12 @@ export async function POST(request: NextRequest) {
   // Persist the suppression before acknowledging a STOP. Replays are safe;
   // the number-level suppression upsert is idempotent.
   if (action === "STOP") await recordSmsStop(shopId, from);
+  // Diagnostic: persist only Twilio's recognized Advanced Opt-Out category.
+  // A missing OptOutType stays NULL; never store raw webhook fields or message body.
+  const recognizedOptOutType = ["STOP", "HELP", "START"].includes(carrierAction) ? carrierAction : null;
   await prisma.$executeRaw`
-    INSERT INTO sms_inbound_events(shop_id,message_sid,phone_e164,keyword)
-    VALUES(${shopId}::uuid,${sid},${from},${action})
+    INSERT INTO sms_inbound_events(shop_id,message_sid,phone_e164,keyword,twilio_opt_out_type)
+    VALUES(${shopId}::uuid,${sid},${from},${action},${recognizedOptOutType})
     ON CONFLICT DO NOTHING`;
   // Provider autoresponses must be configured in the Messaging Service.
   return reply();
