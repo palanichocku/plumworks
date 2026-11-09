@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SmsDeliveryRequest, SmsDeliveryResult, SmsProvider } from "./types";
 import { normalizeUsSmsPhone } from "./phone";
+import { isDevelopmentSmsRecipientAllowed } from "./dev-recipient-allowlist";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -38,8 +39,8 @@ class TwilioSmsProvider implements SmsProvider {
   async send(request: SmsDeliveryRequest): Promise<SmsDeliveryResult> {
     assertDevelopmentSmsEnabled();
     validateSmsRequest(request);
-    if (!process.env.SMS_DEV_ALLOWED_TO || request.to !== normalizeUsSmsPhone(process.env.SMS_DEV_ALLOWED_TO)) {
-      throw new Error("Recipient is not the allowed development test number.");
+    if (!isDevelopmentSmsRecipientAllowed(request.to)) {
+      throw new Error("Recipient is not on the Development SMS test allowlist.");
     }
     if (!process.env.TWILIO_SMS_FROM || request.from !== normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM)) {
       throw new Error("Sender must match the configured development number.");
