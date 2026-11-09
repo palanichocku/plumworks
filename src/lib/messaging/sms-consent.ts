@@ -143,6 +143,12 @@ export async function submitConsent(input: {
         WHERE id=${current.id}::uuid`;
       return { ok: false as const, reason: "invalid" as const };
     }
+    // An in-flight iPad/QR consent cannot override a STOP received after the session began.
+    const activeSuppression = await tx.$queryRaw<Array<{ blocked: boolean }>>`
+      SELECT EXISTS(SELECT 1 FROM sms_phone_suppressions
+        WHERE shop_id=${current.shopId}::uuid AND phone_e164=${current.phone}
+          AND cleared_at IS NULL) AS blocked`;
+    if (activeSuppression[0]?.blocked) return { ok: false as const, reason: "invalid" as const };
     await tx.$executeRaw`UPDATE sms_consent_sessions SET consumed_at=CURRENT_TIMESTAMP WHERE id=${current.id}::uuid`;
     {
       const decision = input.checked ? "OPT_IN" : "DECLINED";
@@ -165,7 +171,7 @@ export async function getSmsConsentStatus(shopId: string, customerId: string, ph
       WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
         AND phone_e164=${phone} ORDER BY occurred_at DESC, id DESC LIMIT 1) AS "eventType",
       EXISTS(SELECT 1 FROM sms_phone_suppressions
-        WHERE shop_id=${shopId}::uuid AND phone_e164=${phone}) AS suppressed`;
+        WHERE shop_id=${shopId}::uuid AND phone_e164=${phone} AND cleared_at IS NULL) AS suppressed`;
   return rows[0]?.suppressed ? "OPTED_OUT" as const :
     rows[0]?.eventType === "OPT_IN" ? "CONSENTED" as const :
     rows[0]?.eventType === "DECLINED" ? "DECLINED" as const : "MISSING" as const;
@@ -236,7 +242,7 @@ export async function recordSmsStop(shopId: string, phone: string) {
   await prisma.$transaction(async tx => {
     await tx.$executeRaw`INSERT INTO sms_phone_suppressions(shop_id,phone_e164,source)
       VALUES(${shopId}::uuid,${normalized},'TWILIO_STOP') ON CONFLICT (shop_id, phone_e164)
-      DO UPDATE SET suppressed_at=CURRENT_TIMESTAMP, source='TWILIO_STOP'`;
+      DO UPDATE SET suppressed_at=CURRENT_TIMESTAMP, cleared_at=NULL, source='TWILIO_STOP'`;
     // Only record a new customer history entry for the first received STOP.
     for (const customer of matches) {
       const previous = await tx.$queryRaw<Array<{ eventType: string }>>`
@@ -251,4 +257,16 @@ export async function recordSmsStop(shopId: string, phone: string) {
       }
     }
   });
+}
+
+/** A Twilio-confirmed START removes only the transport suppression.
+ * It does NOT create customer consent; the original STOP evidence is retained.
+ * Call exclusively after authenticating the Twilio webhook and verifying OptOutType=START.
+ */
+export async function recordSmsStart(shopId: string, phone: string) {
+  const normalized = normalizeUsSmsPhone(phone);
+  if (!uuid.test(shopId) || !normalized) return;
+  await prisma.$executeRaw`
+    UPDATE sms_phone_suppressions SET cleared_at=CURRENT_TIMESTAMP
+    WHERE shop_id=${shopId}::uuid AND phone_e164=${normalized} AND cleared_at IS NULL`;
 }
