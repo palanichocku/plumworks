@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { SecureSmsQr } from "@/components/secure-sms-qr";
 import {
   startSmsConsentSessionAction, getCustomerSmsConsentOverviewAction,
@@ -29,6 +30,8 @@ const methodLabel = (method: string) => method === "IN_SHOP_IPAD" ? "Shop iPad" 
 export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhone }: {
   customerId: string; initialStatus: SmsConsentStatus; initialPhone?: string | null;
 }) {
+  const router = useRouter();
+  const lastStatus = useRef<SmsConsentStatus>(initialStatus);
   const [state, action, pending] = useActionState(startSmsConsentSessionAction, initial);
   const [status, setStatus] = useState<SmsConsentStatus>(initialStatus);
   const [method, setMethod] = useState<"IN_SHOP_IPAD" | "IN_SHOP_QR">("IN_SHOP_IPAD");
@@ -48,6 +51,46 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Consent may be recorded on another signed-in device. Keep this RO's
+  // consent badge and its authorization action in sync with the database.
+  useEffect(() => {
+    lastStatus.current = initialStatus;
+    setStatus(initialStatus);
+    if (initialStatus === "CONSENTED" || initialStatus === "OPTED_OUT") {
+      setCollecting(false);
+      setExpanded(false);
+    }
+  }, [customerId, initialStatus]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshStatus = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const result = await getCustomerSmsConsentOverviewAction(customerId);
+        if (!active || !result) return;
+        if (result.status !== lastStatus.current) {
+          lastStatus.current = result.status;
+          setStatus(result.status);
+          setHistory(result.history);
+          if (result.status === "CONSENTED" || result.status === "OPTED_OUT") {
+            setCollecting(false);
+            setExpanded(false);
+          }
+          router.refresh();
+        }
+      } catch { /* The next poll retries if connectivity is interrupted. */ }
+    };
+    void refreshStatus();
+    const interval = window.setInterval(() => { void refreshStatus(); }, 5000);
+    document.addEventListener("visibilitychange", refreshStatus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshStatus);
+    };
+  }, [customerId, router]);
 
   useEffect(() => {
     if (!session?.sessionId) return;
