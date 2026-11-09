@@ -151,7 +151,7 @@ export function EditableRepairOrderWorkspace({ repairOrderId, customerComplaint,
         <button type="submit" disabled={invoiceActionDisabled || !canCreateDirectly} title={createTitle} className="inline-flex w-full items-center justify-center rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary focus:outline-none focus:ring-4 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500">{creating ? "Creating…" : "Create invoice"}</button>
       </form>
     </div>
-    {needsSave && readinessChecked ? <p className="mt-3 text-sm font-medium text-amber-700">Repair Order changed. Save draft before requesting authorization or creating the invoice.</p> : null}
+
     {!readinessChecked ? <p className="mt-3 text-xs font-medium text-slate-500">Checking saved Repair Order revision…</p> : null}
     {declined && !needsSave && readinessChecked ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-800">Customer declined the estimated repair work. Create an invoice only for diagnostic or other charges actually due; final adjustments can be made on the open invoice.</p> : null}
     {previousDecline && canOverrideAuthorization ? <button type="button" disabled={invoiceActionDisabled} onClick={() => setPostDeclineOpen(true)} className="mt-3 text-xs font-semibold text-orange-700 underline underline-offset-2 hover:text-orange-900 disabled:cursor-not-allowed disabled:opacity-50">Create invoice for charges after declined estimate</button> : null}
