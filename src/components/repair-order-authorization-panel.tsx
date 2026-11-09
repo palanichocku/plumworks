@@ -148,6 +148,28 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   }, [authorized, declined, saveRequired]);
 
   useEffect(() => {
+    const closeWhenOutside = (event: PointerEvent) => {
+      const menu = otherMethodsRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        menu.open = false;
+      }
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && otherMethodsRef.current?.open) {
+        otherMethodsRef.current.open = false;
+        otherMethodsRef.current.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeWhenOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenOutside);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, []);
+
+
+  useEffect(() => {
     if (emailState.status === "success") setEmailOpen(false);
   }, [emailState.status]);
 
