@@ -80,6 +80,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         repairOrderId={order.id}
         estimatedTotal={Number(order.estimatedTotal).toFixed(2)}
         editable={editable && !invoice}
+        smsConsentStatus={smsConsentStatus}
         summary={{
           status: authorizationSummary.status,
           approvedRevision: authorizationSummary.approvedRevision,
