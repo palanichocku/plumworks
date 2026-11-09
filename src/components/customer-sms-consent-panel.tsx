@@ -60,6 +60,9 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
     if (initialStatus === "CONSENTED" || initialStatus === "OPTED_OUT") {
       setCollecting(false);
       setExpanded(false);
+    } else if (initialStatus === "MISSING") {
+      setCollecting(true);
+      setExpanded(true);
     }
   }, [customerId, initialStatus]);
 
@@ -77,6 +80,10 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
           if (result.status === "CONSENTED" || result.status === "OPTED_OUT") {
             setCollecting(false);
             setExpanded(false);
+          } else if (result.status === "MISSING") {
+            // After a verified START, require a fresh consent session.
+            setCollecting(true);
+            setExpanded(true);
           }
           router.refresh();
         }
@@ -161,14 +168,14 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
     </button>
     {expanded ? <div className="border-t border-slate-200 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
       <p className="text-xs text-slate-600">Needed before texting estimates. This does not approve repair work.</p>
-    {(status === "CONSENTED" || status === "DECLINED") && !collecting ? <div className="mt-4 flex flex-wrap items-center gap-3">
+    {(status === "CONSENTED" || status === "DECLINED" || status === "MISSING") && !collecting ? <div className="mt-4 flex flex-wrap items-center gap-3">
       <button type="button" onClick={checkHistory} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">{historyOpen ? "Hide history" : "View history"}</button>
-      <button type="button" onClick={() => { setCollecting(true); setDismissedId(session?.sessionId ?? null); setHistoryOpen(false); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">Recollect consent</button>
+      <button type="button" onClick={() => { setCollecting(true); setDismissedId(session?.sessionId ?? null); setHistoryOpen(false); }} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800">{status === "MISSING" ? "Collect consent" : "Recollect consent"}</button>
       <span className="text-xs text-slate-500">Consent decisions are stored on the customer record and apply across Repair Orders for the same number.</span>
     </div> : null}
 
     {status === "OPTED_OUT" ? <div className="mt-4">
-      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This number has opted out. Texting remains blocked. Resolve the opt-out through the messaging provider before collecting new consent.</p>
+      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">This number has opted out. Ask the customer to text START to the Car Doc texting number. After Twilio confirms START, collect fresh consent here before sending any texts.</p>
       <button type="button" onClick={checkHistory} className="mt-3 min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">{historyOpen ? "Hide history" : "View history"}</button>
     </div> : null}
 
