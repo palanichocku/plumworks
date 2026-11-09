@@ -175,7 +175,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
 
   useEffect(() => {
     if (smsState.status === "success") { setSmsOpen(false); router.refresh(); }
-  }, [smsState.status, router]);
+  }, [smsState.status, smsState.requestId, router]);
 
   useEffect(() => {
     let active = true;
