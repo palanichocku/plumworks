@@ -15,7 +15,7 @@ Configure **server-side** variables only in the intended Vercel Preview `dev` br
 - `TWILIO_API_KEY_SID` and `TWILIO_API_KEY_SECRET` — recommended restricted API key pair for outbound messaging. If absent, the adapter uses the account SID and Auth Token for outbound API authentication.
 - `TWILIO_MESSAGING_SERVICE_SID` — the Car Doc registered Messaging Service SID (recommended). Confirm its sender pool contains only the intended Development test sender while conducting testing.
 - `TWILIO_SMS_FROM=+15869325090` — the expected Car Doc sender.
-- `SMS_DEV_ALLOWED_TO=+1XXXXXXXXXX` — exactly one approved, controlled test handset, E.164 format.
+- `SMS_DEV_ALLOWED_TO=+1XXXXXXXXXX,+1YYYYYYYYYY` — one or two approved, controlled test handsets, comma-separated in E.164 format. Invalid, duplicate, or more than two numbers fail closed. Both users must separately opt in for SMS on their respective Development customer records.
 - `SMS_DEV_APPROVAL_ORIGIN=https://dev.subbuscardoc.com`
 - `SMS_TWILIO_WEBHOOK_URL=https://dev.subbuscardoc.com/api/sms/inbound`
 - `SMS_TWILIO_STATUS_URL=https://dev.subbuscardoc.com/api/sms/status`
