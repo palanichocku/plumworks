@@ -53,6 +53,7 @@ test("space-encoded legacy appointment URL redirects without breaking existing m
   const javascript = source
     .replace(/^import manifest from .*;\n/m, "")
     .replace("export function resolveCardocLegacyRedirect", "function resolveCardocLegacyRedirect")
+    .replace("input: URL, hostHeader?: string | null", "input, hostHeader")
     .replace("status: 301 as const", "status: 301");
   const resolver = new Function("manifest", `${javascript}\nreturn resolveCardocLegacyRedirect;`)(manifest);
 
