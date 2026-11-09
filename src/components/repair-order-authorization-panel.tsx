@@ -270,11 +270,6 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
                 ? `Declined by ${declineDetail}; the current Repair Order has changed since that decision`
                 : "No approval exists for the current revision"}</span>
         </div>
-        {saveRequired && readinessChecked ? <p role="status" className={`mt-1 text-xs font-bold ${declined || previousDecline ? "text-orange-800" : "text-amber-800"}`}>{authorized
-          ? "Repair Order changed after approval. Save draft and obtain authorization again."
-          : declined
-            ? "Repair Order changed after the customer declined. Save draft; the decline remains preserved under View Authorization."
-            : "Repair Order changed. Save draft before requesting customer authorization."}</p> : null}
         {!readinessChecked ? <p role="status" className="mt-1 text-xs font-medium text-slate-600">Checking saved Repair Order revision…</p> : null}
         {declined && !saveRequired ? <p className="mt-1 text-xs font-medium text-red-800">The declined estimate remains preserved as evidence. An invoice may still be created for diagnostic or other charges actually due.</p> : null}
         {previousDecline && !saveRequired ? <p className="mt-1 text-xs font-medium text-orange-800">The earlier decline remains preserved as evidence for the prior revision.</p> : null}
