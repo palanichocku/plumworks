@@ -46,3 +46,32 @@ test("manifest is unique, chain-free, and avoids empty optional routes", () => {
     assert.equal(["/reviews", "/photos", "/coupons"].includes(entry.destination), false);
   }
 });
+
+
+test("space-encoded legacy appointment URL redirects without breaking existing mappings", () => {
+  // Execute the actual resolver, using its JSON dependency and removing only TS syntax.
+  const javascript = source
+    .replace(/^import manifest from .*;\n/m, "")
+    .replace("export function resolveCardocLegacyRedirect", "function resolveCardocLegacyRedirect")
+    .replace("status: 301 as const", "status: 301");
+  const resolver = new Function("manifest", `${javascript}\nreturn resolveCardocLegacyRedirect;`)(manifest);
+
+  for (const path of ["/Sterling%20Heights-appointment-request.php", "/Sterling-Heights-appointment-request.php"]) {
+    const result = resolver(new URL(`https://www.subbuscardoc.com${path}`));
+    assert.equal(result?.status, 301, path);
+    assert.equal(result?.location.href, "https://www.subbuscardoc.com/appointment", path);
+  }
+
+  for (const entry of manifest.redirects) {
+    const result = resolver(new URL(`https://www.subbuscardoc.com${entry.source}`));
+    assert.equal(result?.status, 301, entry.source);
+    assert.equal(result?.location.href, `https://www.subbuscardoc.com${entry.destination}`, entry.source);
+  }
+
+  assert.equal(resolver(new URL("https://example.com/Sterling%20Heights-appointment-request.php")), null);
+  assert.equal(resolver(new URL("https://www.subbuscardoc.com/unknown.php")), null);
+  assert.equal(
+    resolver(new URL("https://www.subbuscardoc.com/Sterling%20Heights-appointment-request.php?utm_source=google&gclid=abc&private=ignore"))?.location.href,
+    "https://www.subbuscardoc.com/appointment?utm_source=google&gclid=abc",
+  );
+});
