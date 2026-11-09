@@ -4,7 +4,7 @@
 
 ## A2P readiness
 
-Car Doc's US long-code number is `+15869325090` and its A2P Customer Care campaign was **In Review** as of November 8, 2026. Do not attempt customer or test SMS traffic on this number until Twilio confirms campaign approval and associates it with the approved Messaging Service and sender pool. The Twilio account is Car Doc-owned.
+Car Doc's US long-code number is `+15869325090`. On November 9, 2026, the owner confirmed in Twilio Console that its A2P Customer Care campaign and brand are **Approved**, and that the phone number is **REGISTERED** in the assigned Messaging Service. Real SMS delivery and callbacks still require UAT. The Twilio account is Car Doc-owned.
 
 ## Required Development-only environment settings
 
@@ -26,9 +26,18 @@ All settings must be restricted to the Development environment, not shared with 
 
 ## Database sender mapping (Development only)
 
-After confirming the correct shop ID through a read-only query in `plumworks-dev`, insert exactly one sender-to-shop mapping in `sms_sender_numbers`. The canonical sender number is `+15869325090`. Confirm the mapping against the Development shop name and ID; never guess or use Production Supabase credentials. Confirm no other shop owns that number. The inbound webhook rejects unmapped senders.
+A Development-only sender mapping is now configured and verified: `+15869325090` maps to `Car Doc Development` (`dc16f51a-503e-411d-8efc-14c34c88e53f`). The inbound webhook rejects unmapped senders. Production data was not changed.
 
 Do not grant `anon` or `authenticated` access to the SMS tables.
+
+## Current Dev setup verified November 9, 2026
+
+- **Approved:** Twilio A2P brand, Customer Care campaign, phone number REGISTERED and assigned to a Messaging Service.
+- **Configured on Vercel Preview, branch `dev`:** `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_SMS_FROM=+15869325090`, `SMS_DEV_APPROVAL_ORIGIN`, `SMS_TWILIO_WEBHOOK_URL`, `SMS_TWILIO_STATUS_URL`, `NEXT_PUBLIC_SMS_DEV_UI_ENABLED=true`.
+- **Explicit safety gate:** `SMS_DEV_SEND_ENABLED=false`; real SMS sending is disabled.
+- **Still missing from Development settings:** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SMS_DEV_ALLOWED_TO`. Outbound API key/secret are optional and preferred once available. Configure private variables directly in Vercel, never in chat or source control.
+- **Twilio Console follow-up:** Messaging Service inbound webhook URL must be verified and set for Development; genuine STOP/HELP, delivery callbacks and outbound messaging have not yet been tested.
+- The existing Twilio code is already committed to `dev` as part of the earlier Twilio preparation work. This update documents configuration status, not a new SMS sender implementation.
 
 ## Twilio Console (only when ready for Development UAT)
 
