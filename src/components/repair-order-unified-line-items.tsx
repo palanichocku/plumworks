@@ -82,23 +82,21 @@ function ReorderControls({ repairOrderId, lineId, lineType, canMoveUp, canMoveDo
 }
 
 function DisplayRow({ type, description, secondary, qty, rate, amount, actions, reorder }: { type: LineType; description: string; secondary: string; qty: string; rate: string; amount: string; actions: React.ReactNode; reorder?: React.ReactNode }) {
-  // RO workspace is capped at 68rem, so a seven-column desktop grid cannot fit.
-  // Keep totals and actions in a wrapping row that respects actual available width.
-  return <div className="min-w-0 space-y-3 px-4 py-3 text-sm sm:px-5">
-    <div className="flex min-w-0 flex-wrap items-start gap-3">
+  // Desktop: one compact visual row per item, with all values and actions aligned.
+  // On narrow screens the values wrap to a second area to avoid horizontal clipping.
+  return <div className="min-w-0 px-4 py-3 text-sm sm:px-5">
+    <div className="grid min-w-0 items-center gap-x-3 gap-y-2 lg:grid-cols-[112px_minmax(0,1fr)_76px_112px_112px_80px]">
       <div className="flex shrink-0 items-center gap-1"><TypeBadge type={type} />{reorder}</div>
-      <div className="min-w-0 flex-1 basis-48">
+      <div className="min-w-0">
         <ReadOnlyDescriptionPreview value={description} />
-        <div className="mt-1 break-words text-xs text-slate-500">{secondary}</div>
+        {secondary !== "—" ? <div className="mt-0.5 truncate text-xs text-slate-500" title={secondary}>{secondary}</div> : null}
       </div>
-    </div>
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-3 border-t border-slate-100 pt-2">
-      <dl className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
-        <div><dt className="text-xs text-slate-500">Qty / hrs</dt><dd className="font-medium">{qty}</dd></div>
-        <div><dt className="text-xs text-slate-500">Price / rate</dt><dd className="font-medium">{rate}</dd></div>
-        <div><dt className="text-xs text-slate-500">Amount</dt><dd className="font-bold text-slate-950">{amount}</dd></div>
+      <dl className="col-span-2 flex min-w-0 flex-wrap gap-x-5 gap-y-1 sm:col-span-1 lg:contents">
+        <div className="min-w-0"><dt className="text-xs text-slate-500 lg:sr-only">Qty / hrs</dt><dd className="font-medium tabular-nums">{qty}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-slate-500 lg:sr-only">Price / rate</dt><dd className="font-medium tabular-nums">{rate}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-slate-500 lg:sr-only">Amount</dt><dd className="font-bold tabular-nums text-slate-950">{amount}</dd></div>
       </dl>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {actions ? <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1 lg:col-span-1">{actions}</div> : null}
     </div>
   </div>;
 }
