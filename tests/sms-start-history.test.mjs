@@ -34,7 +34,7 @@ test("START clears transport suppression but never records OPT_IN", () => {
 test("STOP and latest declined consent remain authoritative", () => {
   assert.match(consent, /if \(evidence\.suppressed\) return "OPTED_OUT"/);
   assert.match(consent, /if \(evidence\.eventType === "DECLINED"\) return "DECLINED"/);
-  assert.match(consent, /canRestoreSmsConsent\(evidence, SMS_CONSENT_VERSION\)/);
+  assert.match(consent, /canRestoreSmsConsent\(\{ \.\.\.evidence, latestDecision: evidence\.eventType \}, SMS_CONSENT_VERSION\)/);
   assert.match(consent, /AND phone_e164=\$\{phone\}/);
   assert.match(consent, /AND twilio_opt_out_type='START'/);
 });
