@@ -109,9 +109,9 @@ function RowActions({ onEdit, deleteAction, deleteLabel, hiddenInputs }: { onEdi
 }
 
 function EditActions({ pending, onClose }: { pending: boolean; onClose: () => void }) {
-  return <div className="flex flex-col items-stretch gap-1">
-    <button type="button" onClick={onClose} disabled={pending} className="rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 underline underline-offset-2 hover:text-slate-900 disabled:opacity-50">Cancel</button>
-    <button disabled={pending} className="rounded-lg bg-brand-primary px-3 py-2 text-xs font-semibold text-white">{pending ? "Saving…" : "Save"}</button>
+  return <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-3">
+    <button type="button" onClick={onClose} disabled={pending} className="min-h-10 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+    <button disabled={pending} className="min-h-10 min-w-24 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
   </div>;
 }
 
@@ -129,13 +129,15 @@ function PartEditRow({ repairOrderId, line, vendors, onClose }: { repairOrderId:
   useEffect(() => { if (state.status === "success") onClose(); }, [state.status, onClose]);
   return <form action={action} className="bg-blue-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="partLineId" value={line.id} />
-    <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
-      <div><TypeBadge type="part" /></div>
-      <HistoricalDescriptionCombobox kind="part" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow />
-      <VendorCombobox vendors={vendors} defaultVendor={line.vendor} />
-      <label className="text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
-      <label className="text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
-      <div className="self-center text-right font-semibold">{money(Number(quantity) * Number(unitPrice))}</div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><TypeBadge type="part" /><span className="text-xs font-semibold text-slate-500">Edit part</span></div>
+      <div className="min-w-0"><HistoricalDescriptionCombobox kind="part" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(90px,0.65fr)_minmax(130px,1fr)_minmax(100px,auto)] sm:items-end">
+        <div className="min-w-0"><VendorCombobox vendors={vendors} defaultVendor={line.vendor} /></div>
+        <label className="min-w-0 text-xs font-semibold text-slate-600">Qty<NumericTextInput name="quantity" value={quantity} onChange={setQuantity} label="Qty" /></label>
+        <label className="min-w-0 text-xs font-semibold text-slate-600">Unit price<NumericTextInput name="unitPrice" value={unitPrice} onChange={setUnitPrice} label="Unit price" /></label>
+        <div className="min-w-0 text-xs font-semibold text-slate-600"><span>Amount</span><div className="mt-1 flex min-h-10 items-center justify-end text-base font-bold tabular-nums text-slate-950">{money(Number(quantity) * Number(unitPrice))}</div></div>
+      </div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
     {state.status === "error" ? <p className="mt-2 text-sm text-red-700">{state.message}</p> : null}
@@ -209,12 +211,14 @@ function LaborEditRow({ repairOrderId, line, services, onClose }: { repairOrderI
   return <form action={action} className="bg-emerald-50/40 px-4 py-4 sm:px-5">
     <input type="hidden" name="repairOrderId" value={repairOrderId} /><input type="hidden" name="laborLineId" value={line.id} /><input type="hidden" name="shopSuppliesEligible" value={String(eligible)} />
     <LaborPresetPicker services={services} selectedId={selectedPresetId} modified={presetModified} onSelect={chooseService} onClear={clearPreset} />
-    <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
-      <div><TypeBadge type="labor" /></div>
-      <div className={laborDescriptionWrapperClass}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
-      <label className="text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
-      <label className="text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
-      <div className="self-center text-right font-semibold">{money(Number(hours) * Number(rate))}</div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><TypeBadge type="labor" /><span className="text-xs font-semibold text-slate-500">Edit labor</span></div>
+      <div className={`min-w-0 ${laborDescriptionWrapperClass}`}><HistoricalDescriptionCombobox kind="labor" rowKey={`edit-${line.id}`} value={description} onChange={setDescription} inputClass={descriptionClass} multiline autoGrow /></div>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(100px,0.7fr)_minmax(150px,1fr)_minmax(100px,auto)] sm:items-end">
+        <label className="min-w-0 text-xs font-semibold text-slate-600">Hours<NumericTextInput name="hours" value={hours} onChange={setHours} label="Hours" /></label>
+        <label className="min-w-0 text-xs font-semibold text-slate-600">Rate<NumericTextInput name="hourlyRate" value={rate} onChange={setRate} label="Rate" /></label>
+        <div className="min-w-0 text-xs font-semibold text-slate-600"><span>Amount</span><div className="mt-1 flex min-h-10 items-center justify-end text-base font-bold tabular-nums text-slate-950">{money(Number(hours) * Number(rate))}</div></div>
+      </div>
       <EditActions pending={pending} onClose={onClose} />
     </div>
     <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />Apply shop supplies to labor</label>
