@@ -24,6 +24,7 @@ import { getRepairOrderAuthorizationHistory, getRepairOrderAuthorizationSummary 
 import { EditRecordDialog } from "@/components/edit-record-dialog";
 import { CustomerEditForm } from "@/components/customer-edit-form";
 import { VehicleEditForm } from "@/components/vehicle-edit-form";
+import { OutTheDoorPricing } from "@/components/out-the-door-pricing";
 import { updateCustomer } from "@/app/(app)/customers/edit-actions";
 import { updateVehicle } from "@/app/(app)/vehicles/edit-actions";
 
@@ -95,7 +96,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
         parts={<LineItemsSection order={order} editable />}
         labor={null}
-        totals={<TotalsSection order={order} />}
+        totals={<><TotalsSection order={order} /><OutTheDoorPricing repairOrderId={order.id} /></>}
         notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}
       /> : <RepairOrderWorkspace
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} />}
