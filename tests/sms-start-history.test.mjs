@@ -16,6 +16,8 @@ test("verified START is linked to prior consent only where eligible", () => {
   assert.match(consent, /e\.twilio_opt_out_type='START'/);
   assert.match(consent, /e\.keyword='START'/);
   assert.match(consent, /decision\.disclosure_version=\$\{SMS_CONSENT_VERSION\}/);
+  assert.match(consent, /decision\.method IN \('IN_SHOP_IPAD','IN_SHOP_QR'\)/);
+  assert.match(consent, /stop\.method='TWILIO_STOP'/);
   assert.match(consent, /decline\.event_type='DECLINED'/);
   assert.match(consent, /JOIN customers c ON c\.id=\$\{customerId\}::uuid AND c\.shop_id=e\.shop_id/);
   assert.match(panel, /Consent restored from prior approval/);
