@@ -31,7 +31,7 @@ export function OutTheDoorPricing({ repairOrderId }: { repairOrderId:string }) {
   const data=()=>rows.map(({kind,description,quotedPrice})=>({kind,description,quotedPrice}));
   const valid=rows.length>0&&rows.every(r=>r.quotedPrice!==""&&Number.isFinite(Number(r.quotedPrice))&&Number(r.quotedPrice)>=0)&&rows.some(r=>Number(r.quotedPrice)>0);
   const total=rows.reduce((sum,row)=>sum+(Number(row.quotedPrice)||0),0);
-  return <section className="mt-4 w-full min-w-0 border-t border-slate-200 px-4 py-4 sm:px-5">
+  return <section className="w-full min-w-0 rounded-2xl border border-slate-300 bg-white px-4 py-4 shadow-sm sm:px-5">
     <button type="button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}
       className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-900 hover:border-brand-primary hover:bg-brand-subtle focus-visible:outline-2 focus-visible:outline-brand-primary">
       <span>Out-the-Door Pricing</span>
