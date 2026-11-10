@@ -181,11 +181,11 @@ export async function getSmsConsentStatus(shopId: string, customerId: string, ph
         WHERE shop_id=${shopId}::uuid AND phone_e164=${phone} AND cleared_at IS NULL) AS suppressed,
       (SELECT occurred_at FROM sms_consent_events
         WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
-          AND phone_e164=${phone} AND event_type='OPT_IN'
+          AND phone_e164=${phone} AND event_type='OPT_IN' AND method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
         ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "consentAt",
       (SELECT disclosure_version FROM sms_consent_events
         WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
-          AND phone_e164=${phone} AND event_type='OPT_IN'
+          AND phone_e164=${phone} AND event_type='OPT_IN' AND method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
         ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "consentVersion",
       (SELECT occurred_at FROM sms_consent_events
         WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
@@ -193,7 +193,7 @@ export async function getSmsConsentStatus(shopId: string, customerId: string, ph
         ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "declinedAt",
       (SELECT occurred_at FROM sms_consent_events
         WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
-          AND phone_e164=${phone} AND event_type='OPT_OUT'
+          AND phone_e164=${phone} AND event_type='OPT_OUT' AND method='TWILIO_STOP'
         ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "stoppedAt",
       (SELECT created_at FROM sms_inbound_events
         WHERE shop_id=${shopId}::uuid AND phone_e164=${phone}
@@ -235,7 +235,7 @@ export async function getSmsConsentHistory(shopId: string, customerId: string): 
         CASE WHEN prior.id IS NOT NULL
           AND EXISTS (SELECT 1 FROM sms_consent_events stop
             WHERE stop.shop_id=e.shop_id AND stop.customer_id=${customerId}::uuid
-              AND stop.phone_e164=e.phone_e164 AND stop.event_type='OPT_OUT'
+              AND stop.phone_e164=e.phone_e164 AND stop.event_type='OPT_OUT' AND stop.method='TWILIO_STOP'
               AND stop.occurred_at > prior.occurred_at AND stop.occurred_at < e.created_at)
           AND NOT EXISTS (SELECT 1 FROM sms_consent_events decline
             WHERE decline.shop_id=e.shop_id AND decline.customer_id=${customerId}::uuid
@@ -252,6 +252,7 @@ export async function getSmsConsentHistory(shopId: string, customerId: string): 
         FROM sms_consent_events decision
         WHERE decision.shop_id=e.shop_id AND decision.customer_id=${customerId}::uuid
           AND decision.phone_e164=e.phone_e164 AND decision.event_type='OPT_IN'
+          AND decision.method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
           AND decision.disclosure_version=${SMS_CONSENT_VERSION}
           AND decision.occurred_at < e.created_at
         ORDER BY decision.occurred_at DESC, decision.id DESC LIMIT 1
