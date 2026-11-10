@@ -1,5 +1,5 @@
 export type EvidenceDocumentType = "REPAIR_ORDER" | "INVOICE";
-export type AuthorizationMethod = "PHONE" | "EMAIL_LINK" | "IN_PERSON_SIGNATURE";
+export type AuthorizationMethod = "PHONE" | "EMAIL_LINK" | "SMS_LINK" | "IN_PERSON_SIGNATURE";
 export type AuthorizationDecision = "APPROVED" | "DECLINED" | "DELIVERY_ACKNOWLEDGED";
 export type AuthorizationRequestStatus = "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED" | "REVOKED" | "SUPERSEDED";
 

@@ -34,6 +34,11 @@ export const getPublicShop = cache(async (): Promise<PublicShop> => {
     }
     return { ...shops[0], hours: previewHours || databaseHours || process.env.PLUMWORKS_PUBLIC_HOURS?.trim() || "Monday–Friday, 8:00 AM–5:30 PM" };
   } catch {
+    if (process.env.VERCEL_ENV === "preview" &&
+        process.env.VERCEL_GIT_COMMIT_REF === "feature/dev-sms-estimate-authorization") {
+      const { logSmsFeaturePreviewDatabaseDiagnostics } = await import("@/lib/monitoring/sms-preview-db-diagnostics");
+      await logSmsFeaturePreviewDatabaseDiagnostics().catch(() => undefined);
+    }
     return {
       id: null,
       name: "Your Local Repair Shop",
