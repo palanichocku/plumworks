@@ -9,7 +9,7 @@ import {
 } from "@/app/(app)/customers/sms-consent-actions";
 
 const initial: SmsConsentSessionState = { status: "idle", message: "" };
-type Item = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED";
+type Item = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START";
   method: string; customerName: string | null; phone: string; occurredAt: string };
 
 function displayPhone(value?: string | null) {
@@ -22,10 +22,12 @@ function statusLabel(status: SmsConsentStatus) {
     status === "DECLINED" ? "Declined" : "Consent needed";
 }
 const historyLabel = (item: Item) => item.eventType === "OPT_IN" ? "Consented" :
-  item.eventType === "DECLINED" ? "Declined" : "Opted out";
+  item.eventType === "DECLINED" ? "Declined" :
+  item.eventType === "PROVIDER_START" ? "Re-subscribed (consent still required)" : "Opted out";
 const methodLabel = (method: string) => method === "IN_SHOP_IPAD" ? "Shop iPad" :
   method === "IN_SHOP_QR" ? "Customer phone" :
-  method === "TWILIO_STOP" ? "Text STOP" : "Staff verified";
+  method === "TWILIO_STOP" ? "Text STOP" :
+  method === "TWILIO_START" ? "Verified Text START" : "Staff verified";
 
 export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhone }: {
   customerId: string; initialStatus: SmsConsentStatus; initialPhone?: string | null;
