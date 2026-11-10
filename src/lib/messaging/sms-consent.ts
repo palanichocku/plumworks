@@ -177,18 +177,42 @@ export async function getSmsConsentStatus(shopId: string, customerId: string, ph
     rows[0]?.eventType === "DECLINED" ? "DECLINED" as const : "MISSING" as const;
 }
 
-export type ConsentHistoryItem = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED";
+export type ConsentHistoryItem = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START";
   method: string; customerName: string | null; phone: string; occurredAt: string };
 
+/** Include Twilio-confirmed START in the audit timeline, without treating it as
+ * a customer's affirmative consent to receive service messages.
+ * STOP remains in sms_consent_events; don't display it twice.
+ */
 export async function getSmsConsentHistory(shopId: string, customerId: string): Promise<ConsentHistoryItem[]> {
   if (!uuid.test(shopId) || !uuid.test(customerId)) return [];
   const rows = await prisma.$queryRaw<Array<{
     id: string; eventType: ConsentHistoryItem["eventType"]; method: string;
     customerName: string | null; phone: string; occurredAt: Date;
-  }>>`SELECT id, event_type AS "eventType", method, customer_name AS "customerName",
-    phone_e164 AS phone, occurred_at AS "occurredAt" FROM sms_consent_events
-    WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
-    ORDER BY occurred_at DESC, id DESC LIMIT 12`;
+  }>>`
+    SELECT id, "eventType", method, "customerName", phone, "occurredAt" FROM (
+      SELECT id::text AS id, event_type AS "eventType", method,
+        customer_name AS "customerName", phone_e164 AS phone, occurred_at AS "occurredAt"
+      FROM sms_consent_events
+      WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+
+      UNION ALL
+
+      SELECT ('twilio-start-' || e.message_sid) AS id,
+        'PROVIDER_START' AS "eventType", 'TWILIO_START' AS method,
+        NULL::text AS "customerName", e.phone_e164 AS phone,
+        e.created_at AS "occurredAt"
+      FROM sms_inbound_events e
+      JOIN customers c ON c.id=${customerId}::uuid AND c.shop_id=e.shop_id
+      WHERE e.shop_id=${shopId}::uuid AND e.keyword='START'
+        AND e.twilio_opt_out_type='START'
+        AND c.archived_at IS NULL
+        AND RIGHT(e.phone_e164,10) =
+          CASE WHEN LENGTH(regexp_replace(COALESCE(c.phone,''), '[^0-9]', '', 'g')) = 11
+            THEN RIGHT(regexp_replace(COALESCE(c.phone,''), '[^0-9]', '', 'g'),10)
+            ELSE regexp_replace(COALESCE(c.phone,''), '[^0-9]', '', 'g') END
+    ) history
+    ORDER BY "occurredAt" DESC, id DESC LIMIT 12`;
   return rows.map(r => ({ ...r, phone: masked(r.phone), occurredAt: r.occurredAt.toISOString() }));
 }
 
