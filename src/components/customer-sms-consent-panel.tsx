@@ -9,8 +9,8 @@ import {
 } from "@/app/(app)/customers/sms-consent-actions";
 
 const initial: SmsConsentSessionState = { status: "idle", message: "" };
-type Item = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START";
-  method: string; customerName: string | null; phone: string; occurredAt: string };
+type Item = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START" | "PROVIDER_RECONSENT";
+  method: string; customerName: string | null; phone: string; occurredAt: string; originalConsentId: string | null };
 
 function displayPhone(value?: string | null) {
   const digits = (value || "").replace(/\D/g, "");
@@ -23,7 +23,8 @@ function statusLabel(status: SmsConsentStatus) {
 }
 const historyLabel = (item: Item) => item.eventType === "OPT_IN" ? "Consented" :
   item.eventType === "DECLINED" ? "Declined" :
-  item.eventType === "PROVIDER_START" ? "Re-subscribed (consent still required)" : "Opted out";
+  item.eventType === "PROVIDER_RECONSENT" ? "Consent restored from prior approval" :
+  item.eventType === "PROVIDER_START" ? "Re-subscribed (fresh consent required)" : "Opted out";
 const methodLabel = (method: string) => method === "IN_SHOP_IPAD" ? "Shop iPad" :
   method === "IN_SHOP_QR" ? "Customer phone" :
   method === "TWILIO_STOP" ? "Text STOP" :
@@ -248,6 +249,7 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
        history.length ? <ul className="mt-2 space-y-2">{history.map(item=>
         <li key={item.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
           <strong>{historyLabel(item)}</strong> · {methodLabel(item.method)} · {item.phone}
+          {item.eventType === "PROVIDER_RECONSENT" && item.originalConsentId ? <span className="mt-1 block text-xs text-slate-600">Linked to prior documented consent</span> : null}
           <span className="mt-1 block text-xs text-slate-600">
             {new Date(item.occurredAt).toLocaleString()} {item.customerName ? `· ${item.customerName}` : ""}
           </span>

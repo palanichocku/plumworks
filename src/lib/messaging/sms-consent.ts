@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
+import { canRestoreSmsConsent } from "@/lib/messaging/sms-reconsent-policy";
 
 export const SMS_CONSENT_VERSION = "2026-11-08-service-v1";
 export function smsConsentText(shopName: string) {
@@ -166,44 +167,96 @@ export async function submitConsent(input: {
 export async function getSmsConsentStatus(shopId: string, customerId: string, phoneValue: string | null) {
   const phone = normalizeUsSmsPhone(phoneValue ?? "");
   if (!phone || !uuid.test(shopId) || !uuid.test(customerId)) return "MISSING" as const;
-  const rows = await prisma.$queryRaw<Array<{ eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | null; suppressed: boolean }>>`
-    SELECT (SELECT event_type FROM sms_consent_events
-      WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
-        AND phone_e164=${phone} ORDER BY occurred_at DESC, id DESC LIMIT 1) AS "eventType",
+  const rows = await prisma.$queryRaw<Array<{
+    eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | null;
+    suppressed: boolean; consentAt: Date | null; consentVersion: string | null;
+    declinedAt: Date | null; stoppedAt: Date | null; verifiedStartAt: Date | null;
+  }>>`
+    SELECT
+      (SELECT event_type FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+          AND phone_e164=${phone}
+        ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "eventType",
       EXISTS(SELECT 1 FROM sms_phone_suppressions
-        WHERE shop_id=${shopId}::uuid AND phone_e164=${phone} AND cleared_at IS NULL) AS suppressed`;
-  return rows[0]?.suppressed ? "OPTED_OUT" as const :
-    rows[0]?.eventType === "OPT_IN" ? "CONSENTED" as const :
-    rows[0]?.eventType === "DECLINED" ? "DECLINED" as const : "MISSING" as const;
+        WHERE shop_id=${shopId}::uuid AND phone_e164=${phone} AND cleared_at IS NULL) AS suppressed,
+      (SELECT occurred_at FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+          AND phone_e164=${phone} AND event_type='OPT_IN' AND method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
+        ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "consentAt",
+      (SELECT disclosure_version FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+          AND phone_e164=${phone} AND event_type='OPT_IN' AND method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
+        ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "consentVersion",
+      (SELECT occurred_at FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+          AND phone_e164=${phone} AND event_type='DECLINED'
+        ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "declinedAt",
+      (SELECT occurred_at FROM sms_consent_events
+        WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
+          AND phone_e164=${phone} AND event_type='OPT_OUT' AND method='TWILIO_STOP'
+        ORDER BY occurred_at DESC,id DESC LIMIT 1) AS "stoppedAt",
+      (SELECT created_at FROM sms_inbound_events
+        WHERE shop_id=${shopId}::uuid AND phone_e164=${phone}
+          AND keyword='START' AND twilio_opt_out_type='START'
+        ORDER BY created_at DESC,message_sid DESC LIMIT 1) AS "verifiedStartAt"`;
+  const evidence = rows[0];
+  if (!evidence) return "MISSING" as const;
+  if (evidence.suppressed) return "OPTED_OUT" as const;
+  if (evidence.eventType === "OPT_IN") return "CONSENTED" as const;
+  if (evidence.eventType === "DECLINED") return "DECLINED" as const;
+  if (canRestoreSmsConsent({ ...evidence, latestDecision: evidence.eventType }, SMS_CONSENT_VERSION)) return "CONSENTED" as const;
+  return "MISSING" as const;
 }
 
-export type ConsentHistoryItem = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START";
-  method: string; customerName: string | null; phone: string; occurredAt: string };
+export type ConsentHistoryItem = { id: string; eventType: "OPT_IN" | "OPT_OUT" | "DECLINED" | "PROVIDER_START" | "PROVIDER_RECONSENT";
+  method: string; customerName: string | null; phone: string; occurredAt: string; originalConsentId: string | null };
 
-/** Include Twilio-confirmed START in the audit timeline, without treating it as
- * a customer's affirmative consent to receive service messages.
- * STOP remains in sms_consent_events; don't display it twice.
+/** The immutable provider START message is the re-subscription audit event.
+ * A verified START receives a derived 'restored' label only if we can link
+ * it to a qualifying prior iPad/QR OPT_IN on this customer and phone.
+ * Never mutate or overwrite the original signed consent decision.
  */
 export async function getSmsConsentHistory(shopId: string, customerId: string): Promise<ConsentHistoryItem[]> {
   if (!uuid.test(shopId) || !uuid.test(customerId)) return [];
   const rows = await prisma.$queryRaw<Array<{
     id: string; eventType: ConsentHistoryItem["eventType"]; method: string;
-    customerName: string | null; phone: string; occurredAt: Date;
+    customerName: string | null; phone: string; occurredAt: Date; originalConsentId: string | null;
   }>>`
-    SELECT id, "eventType", method, "customerName", phone, "occurredAt" FROM (
+    SELECT id, "eventType", method, "customerName", phone, "occurredAt", "originalConsentId" FROM (
       SELECT id::text AS id, event_type AS "eventType", method,
-        customer_name AS "customerName", phone_e164 AS phone, occurred_at AS "occurredAt"
+        customer_name AS "customerName", phone_e164 AS phone,
+        occurred_at AS "occurredAt", NULL::text AS "originalConsentId"
       FROM sms_consent_events
       WHERE shop_id=${shopId}::uuid AND customer_id=${customerId}::uuid
 
       UNION ALL
 
       SELECT ('twilio-start-' || e.message_sid) AS id,
-        'PROVIDER_START' AS "eventType", 'TWILIO_START' AS method,
-        NULL::text AS "customerName", e.phone_e164 AS phone,
-        e.created_at AS "occurredAt"
+        CASE WHEN prior.id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM sms_consent_events stop
+            WHERE stop.shop_id=e.shop_id AND stop.customer_id=${customerId}::uuid
+              AND stop.phone_e164=e.phone_e164 AND stop.event_type='OPT_OUT' AND stop.method='TWILIO_STOP'
+              AND stop.occurred_at > prior.occurred_at AND stop.occurred_at < e.created_at)
+          AND NOT EXISTS (SELECT 1 FROM sms_consent_events decline
+            WHERE decline.shop_id=e.shop_id AND decline.customer_id=${customerId}::uuid
+              AND decline.phone_e164=e.phone_e164 AND decline.event_type='DECLINED'
+              AND decline.occurred_at > prior.occurred_at AND decline.occurred_at < e.created_at)
+        THEN 'PROVIDER_RECONSENT' ELSE 'PROVIDER_START' END AS "eventType",
+        'TWILIO_START' AS method, NULL::text AS "customerName",
+        e.phone_e164 AS phone, e.created_at AS "occurredAt",
+        prior.id::text AS "originalConsentId"
       FROM sms_inbound_events e
       JOIN customers c ON c.id=${customerId}::uuid AND c.shop_id=e.shop_id
+      LEFT JOIN LATERAL (
+        SELECT decision.id, decision.occurred_at
+        FROM sms_consent_events decision
+        WHERE decision.shop_id=e.shop_id AND decision.customer_id=${customerId}::uuid
+          AND decision.phone_e164=e.phone_e164 AND decision.event_type='OPT_IN'
+          AND decision.method IN ('IN_SHOP_IPAD','IN_SHOP_QR')
+          AND decision.disclosure_version=${SMS_CONSENT_VERSION}
+          AND decision.occurred_at < e.created_at
+        ORDER BY decision.occurred_at DESC, decision.id DESC LIMIT 1
+      ) prior ON true
       WHERE e.shop_id=${shopId}::uuid AND e.keyword='START'
         AND e.twilio_opt_out_type='START'
         AND c.archived_at IS NULL
