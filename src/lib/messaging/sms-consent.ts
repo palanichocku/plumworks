@@ -204,7 +204,7 @@ export async function getSmsConsentStatus(shopId: string, customerId: string, ph
   if (evidence.suppressed) return "OPTED_OUT" as const;
   if (evidence.eventType === "OPT_IN") return "CONSENTED" as const;
   if (evidence.eventType === "DECLINED") return "DECLINED" as const;
-  if (canRestoreSmsConsent(evidence, SMS_CONSENT_VERSION)) return "CONSENTED" as const;
+  if (canRestoreSmsConsent({ ...evidence, latestDecision: evidence.eventType }, SMS_CONSENT_VERSION)) return "CONSENTED" as const;
   return "MISSING" as const;
 }
 
