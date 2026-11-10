@@ -99,9 +99,9 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
-        parts={<LineItemsSection order={order} editable />}
+        parts={<div className="space-y-4"><OutTheDoorPricing repairOrderId={order.id} /><LineItemsSection order={order} editable /></div>}
         labor={null}
-        totals={<><TotalsSection order={order} /><OutTheDoorPricing repairOrderId={order.id} /></>}
+        totals={<TotalsSection order={order} />}
         notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}
       /> : <RepairOrderWorkspace
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={null} vehicleForEdit={null} canEditCustomerVehicle={false} canCorrectAssignment={false} lastMileage={lastMileage} />}
