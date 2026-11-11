@@ -25,9 +25,9 @@ function cents(raw: string) {
 function dollars(value: number) { return (value / 100).toFixed(2); }
 function validateLines(lines: QuotedLine[]) {
   if (!Array.isArray(lines) || lines.length < 1 || lines.length > 30) throw new Error("Enter between 1 and 30 parts or labor items.");
-  const normalized = lines.map((line, index) => {
+  const normalized = lines.map((line) => {
     if (!line || (line.kind !== "part" && line.kind !== "labor")) throw new Error("Invalid item type.");
-    const description = String(line.description ?? "").trim() || `${line.kind === "part" ? "Part" : "Labor"} ${index + 1}`;
+    const description = String(line.description ?? "").trim() || (line.kind === "part" ? "PART DESCRIPTION PENDING" : "LABOR DESCRIPTION PENDING");
     if (description.length > 500) throw new Error("Description must be 500 characters or less.");
     return { kind: line.kind, description, quotedPrice: dollars(cents(String(line.quotedPrice ?? ""))) };
   });
