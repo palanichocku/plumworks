@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentMembership } from "@/lib/data/membership";
-import { submitConsent, verifyConsentPin } from "@/lib/messaging/sms-consent";
+import { getConsentPage, submitConsent, verifyConsentPin } from "@/lib/messaging/sms-consent";
 
 export async function verifySmsConsentPinAction(token: string, pin: string) {
   try { return await verifyConsentPin(token, pin); }
@@ -13,6 +13,7 @@ export async function submitSmsConsent(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const pin = String(formData.get("pin") ?? "");
   const customerName = String(formData.get("customerName") ?? "");
+  const requestedRoId = String(formData.get("returnRoId") ?? "");
   const checked = formData.get("decision") === "agree";
   // The submit button alone does not prove opt-in; require the separate, affirmative checkbox.
   if (checked && formData.get("consentConfirmed") !== "yes")
@@ -21,8 +22,11 @@ export async function submitSmsConsent(formData: FormData) {
     redirect(`/sms-consent/${encodeURIComponent(token)}?error=invalid`);
   const { user, membership } = await getCurrentMembership();
   const staff = user && membership ? { userId: user.id, shopId: membership.shopId } : undefined;
+  const page = requestedRoId ? await getConsentPage(token, staff, requestedRoId).catch(() => null) : null;
   const result = await submitConsent({ token, pin, customerName, checked, staff })
     .catch(() => ({ ok: false as const, reason: "invalid" as const }));
   if (!result.ok) redirect(`/sms-consent/${encodeURIComponent(token)}?error=invalid`);
-  redirect(`/sms-consent/completed?consented=${result.consented ? "yes" : "no"}`);
+  const returnQuery = page?.method === "IN_SHOP_IPAD" && page.returnRoId
+    ? `&returnRoId=${encodeURIComponent(page.returnRoId)}` : "";
+  redirect(`/sms-consent/completed?consented=${result.consented ? "yes" : "no"}${returnQuery}`);
 }
