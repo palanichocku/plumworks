@@ -5,17 +5,18 @@ import Link from "next/link";
 import { submitSmsConsent, verifySmsConsentPinAction } from "@/app/sms-consent/[token]/actions";
 
 type Props = {
-  token: string; shopName: string; phone: string; disclosure: string;
+  token: string; shopName: string; customerName: string; phone: string; disclosure: string;
   method: "IN_SHOP_IPAD" | "IN_SHOP_QR"; error?: boolean;
 };
 
-export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, method, error }: Props) {
+export function SmsConsentCustomerFlow({ token, shopName, customerName, phone, disclosure, method, error }: Props) {
   const phonePath = method === "IN_SHOP_QR";
   const [pin, setPin] = useState("");
   const [verified, setVerified] = useState(!phonePath);
   const [pinError, setPinError] = useState(Boolean(error));
   const [wrongNumber, setWrongNumber] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [confirmedName, setConfirmedName] = useState(customerName);
   const [pending, startTransition] = useTransition();
 
   const verify = () => {
@@ -49,6 +50,7 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
         </button>
       </> : <>
         <h1 className="mt-3 text-3xl font-bold tracking-tight">Get your estimate by text</h1>
+        <p className="mt-2 text-base font-semibold text-slate-800">Customer: {customerName}</p>
         <p className="mt-3 text-slate-600">Choose whether {shopName} may text you repair estimates and service updates. This does not authorize repair work.</p>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-100 p-4">
           <div><p className="text-xs text-slate-600">Texts will go to</p><p className="text-xl font-bold">{phone}</p></div>
@@ -58,12 +60,14 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
         <form action={submitSmsConsent} className="mt-6">
           <input type="hidden" name="token" value={token} />
           {phonePath ? <input type="hidden" name="pin" value={pin} /> : null}
-          <label className="block text-sm font-semibold">Your full name
-            <input name="customerName" required={agreed} minLength={2} maxLength={120} autoComplete="name"
+          <label className="block text-sm font-semibold">Confirm your full name
+            <input name="customerName" value={confirmedName} onChange={e=>setConfirmedName(e.target.value)}
+              minLength={2} maxLength={120} autoComplete="name"
               className="mt-2 block min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base" />
           </label>
+          <p className="mt-2 text-xs text-slate-600">Your name was filled from the shop's customer record. Correct it if needed before accepting.</p>
           <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6">
-            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}
+            <input type="checkbox" name="consentConfirmed" value="yes" checked={agreed} onChange={e=>setAgreed(e.target.checked)}
               className="mt-1 h-5 w-5 shrink-0" aria-label="I agree to the SMS disclosure"/>
             <span>{disclosure}</span>
           </label>
@@ -73,10 +77,10 @@ export function SmsConsentCustomerFlow({ token, shopName, phone, disclosure, met
             <Link href="/sms-terms" target="_blank" rel="noopener noreferrer" className="underline">SMS Terms &amp; Conditions</Link>
           </div>
           <div className="mt-7 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-            <button type="submit" name="decision" value="agree" disabled={!agreed}
-              className="min-h-12 rounded-xl bg-slate-900 px-5 font-bold text-white disabled:bg-slate-300 disabled:text-slate-500">Agree and continue</button>
+            <button type="submit" name="decision" value="agree" disabled={!agreed || confirmedName.trim().length < 2 || pending}
+              className="min-h-12 rounded-xl bg-slate-900 px-5 font-bold text-white disabled:bg-slate-300 disabled:text-slate-500">Accept SMS consent</button>
             <button type="submit" name="decision" value="decline"
-              className="min-h-12 rounded-xl border border-slate-300 px-5 font-bold text-slate-800">No thanks</button>
+              className="min-h-12 rounded-xl border border-slate-300 px-5 font-bold text-slate-800">Decline</button>
           </div>
         </form>
       </>}
