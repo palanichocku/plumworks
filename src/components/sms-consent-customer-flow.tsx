@@ -6,10 +6,10 @@ import { submitSmsConsent, verifySmsConsentPinAction } from "@/app/sms-consent/[
 
 type Props = {
   token: string; shopName: string; customerName: string; phone: string; disclosure: string;
-  method: "IN_SHOP_IPAD" | "IN_SHOP_QR"; error?: boolean;
+  method: "IN_SHOP_IPAD" | "IN_SHOP_QR"; returnRoId?: string | null; error?: boolean;
 };
 
-export function SmsConsentCustomerFlow({ token, shopName, customerName, phone, disclosure, method, error }: Props) {
+export function SmsConsentCustomerFlow({ token, shopName, customerName, phone, disclosure, method, returnRoId, error }: Props) {
   const phonePath = method === "IN_SHOP_QR";
   const [pin, setPin] = useState("");
   const [verified, setVerified] = useState(!phonePath);
@@ -59,6 +59,7 @@ export function SmsConsentCustomerFlow({ token, shopName, customerName, phone, d
         </div>
         <form action={submitSmsConsent} className="mt-6">
           <input type="hidden" name="token" value={token} />
+          {method === "IN_SHOP_IPAD" && returnRoId ? <input type="hidden" name="returnRoId" value={returnRoId} /> : null}
           {phonePath ? <input type="hidden" name="pin" value={pin} /> : null}
           <label className="block text-sm font-semibold">Confirm your full name
             <input name="customerName" value={confirmedName} onChange={e=>setConfirmedName(e.target.value)}
