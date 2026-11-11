@@ -7,11 +7,17 @@ import { isDevelopmentSmsRecipientAllowed } from "./dev-recipient-allowlist";
 const E164 = /^\+[1-9]\d{7,14}$/;
 
 /**
- * Real SMS is intentionally disabled unless specifically enabled in a
- * non-production environment. This is the Phase-2 development adapter,
- * NOT the shop-facing authorization workflow.
+ * SMS requires an explicit environment-specific switch; Dev remains allowlisted.
+ * Production is disabled by default until approved activation.
  */
+export function isProductionSmsSendingEnabled() {
+  return process.env.VERCEL_ENV === "production" &&
+    process.env.SMS_SEND_ENABLED === "true";
+}
+
+/** Default-deny; Production activation requires a separate explicit switch. */
 export function assertDevelopmentSmsEnabled() {
+  if (isProductionSmsSendingEnabled()) return;
   // Vercel Preview uses NODE_ENV=production. Allow only the isolated dev
   // branch preview, never Production or arbitrary feature-branch previews.
   const local = !process.env.VERCEL_ENV && process.env.NODE_ENV === "development";
@@ -39,7 +45,7 @@ class TwilioSmsProvider implements SmsProvider {
   async send(request: SmsDeliveryRequest): Promise<SmsDeliveryResult> {
     assertDevelopmentSmsEnabled();
     validateSmsRequest(request);
-    if (!isDevelopmentSmsRecipientAllowed(request.to)) {
+    if (!isProductionSmsSendingEnabled() && !isDevelopmentSmsRecipientAllowed(request.to)) {
       throw new Error("Recipient is not on the Development SMS test allowlist.");
     }
     if (!process.env.TWILIO_SMS_FROM || request.from !== normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM)) {
@@ -59,8 +65,7 @@ class TwilioSmsProvider implements SmsProvider {
     if (messagingServiceSid && !/^MG[a-f0-9]{32}$/i.test(messagingServiceSid)) {
       return { ok: false, errorCode: "invalid_service", message: "Configured Twilio Messaging Service SID is invalid." };
     }
-    // Prefer the registered Messaging Service for A2P campaigns. Its sender
-    // pool must contain only the Development-approved Car Doc number.
+    // Use the registered A2P Messaging Service and only the sender approved for the shop.
     const form = new URLSearchParams({
       To: request.to,
       Body: request.body,
