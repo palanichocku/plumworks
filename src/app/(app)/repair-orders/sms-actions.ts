@@ -5,7 +5,7 @@ import { getRepairOrderDocumentForShop } from "@/lib/repair-order-document";
 import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
 import { getRepairOrderAuthorizationSummaryForShop } from "@/lib/authorization/repair-order-evidence";
 import { hasPermission } from "@/lib/permissions";
-import { assertDevelopmentSmsEnabled, createDevelopmentSmsProvider } from "@/lib/messaging/sms";
+import { assertDevelopmentSmsEnabled, createDevelopmentSmsProvider, isProductionSmsSendingEnabled } from "@/lib/messaging/sms";
 import { normalizeUsSmsPhone } from "@/lib/messaging/phone";
 import { isDevelopmentSmsRecipientAllowed } from "@/lib/messaging/dev-recipient-allowlist";
 import { assertSmsRecipientConsented } from "@/lib/messaging/sms-consent";
@@ -20,9 +20,10 @@ const error = (message: string): SmsAuthorizationState => ({ status: "error", me
 
 function checkSmsSetup() {
   assertDevelopmentSmsEnabled();
-  const origin = process.env.SMS_DEV_APPROVAL_ORIGIN?.trim();
+  const production = process.env.VERCEL_ENV === "production";
+  const origin = (production ? process.env.SMS_APPROVAL_ORIGIN : process.env.SMS_DEV_APPROVAL_ORIGIN)?.trim();
   // Never use the production website as a development-approval URL.
-  if (!origin) throw new Error("Configure SMS_DEV_APPROVAL_ORIGIN for your reachable Dev instance.");
+  if (!origin) throw new Error("Configure a verified SMS approval URL for this environment.");
   const url = new URL(origin);
   if (url.protocol !== "https:" && !(url.protocol === "http:" && url.hostname === "localhost")) {
     throw new Error("Development approval origin must use HTTPS or localhost.");
@@ -30,8 +31,11 @@ function checkSmsSetup() {
   if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Development approval origin must be a plain website origin.");
   }
-  if (url.hostname === "subbuscardoc.com" || url.hostname === "www.subbuscardoc.com" ||
-      url.hostname === "app.subbuscardoc.com" || url.hostname === "prod.subbuscardoc.com") {
+  if (production && url.origin !== "https://app.subbuscardoc.com") {
+    throw new Error("Production authorization links must use the approved app origin.");
+  }
+  if (!production && (url.hostname === "subbuscardoc.com" || url.hostname === "www.subbuscardoc.com" ||
+      url.hostname === "app.subbuscardoc.com" || url.hostname === "prod.subbuscardoc.com")) {
     throw new Error("Production shop domains may not be used for SMS development.");
   }
   return url.origin;
@@ -53,16 +57,17 @@ export async function sendRepairOrderSmsAuthorizationAction(
   try {
     origin = checkSmsSetup();
   } catch {
-    return error("SMS Dev sending is disabled or its approval URL is not configured.");
+    return error("SMS sending is disabled or its approval URL is not configured.");
   }
 
   const repairOrderId = String(formData.get("repairOrderId") ?? "");
   const recipientPhone = normalizeUsSmsPhone(String(formData.get("recipientPhone") ?? ""));
 
   // Explicit consent checkbox applies to this developer-only test, not commercial customer opt-in.
-  if (formData.get("testConsent") !== "yes") return error("Confirm this is your own opted-in development test number.");
-  if (!recipientPhone || !isDevelopmentSmsRecipientAllowed(recipientPhone)) {
-    return error("Enter a valid US phone number on the approved Development test allowlist.");
+  const production = isProductionSmsSendingEnabled();
+  if (!production && formData.get("testConsent") !== "yes") return error("Confirm this is your own opted-in development test number.");
+  if (!recipientPhone || (!production && !isDevelopmentSmsRecipientAllowed(recipientPhone))) {
+    return error("Enter a valid US phone number permitted for this environment.");
   }
   const sender = normalizeUsSmsPhone(process.env.TWILIO_SMS_FROM ?? "");
   if (!sender) return error("Configure the Twilio development sender number.");
@@ -72,12 +77,12 @@ export async function sendRepairOrderSmsAuthorizationAction(
     return error("You do not have permission to send SMS estimates.");
   }
 
-  // Development spend/abuse guard: configurable accepted SMS requests per shop in a rolling 24-hour window.
+  // Per-shop spend guard: configurable accepted SMS requests in a rolling 24-hour window.
   // Invalid or missing values fall back to 5; keep a finite upper bound even in Dev.
   // Additional provider-side rate limits should be added before commercial launch.
-  const configuredLimit = process.env.SMS_DEV_DAILY_LIMIT;
+  const configuredLimit = production ? process.env.SMS_PROD_DAILY_LIMIT : process.env.SMS_DEV_DAILY_LIMIT;
   const parsedLimit = configuredLimit && /^\d+$/.test(configuredLimit) ? Number(configuredLimit) : NaN;
-  const dailyLimit = Number.isSafeInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 100 ? parsedLimit : 5;
+  const dailyLimit = Number.isSafeInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 100 ? parsedLimit : (production ? 25 : 5);
   const { prisma } = await import("@/lib/prisma");
   const counts = await prisma.$queryRaw<Array<{ total: bigint }>>`
     SELECT COUNT(*)::bigint AS total FROM authorization_requests
@@ -86,7 +91,7 @@ export async function sendRepairOrderSmsAuthorizationAction(
       AND sent_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
   `;
   if (Number(counts[0]?.total ?? 0) >= dailyLimit) {
-    return error(`Dev SMS limit reached: ${dailyLimit} accepted messages per shop per 24 hours.`);
+    return error(`SMS limit reached: ${dailyLimit} accepted messages per shop per 24 hours.`);
   }
 
   const model = await getRepairOrderDocumentForShop(repairOrderId, membership.shopId);
@@ -116,8 +121,8 @@ export async function sendRepairOrderSmsAuthorizationAction(
     const body = `${model.shop.name}: Review and authorize estimate #${model.repairOrderNumber}: ${link} Reply STOP to opt out.`;
     await assertSmsRecipientConsented(membership.shopId, model.customer.id, recipientPhone);
     const callbackBase = process.env.SMS_TWILIO_STATUS_URL;
-    if (callbackBase !== "https://dev.subbuscardoc.com/api/sms/status") {
-      throw new Error("Dev Twilio status callback is not configured.");
+    if (callbackBase !== (production ? "https://app.subbuscardoc.com/api/sms/status" : "https://dev.subbuscardoc.com/api/sms/status")) {
+      throw new Error("Twilio status callback is not configured.");
     }
     const statusCallbackUrl = `${callbackBase}?requestId=${encodeURIComponent(request.requestId)}`;
     const response = await provider.send({ to: recipientPhone, from: sender, body, statusCallbackUrl });
@@ -127,12 +132,12 @@ export async function sendRepairOrderSmsAuthorizationAction(
     }
     accepted = true;
     await markRepairOrderSmsRequestAccepted(request.requestId, response.providerMessageId);
-    return { status: "success", message: "Estimate SMS accepted by Twilio. Check your test phone; delivery is not yet confirmed.", requestId: request.requestId };
+    return { status: "success", message: "Estimate SMS accepted by Twilio. Delivery is not yet confirmed.", requestId: request.requestId };
   } catch {
     if (request && !accepted) await revokeRepairOrderAuthorizationRequest(request.requestId).catch(() => undefined);
     return error(accepted
       ? "Twilio accepted the SMS, but PlumWorks could not save delivery state. Check Twilio logs before retrying."
-      : "The development SMS could not be sent. Check your Dev configuration and try again.");
+      : "The SMS could not be sent. Check configuration and try again.");
   }
 }
 
