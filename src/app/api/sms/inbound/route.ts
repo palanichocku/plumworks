@@ -11,7 +11,9 @@ const reply = (status = 200) => new NextResponse('<?xml version="1.0" encoding="
 
 export async function POST(request: NextRequest) {
   try { assertSmsConsentDev(); } catch { return reply(404); }
-  const expectedUrl = "https://dev.subbuscardoc.com/api/sms/inbound";
+  const expectedUrl = process.env.VERCEL_ENV === "production"
+    ? "https://app.subbuscardoc.com/api/sms/inbound"
+    : "https://dev.subbuscardoc.com/api/sms/inbound";
   if (process.env.SMS_TWILIO_WEBHOOK_URL !== expectedUrl) return reply(503);
   const result = await verifyTwilioFormWebhook(request, expectedUrl, process.env.TWILIO_AUTH_TOKEN ?? "");
   if (!result.ok) return reply(result.status);
