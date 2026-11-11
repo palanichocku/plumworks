@@ -13,11 +13,16 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const masked = (number: string) => `(***) ***-${number.slice(-4)}`;
 
-/** Consent collection is deliberately restricted to nonproduction environments. */
+/** Consent collection is default-deny in Production until explicitly enabled. */
 export function assertSmsConsentDev() {
-  if (process.env.VERCEL_ENV === "production" ||
-      (process.env.NODE_ENV !== "development" && process.env.VERCEL_GIT_COMMIT_REF !== "dev" &&
-       process.env.VERCEL_GIT_COMMIT_REF !== "feature/dev-sms-consent-ux-handoff")) {
+  if (process.env.VERCEL_ENV === "production") {
+    if (process.env.SMS_CONSENT_ENABLED !== "true") {
+      throw new Error("SMS consent collection is not enabled in Production.");
+    }
+    return;
+  }
+  if (process.env.NODE_ENV !== "development" && process.env.VERCEL_GIT_COMMIT_REF !== "dev" &&
+      process.env.VERCEL_GIT_COMMIT_REF !== "feature/dev-sms-consent-ux-handoff") {
     throw new Error("SMS consent collection is not enabled in this environment.");
   }
 }
