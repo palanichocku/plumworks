@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SecureSmsQr } from "@/components/secure-sms-qr";
 import {
   startSmsConsentSessionAction, getCustomerSmsConsentOverviewAction,
@@ -34,6 +34,8 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
   customerId: string; initialStatus: SmsConsentStatus; initialPhone?: string | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const returnRoId = /^\/repair-orders\/([0-9a-f-]{36})$/i.exec(pathname)?.[1] ?? null;
   const lastStatus = useRef<SmsConsentStatus>(initialStatus);
   const [state, action, pending] = useActionState(startSmsConsentSessionAction, initial);
   const [status, setStatus] = useState<SmsConsentStatus>(initialStatus);
@@ -207,7 +209,7 @@ export function CustomerSmsConsentPanel({ customerId, initialStatus, initialPhon
         </> : <>
           <p className="text-base font-bold text-slate-900">Hand the iPad to the customer</p>
           <p className="mt-1 text-sm text-slate-600">They can review the consent and record a choice. No PIN is needed on this signed-in device.</p>
-          <a href={visibleSession.link} className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-bold text-white">Open customer-only screen</a>
+          <a href={returnRoId ? `${visibleSession.link}?returnRoId=${encodeURIComponent(returnRoId)}` : visibleSession.link} className="mt-4 inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-bold text-white">Open customer-only screen</a>
           <p className="mt-2 text-xs text-slate-500">For added device security, use iPad Guided Access when handing the tablet to a customer.</p>
         </>}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-3 text-sm font-semibold text-amber-950">
