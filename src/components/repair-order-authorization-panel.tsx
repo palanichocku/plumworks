@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatAuthorizationDateTime } from "@/lib/authorization/format-authorization-date-time";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, getRepairOrderRemoteDeliveryStatusAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
@@ -281,11 +282,11 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
         : "border-amber-300 bg-amber-50";
   const accent = authorized ? "text-emerald-950" : declined ? "text-red-950" : previousDecline ? "text-orange-950" : "text-amber-950";
   const declineDetail = declineEvidence
-    ? `${declineEvidence.authorizerName || "Customer"} on ${new Date(declineEvidence.occurredAt).toLocaleString()}`
+    ? `${declineEvidence.authorizerName || "Customer"} on ${formatAuthorizationDateTime(declineEvidence.occurredAt)}`
     : "customer";
   const deliveryFailure = delivery ? (delivery.channel === "SMS" ? ["failed", "undelivered"].includes(delivery.deliveryStatus ?? "") : failedDelivery(delivery.deliveryStatus)) : false;
   const expiryText = delivery ? remainingApprovalTime(delivery.expiresAt, clock) : null;
-  const expiresAtText = delivery ? new Date(delivery.expiresAt).toLocaleString() : null;
+  const expiresAtText = delivery ? formatAuthorizationDateTime(delivery.expiresAt) : null;
 
   return <section className={`transaction-workspace-width rounded-xl border px-4 py-3 shadow-sm ${tone}`}>
     {!authorized && !declined && deliveryPopup ? <div role="alert" className="fixed right-4 top-4 z-[70] max-w-md rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900 shadow-xl">{deliveryPopup}</div> : null}
@@ -295,7 +296,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
           <span aria-hidden="true" className={authorized ? "text-emerald-700" : declined ? "text-red-700" : previousDecline ? "text-orange-700" : "text-amber-700"}>{authorized ? "✓" : declined ? "✕" : previousDecline ? "↺" : "⚠"}</span>
           <strong className={accent}>Customer approval · {authorized ? "Authorized" : declined ? "Estimate declined" : previousDecline ? "Previous estimate declined" : "Not authorized"}</strong>
           <span className={authorized ? "text-emerald-800" : declined ? "text-red-900" : previousDecline ? "text-orange-900" : "text-amber-900"}>· {authorized && summary.approvedAt
-            ? `Approved by ${summary.authorizerName ?? "customer"} on ${new Date(summary.approvedAt).toLocaleString()}`
+            ? `Approved by ${summary.authorizerName ?? "customer"} on ${formatAuthorizationDateTime(summary.approvedAt)}`
             : declined
               ? `Declined by ${declineDetail}`
               : previousDecline
