@@ -80,7 +80,7 @@ function active(row: SessionRow | null) {
 
 export type ConsentStaff = { shopId: string; userId: string };
 
-export async function getConsentPage(token: string, staff?: ConsentStaff) {
+export async function getConsentPage(token: string, staff?: ConsentStaff, returnRoId?: string) {
   assertSmsConsentDev();
   const row = await findSession(token);
   if (!active(row) || !row) return null;
@@ -92,9 +92,18 @@ export async function getConsentPage(token: string, staff?: ConsentStaff) {
     select: { displayName: true },
   });
   if (!customer) return null;
+  // Only shop-iPad handoffs can return to the originating RO. Never trust a
+  // caller-provided route without verifying both customer and shop ownership.
+  const validReturnRo = row.method === "IN_SHOP_IPAD" && returnRoId && uuid.test(returnRoId)
+    ? await prisma.repairOrder.findFirst({
+        where: { id: returnRoId, shopId: row.shopId, customerId: row.customerId },
+        select: { id: true },
+      })
+    : null;
   return { shopName: row.shopName, customerName: customer.displayName, phone: masked(row.phone),
     disclosure: smsConsentText(row.shopName),
-    expiresAt: row.expiresAt.toISOString(), method: row.method };
+    expiresAt: row.expiresAt.toISOString(), method: row.method,
+    returnRoId: validReturnRo?.id ?? null };
 }
 
 /** PIN step for customer-owned phones. Checking it does not create consent. */
