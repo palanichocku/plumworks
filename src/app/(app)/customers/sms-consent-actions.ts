@@ -40,7 +40,7 @@ export async function startSmsConsentSessionAction(_previous: SmsConsentSessionS
       status: "ready", message: method === "IN_SHOP_QR"
         ? "Ask the customer to scan the QR code, then provide the PIN in person."
         : "Open the customer-only screen and hand over the iPad.",
-      link: `https://dev.subbuscardoc.com/sms-consent/${session.token}`,
+      link: `${process.env.VERCEL_ENV === "production" ? "https://app.subbuscardoc.com" : "https://dev.subbuscardoc.com"}/sms-consent/${session.token}`,
       pin: method === "IN_SHOP_QR" ? session.pin : undefined,
       expiresAt: session.expiresAt.toISOString(), sessionId: session.id, method, phone: session.phone,
     };
