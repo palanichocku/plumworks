@@ -11,6 +11,8 @@ import { RecordLifecycleActions } from "@/components/record-lifecycle-actions";
 import { archiveCustomer, deleteCustomerPermanently, restoreCustomer } from "../../customer-vehicle-lifecycle-actions";
 import { VehicleLicensePlateField } from "@/components/vehicle-license-plate-field";
 import { customerNameParts } from "@/lib/customer-name";
+import { CustomerSmsConsentPanel } from "@/components/customer-sms-consent-panel";
+import { getSmsConsentStatus } from "@/lib/messaging/sms-consent";
 
 type CustomerDetail = NonNullable<
   Awaited<ReturnType<typeof getCustomerForCurrentShop>>
@@ -37,6 +39,7 @@ export default async function CustomerDetailPage({
   const canDelete = membership?.role === "OWNER";
   const deleteBlockers = Object.values(customer._count).reduce((sum, count) => sum + count, 0) + (customer.legacyCustno || customer.legacySourceTable ? 1 : 0);
   const activeVehicles = customer.vehicles.filter((vehicle) => !vehicle.archivedAt);
+  const smsConsentStatus = canEditVehicles && membership ? await getSmsConsentStatus(membership.shopId, customer.id, customer.phone).catch(() => "MISSING" as const) : "MISSING" as const;
 
   return (
     <>
@@ -100,6 +103,7 @@ export default async function CustomerDetailPage({
         </article>
       </section>
 
+      {canEditVehicles ? <CustomerSmsConsentPanel customerId={customer.id} initialStatus={smsConsentStatus} initialPhone={customer.phone} /> : null}
       <InternalNotesBlock recordId={customer.id} notes={customer.notes} canEdit={canEditNotes} emptyMessage="No customer notes have been added." successMessage="Customer notes saved." action={updateCustomerNotes} />
 
       {!customer.archivedAt && activeVehicles.length !== 1 ? <section id="customer-repair-order" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-semibold text-slate-950">Create Repair Order</h2>{activeVehicles.length ? <form action="/repair-orders/new" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"><input type="hidden" name="customerId" value={customer.id} /><label className="flex-1 text-sm font-semibold text-slate-700">Vehicle<select name="vehicleId" required className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">{activeVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle details unavailable"}{vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""}</option>)}</select></label><button className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">Continue</button></form> : <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600"><span>Add an active Vehicle before creating a Repair Order.</span><Link href={`/vehicles/new?customerId=${customer.id}`} className="font-semibold text-brand-primary">Add Vehicle</Link></div>}</section> : null}
