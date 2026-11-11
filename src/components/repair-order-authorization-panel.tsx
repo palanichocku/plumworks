@@ -103,7 +103,8 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   const submitting = useRef(false);
   const shownDeliveryFailure = useRef<string | null>(null);
   const otherMethodsRef = useRef<HTMLDetailsElement | null>(null);
-  const smsReady = smsConsentStatus === "CONSENTED" && process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true";
+  const smsUiEnabled = process.env.NEXT_PUBLIC_SMS_UI_ENABLED === "true" || process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true";
+  const smsReady = smsConsentStatus === "CONSENTED" && smsUiEnabled;
   const authorized = summary.status === "AUTHORIZED";
   const declined = summary.status === "DECLINED";
   const previousDecline = summary.status === "DECLINED_PREVIOUS_REVISION";
@@ -334,7 +335,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
           <summary className="flex min-h-10 cursor-pointer list-none items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary">Other methods ▾</summary>
           <div className="absolute right-0 z-20 mt-2 min-w-48 space-y-1 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
             {smsReady ? <button type="button" disabled={emailPending || recipientLoading} onClick={() => void openEmailConfirmation()} className="block min-h-10 w-full rounded px-3 text-left text-sm font-semibold hover:bg-slate-100">Email approval</button> : null}
-            {process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true" && smsConsentStatus === "MISSING" ? <button type="button" onClick={() => void openSmsConfirmation()} className="block min-h-10 w-full rounded px-3 text-left text-sm font-semibold hover:bg-slate-100">Text approval</button> : null}
+            {smsUiEnabled && smsConsentStatus === "MISSING" ? <button type="button" onClick={() => void openSmsConfirmation()} className="block min-h-10 w-full rounded px-3 text-left text-sm font-semibold hover:bg-slate-100">Text approval</button> : null}
             <button type="button" onClick={() => void openVerbalAuthorization()} className="block min-h-10 w-full rounded px-3 text-left text-sm font-semibold hover:bg-slate-100">Verbal approval</button>
           </div>
         </details> : null}
