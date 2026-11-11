@@ -13,7 +13,9 @@ function respond(status = 200) {
 /** Signed, per-request Twilio delivery status callback. No approval tokens or PII logged. */
 export async function POST(request: NextRequest) {
   try { assertSmsConsentDev(); } catch { return respond(404); }
-  const base = "https://dev.subbuscardoc.com/api/sms/status";
+  const base = process.env.VERCEL_ENV === "production"
+    ? "https://app.subbuscardoc.com/api/sms/status"
+    : "https://dev.subbuscardoc.com/api/sms/status";
   if (process.env.SMS_TWILIO_STATUS_URL !== base) return respond(503);
   const id = request.nextUrl.searchParams.get("requestId") ?? "";
   if (!uuid.test(id) || [...request.nextUrl.searchParams.keys()].some(key => key !== "requestId"))
