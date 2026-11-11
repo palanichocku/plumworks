@@ -43,14 +43,14 @@ export default function SmsOptInProofPage() {
         <h2 className="text-xl font-bold">Step 1 — Customer phone QR-code verification</h2>
         <p className="text-sm text-slate-700">The customer scans the QR code and enters the six-digit code provided at the shop. This is the actual PIN screen.</p>
         <div aria-label="Nonfunctional demonstration of PIN screen" className="pointer-events-none select-none overflow-hidden rounded-2xl border border-slate-300">
-          <SmsConsentCustomerFlow token="DEMO_ONLY_NO_VALID_TOKEN" shopName={shopName} phone="(***) ***-0123" disclosure={disclosure} method="IN_SHOP_QR" />
+          <SmsConsentCustomerFlow token="DEMO_ONLY_NO_VALID_TOKEN" shopName={shopName} customerName="Sample Customer" phone="(***) ***-0123" disclosure={disclosure} method="IN_SHOP_QR" />
         </div>
       </section>
       <section className="space-y-2">
         <h2 className="text-xl font-bold">Step 2 — Customer chooses whether to receive SMS</h2>
-        <p className="text-sm text-slate-700">The iPad shows this form immediately; customers using their phone see the same consent form after PIN verification. The checkbox starts unchecked. Customers may choose No thanks.</p>
+        <p className="text-sm text-slate-700">The iPad shows this form immediately; customers using their phone see the same consent form after PIN verification. The checkbox starts unchecked. Customers may choose Decline.</p>
         <div aria-label="Nonfunctional demonstration of actual customer opt-in form" className="pointer-events-none select-none overflow-hidden rounded-2xl border border-slate-300">
-          <SmsConsentCustomerFlow token="DEMO_ONLY_NO_VALID_TOKEN" shopName={shopName} phone="(***) ***-0123" disclosure={disclosure} method="IN_SHOP_IPAD" />
+          <SmsConsentCustomerFlow token="DEMO_ONLY_NO_VALID_TOKEN" shopName={shopName} customerName="Sample Customer" phone="(***) ***-0123" disclosure={disclosure} method="IN_SHOP_IPAD" />
         </div>
       </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-6">

@@ -87,7 +87,13 @@ export async function getConsentPage(token: string, staff?: ConsentStaff) {
   if (row.method === "IN_SHOP_IPAD") {
     if (!staff || staff.shopId !== row.shopId || staff.userId !== row.createdByUserId) return null;
   }
-  return { shopName: row.shopName, phone: masked(row.phone), disclosure: smsConsentText(row.shopName),
+  const customer = await prisma.customer.findFirst({
+    where: { id: row.customerId, shopId: row.shopId, archivedAt: null },
+    select: { displayName: true },
+  });
+  if (!customer) return null;
+  return { shopName: row.shopName, customerName: customer.displayName, phone: masked(row.phone),
+    disclosure: smsConsentText(row.shopName),
     expiresAt: row.expiresAt.toISOString(), method: row.method };
 }
 

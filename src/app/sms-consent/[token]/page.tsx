@@ -18,6 +18,6 @@ export default async function SmsConsentPage({ params, searchParams }: {
     <h1 className="text-2xl font-bold">Consent session unavailable</h1>
     <p className="mt-3">The link expired, was already used, or cannot be opened on this device. Ask shop staff for another.</p>
   </main>;
-  return <SmsConsentCustomerFlow token={token} shopName={session.shopName} phone={session.phone}
+  return <SmsConsentCustomerFlow token={token} shopName={session.shopName} customerName={session.customerName} phone={session.phone}
     disclosure={session.disclosure} method={session.method} error={Boolean(error)} />;
 }

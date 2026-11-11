@@ -14,6 +14,9 @@ export async function submitSmsConsent(formData: FormData) {
   const pin = String(formData.get("pin") ?? "");
   const customerName = String(formData.get("customerName") ?? "");
   const checked = formData.get("decision") === "agree";
+  // The submit button alone does not prove opt-in; require the separate, affirmative checkbox.
+  if (checked && formData.get("consentConfirmed") !== "yes")
+    redirect(`/sms-consent/${encodeURIComponent(token)}?error=invalid`);
   if (formData.get("decision") !== "agree" && formData.get("decision") !== "decline")
     redirect(`/sms-consent/${encodeURIComponent(token)}?error=invalid`);
   const { user, membership } = await getCurrentMembership();
