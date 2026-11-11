@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { HistoricalDescriptionCombobox } from "@/components/historical-description-combobox";
 import { applyOutTheDoorPricing, previewOutTheDoorPricing, type QuotedLine, type OutTheDoorPreview } from "@/app/(app)/repair-orders/out-the-door-actions";
 
 type Entry = QuotedLine & { key: number };
 const currency = (value: number | string) => Number(value).toLocaleString("en-US", { style:"currency", currency:"USD" });
 const initial: Entry[] = [
-  {key:1,kind:"part",description:"Part 1",quotedPrice:""},
-  {key:2,kind:"labor",description:"Labor 1",quotedPrice:""},
+  {key:1,kind:"part",description:"",quotedPrice:""},
+  {key:2,kind:"labor",description:"",quotedPrice:""},
 ];
 export function OutTheDoorPricing({ repairOrderId }: { repairOrderId:string }) {
   const router=useRouter();
@@ -23,8 +24,7 @@ export function OutTheDoorPricing({ repairOrderId }: { repairOrderId:string }) {
     setRows(old=>old.map(row=>row.key===key?{...row,[field]:value}:row));invalidate();
   };
   const add=(kind:"part"|"labor")=>{
-    const number=rows.filter(r=>r.kind===kind).length+1;
-    setRows(old=>[...old,{key:nextKey,kind,description:`${kind==="part"?"Part":"Labor"} ${number}`,quotedPrice:""}]);
+    setRows(old=>[...old,{key:nextKey,kind,description:"",quotedPrice:""}]);
     setNextKey(n=>n+1);invalidate();
   };
   const remove=(key:number)=>{setRows(old=>old.filter(r=>r.key!==key));invalidate();};
@@ -51,10 +51,14 @@ export function OutTheDoorPricing({ repairOrderId }: { repairOrderId:string }) {
             <span className="text-xs font-semibold text-slate-600">{kind==="part"?"Part":"Labor"} {index+1}</span>
             <button type="button" onClick={()=>remove(row.key)} disabled={pending} className="rounded px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50">Remove</button>
           </div>
-          <label className="block text-xs font-semibold text-slate-700">Description (editable later)
-            <input value={row.description} onChange={e=>update(row.key,"description",e.target.value)} maxLength={500}
-              className="mt-1 block min-h-10 w-full min-w-0 rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-950"/>
-          </label>
+          <div className="min-w-0">
+            <HistoricalDescriptionCombobox kind={kind} rowKey={`out-the-door-${row.key}`}
+              label="Description (optional — edit now or later)"
+              value={row.description} onChange={value=>update(row.key,"description",value)}
+              placeholder={kind==="part"?"Part description":"Labor description"}
+              inputClass="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950"
+              multiline autoGrow />
+          </div>
           <label className="mt-2 block text-xs font-semibold text-slate-700">Out-the-door price ($)
             <input type="number" inputMode="decimal" min="0" max="10000" step="0.01" placeholder="0.00" value={row.quotedPrice}
               onChange={e=>update(row.key,"quotedPrice",e.target.value)}
