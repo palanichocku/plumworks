@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getExternalHealth, getBackupHealth, type MonitorTone } from "@/lib/system-health/external";
 import { getRecentQueryPerformance } from "@/lib/system-health/query-performance";
 import { QueryPerformanceCard } from "./query-performance-card";
+import { SystemHealthRefresh } from "./system-health-refresh";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -462,7 +463,7 @@ export default async function SystemHealthPage() {
         <div className="flex flex-wrap items-center gap-2 self-start text-xs text-slate-600">
           <span className="rounded-full border border-slate-200 bg-white px-3 py-2 font-bold uppercase tracking-wide">{environment}</span>
           <span className="font-medium">Updated {formatTimestamp(updatedAt)}</span>
-          <a href="/admin/system-health" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">↻ Refresh</a>
+          <SystemHealthRefresh updatedAtIso={updatedAt.toISOString()} />
         </div>
       </div>
 
