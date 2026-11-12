@@ -4,7 +4,7 @@ import Link from "next/link";
 import { formatAuthorizationDateTime } from "@/lib/authorization/format-authorization-date-time";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, hasPendingRemoteRepairOrderAuthorizationAction, getRepairOrderRemoteDeliveryStatusAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
+import { getRepairOrderAuthorizationDefaultsAction, getRepairOrderAuthorizationReadinessAction, getRepairOrderAuthorizationStatusAction, hasPendingRemoteRepairOrderAuthorizationAction, getRepairOrderRemoteDeliveryStatusAction, recordVerbalAuthorizationAction, type VerbalAuthorizationActionState } from "@/app/(app)/repair-orders/authorization-actions";
 import { getRepairOrderEmailRecipientAction, sendRepairOrderEmailAction } from "@/app/(app)/repair-orders/email-actions";
 import type { RepairOrderEmailState } from "@/lib/email/repair-order-email-core";
 import { getRepairOrderSmsRecipientAction, sendRepairOrderSmsAuthorizationAction, type SmsAuthorizationState } from "@/app/(app)/repair-orders/sms-actions";
@@ -216,19 +216,37 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
   }, []);
 
   useEffect(() => {
-    if (!waitingForRemoteApproval) return;
+    // A public email/SMS decision is saved in a separate browser session.
+    // Check the authoritative decision, not the local pending-request flag:
+    // that flag can disappear as soon as the customer approves or declines.
+    if (authorized || declined) return;
+    let active = true;
+    let checking = false;
 
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") router.refresh();
+    const refreshOnDecision = async () => {
+      if (!active || checking || document.visibilityState !== "visible" || saveStateBlocked) return;
+      checking = true;
+      try {
+        const currentStatus = await getRepairOrderAuthorizationStatusAction(repairOrderId);
+        if (active && currentStatus && currentStatus !== summary.status) {
+          router.refresh();
+        }
+      } catch {
+        // Transient polling failures should not interrupt editing.
+      } finally {
+        checking = false;
+      }
     };
 
-    const interval = window.setInterval(refreshIfVisible, 10000);
-    document.addEventListener("visibilitychange", refreshIfVisible);
+    const interval = window.setInterval(() => void refreshOnDecision(), 10000);
+    const onVisibilityChange = () => { void refreshOnDecision(); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
+      active = false;
       window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [router, waitingForRemoteApproval]);
+  }, [router, repairOrderId, summary.status, authorized, declined, saveStateBlocked]);
 
   async function openEmailConfirmation() {
     if (recipientLoading || saveRequired) return;
