@@ -1,0 +1,42 @@
+name: Financial Safety
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/lib/**"
+      - "src/app/(app)/repair-orders/**"
+      - "src/app/(app)/invoices/**"
+      - "src/app/(app)/reports/**"
+      - "src/app/(app)/accounts-receivable/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/financial-safety.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  financial-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run financial safety suite
+        run: npm run test:financial
