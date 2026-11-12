@@ -18,6 +18,11 @@ function isPublicAuthorizationPath(pathname: string) {
   return pathname.startsWith("/authorize/repair-order/");
 }
 
+function isPublicSmsConsentPath(pathname: string) {
+  return pathname === "/sms-consent/completed" ||
+    /^\/sms-consent\/[A-Za-z0-9_-]{40,100}$/.test(pathname);
+}
+
 function isHealthPath(pathname: string) {
   return pathname === "/api/health";
 }
@@ -58,6 +63,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (hostname === PRODUCTION_APP_HOST) {
+    if (isPublicSmsConsentPath(pathname)) return NextResponse.next();
     if (isPublicAuthorizationPath(pathname)) {
       return redirectToHost(request, PUBLIC_WEBSITE_HOST);
     }
@@ -78,7 +84,7 @@ export async function proxy(request: NextRequest) {
   if (request.method === "GET" || request.method === "HEAD") {
     if (/(?:\.html|\.php|\/defaults\/files\/DrivabilityForm\.pdf)$/i.test(pathname)) return NextResponse.next();
   }
-  if (isPublicAuthorizationPath(pathname)) return NextResponse.next();
+  if (isPublicAuthorizationPath(pathname) || isPublicSmsConsentPath(pathname)) return NextResponse.next();
   if (isPublicMarketingPath(pathname)) {
     const response = NextResponse.next();
     const existing = request.cookies.get(marketingAttributionCookie)?.value;
@@ -116,6 +122,7 @@ export const config = {
     "/services/:path*",
     "/terms",
     "/authorize/repair-order/:path*",
+    "/sms-consent/:path*",
     "/invite",
     "/dashboard/:path*",
     "/leads/:path*",
