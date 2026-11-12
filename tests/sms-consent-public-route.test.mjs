@@ -24,3 +24,12 @@ test("invalid and unrelated shop routes remain protected", () => {
     assert.equal(isPublicSmsConsentPath(path), false, path);
   }
 });
+
+test("Twilio inbound and delivery webhooks bypass shop login but retain handler signatures", () => {
+  assert.match(proxy, /function isSignedTwilioWebhookPath\(pathname: string\)/);
+  assert.match(proxy, /pathname === "\/api\/sms\/inbound" \|\| pathname === "\/api\/sms\/status"/);
+  assert.match(proxy, /if \(isHealthPath\(pathname\) \|\| isSignedTwilioWebhookPath\(pathname\)\) return NextResponse\.next\(\);/);
+  for (const route of ["/api/sms/inbound", "/api/sms/status"]) {
+    assert.ok(proxy.includes(`"${route}"`), `Matcher missing for ${route}`);
+  }
+});
