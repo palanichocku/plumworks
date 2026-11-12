@@ -30,6 +30,12 @@ function isHealthPath(pathname: string) {
   return pathname === "/api/health";
 }
 
+// Twilio webhook handlers independently validate the signed request and account SID.
+// They must receive unauthenticated provider POSTs before shop-session routing.
+function isSignedTwilioWebhookPath(pathname: string) {
+  return pathname === "/api/sms/inbound" || pathname === "/api/sms/status";
+}
+
 function isFrameworkAsset(pathname: string) {
   return pathname.startsWith("/_next/") ||
     pathname.startsWith("/client-assets/") ||
@@ -59,7 +65,7 @@ export async function proxy(request: NextRequest) {
 
   // The production health endpoint has its own bearer-token authorization.
   // Do not let Supabase session routing redirect it to /login before the handler runs.
-  if (isHealthPath(pathname)) return NextResponse.next();
+  if (isHealthPath(pathname) || isSignedTwilioWebhookPath(pathname)) return NextResponse.next();
 
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
@@ -133,6 +139,8 @@ export const config = {
     "/terms",
     "/authorize/repair-order/:path*",
     "/sms-consent/:path*",
+    "/api/sms/inbound",
+    "/api/sms/status",
     "/invite",
     "/dashboard/:path*",
     "/leads/:path*",
