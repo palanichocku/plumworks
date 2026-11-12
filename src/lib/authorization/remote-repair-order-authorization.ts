@@ -30,6 +30,7 @@ type RequestRow = {
   total: string;
   recipientName: string | null;
   recipientEmail: string | null;
+  channel: "EMAIL" | "SMS";
   status: "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED" | "REVOKED" | "SUPERSEDED";
   sentAt: Date | null;
   expiresAt: Date;
@@ -58,6 +59,7 @@ async function requestByToken(token: string): Promise<RequestRow | null> {
       dr.total::text AS total,
       ar.recipient_name AS "recipientName",
       ar.recipient_email AS "recipientEmail",
+      ar.channel AS channel,
       ar.status::text AS status,
       ar.sent_at AS "sentAt",
       ar.expires_at AS "expiresAt",
@@ -117,6 +119,56 @@ export async function createRepairOrderEmailAuthorizationRequest(input: {
 
   if (!inserted) throw new Error("Authorization request could not be created.");
   return { requestId: inserted.id, token, expiresAt, revision: revision.revision, snapshotSha256: revision.snapshotSha256 };
+}
+
+/** Creates a new channel-specific request without requiring the customer to have email. */
+export async function createRepairOrderSmsAuthorizationRequest(input: {
+  shopId: string;
+  repairOrderId: string;
+  recipientPhone: string;
+}) {
+  const revision = await ensureCurrentRepairOrderRevision(input.shopId, input.repairOrderId);
+  if (!revision) throw new Error("Repair Order cannot be prepared for authorization.");
+
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + REQUEST_LIFETIME_MS);
+  const rows = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.repairOrderId}))`;
+    await tx.$executeRaw`
+      UPDATE authorization_requests ar
+      SET status = 'SUPERSEDED'::"AuthorizationRequestStatus", superseded_at = CURRENT_TIMESTAMP
+      FROM document_revisions dr
+      WHERE ar.document_revision_id = dr.id
+        AND ar.shop_id = ${input.shopId}::uuid
+        AND dr.shop_id = ${input.shopId}::uuid
+        AND dr.document_type = 'REPAIR_ORDER'::"DocumentEvidenceType"
+        AND dr.document_id = ${input.repairOrderId}::uuid
+        AND ar.status = 'PENDING'::"AuthorizationRequestStatus"
+    `;
+    return tx.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO authorization_requests (
+        shop_id, document_revision_id, recipient_phone, channel,
+        token_sha256, status, expires_at
+      ) VALUES (
+        ${input.shopId}::uuid, ${revision.id}::uuid, ${input.recipientPhone},
+        'SMS', ${hashToken(token)}, 'PENDING'::"AuthorizationRequestStatus", ${expiresAt}
+      ) RETURNING id
+    `;
+  });
+  if (!rows[0]) throw new Error("SMS authorization request could not be created.");
+  return { requestId: rows[0].id, token, expiresAt, revision: revision.revision };
+}
+
+export async function markRepairOrderSmsRequestAccepted(requestId: string, providerId: string) {
+  await prisma.$executeRaw`
+    UPDATE authorization_requests
+    SET sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
+        sms_provider_id = COALESCE(sms_provider_id, ${providerId}),
+        sms_delivery_status = COALESCE(sms_delivery_status, 'accepted')
+    WHERE id = ${requestId}::uuid AND channel = 'SMS'
+      AND (sms_provider_id IS NULL OR sms_provider_id = ${providerId})
+      AND status = 'PENDING'::"AuthorizationRequestStatus"
+  `;
 }
 
 export async function markRepairOrderAuthorizationRequestSent(requestId: string, emailSubject: string) {
@@ -184,6 +236,7 @@ export async function decidePublicRepairOrderAuthorization(input: {
         dr.total::text AS total,
         ar.recipient_name AS "recipientName",
         ar.recipient_email AS "recipientEmail",
+        ar.channel AS channel,
         ar.status::text AS status,
         ar.sent_at AS "sentAt",
         ar.expires_at AS "expiresAt",
@@ -229,7 +282,7 @@ export async function decidePublicRepairOrderAuthorization(input: {
         ${row.shopId}::uuid,
         ${row.documentRevisionId}::uuid,
         ${row.requestId}::uuid,
-        'EMAIL_LINK'::"AuthorizationMethod",
+        ${row.channel === "SMS" ? "SMS_LINK" : "EMAIL_LINK"}::"AuthorizationMethod",
         ${input.decision}::"AuthorizationDecision",
         ${authorizerName},
         ${row.total}::decimal,

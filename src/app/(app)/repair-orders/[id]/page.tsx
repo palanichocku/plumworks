@@ -24,8 +24,11 @@ import { getRepairOrderAuthorizationHistory, getRepairOrderAuthorizationSummary 
 import { EditRecordDialog } from "@/components/edit-record-dialog";
 import { CustomerEditForm } from "@/components/customer-edit-form";
 import { VehicleEditForm } from "@/components/vehicle-edit-form";
+import { OutTheDoorPricing } from "@/components/out-the-door-pricing";
 import { updateCustomer } from "@/app/(app)/customers/edit-actions";
 import { updateVehicle } from "@/app/(app)/vehicles/edit-actions";
+import { CustomerSmsConsentPanel } from "@/components/customer-sms-consent-panel";
+import { getSmsConsentStatus } from "@/lib/messaging/sms-consent";
 
 type RepairOrder = NonNullable<Awaited<ReturnType<typeof getWebRepairOrderForCurrentShop>>>;
 type CustomerEditRecord = NonNullable<Awaited<ReturnType<typeof getCustomerForEdit>>>;
@@ -55,6 +58,8 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
   const canCorrectAssignment = Boolean(membership && hasPermission(membership.role, "edit_draft_repair_order") && editable && !invoice);
   const canOverrideAuthorization = Boolean(membership && (membership.role === "OWNER" || membership.role === "ADMIN"));
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ");
+  const smsUiEnabled = process.env.NEXT_PUBLIC_SMS_UI_ENABLED === "true" || process.env.NEXT_PUBLIC_SMS_DEV_UI_ENABLED === "true";
+  const smsConsentStatus = canEditCustomerVehicle && smsUiEnabled && membership ? await getSmsConsentStatus(membership.shopId, order.customer.id, order.customer.phone).catch(() => "MISSING" as const) : "MISSING" as const;
 
   return (
     <div className="space-y-6">
@@ -72,10 +77,12 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         {order.status === "void" ? <section className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"><h2 className="font-bold">This repair order was voided and is retained for audit history.</h2><dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]"><dt className="font-semibold">Void reason</dt><dd>{repairOrderVoidReasonLabel(order.voidReason)}</dd>{order.voidNote ? <><dt className="font-semibold">Explanation</dt><dd className="whitespace-pre-wrap">{order.voidNote}</dd></> : null}<dt className="font-semibold">Voided</dt><dd>{formatDate(order.voidedAt)}</dd></dl></section> : !editable ? <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">Invoice created — this repair order is read-only</p> : null}
       </header>
 
+      {canEditCustomerVehicle && smsUiEnabled ? <CustomerSmsConsentPanel customerId={order.customer.id} initialStatus={smsConsentStatus} initialPhone={order.customer.phone} /> : null}
       {authorizationSummary ? <RepairOrderAuthorizationPanel
         repairOrderId={order.id}
         estimatedTotal={Number(order.estimatedTotal).toFixed(2)}
         editable={editable && !invoice}
+        smsConsentStatus={smsConsentStatus}
         summary={{
           status: authorizationSummary.status,
           approvedRevision: authorizationSummary.approvedRevision,
@@ -93,7 +100,7 @@ export default async function RepairOrderPage({ params }: { params: Promise<{ id
         authorizationStatus={authorizationSummary?.status ?? "NOT_AUTHORIZED"}
         canOverrideAuthorization={canOverrideAuthorization}
         overview={<OrderOverview order={order} vehicle={vehicle} customerForEdit={customerForEdit} vehicleForEdit={vehicleForEdit} canEditCustomerVehicle={canEditCustomerVehicle} canCorrectAssignment={canCorrectAssignment} lastMileage={lastMileage} />}
-        parts={<LineItemsSection order={order} editable />}
+        parts={<div className="space-y-4"><OutTheDoorPricing repairOrderId={order.id} /><LineItemsSection order={order} editable /></div>}
         labor={null}
         totals={<TotalsSection order={order} />}
         notes={<RepairOrderInternalNotesPanel customer={internalNotes.customer} vehicle={internalNotes.vehicle} canEdit={canEditNotes} />}

@@ -20,7 +20,7 @@ export type AuthorizationEvidenceRecord = {
   revision: number;
   snapshotSha256: string;
   snapshot: Snapshot;
-  method: "PHONE" | "EMAIL_LINK" | "IN_PERSON_SIGNATURE";
+  method: "PHONE" | "EMAIL_LINK" | "SMS_LINK" | "IN_PERSON_SIGNATURE";
   decision: "APPROVED" | "DECLINED" | "DELIVERY_ACKNOWLEDGED";
   authorizerName: string;
   authorizerRelationship: string | null;
@@ -36,6 +36,9 @@ export type AuthorizationEvidenceRecord = {
   requestId: string | null;
   recipientName: string | null;
   recipientEmail: string | null;
+  recipientPhone: string | null;
+  smsProviderId: string | null;
+  smsDeliveryStatus: string | null;
   emailSubject: string | null;
   requestStatus: string | null;
   sentAt: Date | null;
@@ -76,6 +79,9 @@ export async function getRepairOrderAuthorizationEvidence(repairOrderId: string)
       ar.id AS "requestId",
       ar.recipient_name AS "recipientName",
       ar.recipient_email AS "recipientEmail",
+      ar.recipient_phone AS "recipientPhone",
+      ar.sms_provider_id AS "smsProviderId",
+      ar.sms_delivery_status AS "smsDeliveryStatus",
       ar.email_subject AS "emailSubject",
       ar.status::text AS "requestStatus",
       ar.sent_at AS "sentAt",
