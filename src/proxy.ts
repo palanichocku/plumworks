@@ -27,6 +27,12 @@ function isHealthPath(pathname: string) {
   return pathname === "/api/health";
 }
 
+// Twilio signs requests to these endpoints; handlers authenticate provider calls.
+function isSignedTwilioWebhookPath(pathname: string) {
+  return pathname === "/api/sms/inbound" || pathname === "/api/sms/status" ||
+    pathname === "/api/twilio/debugger";
+}
+
 function isFrameworkAsset(pathname: string) {
   return pathname.startsWith("/_next/") ||
     pathname.startsWith("/client-assets/") ||
@@ -51,7 +57,7 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (isFrameworkAsset(pathname)) return NextResponse.next();
-  if (isHealthPath(pathname)) return NextResponse.next();
+  if (isHealthPath(pathname) || isSignedTwilioWebhookPath(pathname)) return NextResponse.next();
 
   if (request.method === "GET" || request.method === "HEAD") {
     const legacyRedirect = resolveCardocLegacyRedirect(request.nextUrl, request.headers.get("host"));
@@ -123,6 +129,9 @@ export const config = {
     "/terms",
     "/authorize/repair-order/:path*",
     "/sms-consent/:path*",
+    "/api/sms/inbound",
+    "/api/sms/status",
+    "/api/twilio/debugger",
     "/invite",
     "/dashboard/:path*",
     "/leads/:path*",
