@@ -338,7 +338,7 @@ export function RepairOrderAuthorizationPanel({ repairOrderId, estimatedTotal, s
             <button type="button" onClick={() => void openVerbalAuthorization()} className="block min-h-10 w-full rounded px-3 text-left text-sm font-semibold hover:bg-slate-100">Verbal approval</button>
           </div>
         </details> : null}
-        {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>{authorized ? "View approval record" : "View history"}</Link> : null}
+        {history.length > 0 ? <Link href={`/repair-orders/${repairOrderId}/authorization-evidence`} className={`px-1.5 py-2 text-sm font-semibold underline underline-offset-2 hover:text-brand-primary ${accent}`}>View Authorization</Link> : null}
       </div>
     </div>
 
