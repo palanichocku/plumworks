@@ -33,7 +33,8 @@ function isHealthPath(pathname: string) {
 // Twilio webhook handlers independently validate the signed request and account SID.
 // They must receive unauthenticated provider POSTs before shop-session routing.
 function isSignedTwilioWebhookPath(pathname: string) {
-  return pathname === "/api/sms/inbound" || pathname === "/api/sms/status";
+  return pathname === "/api/sms/inbound" || pathname === "/api/sms/status" ||
+    pathname === "/api/twilio/debugger";
 }
 
 function isFrameworkAsset(pathname: string) {
@@ -141,6 +142,7 @@ export const config = {
     "/sms-consent/:path*",
     "/api/sms/inbound",
     "/api/sms/status",
+    "/api/twilio/debugger",
     "/invite",
     "/dashboard/:path*",
     "/leads/:path*",
