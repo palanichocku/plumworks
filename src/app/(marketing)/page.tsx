@@ -5,6 +5,7 @@ import { AttributionLink } from "@/components/marketing/attribution-link";
 import { OwnerPortrait } from "@/components/marketing/owner-portrait";
 import { ReviewPlatformIcon } from "@/components/marketing/review-platform-icon";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
+import { WarrantyTrustSection } from "@/components/marketing/warranty-trust-section";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
 import { getReviewLinks } from "@/lib/marketing-review-links";
 import { getMarketingAboutOwner, getMarketingCoupons, getMarketingMedia, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
@@ -56,6 +57,8 @@ export default async function MarketingHome() {
         <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
       </div>
     </section>
+
+    <WarrantyTrustSection />
 
     {reviewLinks.google || reviewLinks.facebook ? <section aria-label="Customer reviews" className="border-b border-slate-200 bg-orange-50"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"><div><p className="font-black text-slate-950">See what customers say about {seoShop.name}</p><p className="text-sm text-slate-600">Read customer feedback on Google and Facebook.</p></div><div className="flex flex-wrap gap-3"><AttributionLink href="/reviews" className={`rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Customer Reviews</AttributionLink>{reviewLinks.google ? <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="google" />Google Reviews ↗</a> : null}{reviewLinks.facebook ? <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" aria-label={`View ${shop.name} on Facebook`} className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="facebook" />View recommendations ↗</a> : null}</div></div></section> : null}
 
