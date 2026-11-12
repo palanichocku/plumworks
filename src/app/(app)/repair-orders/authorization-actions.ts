@@ -4,12 +4,22 @@ import { revalidatePath } from "next/cache";
 import { getCurrentMembership } from "@/lib/data/membership";
 import { getWebRepairOrderForCurrentShop } from "@/lib/data/repair-orders";
 import { isRepairOrderReadyForAuthorization } from "@/lib/authorization/repair-order-readiness";
-import { recordVerbalRepairOrderAuthorization } from "@/lib/authorization/repair-order-evidence";
+import { getRepairOrderAuthorizationSummary, recordVerbalRepairOrderAuthorization } from "@/lib/authorization/repair-order-evidence";
 
 export type VerbalAuthorizationActionState =
   | { status: "idle" }
   | { status: "success"; message: string }
   | { status: "error"; message: string };
+
+/** Read-only check for external email/SMS approval while the RO workspace is open. */
+export async function getRepairOrderAuthorizationStatusAction(repairOrderId: string): Promise<
+  "NOT_AUTHORIZED" | "AUTHORIZED" | "DECLINED" | "DECLINED_PREVIOUS_REVISION" | null
+> {
+  const { membership } = await getCurrentMembership();
+  if (!membership || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(repairOrderId)) return null;
+  const summary = await getRepairOrderAuthorizationSummary(repairOrderId);
+  return summary?.status ?? null;
+}
 
 export async function getRepairOrderAuthorizationReadinessAction(repairOrderId: string): Promise<boolean> {
   const { membership } = await getCurrentMembership();
