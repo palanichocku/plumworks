@@ -98,10 +98,15 @@ export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot
           </select>
         </label>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {METRICS.filter((metric) => !["ctr", "averagePosition"].includes(metric.key)).map((metric) => <MetricCard
-            key={metric.source + metric.key} metric={metric}
-            current={annualMetric(index, metric, activeYear)}
-            previous={null} priorYear={annualMetric(index, metric, activeYear - 1)} />)}
+          {METRICS.filter((metric) => !["ctr", "averagePosition"].includes(metric.key)).map((metric) => {
+            const current = annualMetric(index, metric, activeYear);
+            const priorYear = annualMetric(index, metric, activeYear - 1);
+            return <article key={metric.source + metric.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p>
+              <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{displayMetric(current, metric)}</p>
+              <div className="mt-3"><Delta current={current} reference={priorYear} metric={metric} label="previous full year" /></div>
+            </article>;
+          })}
         </div>
         <p className="text-xs text-slate-600">Annual comparisons require complete matching years. CTR and average position are not summed across months. Year-over-year comparisons appear once the preceding full year is available.</p>
       </> : <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">Annual reporting starts with calendar year 2027. Complete-year totals and comparisons will appear once sufficient months have been imported.</p>}
