@@ -32,7 +32,7 @@ test("warranty copy differentiates programs and avoids blanket promises", () => 
   assert.match(config, /24,000 miles/);
   assert.match(page, /Not every repair is eligible/);
   assert.match(page, /applicable written warranty terms govern/);
-  assert.doesNotMatch(config + page + trust, /NAPA|all repairs guaranteed|every repair is covered/i);
+  assert.doesNotMatch(config + page + trust, /NAPA|all repairs guaranteed|all repairs are covered/i);
 });
 
 test("marketing pages show warranty information only if opted in", () => {
