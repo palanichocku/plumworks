@@ -23,7 +23,7 @@ function MetricCard({ metric, current, previous, priorYear }: { metric: Metric; 
   return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div className="flex items-start justify-between gap-2"><div><p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p><p className="mt-1 text-xs text-slate-500">{metric.subtitle}</p></div><MetricInfo metric={metric} /></div>
     <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{displayMetric(current, metric)}</p>
-    {previous === null && priorYear === null ? <p className="mt-3 text-xs font-medium text-slate-500">Baseline / comparison unavailable</p> : <div className="mt-3 flex flex-col gap-1">
+    {previous === null && priorYear === null ? null : <div className="mt-3 flex flex-col gap-1">
       <Delta current={current} reference={previous} metric={metric} label="previous month" />
       <Delta current={current} reference={priorYear} metric={metric} label="same month last year" />
     </div>}
