@@ -32,7 +32,7 @@ test("only trusted HTTPS Google review destinations replace the Google profile f
 });
 
 
-test("Car Doc public review preview is dev-branch-only, opt-in, and tied to the synthetic shop", () => {
+test("Car Doc review preview is explicitly opt-in, production-blocked, and tied to synthetic dev shop", () => {
   const synthetic = { name: "Car Doc Development", addressLine1: "100 Test Drive", city: "Test City", state: "MI", phone: "555-0100" };
   const old = {
     VERCEL_ENV: process.env.VERCEL_ENV,
@@ -41,7 +41,7 @@ test("Car Doc public review preview is dev-branch-only, opt-in, and tied to the 
   };
   try {
     process.env.VERCEL_ENV = "preview";
-    process.env.VERCEL_GIT_COMMIT_REF = "dev";
+    delete process.env.VERCEL_GIT_COMMIT_REF;
     process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "true";
     const links = getReviewLinks(synthetic);
     assert.match(links.google, /query_place_id=ChIJ6c7M8uXcJIgRB8kgW2jUZ9A/);
@@ -52,8 +52,8 @@ test("Car Doc public review preview is dev-branch-only, opt-in, and tied to the 
     assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_REF = "other-branch";
-    assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
-    process.env.VERCEL_GIT_COMMIT_REF = "dev";
+    assert.match(getReviewLinks(synthetic).google, /query_place_id=/);
+    delete process.env.VERCEL_GIT_COMMIT_REF;
     process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "false";
     assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
     process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "true";
