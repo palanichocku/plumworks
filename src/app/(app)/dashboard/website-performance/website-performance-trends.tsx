@@ -7,10 +7,6 @@ import {
   monthBeforeYear, monthlyIndex, previousMonth,
 } from "@/lib/website-performance-trends";
 
-function MonthLabel({ month }: { month: string }) {
-  const [year, number] = month.split("-").map(Number);
-  return <>{new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, number - 1, 1)))}</>;
-}
 function Delta({ current, reference, metric, label }: { current: number | null; reference: number | null; metric: Metric; label: string }) {
   const change = changePercent(current, reference);
   if (change === null) return null;
