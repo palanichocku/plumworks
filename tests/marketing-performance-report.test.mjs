@@ -30,7 +30,14 @@ test("Batch 4 reporting preserves exact range and avoids fake complete-month bar
   const action = await read("src/app/(app)/dashboard/website-performance/actions.ts");
   assert.match(page, /!row\.partial/);
   assert.match(page, /2026-10-01/);
-  assert.match(page, /September 23/);
+  assert.match(page, /reportingStart = "2026-10-01"/);
+  assert.match(page, /date\\(row\\.periodStart\\) >= reportingStart/);
+  assert.match(page, /const reportingSnapshots = snapshots\\.filter/);
+  assert.match(page, /reportingSnapshots\\.map/);
+  assert.match(page, /Earlier imports are retained/);
+  assert.doesNotMatch(page, /CompleteMonthComparison|Website migration impact|June–August|September 23|post-cutover/i);
+  assert.match(page, /GoogleReportUpload/);
+  assert.match(page, /saveMarketingSnapshot/);
   assert.match(action, /requirePermission\("edit_shop_settings"\)/);
   assert.match(action, /upsert\(/);
   assert.match(action, /Date\.UTC/);
