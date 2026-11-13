@@ -15,8 +15,12 @@ async function validatedFile(form: FormData) {
   if (!(file instanceof File)) throw new Error("Select an original Google CSV or ZIP report.");
   if (file.size > 3_000_000 || file.size === 0) throw new Error("Report must be smaller than 3 MB.");
   const report = parseGooglePerformanceFile(file.name, Buffer.from(await file.arrayBuffer()));
-  if (report.source === "GBP" && report.businessName?.toLowerCase() !== "car doc") {
-    throw new Error("This Business Profile report is not identified as Car Doc.");
+  // Match the tenant's configured shop, allowing harmless corporate suffix differences.
+  // Never trust a Google store report from a different business in this tenant.
+  const expectedShop = await prisma.shop.findUnique({ where: { id: (await googleReportAccess()).shopId }, select: { name: true } });
+  const normalized = (value: string) => value.toLowerCase().replace(/\\b(llc|inc|ltd)\\b/g, "").replace(/[^a-z0-9]/g, "");
+  if (report.source === "GBP" && (!expectedShop || normalized(report.businessName ?? "") !== normalized(expectedShop.name))) {
+    throw new Error("This Business Profile report does not match your shop.");
   }
   return report;
 }
