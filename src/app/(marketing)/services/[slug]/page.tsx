@@ -5,9 +5,9 @@ import { notFound } from "next/navigation";
 import { AttributionLink } from "@/components/marketing/attribution-link";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { getMarketingServices } from "@/lib/marketing-content";
-import { phoneHref } from "@/lib/marketing";
+import { phoneHref, shopAddress } from "@/lib/marketing";
 import { marketingServices } from "@/lib/marketing-services";
-import { canonicalUrl, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd, serviceSeoTitle } from "@/lib/marketing-seo";
+import { canonicalUrl, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd, serviceSeoTitle, type PublicSeoShop } from "@/lib/marketing-seo";
 import type { ServiceContent } from "@/lib/marketing-service-content";
 
 const focusRing = "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30";
@@ -37,7 +37,7 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
   </>;
 }
 
-function StructuredServicePage({ service, content, shop }: { service: { slug: string; name: string }; content: ServiceContent; shop: { name: string; city: string | null; state: string | null; phone: string | null } }) {
+function StructuredServicePage({ service, content, shop }: { service: { slug: string; name: string }; content: ServiceContent; shop: PublicSeoShop }) {
   const locality = [shop.city, shop.state].filter(Boolean).join(", ");
   const heading = `${serviceSeoTitle(service.slug, service.name)}${locality ? ` in ${locality}` : ""}`;
   return <main className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
@@ -65,9 +65,23 @@ function StructuredServicePage({ service, content, shop }: { service: { slug: st
         <p className="mt-4 text-sm leading-7 text-slate-300">{serviceRequestCopy}</p>
         <AttributionLink href={`/appointment?service=${service.slug}`} className={`mt-7 block rounded-xl bg-orange-500 px-5 py-3.5 text-center font-black text-slate-950 hover:bg-orange-400 ${focusRing}`}>{content.cta.requestLabel}</AttributionLink>
         {shop.phone ? <TrackedCallLink href={phoneHref(shop.phone)} className={`mt-3 block rounded-xl border border-slate-700 px-5 py-3.5 text-center font-bold hover:border-slate-500 hover:bg-white/5 ${focusRing}`}>{content.cta.callLabel}</TrackedCallLink> : null}
+        <ServiceVisitDetails shop={shop} />
       </aside>
     </div>
   </main>;
+}
+
+/** Real shop location and hours, using the same record as the footer and site schema. */
+function ServiceVisitDetails({ shop }: { shop: PublicSeoShop }) {
+  const address = shopAddress(shop);
+  if (!address) return null;
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  return <section aria-label="Visit the shop" className="mt-7 border-t border-slate-700 pt-6">
+    <h3 className="text-sm font-black uppercase tracking-widest text-orange-400">Visit the shop</h3>
+    <p className="mt-2 text-sm leading-6 text-white">{address}</p>
+    <p className="mt-3 whitespace-pre-line text-xs leading-6 text-slate-300">{shop.hours}</p>
+    <a href={mapUrl} target="_blank" rel="noopener noreferrer" className={`mt-4 inline-flex rounded-lg border border-slate-500 px-4 py-2 text-sm font-bold text-white hover:border-orange-400 ${focusRing}`}>Get Directions ↗</a>
+  </section>;
 }
 
 function ListSection({ section }: { section: { heading: string; intro?: string; items: string[] } }) {
