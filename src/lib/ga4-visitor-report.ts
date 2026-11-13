@@ -157,8 +157,8 @@ export function recentHourlyWindow(now = new Date()) {
 
 async function hourlyReport(token: string, property: string, now: Date): Promise<Ga4Response> {
   const yesterday = new Date(now.getTime() - 48 * 3600000);
-  const start = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit", year: "numeric", month: "2-digit", day: "2-digit" }).format(yesterday);
-  const end = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const start = detroitHour(yesterday).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
+  const end = detroitHour(now).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
   const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:runReport`, {
     method: "POST", cache: "no-store", signal: AbortSignal.timeout(9000),
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
