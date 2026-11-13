@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   METRICS, type Metric, type MonthlySnapshot, annualMetric, availableMonths,
   changePercent, displayMetric, formatReportingMonth, metricExplanation, lastTwelveMonths, metricValue,
-  monthBeforeYear, monthlyIndex, previousMonth,
+  monthBeforeYear, monthlyIndex, nextMonth, previousMonth,
 } from "@/lib/website-performance-trends";
 
 function Delta({ current, reference, metric, label }: { current: number | null; reference: number | null; metric: Metric; label: string }) {
@@ -17,8 +17,17 @@ function Delta({ current, reference, metric, label }: { current: number | null; 
 }
 function MetricCard({ metric, current, previous, priorYear }: { metric: Metric; current: number | null; previous: number | null; priorYear: number | null }) {
   return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div className="flex items-start justify-between gap-2"><div><p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p><p className="mt-1 text-xs text-slate-500">{metric.subtitle}</p></div><MetricInfo metric={metric} /></div>
+    <div className="flex items-start justify-between gap-2"><div><p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p><p className="mt-1 text-sm text-slate-600">{metric.subtitle}</p></div><MetricInfo metric={metric} /></div>
     <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{displayMetric(current, metric)}</p>
+    {metric.key === "ctr" && current !== null ? <p className="mt-2 text-sm leading-snug text-slate-700">About {Math.round(current * 10)} clicks for every 1,000 times Car Doc appeared in search.</p> : null}
+    {metric.key === "averagePosition" && current !== null ? <p className="mt-2 text-sm leading-snug text-slate-700">About position {current.toFixed(0)} on average. Positions 1–10 are generally more prominent; lower is better.</p> : null}
+    <div aria-hidden="true" className="mt-4 flex h-8 items-end gap-1 border-b border-slate-200 pb-1">
+      <span className="h-2 w-3 rounded-t bg-slate-200" />
+      <span className="h-4 w-3 rounded-t bg-slate-200" />
+      <span className="h-3 w-3 rounded-t bg-slate-200" />
+      <span className="h-5 w-3 rounded-t bg-slate-200" />
+    </div>
+    <p className="mt-1 text-xs text-slate-600">Monthly trends shown in the charts below when two complete months are available.</p>
     {previous === null && priorYear === null ? null : <div className="mt-3 flex flex-col gap-1">
       <Delta current={current} reference={previous} metric={metric} label="previous month" />
       <Delta current={current} reference={priorYear} metric={metric} label="same month last year" />
@@ -27,7 +36,7 @@ function MetricCard({ metric, current, previous, priorYear }: { metric: Metric; 
 }
 function MetricInfo({ metric, chart = false }: { metric: Metric; chart?: boolean }) {
   return <details className="group relative shrink-0">
-    <summary aria-label={`What does ${metric.label} mean?`} title={`About ${metric.label}`} className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sm font-extrabold text-sky-800 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 [&::-webkit-details-marker]:hidden">i</summary>
+    <summary aria-label={`What does ${metric.label} mean?`} title={`About ${metric.label}`} className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-extrabold text-slate-600 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 [&::-webkit-details-marker]:hidden">i</summary>
     <div className="absolute right-0 top-9 z-20 w-[min(18rem,75vw)] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl">
       <p className="text-sm font-bold text-slate-900">{metric.label}</p>
       <p className="mt-2 text-sm font-normal leading-relaxed text-slate-700">{metricExplanation(metric)}</p>
@@ -78,6 +87,10 @@ export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot
   const years = [...new Set(months.map((m) => Number(m.slice(0, 4))))].filter((year) => year >= 2027 && METRICS.some((metric) => annualMetric(index, metric, year) !== null));
   const activeYear = chosenYear && years.includes(chosenYear) ? chosenYear : years[years.length - 1];
   const shownMonths = activeMonth ? lastTwelveMonths(activeMonth) : [];
+  const newestCompleteMonth = months[months.length - 1];
+  const nextReportingMonth = newestCompleteMonth ? nextMonth(newestCompleteMonth) : "2026-10";
+  const [nextYear, nextNumber] = nextReportingMonth.split("-").map(Number);
+  const nextMonthEnd = new Date(Date.UTC(nextYear, nextNumber, 0)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   const trendMetrics = METRICS.filter((metric) => ["clicks", "impressions", "calls", "directions", "views", "websiteClicks"].includes(metric.key));
   const comparableTrends = trendMetrics.filter((metric) => shownMonths.filter((month) => metricValue(index, metric, month) !== null).length >= 2);
   const activeRecords = activeMonth ? [index.get("GSC:" + activeMonth), index.get("GBP:" + activeMonth)].filter((row): row is MonthlySnapshot => Boolean(row)) : [];
@@ -92,7 +105,7 @@ export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h2 className="text-xl font-black text-slate-950">Performance summary &amp; trends</h2>
-        <p className="mt-1 text-sm text-slate-600">Track complete months beginning October 2026. The Yearly view unlocks after 12 complete monthly records in a calendar year.</p>
+        <p className="mt-1 text-sm text-slate-700">Reporting begins October 2026. Yearly totals become available after a full calendar year of measurements.</p>
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-slate-100 p-1" aria-label="Reporting view">
         <button type="button" onClick={() => setView("monthly")} aria-pressed={view === "monthly"} className={`rounded-md px-3 py-2 text-sm font-bold ${view === "monthly" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600"}`}>Monthly</button>
@@ -107,11 +120,12 @@ export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot
           </select>
         </label>
         <p className="text-xs text-slate-600">Data through {throughDate ? new Date(throughDate + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—"} · Last imported {latestImport ? new Date(latestImport).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—"} · Sources: Google Search Console and Google Business Profile</p>
-        <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-950">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
           {clicksChange === null && callsChange === null
             ? <><strong>{activeMonth === "2026-10" ? "October 2026 is the reporting baseline." : "No previous-month comparison is available for these headline metrics."}</strong> Monthly comparisons appear when both months have complete reported values. Year-over-year comparisons begin when the same month in the previous year is available.</>
             : <><strong>Monthly snapshot:</strong> {[clicksChange !== null ? trendMessage("Search clicks", clicksChange) : null, callsChange !== null ? trendMessage("Google call button taps", callsChange) : null].filter(Boolean).join("; ")} versus the previous month. Google interactions do not necessarily represent new customers.</>}
         </div>
+        <p className="flex flex-wrap items-center gap-2 text-sm text-slate-700"><span className="font-semibold">Next reporting update:</span> Import {formatReportingMonth(nextReportingMonth)} after {nextMonthEnd}, once Google's complete-month reports are available. Partial exports can be saved but do not count toward comparisons.</p>
         {(["GSC", "GBP"] as const).map((source) => <section key={source} className="space-y-3">
           <div><h3 className="text-lg font-black text-slate-950">{source === "GSC" ? "Website in Google Search" : "Google Business Listing"}</h3><p className="text-sm text-slate-600">{source === "GSC" ? "How Car Doc appears in organic Google results" : "How people interact with Car Doc's Google Business Profile"}</p></div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
