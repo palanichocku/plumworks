@@ -1,6 +1,8 @@
 import "server-only";
 
 import { readFile } from "node:fs/promises";
+import devCarDocMarketing from "@/data/cardoc-dev-public-marketing.json";
+import { cardocDevPublicMarketingParityEnabled } from "@/lib/cardoc-dev-public-marketing-parity";
 import { isAbsolute } from "node:path";
 import { encodeServiceContent } from "@/lib/marketing-service-content";
 import { isClientAssetUrl, type MarketingMedia } from "@/lib/marketing-media";
@@ -128,6 +130,9 @@ export function parseMarketingContentPreview(value: unknown) {
 }
 
 export async function getMarketingContentPreview(environment: PreviewEnvironment = process.env): Promise<MarketingContentPreview | null> {
+  // Only the branded public marketing preview uses approved Car Doc content.
+  // This does not connect to or copy any production database.
+  if (cardocDevPublicMarketingParityEnabled()) return parseMarketingContentPreview(devCarDocMarketing);
   if (!marketingContentPreviewEnabled(environment)) return null;
   const file = environment.MARKETING_CONTENT_PREVIEW_FILE!;
   if (!isAbsolute(file)) throw new Error("MARKETING_CONTENT_PREVIEW_FILE must be an absolute path.");
