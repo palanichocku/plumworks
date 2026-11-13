@@ -3,6 +3,7 @@ import { PageHeading } from "@/components/page-heading";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { saveMarketingSnapshot } from "./actions";
+import { GoogleReportUpload } from "./google-report-upload";
 
 export const dynamic = "force-dynamic";
 const cutover = "2026-10-01";
@@ -27,7 +28,7 @@ function Trend({ title, rows, metric, shade }: { title: string; rows: Snapshot[]
   const max = Math.max(1, ...monthly.map((row) => measure(row.metrics, metric) ?? 0));
   return <section className="rounded-2xl border border-slate-200 bg-white p-6">
     <h2 className="text-lg font-black text-slate-950">{title}</h2>
-    <p className="mt-1 text-xs text-slate-500">Complete calendar months only. Dotted boundary: October 1, 2026 reporting cutover.</p>
+    <p className="mt-1 text-xs text-slate-500">Complete calendar months only; post-cutover months have an orange outline.</p>
     {monthly.length === 0 ? <p className="mt-5 rounded-lg bg-slate-50 p-5 text-sm text-slate-600">Monthly trend not available yet. Import complete-month records to compare before and after the switch.</p> :
       <div className="mt-5 space-y-3">{monthly.map((row) => {
         const count = measure(row.metrics, metric) ?? 0;
@@ -43,14 +44,50 @@ function Trend({ title, rows, metric, shade }: { title: string; rows: Snapshot[]
     <p className="mt-3 text-xs text-slate-500">● Post-cutover. September is categorized as pre-cutover for reporting, although the technical transfer occurred September 23.</p>
   </section>;
 }
+function CompleteMonthComparison({ rows }: { rows: Snapshot[] }) {
+  // June-August: 3 complete old-site months. September: mixed transition.
+  // October: 1 complete post-cutover month, never implying causal attribution.
+  const pre = rows.filter((row) => !row.partial && ["2026-06-01", "2026-07-01", "2026-08-01"].includes(date(row.periodStart)));
+  const post = rows.find((row) => !row.partial && date(row.periodStart) === "2026-10-01");
+  const metrics = [{ key: "views", name: "Profile views" }, { key: "calls", name: "Google call interactions" },
+    { key: "directions", name: "Direction requests" }, { key: "websiteClicks", name: "Website clicks" }];
+  return <section className="space-y-4">
+    <div><h2 className="text-xl font-black text-slate-950">Website migration impact</h2>
+      <p className="mt-1 text-sm text-slate-600">Three complete old-site months (June–August average) compared with October 2026, the first full new-site month. September is excluded because it straddles the September 23 domain transfer.</p>
+    </div>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((m) => {
+        const values = pre.map((row) => measure(row.metrics,m.key)).filter((v):v is number=>v !== null);
+        const base = values.length === 3 ? values.reduce((a,b)=>a+b,0)/3 : null;
+        const current = post ? measure(post.metrics,m.key) : null;
+        const change = base !== null && base !== 0 && current !== null ? (current / base - 1) * 100 : null;
+        return <div key={m.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-black text-slate-900">{m.name}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div><p className="text-xs text-slate-500">Before / month</p><p className="text-xl font-black tabular-nums">{formatted(base)}</p></div>
+            <div><p className="text-xs text-slate-500">October</p><p className="text-xl font-black tabular-nums">{formatted(current)}</p></div>
+          </div>
+          <p className={`mt-3 text-sm font-bold ${change === null ? "text-slate-500" : change < 0 ? "text-red-700" : "text-emerald-700"}`}>
+            {change === null ? "Insufficient comparable data" : (change > 0 ? "+" : "") + change.toFixed(1) + "% observed change"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Based on {values.length} pre / {current === null ? 0 : 1} post complete month(s)</p>
+        </div>;
+      })}
+    </div>
+    <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+      Google call clicks and direction requests can decline even if the website works correctly; these are Google Business Profile interactions, not verified phone calls or shop visits. One full post-cutover month cannot establish whether the website migration caused a change.
+    </p>
+  </section>;
+}
+
 export default async function WebsitePerformancePage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
   const [{ membership }, query] = await Promise.all([requirePermission("view_reports"), searchParams]);
   const rows = await prisma.marketingPerformanceSnapshot.findMany({ where: { shopId: membership.shopId }, orderBy: [{ periodEnd: "desc" }, { recordedAt: "desc" }], take: 100 });
   const snapshots: Snapshot[] = rows.map((row) => ({ ...row, metrics: row.metrics }));
   const gbp = snapshots.filter((row) => row.source === "GBP");
   const gsc = snapshots.filter((row) => row.source === "GSC");
-  const latestGbp = gbp[0];
-  const latestGsc = gsc[0];
+  const latestGbp = gbp.find((row) => !row.partial);
+  const latestGsc = gsc.find((row) => !row.partial);
   const mayEdit = membership.role === "OWNER" || membership.role === "ADMIN";
   return <div className="space-y-7 pb-12">
     <div><Link href="/dashboard" className="text-sm font-bold text-orange-700">← Back to Dashboard</Link></div>
@@ -60,8 +97,9 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
       <p className="mt-1">Actual domain transfer: September 23, 2026. September is a transition month included in the pre-cutover reporting period. This report does not claim the website migration caused any changes in traffic or business.</p>
     </div>
     {query.saved === "1" ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 font-bold text-emerald-800">Snapshot saved in the development reporting database.</p> : null}
+    <CompleteMonthComparison rows={gbp} />
     <section className="space-y-3">
-      <h2 className="text-xl font-black">Latest captured measurements</h2>
+      <h2 className="text-xl font-black">Latest complete-month measurements</h2>
       {latestGbp ? <><p className="text-sm font-semibold text-slate-600">Google Business Profile · <Range row={latestGbp} /></p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat name="Profile views" value={formatted(measure(latestGbp.metrics, "views"))} color="border-blue-200 bg-blue-50 text-blue-950" />
@@ -87,7 +125,8 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
       <div className="border-b bg-slate-50 p-5"><h2 className="text-xl font-black">Measurement history</h2><p className="mt-1 text-sm text-slate-600">Exact periods and sources. Multi-month snapshots are not added to monthly graphs.</p></div>
       {snapshots.length ? <div className="overflow-x-auto"><table className="min-w-[700px] w-full text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="p-4">Source</th><th className="p-4">Period</th><th className="p-4">Measurements</th><th className="p-4">Notes</th></tr></thead><tbody className="divide-y">{snapshots.map((row) => <tr key={row.id}><td className="p-4 font-bold">{sourceNames[row.source] || row.source}</td><td className="p-4"><Range row={row}/></td><td className="p-4">{Object.entries(row.metrics as Record<string, unknown>).map(([name, value]) => `${name}: ${value}`).join(" · ")}</td><td className="p-4 text-slate-600">{row.notes ?? "—"}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-slate-500">No snapshots recorded.</p>}
     </section>
-    {mayEdit ? <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Enter a Google measurement snapshot</h2>
+    {mayEdit ? <GoogleReportUpload /> : null}
+    {mayEdit ? <details className="rounded-2xl border border-slate-200 bg-white p-6"><summary className="cursor-pointer text-lg font-black">Manual entry (fallback)</summary><h2 className="mt-4 text-xl font-black">Enter a Google measurement snapshot</h2>
       <p className="mt-2 text-sm text-slate-600">For OWNER/ADMIN only. Use Google-exported totals, one exact date range per record. Leave unknown fields empty rather than typing zero. Saving the same source and period replaces its prior snapshot.</p>
       <form action={saveMarketingSnapshot} className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-bold">Source<select name="source" required className="mt-2 w-full rounded-lg border p-3"><option value="GBP">Google Business Profile</option><option value="GSC">Google Search Console</option></select></label>
@@ -99,7 +138,7 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
         <p className="sm:col-span-2 border-b pb-2 text-sm font-black text-slate-700">Search Console metrics (ignored when source is Business Profile)</p>
         {([["clicks", "Organic clicks"],["impressions", "Impressions"],["ctr", "Average CTR (%)"],["averagePosition", "Average position"]] as const).map(([key, label]) => <label key={key} className="text-sm font-semibold">{label}<input name={key} min={0} type="number" step={key === "ctr" || key === "averagePosition" ? "0.1" : "1"} className="mt-1 block w-full rounded-lg border p-3"/></label>)}
         <button type="submit" className="sm:col-span-2 rounded-xl bg-orange-600 px-6 py-3 font-black text-white hover:bg-orange-700">Save snapshot</button>
-      </form></section> : null}
+      </form></details> : null}
     <p className="text-xs text-slate-500">Metrics are sourced from Google screenshots or exports and are not independently verified call completions, store visits, or customer leads. Before-and-after changes do not establish causation.</p>
   </div>;
 }
