@@ -38,6 +38,16 @@ test("Batch 4 reporting preserves exact range and avoids fake complete-month bar
   assert.doesNotMatch(page, /CompleteMonthComparison|Website migration impact|June–August|September 23|post-cutover/i);
   assert.match(page, /GoogleReportUpload/);
   assert.match(page, /saveMarketingSnapshot/);
+  // Imports remain auditable without exposing raw Google records to regular report viewers.
+  assert.match(page, /\\{mayEdit \\? <details className="overflow-hidden/);
+  assert.match(page, /Data Imports &amp; History/);
+  assert.match(page, /<summary className="cursor-pointer bg-slate-50/);
+  assert.match(page, /reportingSnapshots\\.map/);
+  assert.match(page, /row\\.partial \\? "Partial \\/ multi-month" : "Complete month"/);
+  assert.match(page, /Original import notes/);
+  assert.match(page, /<summary className="cursor-pointer font-semibold text-orange-700">View record<\\/summary>/);
+  assert.doesNotMatch(page, /Reporting records<\\/h2>/);
+
   assert.match(action, /requirePermission\("edit_shop_settings"\)/);
   assert.match(action, /upsert\(/);
   assert.match(action, /Date\.UTC/);
