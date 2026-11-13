@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   METRICS, completeMonth, monthlyIndex, metricValue, changePercent,
   annualMetric, availableMonths, lastTwelveMonths, previousMonth,
+  formatReportingMonth, metricExplanation,
 } from "../src/lib/website-performance-trends.ts";
 
 const clicks = METRICS.find((metric) => metric.source === "GSC" && metric.key === "clicks");
@@ -47,4 +48,12 @@ test("annual totals require twelve complete monthly values and exclude 2026", ()
 test("duplicate exact-month imports select most recently recorded snapshot", () => {
   const index = monthlyIndex([record("2026-10", { clicks: 15 }), record("2026-10", { clicks: 18 }, { id: "replacement", recordedAt: "2026-11-05T00:00:00Z" })]);
   assert.equal(metricValue(index, clicks, "2026-10"), 18);
+});
+
+test("owner-readable dates and metric definitions stay specific to the underlying Google measurement", () => {
+  assert.equal(formatReportingMonth("2026-10"), "October 2026");
+  assert.equal(formatReportingMonth("2026-10", true), "Oct 2026");
+  assert.match(metricExplanation(clicks), /Google Search/);
+  assert.match(metricExplanation(METRICS.find((metric) => metric.key === "calls")), /not verified phone conversations/i);
+  assert.match(metricExplanation(METRICS.find((metric) => metric.key === "directions")), /does not prove they visited/i);
 });

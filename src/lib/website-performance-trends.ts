@@ -79,6 +79,26 @@ export function annualMetric(index: Map<string, MonthlySnapshot>, metric: Metric
   if (metric.key === "ctr" || metric.key === "averagePosition") return null;
   return (values as number[]).reduce((sum, value) => sum + value, 0);
 }
+// Plain-language explanations for the owner, also used in clickable chart help.
+export function metricExplanation(metric: Metric): string {
+  const descriptions: Record<string, string> = {
+    "GSC:clicks": "How many times people clicked a Car Doc result in Google Search to visit the website. One person may click more than once.",
+    "GSC:impressions": "How often Car Doc pages appeared in Google Search results. An appearance is not a website visit.",
+    "GSC:ctr": "The percentage of Google Search appearances that resulted in a click. Higher usually means more searchers chose our listing.",
+    "GSC:averagePosition": "The average Google Search result position across the searches where Car Doc appeared. Smaller numbers generally mean a higher position, but it is not a ranking for one specific keyword.",
+    "GBP:views": "The number of times people viewed the Car Doc Google Business Profile in Google Search or Maps. These are views of the listing, not confirmed website visits.",
+    "GBP:calls": "How many times someone tapped the call button on Car Doc's Google Business Profile. These are not verified phone conversations or answered calls.",
+    "GBP:directions": "How many times people requested directions to Car Doc using its Google Business Profile. It does not prove they visited the shop.",
+    "GBP:websiteClicks": "How many times someone clicked the website link on Car Doc's Google Business Profile. It does not count every visit to the website.",
+  };
+  return descriptions[metric.source + ":" + metric.key] ??
+    "This is a measurement imported from Google for the selected reporting month.";
+}
+export function formatReportingMonth(month: string, short = false): string {
+  const [year, number] = month.split("-").map(Number);
+  const value = new Date(Date.UTC(year, number - 1, 1));
+  return new Intl.DateTimeFormat("en-US", { month: short ? "short" : "long", year: "numeric", timeZone: "UTC" }).format(value);
+}
 export function displayMetric(value: number | null, metric: Metric): string {
   return value === null ? "—" : value.toLocaleString("en-US", { maximumFractionDigits: metric.decimals ?? 0 }) + (metric.unit ?? "");
 }
