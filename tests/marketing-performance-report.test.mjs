@@ -7,13 +7,13 @@ test("Batch 4 metrics exclude call-click pseudo-leads from dashboard totals", as
   const dashboard = await read("src/lib/data/dashboard.ts");
   assert.match(dashboard, /operationalMarketingLeadWhere\(shopId\).*createdAt:/);
   assert.match(dashboard, /operationalMarketingLeadWhere\(shopId, "CONVERTED"\)/);
-  assert.match(dashboard, /convertedAt: \\{ gte: currentMonth\\.start, lt: currentMonth\\.endExclusive \\}/);
-  assert.doesNotMatch(dashboard, /operationalMarketingLeadWhere\\(shopId, "CONVERTED"\\), createdAt:/);
-  assert.match(dashboard, /marketingLeads: \\{ some: operationalMarketingLeadWhere\\(shopId\\) \\}/);
-  assert.match(dashboard, /invoice: \\{ shopId, status: \\{ not: "void" \\}/);
+  assert.match(dashboard, /convertedAt: \{ gte: currentMonth\.start, lt: currentMonth\.endExclusive \}/);
+  assert.doesNotMatch(dashboard, /operationalMarketingLeadWhere\(shopId, "CONVERTED"\), createdAt:/);
+  assert.match(dashboard, /marketingLeads: \{ some: operationalMarketingLeadWhere\(shopId\) \}/);
+  assert.match(dashboard, /invoice: \{ shopId, status: \{ not: "void" \}/);
   const page = await read("src/app/(app)/dashboard/page.tsx");
   assert.match(page, /Converted during this month/);
-  assert.doesNotMatch(page, /website\\.conversionRate/);
+  assert.doesNotMatch(page, /website\.conversionRate/);
   assert.match(page, /not to a specific repair order/);
 });
 test("Batch 4 stores isolated marketing data with RLS rather than mutating operational tables", async () => {
