@@ -6,7 +6,8 @@ type Ga4Row = { dimensionValues?: { value?: string }[]; metricValues?: { value?:
 type Ga4Response = { rows?: Ga4Row[]; rowCount?: number };
 export type Ga4Breakdown = { name: string; value: number };
 export type Ga4VisitorReport = {
-  state: "not_configured" | "available" | "unavailable";
+  state: "not_configured" | "available" | "no_data" | "connection_error";
+  partial: boolean;
   month: string;
   visitors: number | null;
   sessions: number | null;
@@ -16,10 +17,22 @@ export type Ga4VisitorReport = {
   pages: Ga4Breakdown[];
 };
 
-export function lastCompleteGa4Month(now = new Date()): { month: string; start: string; end: string } {
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
-  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
-  return { month: start.toISOString().slice(0, 7), start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+// Track activity in the initial partial reporting month (GA4 went live Nov 2026).
+// From December onward, switch to the latest complete calendar month automatically.
+// All date boundaries are based on Car Doc's reporting timezone, not the server's UTC month.
+export function ga4ReportingRange(now = new Date()): { month: string; start: string; end: string; partial: boolean } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Detroit", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  const today = `${byType.year}-${byType.month}-${byType.day}`;
+  const currentMonth = today.slice(0, 7);
+  if (currentMonth === "2026-11") {
+    return { month: currentMonth, start: "2026-11-01", end: today, partial: true };
+  }
+  const firstOfCurrentMonth = new Date(`${currentMonth}-01T00:00:00Z`);
+  const previousDay = new Date(firstOfCurrentMonth.getTime() - 86400000).toISOString().slice(0, 10);
+  return { month: previousDay.slice(0, 7), start: previousDay.slice(0, 7) + "-01", end: previousDay, partial: false };
 }
 function parseCount(value: string | undefined): number | null {
   if (value === undefined || value.trim() === "") return null;
@@ -78,9 +91,9 @@ function breakdown(report: Ga4Response): Ga4Breakdown[] {
   });
 }
 export async function getGa4VisitorReport(now = new Date()): Promise<Ga4VisitorReport> {
-  const range = lastCompleteGa4Month(now);
+  const range = ga4ReportingRange(now);
   const result: Ga4VisitorReport = {
-    state: "not_configured", month: range.month, visitors: null, sessions: null,
+    state: "not_configured", month: range.month, partial: range.partial, visitors: null, sessions: null,
     engagedSessions: null, pageViews: null, channels: [], pages: [],
   };
   const property = process.env.GA4_PROPERTY_ID?.trim();
@@ -95,15 +108,17 @@ export async function getGa4VisitorReport(now = new Date()): Promise<Ga4VisitorR
     ]);
     const row = totals.rows?.[0];
     return {
-      state: row ? "available" : "unavailable", month: range.month,
+      state: row ? "available" : "no_data", month: range.month, partial: range.partial,
       visitors: parseCount(row?.metricValues?.[0]?.value),
       sessions: parseCount(row?.metricValues?.[1]?.value),
       engagedSessions: parseCount(row?.metricValues?.[2]?.value),
       pageViews: parseCount(row?.metricValues?.[3]?.value),
       channels: breakdown(channels), pages: breakdown(pages),
     };
-  } catch {
-    // Do not show private service account details or misleading zero traffic.
-    return { ...result, state: "unavailable" };
+  } catch (error) {
+    // Only a non-sensitive error category is logged; never expose credentials, tokens, or API bodies.
+    const category = error instanceof Error && /authentication/i.test(error.message) ? "authentication" : "reporting";
+    console.error(`[GA4] Read-only report failed (${category}).`);
+    return { ...result, state: "connection_error" };
   }
 }
