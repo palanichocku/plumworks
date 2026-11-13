@@ -109,7 +109,7 @@ export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot
         <p className="text-xs text-slate-600">Data through {throughDate ? new Date(throughDate + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—"} · Last imported {latestImport ? new Date(latestImport).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—"} · Sources: Google Search Console and Google Business Profile</p>
         <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-950">
           {clicksChange === null && callsChange === null
-            ? <><strong>{formatReportingMonth(activeMonth)} is the reporting baseline.</strong> Monthly comparisons will appear after another complete month is imported. Year-over-year comparisons begin when the same month in the previous year is available.</>
+            ? <><strong>{activeMonth === "2026-10" ? "October 2026 is the reporting baseline." : "No previous-month comparison is available for these headline metrics."}</strong> Monthly comparisons appear when both months have complete reported values. Year-over-year comparisons begin when the same month in the previous year is available.</>
             : <><strong>Monthly snapshot:</strong> {[clicksChange !== null ? trendMessage("Search clicks", clicksChange) : null, callsChange !== null ? trendMessage("Google call button taps", callsChange) : null].filter(Boolean).join("; ")} versus the previous month. Google interactions do not necessarily represent new customers.</>}
         </div>
         {(["GSC", "GBP"] as const).map((source) => <section key={source} className="space-y-3">
