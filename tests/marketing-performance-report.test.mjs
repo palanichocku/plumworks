@@ -30,7 +30,7 @@ test("Batch 4 reporting preserves exact range and avoids fake complete-month bar
   const action = await read("src/app/(app)/dashboard/website-performance/actions.ts");
   const trends = await read("src/lib/website-performance-trends.ts");
   const ui = await read("src/app/(app)/dashboard/website-performance/website-performance-trends.tsx");
-  assert.match(trends, /!row\\.partial/);
+  assert.match(trends, /!row\.partial/);
   assert.match(ui, /WebsitePerformanceTrends/);
   assert.match(ui, /lastTwelveMonths/);
   assert.match(ui, /same month last year/);
