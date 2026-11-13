@@ -22,10 +22,6 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
   return <div className="space-y-7 pb-12">
     <div><Link href="/dashboard" className="text-sm font-bold text-orange-700">← Back to Dashboard</Link></div>
     <PageHeading eyebrow="Marketing measurement" title="Website Performance Details" description="Track how customers discover Car Doc and interact with its Google listings, starting October 2026." />
-    <div className="rounded-2xl border-l-4 border-orange-500 bg-orange-50 p-5 text-sm text-orange-950">
-      <p className="font-black">Reporting baseline: October 1, 2026</p>
-      <p className="mt-1">October 2026 is the first reporting month. Monthly measurements will build a history over time; unavailable information is displayed as —, not zero. Earlier imports are retained for recordkeeping but are not used in these reports.</p>
-    </div>
     {query.saved === "1" ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 font-bold text-emerald-800">Snapshot saved in the development reporting database.</p> : null}
     <WebsitePerformanceTrends records={reportingSnapshots.map((row) => ({
       id: row.id, source: row.source, periodStart: date(row.periodStart), periodEnd: date(row.periodEnd),
@@ -79,6 +75,6 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
       </form></details>
       </div>
     </details> : null}
-    <p className="text-xs text-slate-500">Google metrics are sourced from imported reports. Call interactions and direction requests are not independently verified calls or shop visits. Customer conversion and attributed revenue are tracked separately in PlumWorks.</p>
+    <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700"><strong>About these numbers:</strong> Google interactions are not verified calls, shop visits, or new customers. Website leads, conversions, and revenue are tracked separately in PlumWorks; they are not included in these Google activity counts.</p>
   </div>;
 }

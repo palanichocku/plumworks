@@ -95,3 +95,22 @@ test("owner website dashboard groups metrics and avoids duplicate baseline chart
   assert.match(page, /<GoogleReportUpload \/>/);
   assert.match(page, /Manual entry \(fallback\)/);
 });
+
+test("final owner reporting polish keeps one baseline message and readable interpretations", async () => {
+  const page = await read("src/app/(app)/dashboard/website-performance/page.tsx");
+  const ui = await read("src/app/(app)/dashboard/website-performance/website-performance-trends.tsx");
+  assert.doesNotMatch(page, /Reporting baseline: October 1, 2026/);
+  assert.match(ui, /is the reporting baseline/);
+  assert.match(ui, /clicks for every 1,000/);
+  assert.match(ui, /Positions 1–10 are generally more prominent/);
+  assert.match(ui, /aria-hidden="true"/);
+  assert.match(ui, /Monthly trends shown in the charts below/);
+  assert.match(ui, /Next reporting update:/);
+  assert.match(ui, /nextMonthEnd/);
+  assert.match(ui, /once Google's complete-month reports are available/);
+  assert.match(page, /About these numbers:/);
+  assert.match(page, /text-sm leading-relaxed text-slate-700/);
+  assert.match(ui, /hover:border-sky-400/);
+  assert.match(ui, /comparableTrends\.length \?/);
+  assert.match(page, /Data Imports &amp; History/);
+});
