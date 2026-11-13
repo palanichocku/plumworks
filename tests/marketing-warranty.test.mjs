@@ -41,3 +41,16 @@ test("marketing pages show warranty information only if opted in", () => {
   assert.match(page, /href="\/appointment"/);
   assert.match(page, /href="\/contact"/);
 });
+
+test("custom Car Doc warranty badges carry third-party attribution in both contexts", async () => {
+  const badge = await read("src/components/marketing/car-doc-warranty-badge.tsx");
+  assert.match(badge, /Original Car Doc informational artwork, not an official warranty-provider logo/);
+  assert.match(badge, /program\.title/);
+  assert.match(badge, /QUALIFYING REPAIRS/);
+  assert.match(badge, /TERMS APPLY/);
+  assert.match(trust, /CarDocWarrantyBadge program=\{program\}/);
+  assert.match(trust, /not official program logos/);
+  assert.match(trust, /third-party program-backed warranties/);
+  assert.match(page, /CarDocWarrantyBadge program=\{program\}/);
+  assert.match(page, /not an official provider logo/);
+});
