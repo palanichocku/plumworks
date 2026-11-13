@@ -3,6 +3,64 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { parseGooglePerformanceFile, type ParsedGoogleReport } from "@/lib/google-performance-import";
+
+async function googleReportAccess() {
+  const { membership } = await requirePermission("edit_shop_settings");
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") throw new Error("Owner or Admin permission required.");
+  return membership;
+}
+async function validatedFile(form: FormData) {
+  const file = form.get("report");
+  if (!(file instanceof File)) throw new Error("Select an original Google CSV or ZIP report.");
+  if (file.size > 3_000_000 || file.size === 0) throw new Error("Report must be smaller than 3 MB.");
+  const report = parseGooglePerformanceFile(file.name, Buffer.from(await file.arrayBuffer()));
+  if (report.source === "GBP" && report.businessName?.toLowerCase() !== "car doc") {
+    throw new Error("This Business Profile report is not identified as Car Doc.");
+  }
+  return report;
+}
+export type GoogleImportPreview = {
+  report: ParsedGoogleReport;
+  duplicates: string[];
+  overlaps: string[];
+};
+export async function previewGooglePerformanceImport(form: FormData): Promise<GoogleImportPreview> {
+  const membership = await googleReportAccess();
+  const report = await validatedFile(form);
+  const existing = await prisma.marketingPerformanceSnapshot.findMany({
+    where: { shopId: membership.shopId, source: report.source },
+    select: { periodStart: true, periodEnd: true },
+  });
+  const periods = report.snapshots.map((row) => row.periodStart + " to " + row.periodEnd);
+  const duplicates: string[] = [], overlaps: string[] = [];
+  for (let i = 0; i < report.snapshots.length; i++) {
+    const row = report.snapshots[i], label = periods[i];
+    const duplicatesPeriod = existing.some((x) => x.periodStart.toISOString().slice(0,10) === row.periodStart && x.periodEnd.toISOString().slice(0,10) === row.periodEnd);
+    if (duplicatesPeriod) duplicates.push(label);
+    else if (existing.some((x) => x.periodStart.toISOString().slice(0,10) <= row.periodEnd && x.periodEnd.toISOString().slice(0,10) >= row.periodStart)) overlaps.push(label);
+  }
+  return { report, duplicates, overlaps };
+}
+export async function confirmGooglePerformanceImport(form: FormData): Promise<{ imported: number; replaced: number }> {
+  const membership = await googleReportAccess();
+  const { report, duplicates, overlaps } = await previewGooglePerformanceImport(form);
+  if (overlaps.length && form.get("ackOverlaps") !== "yes") throw new Error("Acknowledge the overlapping historical reporting periods.");
+  if (duplicates.length && form.get("replace") !== "yes") throw new Error("Some exact reporting periods already exist. Confirm replacement before importing.");
+  // Revalidate each row at persistence, allowing bounded, verified source data only.
+  await prisma.$transaction(report.snapshots.map((row) => prisma.marketingPerformanceSnapshot.upsert({
+    where: { shopId_source_periodStart_periodEnd: {
+      shopId: membership.shopId, source: row.source,
+      periodStart: new Date(row.periodStart + "T00:00:00.000Z"), periodEnd: new Date(row.periodEnd + "T00:00:00.000Z") } },
+    create: { shopId: membership.shopId, source: row.source,
+      periodStart: new Date(row.periodStart + "T00:00:00.000Z"), periodEnd: new Date(row.periodEnd + "T00:00:00.000Z"),
+      metrics: row.metrics, partial: row.partial, notes: row.notes },
+    update: { metrics: row.metrics, partial: row.partial, notes: row.notes, recordedAt: new Date() },
+  })));
+  revalidatePath("/dashboard/website-performance");
+  return { imported: report.snapshots.length, replaced: duplicates.length };
+}
+
 import { requirePermission } from "@/lib/permissions";
 
 const allowed: Record<string, readonly string[]> = {
