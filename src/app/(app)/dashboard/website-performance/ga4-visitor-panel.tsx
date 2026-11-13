@@ -25,15 +25,24 @@ export async function Ga4VisitorPanel() {
   return <section className="space-y-4" aria-label="Website visitor behavior from Google Analytics">
     <div>
       <h2 className="text-xl font-black text-slate-950">Visitor behavior</h2>
-      <p className="mt-1 text-sm text-slate-700">Google Analytics 4 (GA4) · {formatReportingMonth(report.month)} · Last complete calendar month</p>
+      <p className="mt-1 text-sm text-slate-700">Google Analytics 4 (GA4) · {formatReportingMonth(report.month)} · {report.partial ? "Month to date (partial)" : "Last complete calendar month"}</p>
     </div>
     {report.state !== "available" ?
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
-        <p className="font-bold text-slate-900">{report.state === "not_configured" ? "Google Analytics reporting is not connected yet." : "Google Analytics data is not available for this month."}</p>
-        <p className="mt-1">Visitor counts are displayed only when a GA4 property is connected and real data is returned. No visitor totals have been estimated.</p>
-        <p className="mt-2 text-slate-600">Owner setup: configure a GA4 web measurement ID for the public site, and grant a read-only reporting service account access to the correct GA4 property.</p>
+        <p className="font-bold text-slate-900">{report.state === "not_configured"
+          ? "Google Analytics reporting is not connected yet."
+          : report.state === "connection_error"
+            ? "Unable to retrieve Google Analytics data. Check the reporting connection."
+            : "No visitor activity recorded for this reporting period."}</p>
+        <p className="mt-1">{report.state === "connection_error"
+          ? "The reporting request did not succeed. Check that the read-only service account has Viewer access to the GA4 property; the application did not estimate any visitor totals."
+          : report.state === "not_configured"
+            ? "A GA4 property ID and read-only service-account credentials are required in this environment."
+            : "Google Analytics accepted the reporting request but returned no visitor totals for this period. No visitor totals have been estimated."}</p>
+        {report.partial ? <p className="mt-2 text-slate-600">This is a partial month; figures will continue to change until the month ends.</p> : null}
       </div>
       : <>
+        {report.partial ? <p className="text-sm text-slate-600">Partial month: activity recorded so far; not comparable with complete months.</p> : null}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <DataCard label="Active visitors" value={report.visitors} detail="People who actively used the website during the month; not necessarily new customers." />
           <DataCard label="Visits (sessions)" value={report.sessions} detail="Times visitors started browsing. One person may visit multiple times." />
