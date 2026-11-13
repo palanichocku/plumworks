@@ -4,6 +4,7 @@ import Image from "next/image";
 import { AttributionLink } from "@/components/marketing/attribution-link";
 import { OwnerPortrait } from "@/components/marketing/owner-portrait";
 import { ReviewPlatformIcon } from "@/components/marketing/review-platform-icon";
+import { GoogleRatingMark } from "@/components/marketing/google-rating-mark";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { WarrantyTrustSection } from "@/components/marketing/warranty-trust-section";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
@@ -23,6 +24,8 @@ export default async function MarketingHome() {
     getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingMedia(),
   ]);
   const reviewLinks = getReviewLinks(shop, settings.reviewUrl);
+  const configuredGoogleRating = Number(process.env.PLUMWORKS_PUBLIC_GOOGLE_RATING);
+  const googleRating = reviewLinks.google && Number.isFinite(configuredGoogleRating) && configuredGoogleRating >= 1 && configuredGoogleRating <= 5 ? configuredGoogleRating : null;
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
   const featuredServices = services.filter((service) => service.name.trim() && service.summary.trim()).slice(0, 6);
@@ -54,13 +57,51 @@ export default async function MarketingHome() {
             </dl>
           </div>
         </div>
-        <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
+        <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-x-4 top-7 z-10 sm:inset-x-8 sm:top-10"><AttributionLink href="/reviews" className={`group inline-flex max-w-full items-center gap-3 rounded-2xl border border-white/20 bg-slate-950/80 px-4 py-3 text-white shadow-lg backdrop-blur-sm transition hover:border-orange-400 hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/40 ${focusRing}`}><span className="min-w-0"><span className="block text-xs font-bold uppercase tracking-wider text-slate-300">{googleRating !== null ? "Google rating" : "Customer feedback"}</span>{googleRating !== null ? <GoogleRatingMark rating={googleRating} /> : null}<span className="mt-1 block text-sm font-black underline decoration-orange-400 underline-offset-4 group-hover:text-orange-300">Read Customer Reviews →</span></span></AttributionLink></div><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
+      </div>
+    </section>
+
+    <section aria-label="Why drivers choose this shop" className="border-b border-slate-200 bg-white">
+      <div className="mx-auto grid max-w-7xl gap-3 px-4 py-5 sm:grid-cols-3 sm:gap-5 sm:px-6 lg:px-8">
+        {owner?.role ? <div className="flex items-start gap-3"><span aria-hidden="true" className="mt-0.5 text-xl text-orange-700">✓</span><div><p className="font-black text-slate-950">{owner.role}</p><p className="text-sm text-slate-600">Meet {owner.name} and learn about the shop.</p><AttributionLink href="/about" className={`mt-1 inline-block text-sm font-bold text-orange-700 hover:underline ${focusRing}`}>About the owner →</AttributionLink></div></div> : null}
+        <div className="flex items-start gap-3"><span aria-hidden="true" className="mt-0.5 text-xl text-orange-700">✓</span><div><p className="font-black text-slate-950">Visit us on Mound Road</p><p className="text-sm text-slate-600">{address || "Contact the shop for directions"}</p>{directionsUrl ? <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className={`mt-1 inline-block text-sm font-bold text-orange-700 hover:underline ${focusRing}`}>Get directions ↗</a> : null}</div></div>
+        <div className="flex items-start gap-3"><span aria-hidden="true" className="mt-0.5 text-xl text-orange-700">✓</span><div><p className="font-black text-slate-950">Understand your options</p><p className="text-sm text-slate-600">Discuss findings and an estimate before choosing what work to authorize.</p><AttributionLink href="/appointment" className={`mt-1 inline-block text-sm font-bold text-orange-700 hover:underline ${focusRing}`}>Start a service request →</AttributionLink></div></div>
       </div>
     </section>
 
     <WarrantyTrustSection />
 
-    {reviewLinks.google || reviewLinks.facebook ? <section aria-label="Customer reviews" className="border-b border-slate-200 bg-orange-50"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"><div><p className="font-black text-slate-950">See what customers say about {seoShop.name}</p><p className="text-sm text-slate-600">Read customer feedback on Google and Facebook.</p></div><div className="flex flex-wrap gap-3"><AttributionLink href="/reviews" className={`rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Customer Reviews</AttributionLink>{reviewLinks.google ? <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="google" />Google Reviews ↗</a> : null}{reviewLinks.facebook ? <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" aria-label={`View ${shop.name} on Facebook`} className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="facebook" />View recommendations ↗</a> : null}</div></div></section> : null}
+    {reviewLinks.google || reviewLinks.facebook ? <section aria-label="Customer reviews" aria-labelledby="customer-voices-title" className="border-y border-slate-200 bg-slate-950 text-white">
+      <div className="mx-auto grid max-w-7xl gap-9 px-4 py-14 sm:px-6 sm:py-16 lg:grid-cols-[.85fr_1.15fr] lg:items-center lg:gap-14 lg:px-8">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Customer experiences</p>
+          <h2 id="customer-voices-title" className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">What drivers say about {seoShop.name}</h2>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Customer feedback matters when choosing a repair shop. Explore independent reviews and recommendations from drivers who have visited us.</p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+            <AttributionLink href="/appointment" className={`rounded-xl bg-orange-500 px-5 py-3.5 text-center font-black text-slate-950 transition hover:bg-orange-400 ${focusRing}`}>Request Service</AttributionLink>
+            <AttributionLink href="/reviews" className={`rounded-xl border border-slate-500 px-5 py-3.5 text-center font-bold text-white transition hover:border-white hover:bg-white/10 ${focusRing}`}>View All Review Options</AttributionLink>
+          </div>
+          <p className="mt-4 text-xs leading-5 text-slate-400">Submitting a request does not confirm an appointment. Our team will follow up.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {reviewLinks.google ? <article className="flex flex-col rounded-2xl border border-white/15 bg-white p-6 text-slate-950 shadow-lg">
+            <ReviewPlatformIcon platform="google" size={32} />
+            <h3 className="mt-4 text-xl font-black">Google Reviews</h3>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">Read customer ratings and feedback directly on Car Doc&apos;s Google listing.</p>
+            <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Google Reviews ↗</a>
+          </article> : null}
+          {reviewLinks.facebook ? <article className="flex flex-col rounded-2xl border border-white/15 bg-white p-6 text-slate-950 shadow-lg">
+            <ReviewPlatformIcon platform="facebook" size={32} />
+            <h3 className="mt-4 text-xl font-black">Facebook Recommendations</h3>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">See customer recommendations and posts on Car Doc&apos;s Facebook page.</p>
+            <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" className={`mt-6 inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:border-orange-500 ${focusRing}`}>View Facebook Recommendations ↗</a>
+          </article> : null}
+          <div className="rounded-xl border border-white/15 bg-white/5 p-4 text-sm leading-6 text-slate-200 sm:col-span-2">
+            Already visited? <AttributionLink href="/reviews" className={`font-bold text-orange-300 underline underline-offset-4 hover:text-white ${focusRing}`}>See how to leave feedback →</AttributionLink>
+          </div>
+        </div>
+      </div>
+    </section> : null}
 
     {primaryMedia ? <section className="bg-white"><div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-8"><div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-100 shadow-sm"><Image src={primaryMedia.imageUrl} alt={primaryMedia.alt} fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover" style={{ objectPosition: primaryMedia.objectPosition ?? "center" }} /></div><div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Inside the business</p>{primaryMedia.heading ? <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{primaryMedia.heading}</h2> : null}{primaryMedia.body ? <p className="mt-5 text-lg leading-8 text-slate-600">{primaryMedia.body}</p> : null}</div></div></section> : null}
 
@@ -94,5 +135,6 @@ export default async function MarketingHome() {
       <div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Location and contact</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{locality ? `Serving ${locality} and nearby communities` : `Talk with ${shop.name}`}</h2><p className="mt-4 max-w-xl leading-7 text-slate-600">{address ? `${shop.name} is located at ${address}. ` : ""}Call for the quickest conversation, or select a service category and preferred contact method online. The shop will contact you to get the details.</p><div className="mt-7 flex flex-wrap gap-3">{shop.phone ? <TrackedCallLink href={phoneHref(shop.phone)} className={`rounded-xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-800 ${focusRing}`}>Call {shop.phone}</TrackedCallLink> : null}{directionsUrl ? <a href={directionsUrl} target="_blank" rel="noreferrer" className={`rounded-xl border border-slate-300 bg-white px-5 py-3 font-black text-slate-800 hover:bg-slate-50 ${focusRing}`}>Get Directions</a> : null}<AttributionLink href="/appointment" className={`rounded-xl bg-orange-600 px-5 py-3 font-black text-white hover:bg-orange-700 ${focusRing}`}>Request Service</AttributionLink></div></div>
       <dl className="rounded-2xl border border-slate-200 bg-stone-50 p-6 sm:p-8"><div><dt className="text-sm font-black uppercase tracking-widest text-slate-500">Address</dt><dd className="mt-2 text-lg font-bold text-slate-950">{address || "Contact the shop for location details"}</dd></div><div className="mt-6 border-t border-slate-200 pt-6"><dt className="text-sm font-black uppercase tracking-widest text-slate-500">Current hours</dt><dd className="mt-2 whitespace-pre-wrap font-semibold leading-7 text-slate-800">{shop.hours}</dd></div></dl>
     </div></section>
+    {shop.phone ? <><div className="h-20 sm:hidden" aria-hidden="true" /><nav aria-label="Quick service actions" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-6px_20px_rgba(15,23,42,.12)] backdrop-blur sm:hidden"><TrackedCallLink href={phoneHref(shop.phone)} className={`flex min-h-12 items-center justify-center rounded-xl border border-slate-300 px-3 text-center text-sm font-black text-slate-950 ${focusRing}`}>Call {shop.phone}</TrackedCallLink><AttributionLink href="/appointment" className={`flex min-h-12 items-center justify-center rounded-xl bg-orange-600 px-3 text-center text-sm font-black text-white ${focusRing}`}>Request Service</AttributionLink></nav></> : null}
   </>;
 }
