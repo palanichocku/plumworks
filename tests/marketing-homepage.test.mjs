@@ -132,3 +132,10 @@ test("mobile service bar preserves tracked calls, attribution and expectation co
   assert.match(home, /<AttributionLink href="\/appointment"/);
   assert.match(home, /Submitting a request does not confirm an appointment/);
 });
+
+test("hero review link points to the existing public reviews page without borrowed rating data", () => {
+  assert.match(home, /Customer feedback/);
+  assert.match(home, /Read Customer Reviews →/);
+  assert.match(home, /<AttributionLink href="\/reviews"/);
+  assert.doesNotMatch(home, /932 reviews|Sterling Heights Auto Repair/);
+});
