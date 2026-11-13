@@ -31,9 +31,9 @@ test("Batch 4 reporting preserves exact range and avoids fake complete-month bar
   assert.match(page, /!row\.partial/);
   assert.match(page, /2026-10-01/);
   assert.match(page, /reportingStart = "2026-10-01"/);
-  assert.match(page, /date\\(row\\.periodStart\\) >= reportingStart/);
-  assert.match(page, /const reportingSnapshots = snapshots\\.filter/);
-  assert.match(page, /reportingSnapshots\\.map/);
+  assert.match(page, /date\(row\.periodStart\) >= reportingStart/);
+  assert.match(page, /const reportingSnapshots = snapshots\.filter/);
+  assert.match(page, /reportingSnapshots\.map/);
   assert.match(page, /Earlier imports are retained/);
   assert.doesNotMatch(page, /CompleteMonthComparison|Website migration impact|June–August|September 23|post-cutover/i);
   assert.match(page, /GoogleReportUpload/);
