@@ -22,6 +22,7 @@ export default async function ReviewsPage() {
   const testimonials = approvedTestimonials(loadedTestimonials);
   const links = getReviewLinks(shop, settings.reviewUrl);
   const hasProfiles = Boolean(links.google || links.facebook);
+  const reviewShopName = carDocReviewPreviewEnabled(shop) ? "Car Doc" : shop.name;
   return <>
     <MarketingPageHero eyebrow={page.eyebrow ?? "Reviews"} title={page.title} description={hasProfiles ? "See customer feedback on Google and Facebook, and share your own experience." : page.description} />
     {hasProfiles ? <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
