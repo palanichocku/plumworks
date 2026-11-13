@@ -72,17 +72,17 @@ export async function getDashboardSummary() {
       where: { ...operationalMarketingLeadWhere(shopId), createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
     }) : Promise.resolve(null),
     canViewLeads ? prisma.marketingLead.count({
-      where: { ...operationalMarketingLeadWhere(shopId, "CONVERTED"), createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive }, convertedAt: { not: null } },
+      where: { ...operationalMarketingLeadWhere(shopId, "CONVERTED"), convertedAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
     }) : Promise.resolve(null),
     prisma.customer.count({
-      where: { shopId, acquisitionSource: "WEB", createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+      where: { shopId, acquisitionSource: "WEB", marketingLeads: { some: operationalMarketingLeadWhere(shopId) }, createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
     }),
     prisma.invoice.aggregate({
       where: {
         shopId,
         status: { not: "void" },
         invoiceDate: { gte: currentMonth.start, lt: currentMonth.endExclusive },
-        customer: { acquisitionSource: "WEB" },
+        customer: { acquisitionSource: "WEB", marketingLeads: { some: operationalMarketingLeadWhere(shopId) } },
       },
       _sum: { total: true },
     }),
@@ -90,7 +90,7 @@ export async function getDashboardSummary() {
       where: {
         shopId,
         paidAt: { gte: currentMonth.start, lt: currentMonth.endExclusive },
-        invoice: { customer: { acquisitionSource: "WEB" } },
+        invoice: { shopId, status: { not: "void" }, customer: { acquisitionSource: "WEB", marketingLeads: { some: operationalMarketingLeadWhere(shopId) } } },
       },
       _sum: { amount: true },
     }),
@@ -100,9 +100,6 @@ export async function getDashboardSummary() {
   const previousSalesTotal = previousSales._sum.total ?? new Prisma.Decimal(0);
   const currentAverage = averageInvoice(currentSales._sum.total, currentSales._count._all);
   const previousAverage = averageInvoice(previousSales._sum.total, previousSales._count._all);
-  const websiteConversionRate = websiteLeadsThisMonth && websiteConvertedThisMonth !== null
-    ? Math.round((websiteConvertedThisMonth / websiteLeadsThisMonth) * 1000) / 10
-    : 0;
 
   return {
     openRepairOrders,
@@ -130,7 +127,6 @@ export async function getDashboardSummary() {
       canViewLeads,
       leadsThisMonth: websiteLeadsThisMonth,
       convertedThisMonth: websiteConvertedThisMonth,
-      conversionRate: websiteConversionRate,
       newWebCustomersThisMonth: websiteCustomersThisMonth,
       billedThisMonth: websiteBilledThisMonth._sum.total ?? new Prisma.Decimal(0),
       paidThisMonth: websitePaidThisMonth._sum.amount ?? new Prisma.Decimal(0),
