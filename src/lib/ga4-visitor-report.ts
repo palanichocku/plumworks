@@ -122,3 +122,98 @@ export async function getGa4VisitorReport(now = new Date()): Promise<Ga4VisitorR
     return { ...result, state: "connection_error" };
   }
 }
+
+export type Ga4RecentVisitors = {
+  realtime: { state: "available" | "not_configured" | "connection_error"; activeUsers: number | null; pageViews: number | null };
+  hourly: { state: "available" | "no_data" | "not_configured" | "connection_error"; sessions: number | null; pageViews: number | null };
+  refreshedAt: string;
+};
+
+// Realtime is restricted by Google to the last 30 minutes for standard GA4 properties.
+// The 24-hour view below uses processed hourly buckets; it is NOT realtime.
+async function realtimeReport(token: string, property: string): Promise<Ga4Response> {
+  const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:runRealtimeReport`, {
+    method: "POST", cache: "no-store", signal: AbortSignal.timeout(9000),
+    headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }] }),
+  });
+  if (!response.ok) throw new Error("GA4 realtime reporting failed.");
+  return await response.json() as Ga4Response;
+}
+
+function detroitHour(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Detroit", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const partsByType = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${partsByType.year}${partsByType.month}${partsByType.day}${partsByType.hour}`;
+}
+
+export function recentHourlyWindow(now = new Date()) {
+  // Inclusive hour boundaries: the current hour plus the previous 23 hourly buckets.
+  return { first: detroitHour(new Date(now.getTime() - 23 * 3600000)), last: detroitHour(now) };
+}
+
+async function hourlyReport(token: string, property: string, now: Date): Promise<Ga4Response> {
+  const yesterday = new Date(now.getTime() - 48 * 3600000);
+  const start = detroitHour(yesterday).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
+  const end = detroitHour(now).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
+  const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:runReport`, {
+    method: "POST", cache: "no-store", signal: AbortSignal.timeout(9000),
+    headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      dateRanges: [{ startDate: start, endDate: end }],
+      dimensions: [{ name: "dateHour" }],
+      metrics: [{ name: "sessions" }, { name: "screenPageViews" }],
+      limit: "100",
+    }),
+  });
+  if (!response.ok) throw new Error("GA4 hourly reporting failed.");
+  return await response.json() as Ga4Response;
+}
+
+export async function getGa4RecentVisitors(now = new Date()): Promise<Ga4RecentVisitors> {
+  const initial: Ga4RecentVisitors = {
+    refreshedAt: now.toISOString(),
+    realtime: { state: "not_configured", activeUsers: null, pageViews: null },
+    hourly: { state: "not_configured", sessions: null, pageViews: null },
+  };
+  const property = process.env.GA4_PROPERTY_ID?.trim();
+  const rawCredentials = process.env.GA4_SERVICE_ACCOUNT_JSON;
+  if (!property || !/^\\d{5,18}$/.test(property) || !rawCredentials) return initial;
+  let token: string;
+  try {
+    token = await accessToken(readCredentials(rawCredentials));
+  } catch {
+    console.error("[GA4] Recent reporting authentication failed.");
+    return {
+      ...initial,
+      realtime: { ...initial.realtime, state: "connection_error" },
+      hourly: { ...initial.hourly, state: "connection_error" },
+    };
+  }
+  const [live, hourly] = await Promise.allSettled([realtimeReport(token, property), hourlyReport(token, property, now)]);
+  const realtime: Ga4RecentVisitors["realtime"] = live.status === "fulfilled"
+    ? { state: "available", activeUsers: parseCount(live.value.rows?.[0]?.metricValues?.[0]?.value) ?? 0,
+        pageViews: parseCount(live.value.rows?.[0]?.metricValues?.[1]?.value) ?? 0 }
+    : { state: "connection_error", activeUsers: null, pageViews: null };
+  const window = recentHourlyWindow(now);
+  const rows = hourly.status === "fulfilled"
+    ? (hourly.value.rows ?? []).filter((row) => {
+      const hour = row.dimensionValues?.[0]?.value ?? "";
+      return /^\\d{10}$/.test(hour) && hour >= window.first && hour <= window.last;
+    }) : [];
+  const hourlySummary: Ga4RecentVisitors["hourly"] = hourly.status === "rejected"
+    ? { state: "connection_error", sessions: null, pageViews: null }
+    : rows.length === 0
+      ? { state: "no_data", sessions: null, pageViews: null }
+      : {
+        state: "available",
+        sessions: rows.reduce((sum, row) => sum + (parseCount(row.metricValues?.[0]?.value) ?? 0), 0),
+        pageViews: rows.reduce((sum, row) => sum + (parseCount(row.metricValues?.[1]?.value) ?? 0), 0),
+      };
+  if (live.status === "rejected") console.error("[GA4] Realtime reporting failed.");
+  if (hourly.status === "rejected") console.error("[GA4] Processed hourly reporting failed.");
+  return { refreshedAt: now.toISOString(), realtime, hourly: hourlySummary };
+}
