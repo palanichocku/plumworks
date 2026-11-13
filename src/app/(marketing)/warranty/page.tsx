@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MarketingPageHero } from "@/components/marketing/page-hero";
+import { CarDocWarrantyBadge } from "@/components/marketing/car-doc-warranty-badge";
 import { getPublicShop } from "@/lib/marketing";
 import { getPublicWarrantyPrograms } from "@/lib/marketing-warranty";
 import { getPublicSeoShop, localTitle, marketingMetadata } from "@/lib/marketing-seo";
@@ -31,10 +32,11 @@ export default async function WarrantyPage() {
     <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
       <div className="grid gap-5 md:grid-cols-2">
         {warranties.map((program) => <article key={program.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-sm font-black uppercase tracking-wider text-orange-700">Nationwide warranty program</div>
+          <div className="flex justify-center"><CarDocWarrantyBadge program={program} className="h-auto w-full max-w-48" /></div>
+          <div className="mt-4 text-sm font-black uppercase tracking-wider text-orange-700">Participating nationwide warranty program</div>
           <h2 className="mt-3 text-2xl font-black text-slate-950">{program.title}</h2>
           <p className="mt-4 text-xl font-bold text-slate-900">{program.duration} / {program.miles}</p>
-          <p className="mt-3 text-sm leading-6 text-slate-600">For qualifying repairs only. Coverage depends on the program&apos;s current written terms, covered services, mileage, limitations and exclusions. Not every repair is eligible.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">Car Doc participates in this third-party warranty program. The badge is Car Doc informational artwork, not an official provider logo. For qualifying repairs only. Coverage depends on the program&apos;s current written terms, covered services, mileage, limitations and exclusions. Not every repair is eligible.</p>
           <a href={program.url} target="_blank" rel="noopener noreferrer" className="mt-5 inline-block rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-900 hover:border-orange-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/30">Read program information ↗</a>
         </article>)}
       </div>
