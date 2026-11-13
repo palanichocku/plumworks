@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   METRICS, type Metric, type MonthlySnapshot, annualMetric, availableMonths,
-  changePercent, displayMetric, lastTwelveMonths, metricValue,
+  changePercent, displayMetric, formatReportingMonth, metricExplanation, lastTwelveMonths, metricValue,
   monthBeforeYear, monthlyIndex, previousMonth,
 } from "@/lib/website-performance-trends";
 
@@ -21,7 +21,7 @@ function Delta({ current, reference, metric, label }: { current: number | null; 
 }
 function MetricCard({ metric, current, previous, priorYear }: { metric: Metric; current: number | null; previous: number | null; priorYear: number | null }) {
   return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p>
+    <div className="flex items-start justify-between gap-2"><p className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{metric.label}</p><MetricInfo metric={metric} /></div>
     <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{displayMetric(current, metric)}</p>
     <div className="mt-3 flex flex-col gap-1">
       <Delta current={current} reference={previous} metric={metric} label="previous month" />
@@ -29,24 +29,47 @@ function MetricCard({ metric, current, previous, priorYear }: { metric: Metric; 
     </div>
   </article>;
 }
-function TrendChart({ metric, months, values }: { metric: Metric; months: string[]; values: (number | null)[] }) {
-  const max = Math.max(1, ...values.filter((v): v is number => v !== null));
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5">
-    <h3 className="text-sm font-black text-slate-900">{metric.label}</h3>
-    <p className="mt-1 text-xs text-slate-500">Up to 12 complete months · — means no imported value</p>
-    <div className="mt-5 grid min-h-36 items-end gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, months.length)}, minmax(0, 1fr))` }}>
-      {months.map((month, i) => {
-        const v = values[i];
-        return <div key={month} className="flex min-w-0 flex-col items-center justify-end gap-1">
-          <span title={v === null ? "No data" : displayMetric(v, metric)} className="max-w-full truncate text-[10px] font-semibold tabular-nums text-slate-700">{v === null ? "—" : displayMetric(v, metric)}</span>
-          <div className="flex h-24 w-full items-end rounded bg-slate-50">
-            {v !== null ? <div title={month + ": " + displayMetric(v, metric)} className="w-full rounded-t bg-sky-600" style={{ height: `${Math.max(v > 0 ? 3 : 0, v / max * 100)}%` }} /> : null}
-          </div>
-          <span className="max-w-full truncate text-[10px] text-slate-500">{month.slice(5)}</span>
-        </div>;
-      })}
+function MetricInfo({ metric, chart = false }: { metric: Metric; chart?: boolean }) {
+  return <details className="group relative shrink-0">
+    <summary aria-label={`What does ${metric.label} mean?`} title={`About ${metric.label}`} className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sm font-extrabold text-sky-800 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 [&::-webkit-details-marker]:hidden">i</summary>
+    <div className="absolute right-0 top-9 z-20 w-[min(18rem,75vw)] rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl">
+      <p className="text-sm font-bold text-slate-900">{metric.label}</p>
+      <p className="mt-2 text-sm font-normal leading-relaxed text-slate-700">{metricExplanation(metric)}</p>
+      {chart ? <p className="mt-2 border-t border-slate-100 pt-2 text-xs leading-relaxed text-slate-600">The number above each column is that month's actual measurement; the label below names the month. Taller columns mean larger numbers among the months shown. A single month is a baseline, not a trend.</p> : null}
     </div>
-    <p className="mt-2 text-xs text-slate-500">{months.length ? months[0] + " to " + months[months.length - 1] : "No complete months imported"}</p>
+  </details>;
+}
+function TrendChart({ metric, months, values }: { metric: Metric; months: string[]; values: (number | null)[] }) {
+  const actual = months.map((month, index) => ({ month, value: values[index] })).filter((item): item is { month: string; value: number } => item.value !== null);
+  const max = Math.max(1, ...actual.map((item) => item.value));
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-black text-slate-900">{metric.label}</h3>
+        <p className="mt-1 text-xs text-slate-500">Complete months only · — means no imported value</p>
+      </div>
+      <MetricInfo metric={metric} chart />
+    </div>
+    {actual.length === 1 ? <div className="mt-5 rounded-xl border border-sky-100 bg-sky-50/60 p-5 text-center">
+      <p className="text-xs font-bold uppercase tracking-wider text-sky-800">Baseline month · {formatReportingMonth(actual[0].month)}</p>
+      <p className="mt-3 text-3xl font-black tabular-nums text-slate-900">{displayMetric(actual[0].value, metric)}</p>
+      <p className="mt-2 text-sm text-slate-600">Trend comparisons begin when another complete month is available.</p>
+    </div> : actual.length === 0 ? <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">No complete-month values for this metric yet.</p> :
+    <div className="mt-5 overflow-x-auto">
+      <div className="grid min-h-40 min-w-[340px] items-end gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(1, months.length)}, minmax(0, 1fr))` }}>
+        {months.map((month, index) => {
+          const value = values[index];
+          return <div key={month} className="flex min-w-0 flex-col items-center justify-end gap-1">
+            <span className="text-[11px] font-semibold tabular-nums text-slate-700" title={value === null ? "No data" : displayMetric(value, metric)}>{displayMetric(value, metric)}</span>
+            <div className="flex h-24 w-full max-w-12 items-end rounded bg-slate-50">
+              {value !== null ? <div title={formatReportingMonth(month) + ": " + displayMetric(value, metric)} className="w-full rounded-t bg-sky-600" style={{ height: `${Math.max(value > 0 ? 3 : 0, value / max * 100)}%` }} /> : null}
+            </div>
+            <span className="text-center text-[10px] leading-tight text-slate-500">{formatReportingMonth(month, true)}</span>
+          </div>;
+        })}
+      </div>
+    </div>}
+    {actual.length > 1 ? <p className="mt-3 text-xs text-slate-500">Showing {formatReportingMonth(months[0])} to {formatReportingMonth(months[months.length - 1])}</p> : null}
   </section>;
 }
 export function WebsitePerformanceTrends({ records }: { records: MonthlySnapshot[] }) {
