@@ -114,3 +114,21 @@ test("online intake copy no longer asks for narrative symptoms", () => {
   assert.match(home, /Select a service category and preferred contact method/);
   assert.match(home, /Call for the quickest conversation/);
 });
+
+
+test("new homepage trust proof is sourced from existing shop/owner data, not invented claims", () => {
+  assert.match(home, /owner\?\.role/);
+  assert.match(home, /owner\.name/);
+  assert.match(home, /address \|\| "Contact the shop for directions"/);
+  assert.match(home, /Understand your options/);
+  assert.doesNotMatch(home, /guaranteed lowest price|5-star rated|same-day guaranteed/i);
+});
+
+test("mobile service bar preserves tracked calls, attribution and expectation copy", () => {
+  assert.match(home, /aria-label="Quick service actions"/);
+  assert.match(home, /fixed inset-x-0 bottom-0/);
+  assert.match(home, /sm:hidden/);
+  assert.match(home, /<TrackedCallLink href=\{phoneHref\(shop\.phone\)\}/);
+  assert.match(home, /<AttributionLink href="\/appointment"/);
+  assert.match(home, /Submitting a request does not confirm an appointment/);
+});
