@@ -1,0 +1,1049 @@
+{
+  "brandName": "Car Doc",
+  "aboutOwner": {
+    "heading": "Meet the Owner",
+    "name": "Subbu Veerappan",
+    "role": "Owner and ASE Master Technician",
+    "biography": "Subbu Veerappan is the owner of Car Doc, serving drivers in Sterling Heights and nearby communities. Car Doc has provided automotive maintenance and repair services in the area since 2009.\n\nSubbu believes customers should receive clear explanations and practical recommendations before repair work begins. Whether the vehicle needs routine maintenance, diagnostics, or a more involved repair, his focus is on helping customers understand their options and keeping their vehicles safe and reliable.",
+    "imageUrl": "/client-assets/cardoc/subbu-owner-portrait.jpg",
+    "imageAlt": "Subbu, owner of Car Doc, inside the repair shop",
+    "homepageSummary": "Subbu leads Car Doc with a practical approach: understand the concern, evaluate the vehicle, explain the findings, and let the customer review the recommendation before work proceeds.",
+    "historyLabel": "Serving the Sterling Heights area since 2009",
+    "principles": [
+      "Listen to the customer's concern before evaluating the vehicle.",
+      "Explain findings and practical recommendations in understandable terms.",
+      "Discuss the options and receive approval before repair work proceeds."
+    ]
+  },
+  "media": [
+    {
+      "slot": "home-primary",
+      "imageUrl": "/client-assets/cardoc/subbu-working-primary.jpg",
+      "alt": "Subbu working on a vehicle inside the Car Doc service bay",
+      "heading": "Local service. Straight answers.",
+      "body": "Car Doc provides hands-on maintenance, diagnostics, and repair from an experienced local team.",
+      "objectPosition": "50% 42%"
+    },
+    {
+      "slot": "home-secondary",
+      "imageUrl": "/client-assets/cardoc/shop-service-bays-wide.jpg",
+      "alt": "Inside the Car Doc service bays",
+      "heading": "A local shop in Sterling Heights",
+      "body": "Visit Car Doc on Mound Road for maintenance, diagnostics, and repair.",
+      "objectPosition": "50% 48%"
+    },
+    {
+      "slot": "about-team",
+      "imageUrl": "/client-assets/cardoc/subbu-and-jon-2026.jpg",
+      "alt": "Subbu and Jon in the Car Doc service shop",
+      "heading": "The people behind the work",
+      "body": "Car Doc is a local team focused on practical service and clear communication.",
+      "objectPosition": "50% 36%"
+    },
+    {
+      "slot": "about-credentials",
+      "imageUrl": "/client-assets/cardoc/subbu-certifications-original.jpg",
+      "alt": "Automotive technician certifications displayed at Car Doc",
+      "heading": "Training and certifications",
+      "body": "Professional training supports the careful evaluation and repair work performed at Car Doc.",
+      "objectPosition": "50% 12%"
+    },
+    {
+      "slot": "contact-entrance",
+      "imageUrl": "/client-assets/cardoc/customer-entrance.jpg",
+      "alt": "Car Doc customer entrance at 42464 Mound Road",
+      "heading": "Finding the customer entrance",
+      "body": "Look for this entrance at 42464 Mound Road.",
+      "objectPosition": "50% 46%"
+    },
+    {
+      "slot": "contact-sign",
+      "imageUrl": "/client-assets/cardoc/roadside-car-doc-sign.jpg",
+      "alt": "Yellow Car Doc roadside sign on Mound Road",
+      "heading": "Arriving from Mound Road",
+      "body": "Watch for the yellow Car Doc sign from Mound Road.",
+      "objectPosition": "50% 44%"
+    }
+  ],
+  "settings": {
+    "headline": "Clear answers for the road ahead",
+    "subheadline": "Car Doc is an automotive maintenance, diagnostic, and repair shop in Sterling Heights. Call or send a service request to describe what your vehicle is doing and discuss the next step.",
+    "serviceIntro": "You do not need to know which repair your vehicle needs before contacting the shop. Describe the warning light, sound, driving change, or maintenance need, and Car Doc can help determine the next step.",
+    "aboutTitle": "Practical recommendations, explained clearly",
+    "aboutBody": "Car Doc helps Sterling Heights drivers address maintenance needs and vehicle concerns. The goal is a straightforward conversation: explain what you have noticed, review the shop's findings and recommendation, and approve the work before it proceeds.",
+    "contactIntro": "Call for the quickest conversation, especially for urgent or same-day needs. Online submissions are service requests, not automatically confirmed appointments; the shop will follow up to discuss availability and timing.",
+    "hoursText": "Monday-Friday: 9:00 AM-6:00 PM\nSaturday: 9:00 AM-3:00 PM\nSunday: Closed",
+    "reviewUrl": null
+  },
+  "pages": [
+    {
+      "slug": "coupons",
+      "eyebrow": "Offers",
+      "title": "Current service offers",
+      "description": "There are no approved promotions published at this time.",
+      "body": "Call the shop if you would like to ask whether an offer applies to your service request. Offer details will be posted only after their terms are confirmed.",
+      "active": true
+    },
+    {
+      "slug": "reviews",
+      "eyebrow": "Customer Feedback",
+      "title": "Customer reviews",
+      "description": "No verified customer reviews are published on this site yet.",
+      "body": "Reviews will appear here only after their source, attribution, and permission for reuse have been confirmed. Call the shop if you would like to discuss a vehicle concern directly.",
+      "active": true
+    },
+    {
+      "slug": "about",
+      "eyebrow": "About Car Doc",
+      "title": "Straightforward help with vehicle concerns",
+      "description": "Car Doc provides automotive maintenance, diagnostics, and repair in Sterling Heights.",
+      "body": "Start by explaining the maintenance need, warning light, sound, or change you have noticed. The shop can evaluate the concern, explain the recommendation in understandable terms, and let you review the work before it proceeds.",
+      "active": true
+    },
+    {
+      "slug": "photos",
+      "eyebrow": "Photos",
+      "title": "Shop photos",
+      "description": "A look inside Car Doc, the service shop, and the customer entrance.",
+      "body": "See the Car Doc team, service areas, equipment, and the landmarks that help customers find the shop.",
+      "active": true
+    },
+    {
+      "slug": "contact",
+      "eyebrow": "Contact",
+      "title": "Tell us what is happening with your vehicle",
+      "description": "Call for urgent or same-day needs, or send a service request for the shop to review.",
+      "body": "Car Doc is located at 42464 Mound Road, Sterling Heights, MI 48314. Call 586-843-3347 for the quickest response, or submit your contact information and vehicle concern online. An online submission is a request, not a confirmed appointment; the shop will follow up about availability and timing. Posted hours are Monday through Friday from 9:00 AM to 6:00 PM, Saturday from 9:00 AM to 3:00 PM, and Sunday closed.",
+      "active": true
+    }
+  ],
+  "services": [
+    {
+      "slug": "diagnostics",
+      "name": "Warning Light and Vehicle Diagnostics",
+      "summary": "Evaluation for warning lights, unusual behavior, and hard-to-identify vehicle concerns.",
+      "detail": "A warning light, starting problem, unusual sound, or change in performance can have more than one cause. Describe what you have noticed so the shop can evaluate the concern and explain what it finds before recommending work.",
+      "content": {
+        "version": 1,
+        "heading": "Check Engine Light and Vehicle Diagnostics",
+        "intro": "A warning light or a change in how your vehicle starts, idles, accelerates, or drives is a reason to gather evidence before replacing parts. Car Doc provides vehicle diagnostics in Sterling Heights by starting with what you have noticed, checking the systems related to the concern, and explaining the findings before repair work is approved.",
+        "signs": {
+          "heading": "Reasons to have the vehicle checked",
+          "intro": "These symptoms can be associated with many different systems, so they are starting points rather than a diagnosis.",
+          "items": [
+            "A check-engine or other warning light is on",
+            "The check-engine light is flashing",
+            "The engine is hard to start, stalls, or runs unevenly",
+            "Acceleration, fuel economy, or general performance has changed",
+            "The vehicle makes an unfamiliar noise or behaves intermittently"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can evaluate",
+          "intro": "The appropriate tests depend on the vehicle and the concern.",
+          "items": [
+            "Check-engine and related warning-light concerns",
+            "Diagnostic trouble codes and the conditions that set them",
+            "Starting, running, and drivability complaints",
+            "Visible wiring, connection, or sensor concerns related to the symptom",
+            "Follow-up testing needed to narrow the cause before parts are recommended"
+          ]
+        },
+        "helpful": {
+          "heading": "A trouble code is information, not a parts order",
+          "paragraphs": [
+            "A scan result identifies a system or operating condition the vehicle detected. It does not always identify the failed component. The same code can have more than one possible cause, and replacing the part named in a code description may not solve the underlying problem.",
+            "Useful diagnosis combines the code with the customer’s description, current vehicle behavior, service information, and appropriate inspection or testing. Intermittent problems can take additional time because the condition may need to occur or be reproduced before useful evidence is available."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Tell Car Doc when the symptom happens, how often it occurs, and whether anything recently changed.",
+          "items": [
+            "The shop reviews the concern and warning information you have observed.",
+            "Testing or inspection is selected for the specific symptom rather than assuming a part has failed.",
+            "The findings and reasonable next steps are explained in plain language.",
+            "You review the recommendation and estimate before authorized repair work begins."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "Does a trouble code tell me exactly what is wrong?",
+            "answer": "Not necessarily. A code points to a detected condition or system. Inspection and testing may still be needed to determine why the code set and which repair, if any, is appropriate."
+          },
+          {
+            "question": "Can I drive with the check-engine light on?",
+            "answer": "That depends on the warning and how the vehicle is behaving. Contact the shop to describe the light and symptoms. If the vehicle is running poorly or another safety-related condition changes significantly, avoid unnecessary driving."
+          },
+          {
+            "question": "What does a flashing check-engine light mean?",
+            "answer": "A flashing light can indicate a condition that may damage the vehicle if driving continues. Reduce unnecessary driving and contact the shop promptly for guidance based on the vehicle’s behavior."
+          },
+          {
+            "question": "Why can diagnosis take time?",
+            "answer": "Some faults are intermittent or have several possible causes. Methodical testing helps avoid replacing parts based only on a guess or a code description."
+          }
+        ],
+        "related": [
+          {
+            "slug": "battery-electrical",
+            "label": "Battery, starting, and electrical"
+          },
+          {
+            "slug": "engine-repair",
+            "label": "Engine concerns and repair"
+          }
+        ],
+        "cta": {
+          "heading": "Tell us what the vehicle is doing",
+          "body": "Share the warning light, symptom, and when it occurs. Car Doc can discuss the appropriate next step without assuming the diagnosis in advance.",
+          "requestLabel": "Request Diagnostic Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 10
+    },
+    {
+      "slug": "oil-change",
+      "name": "Oil and Filter Service",
+      "summary": "Routine oil and filter maintenance based on your vehicle's needs.",
+      "detail": "Contact the shop when an oil-change reminder appears, the service interval is approaching, or you are unsure when the oil was last changed. The shop can review the vehicle's maintenance needs with you.",
+      "content": {
+        "version": 1,
+        "heading": "Oil Change and Filter Service",
+        "intro": "Oil and filter service helps maintain the engine using the oil specification and service timing appropriate to the vehicle. Car Doc provides oil changes in Sterling Heights and can help review the reminder, known service history, mileage, vehicle age, and driving conditions instead of applying one interval to every vehicle.",
+        "signs": {
+          "heading": "Reasons to schedule or ask about oil service",
+          "items": [
+            "The oil-life or maintenance reminder is on",
+            "The manufacturer’s time or mileage interval is approaching",
+            "The last oil-change date or mileage is unknown",
+            "The vehicle sees frequent short trips, extended idling, towing, or other demanding use",
+            "An oil level or leak concern needs to be discussed"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can check or service",
+          "items": [
+            "Engine oil and oil-filter replacement",
+            "The oil grade and specification called for by the vehicle",
+            "Oil level and visible oil condition",
+            "Visible leak concerns noticed during service",
+            "Related maintenance needs that are already due or approaching"
+          ]
+        },
+        "helpful": {
+          "heading": "Why oil-change timing varies",
+          "paragraphs": [
+            "Modern vehicles do not share one universal oil-change interval. The manufacturer’s guidance, the required oil, elapsed time, mileage, and operating conditions all matter. An oil-life monitor can be useful, but it does not replace checking the oil level or addressing a warning.",
+            "An oil-pressure warning is different from a routine maintenance reminder. An oil change should not be assumed to correct an oil-pressure problem. If a red oil warning appears or the engine develops an unusual noise, avoid unnecessary driving and contact the shop promptly."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Bring the current mileage and any service-history information you have, even if it is incomplete.",
+          "items": [
+            "Car Doc reviews the vehicle and the oil service that is due.",
+            "The appropriate oil specification and filter are selected for the vehicle.",
+            "Any visible concern noticed during service is explained rather than automatically added to the work.",
+            "You can discuss upcoming maintenance and decide what should be handled now or planned later."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "How often should my oil be changed?",
+            "answer": "Follow the guidance for your specific vehicle while considering time, mileage, driving conditions, and service history. There is no single interval that is correct for every engine and use pattern."
+          },
+          {
+            "question": "What type of oil does my vehicle need?",
+            "answer": "The required viscosity and specification depend on the vehicle and engine. Car Doc can use the vehicle information to identify the appropriate oil rather than relying on a universal choice."
+          },
+          {
+            "question": "Does low mileage mean I never need an oil change?",
+            "answer": "No. Time, moisture, repeated short trips, and operating conditions can matter even when annual mileage is low. The vehicle manufacturer’s time guidance should also be considered."
+          },
+          {
+            "question": "What if my oil warning light comes on?",
+            "answer": "A maintenance reminder may simply indicate scheduled service, while an oil-pressure warning can be more urgent. If you are unsure which warning is displayed, contact the shop and avoid assuming a routine oil change is the complete answer."
+          }
+        ],
+        "related": [
+          {
+            "slug": "scheduled-maintenance",
+            "label": "Scheduled maintenance"
+          },
+          {
+            "slug": "engine-repair",
+            "label": "Engine concerns and repair"
+          }
+        ],
+        "cta": {
+          "heading": "Plan the right oil service",
+          "body": "Send the vehicle details, current mileage, and any reminder you see. Car Doc can help confirm the appropriate oil and service timing.",
+          "requestLabel": "Request Oil Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 20
+    },
+    {
+      "slug": "brakes",
+      "name": "Brake Inspection and Service",
+      "summary": "Evaluation of brake noises, warning lights, pedal changes, or reduced braking confidence.",
+      "detail": "Contact the shop if the brakes squeal or grind, the pedal feels different, a brake warning light appears, or the vehicle behaves differently while stopping. An inspection is needed before the shop can recommend the appropriate service.",
+      "content": {
+        "version": 1,
+        "heading": "Brake Inspection and Repair",
+        "intro": "Brake noise, vibration, warning lights, and changes in pedal feel can come from different parts of the braking system. For brake repair in Sterling Heights, Car Doc begins with an inspection so pads, rotors, calipers, hydraulic components, or another cause are not assumed before the evidence supports a recommendation.",
+        "signs": {
+          "heading": "Signs the brakes should be inspected",
+          "items": [
+            "Squealing, grinding, scraping, or another new braking noise",
+            "A vibration in the brake pedal or steering wheel while stopping",
+            "The pedal feels softer, lower, harder, or otherwise different",
+            "The vehicle pulls or feels less controlled during braking",
+            "A brake or ABS warning light is on"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can inspect or service",
+          "items": [
+            "Brake pads and rotor condition",
+            "Calipers and visible brake hardware",
+            "Hydraulic components and visible fluid concerns",
+            "Brake-fluid condition or service needs where applicable",
+            "Warning-light and braking-behavior concerns"
+          ]
+        },
+        "helpful": {
+          "heading": "Noise and pedal feel provide clues—not a complete diagnosis",
+          "paragraphs": [
+            "A squeal can be related to wear indicators, surface condition, hardware, or other factors. Vibration may involve brake components, but the conditions under which it occurs matter. Grinding or scraping should be inspected promptly because continuing to drive may increase damage or affect braking performance.",
+            "Pads and rotors are evaluated by condition and measurement where appropriate. Rotors are not automatically assumed to require replacement with every pad service, and pads should not be recommended solely because a noise was reported."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Describe the sound or change and whether it happens during light braking, hard braking, at certain speeds, or all the time.",
+          "items": [
+            "The shop reviews the symptoms and braking behavior you noticed.",
+            "The relevant brake components are inspected before parts are recommended.",
+            "Findings, priorities, and repair options are explained clearly.",
+            "You receive an estimate and approve the work before repairs begin."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "Why are my brakes squealing?",
+            "answer": "Several conditions can cause brake noise, including normal wear indicators, component condition, or hardware. An inspection is the reliable way to determine whether service is needed."
+          },
+          {
+            "question": "Why does the steering wheel or pedal vibrate while braking?",
+            "answer": "Vibration during braking can be associated with brake-component condition or other vehicle systems. Note when it occurs so the shop can inspect the concern rather than assuming one cause."
+          },
+          {
+            "question": "Do rotors always need replacement with brake pads?",
+            "answer": "No universal rule applies. Rotor condition, thickness, surface, vehicle requirements, and the planned repair all matter."
+          },
+          {
+            "question": "What should I do if a brake warning light comes on?",
+            "answer": "Contact the shop promptly and describe the warning and pedal behavior. If braking changes significantly or feels unsafe, avoid unnecessary driving."
+          }
+        ],
+        "related": [
+          {
+            "slug": "steering-suspension",
+            "label": "Steering and suspension"
+          },
+          {
+            "slug": "diagnostics",
+            "label": "Warning-light diagnostics"
+          }
+        ],
+        "cta": {
+          "heading": "Have the braking concern checked",
+          "body": "Tell Car Doc what you hear or feel and when it happens. The shop can inspect the system and discuss the appropriate repair.",
+          "requestLabel": "Request Brake Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 30
+    },
+    {
+      "slug": "scheduled-maintenance",
+      "name": "Scheduled Maintenance",
+      "summary": "Maintenance planning for service reminders and mileage-based intervals.",
+      "detail": "If a maintenance reminder is on, a mileage interval is approaching, or the vehicle's service history is unclear, contact the shop. Car Doc can review the known maintenance needs and discuss what should be addressed now or planned for later.",
+      "content": {
+        "version": 1,
+        "heading": "Scheduled Auto Maintenance",
+        "intro": "A practical maintenance plan depends on the vehicle—not a generic package. Car Doc helps Sterling Heights drivers compare manufacturer guidance with mileage, age, driving conditions, and known service history, then discuss which maintenance is due now and what can be planned for a later visit.",
+        "signs": {
+          "heading": "Reasons to review the maintenance plan",
+          "items": [
+            "A dashboard maintenance reminder has appeared",
+            "A manufacturer time or mileage interval is approaching",
+            "The vehicle is new to you or its service history is incomplete",
+            "Driving conditions or vehicle use have changed",
+            "Fluids, filters, or wear items have not been reviewed recently"
+          ]
+        },
+        "services": {
+          "heading": "Maintenance areas Car Doc can review",
+          "items": [
+            "Manufacturer-recommended services for the vehicle and mileage",
+            "Engine oil, filters, and applicable fluids",
+            "Visible belts, hoses, and common inspection items",
+            "Brake, tire, steering, and suspension wear concerns",
+            "A prioritized plan based on known history and current condition"
+          ]
+        },
+        "helpful": {
+          "heading": "Mileage is only one part of maintenance timing",
+          "paragraphs": [
+            "Some services are based on mileage, others on elapsed time, and some depend on inspection or operating conditions. Frequent short trips, seasonal storage, towing, long idle periods, and severe weather can affect what should be reviewed.",
+            "If records are missing, the answer is not necessarily to replace every fluid and component at once. Available records, vehicle condition, manufacturer guidance, and current priorities can be used to build a reasonable plan without inventing a universal 30K, 60K, or 90K package."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Bring any records or reminder information you have. An incomplete history is still useful.",
+          "items": [
+            "Car Doc reviews the vehicle, mileage, age, use, and available service history.",
+            "Due and approaching items are separated from concerns that only need monitoring.",
+            "The reason for each recommendation is explained in practical terms.",
+            "You choose what to authorize now and what to include in a future plan."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "How do I know which maintenance my vehicle needs?",
+            "answer": "Start with the manufacturer’s schedule, then consider mileage, age, driving conditions, previous work, and current condition. Car Doc can help organize that information."
+          },
+          {
+            "question": "Does maintenance depend only on mileage?",
+            "answer": "No. Time, vehicle use, environment, inspection findings, and service history can all affect timing."
+          },
+          {
+            "question": "What if I do not know the service history?",
+            "answer": "Share what you do know. The shop can review the current vehicle and available guidance, then prioritize rather than assuming every possible service is overdue."
+          },
+          {
+            "question": "Do I need a universal mileage package?",
+            "answer": "Vehicles do not all require the same package at the same mileage. The correct plan should be based on the guidance for that vehicle and its actual history and condition."
+          }
+        ],
+        "related": [
+          {
+            "slug": "oil-change",
+            "label": "Oil and filter service"
+          },
+          {
+            "slug": "brakes",
+            "label": "Brake inspection and service"
+          },
+          {
+            "slug": "steering-suspension",
+            "label": "Steering and suspension"
+          }
+        ],
+        "cta": {
+          "heading": "Build a practical maintenance plan",
+          "body": "Send the vehicle, mileage, and any reminder or records you have. Car Doc can help identify the next appropriate maintenance step.",
+          "requestLabel": "Request Maintenance Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 40
+    },
+    {
+      "slug": "ac-heating-cooling",
+      "name": "A/C, Heating, and Cooling",
+      "summary": "Evaluation of weak airflow, temperature problems, overheating, or coolant concerns.",
+      "detail": "Contact the shop if the cabin is not heating or cooling properly, airflow has changed, the temperature gauge is unusual, or you notice signs of a coolant leak. The system should be evaluated before a repair is recommended.",
+      "content": {
+        "version": 1,
+        "heading": "Auto A/C, Heating, and Cooling Repair",
+        "intro": "Cabin heating and air conditioning keep occupants comfortable, while the engine cooling system controls engine temperature. Car Doc evaluates A/C, heating, airflow, coolant leaks, and overheating concerns in Sterling Heights without treating these separate systems as the same problem.",
+        "signs": {
+          "heading": "Reasons to have the system checked",
+          "items": [
+            "The A/C is not cold or cooling has become inconsistent",
+            "Airflow from the vents is weak or the blower behaves differently",
+            "The heater does not warm the cabin as expected",
+            "An unusual HVAC noise or odor has appeared",
+            "The temperature gauge rises unusually high or coolant is leaking"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can evaluate",
+          "items": [
+            "Air-conditioning performance and related visible concerns",
+            "Cabin heat and blower operation",
+            "Controls, airflow, and temperature complaints",
+            "Visible coolant leaks and cooling-system condition",
+            "Overheating or unusual engine-temperature concerns"
+          ]
+        },
+        "helpful": {
+          "heading": "Warm A/C does not automatically mean “add refrigerant”",
+          "paragraphs": [
+            "Poor cooling can involve refrigerant loss, airflow, electrical controls, compressor operation, or other causes. If refrigerant is low, understanding why it was lost matters; repeatedly adding refrigerant without evaluating the system may not address the problem.",
+            "Engine overheating is a different and potentially serious concern. Cooling-system problems can involve coolant loss, circulation, airflow, controls, or other components. If the temperature rises unusually high, avoid unnecessary driving and contact the shop rather than waiting for a routine HVAC visit."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Explain whether the concern involves cabin comfort, airflow, engine temperature, or a visible leak.",
+          "items": [
+            "Car Doc separates the reported cabin HVAC concern from engine-cooling symptoms.",
+            "The appropriate system is inspected or tested before repair is recommended.",
+            "The findings and repair options are explained without assuming a recharge or single component.",
+            "You review the estimate and authorize the work before service begins."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "Why is my A/C not blowing cold?",
+            "answer": "Cooling can be affected by refrigerant level, airflow, controls, compressor operation, electrical faults, or other conditions. Testing helps identify which area needs attention."
+          },
+          {
+            "question": "Does warm air mean the A/C only needs refrigerant?",
+            "answer": "No. Low refrigerant is one possibility, but it does not explain why refrigerant was lost and is not the only cause of warm air."
+          },
+          {
+            "question": "Why is my heater not getting warm?",
+            "answer": "Cabin heat can be affected by coolant temperature or level, airflow, controls, or heating-system components. The temperature gauge and other symptoms help guide inspection."
+          },
+          {
+            "question": "What if the engine temperature rises unusually high?",
+            "answer": "Overheating can lead to significant damage. Avoid unnecessary driving and contact the shop promptly to describe the gauge reading, warning, leak, or other symptoms."
+          }
+        ],
+        "related": [
+          {
+            "slug": "engine-repair",
+            "label": "Engine concerns and repair"
+          },
+          {
+            "slug": "battery-electrical",
+            "label": "Electrical diagnosis"
+          },
+          {
+            "slug": "diagnostics",
+            "label": "Vehicle diagnostics"
+          }
+        ],
+        "cta": {
+          "heading": "Describe the temperature or airflow concern",
+          "body": "Tell Car Doc what the vents, controls, or temperature gauge are doing and when the change occurs.",
+          "requestLabel": "Request A/C or Cooling Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 50
+    },
+    {
+      "slug": "battery-electrical",
+      "name": "Battery, Starting, and Electrical",
+      "summary": "Testing for slow starts, no-start conditions, charging warnings, and electrical problems.",
+      "detail": "Slow cranking, intermittent starting, dim lights, or a battery or charging warning can point to several possible causes. The shop can test the related systems and explain the results before recommending parts or repairs.",
+      "content": {
+        "version": 1,
+        "heading": "Battery, Starting, and Electrical Repair",
+        "intro": "A no-start or electrical problem is not always caused by the battery. Car Doc provides battery, starting, charging, and electrical diagnosis in Sterling Heights by testing the related system and considering the exact symptom before recommending replacement parts.",
+        "signs": {
+          "heading": "Reasons to have the electrical system checked",
+          "items": [
+            "The engine cranks slowly, clicks, or does not crank",
+            "Starting is intermittent or requires a jump",
+            "A battery or charging warning appears",
+            "Headlights, interior lights, or accessories behave differently",
+            "The battery repeatedly loses charge"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can test or inspect",
+          "items": [
+            "Battery condition and available starting capacity",
+            "Starter operation and starting-circuit concerns",
+            "Charging-system performance",
+            "Connections, cables, and visible corrosion concerns",
+            "Electrical symptoms involving lights or common vehicle accessories"
+          ]
+        },
+        "helpful": {
+          "heading": "Testing helps separate the battery from the symptom",
+          "paragraphs": [
+            "A weak battery can cause slow cranking, but so can poor connections, a starting-system problem, or another electrical condition. A click without starting also does not identify one failed part by itself.",
+            "A charging-system fault can leave a good battery discharged, and an electrical draw can cause repeated dead-battery complaints. Replacing the battery without checking the rest of the concern may provide only a temporary answer."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Tell the shop what happens when you turn the key or press Start, whether a jump helps, and how often the problem occurs.",
+          "items": [
+            "Car Doc reviews the starting or electrical behavior you observed.",
+            "The battery and related system are tested as appropriate to the concern.",
+            "Results are explained before a battery, starter, alternator, or other repair is recommended.",
+            "You review the repair estimate and authorize the work before it begins."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "How do I know whether the battery is bad?",
+            "answer": "Age and symptoms provide context, but a battery test and inspection of the related system provide better evidence than symptoms alone."
+          },
+          {
+            "question": "Why does my car click but not start?",
+            "answer": "Clicking can be associated with battery charge, connections, the starter circuit, or other conditions. The sound alone does not identify which part should be replaced."
+          },
+          {
+            "question": "Can a charging-system problem drain a good battery?",
+            "answer": "Yes. If the battery is not being recharged correctly, it can become discharged even when the battery itself is serviceable."
+          },
+          {
+            "question": "Why do electrical problems require testing first?",
+            "answer": "Several components share power, grounds, wiring, and controls. Testing helps trace the symptom and reduces unnecessary parts replacement."
+          }
+        ],
+        "related": [
+          {
+            "slug": "diagnostics",
+            "label": "Warning-light and vehicle diagnostics"
+          },
+          {
+            "slug": "engine-repair",
+            "label": "Engine running concerns"
+          }
+        ],
+        "cta": {
+          "heading": "Tell us exactly what happens when you try to start",
+          "body": "Share the sounds, warning lights, and whether the concern is constant or intermittent. Car Doc can plan the appropriate testing.",
+          "requestLabel": "Request Electrical Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 60
+    },
+    {
+      "slug": "steering-suspension",
+      "name": "Steering and Suspension",
+      "summary": "Evaluation of handling changes, uneven ride, looseness, or suspension noise.",
+      "detail": "Contact the shop if the vehicle pulls, feels loose, rides differently, or makes noise over bumps or while turning. An inspection can help identify the source and the work, if any, that should be considered.",
+      "content": {
+        "version": 1,
+        "heading": "Steering and Suspension Repair",
+        "intro": "Steering feel, ride quality, noises, and tire wear can change for several reasons. Car Doc provides steering and suspension inspection in Sterling Heights to identify the affected area before assuming the vehicle only needs an alignment or a particular component.",
+        "signs": {
+          "heading": "Signs the steering or suspension should be checked",
+          "items": [
+            "The vehicle pulls, wanders, or feels less stable",
+            "Clunking, knocking, or squeaking occurs over bumps or while turning",
+            "The ride feels unusually harsh, bouncy, or uneven",
+            "Steering feels loose, heavy, or different from normal",
+            "Tires show unusual or uneven wear"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can inspect",
+          "items": [
+            "Steering linkage and related visible components",
+            "Suspension joints, bushings, and mounting points",
+            "Shocks and struts where applicable",
+            "Visible damage, looseness, or fluid leakage",
+            "Tire-wear patterns and alignment-related symptoms"
+          ]
+        },
+        "helpful": {
+          "heading": "Pulling and tire wear are not always alignment-only problems",
+          "paragraphs": [
+            "Road crown, tire pressure or condition, brake behavior, alignment, and worn or damaged components can all influence how a vehicle tracks. Inspecting the concern first helps determine whether alignment, tires, steering, suspension, brakes, or another area should be addressed.",
+            "Shocks and struts are evaluated by condition and vehicle behavior rather than replaced at one universal mileage. Noise location, leakage, looseness, ride control, and other inspection findings help support a recommendation."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Describe the road conditions, speed, steering input, or braking conditions that make the symptom easiest to notice.",
+          "items": [
+            "Car Doc reviews the handling, noise, ride, or tire-wear concern.",
+            "Relevant steering, suspension, tire, and overlapping brake areas are inspected.",
+            "The shop explains what was found and which concerns are most important.",
+            "You review the recommended work and estimate before repairs begin."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "Why does my vehicle pull to one side?",
+            "answer": "Tires, road conditions, alignment, steering or suspension condition, and sometimes brake behavior can contribute. Inspection helps narrow the cause."
+          },
+          {
+            "question": "What causes clunking over bumps?",
+            "answer": "Several steering, suspension, mounting, or underbody components can make similar noises. When and where the noise occurs helps guide inspection."
+          },
+          {
+            "question": "How do I know if shocks or struts need attention?",
+            "answer": "Changes in ride control, leakage, noise, visible condition, and inspection findings matter more than one universal replacement interval."
+          },
+          {
+            "question": "Can suspension problems affect tire wear?",
+            "answer": "Yes, steering, suspension, alignment, tire pressure, and driving conditions can all influence wear. The pattern should be evaluated rather than attributed automatically to one cause."
+          }
+        ],
+        "related": [
+          {
+            "slug": "brakes",
+            "label": "Brake inspection and service"
+          },
+          {
+            "slug": "undercar-service",
+            "label": "Undercar inspection"
+          }
+        ],
+        "cta": {
+          "heading": "Describe the handling or ride change",
+          "body": "Tell Car Doc when the pull, noise, looseness, or vibration occurs so the inspection can focus on the right conditions.",
+          "requestLabel": "Request Steering or Suspension Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 70
+    },
+    {
+      "slug": "transmission-clutch",
+      "name": "Transmission and Clutch Concerns",
+      "summary": "Evaluation of shifting, engagement, slipping, or drivetrain concerns.",
+      "detail": "Describe delayed engagement, difficult shifting, slipping, vibration, or other changes you notice while driving. The shop will need to evaluate the vehicle before confirming the cause or scope of repair.",
+      "content": {
+        "version": 1,
+        "heading": "Transmission and Clutch Service",
+        "intro": "A change in shifting or clutch engagement deserves evaluation, but it does not automatically mean the transmission needs replacement. Car Doc evaluates transmission and clutch concerns in Sterling Heights within the shop’s service scope and explains when further specialized work may be appropriate.",
+        "signs": {
+          "heading": "Reasons to have the concern evaluated",
+          "items": [
+            "Shifts feel delayed, harsh, inconsistent, or different from normal",
+            "The engine speed rises without the expected vehicle response",
+            "A transmission or drivetrain warning appears",
+            "Fluid is visible beneath the vehicle",
+            "A manual clutch engages differently, slips, chatters, or is difficult to operate"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can check or service",
+          "items": [
+            "Customer-observed shifting and engagement concerns",
+            "Visible fluid level, condition, or leak concerns where serviceable",
+            "Related warning information and diagnostic trouble codes",
+            "External controls or components relevant to the symptom",
+            "Clutch engagement concerns on manual-transmission vehicles"
+          ]
+        },
+        "helpful": {
+          "heading": "A transmission symptom does not automatically mean replacement",
+          "paragraphs": [
+            "Shifting behavior can be affected by fluid condition or level, electronic controls, sensors, engine operation, external components, internal wear, or other causes. The warning or symptom must be evaluated before the scope of repair is known.",
+            "Fluid service is not a universal cure for a shifting problem, and the correct fluid and procedure depend on the vehicle. Car Doc will discuss what can reasonably be checked or serviced and explain if the findings point beyond the shop’s supported work."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Describe whether the concern happens cold or warm, during a particular shift, under acceleration, or at a stop.",
+          "items": [
+            "The shop reviews the exact shifting, engagement, warning, or leak concern.",
+            "Appropriate inspection or diagnostic checks are performed before the repair scope is assumed.",
+            "Car Doc explains the findings, service options, and any need for specialized follow-up.",
+            "No repair proceeds until you review and approve the recommendation."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "Why is my vehicle shifting differently?",
+            "answer": "Fluid, controls, sensors, engine behavior, external components, or internal transmission conditions can affect shifting. The pattern and test results matter."
+          },
+          {
+            "question": "Does a transmission warning mean replacement is required?",
+            "answer": "No. A warning indicates that the system detected a condition. Diagnosis is needed before the cause and repair scope are known."
+          },
+          {
+            "question": "Should a transmission-fluid leak be inspected?",
+            "answer": "Yes. Low fluid can affect operation, and the fluid type and leak source matter. Avoid assuming that topping it off is a complete repair."
+          },
+          {
+            "question": "What can cause clutch engagement to feel different?",
+            "answer": "Clutch wear, hydraulic operation, linkage, adjustment where applicable, mounting, or other drivetrain conditions can contribute. Inspection is needed before recommending parts."
+          }
+        ],
+        "related": [
+          {
+            "slug": "diagnostics",
+            "label": "Vehicle diagnostics"
+          },
+          {
+            "slug": "undercar-service",
+            "label": "Undercar and leak inspection"
+          }
+        ],
+        "cta": {
+          "heading": "Describe the shift or engagement change",
+          "body": "Share when it occurs and any warning, noise, leak, or vibration that accompanies it. Car Doc can discuss the appropriate evaluation.",
+          "requestLabel": "Request Transmission or Clutch Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 80
+    },
+    {
+      "slug": "engine-repair",
+      "name": "Engine Concerns and Repair",
+      "summary": "Evaluation of engine noise, performance changes, leaks, smoke, or running problems.",
+      "detail": "Engine symptoms can have many causes. Share when the problem occurs and what you have noticed; the shop can inspect the vehicle and discuss the findings before determining whether repair work is appropriate.",
+      "content": {
+        "version": 1,
+        "heading": "Engine Diagnosis and Repair",
+        "intro": "Engine noise, leaks, smoke, overheating, or lost performance can range from a related-system problem to a more involved engine concern. Car Doc evaluates engine symptoms in Sterling Heights before recommending major repair, helping customers understand the evidence and practical options.",
+        "signs": {
+          "heading": "Reasons to have the engine checked",
+          "items": [
+            "The engine runs rough, stalls, hesitates, or has lost power",
+            "A new tapping, knocking, rattling, or other engine-area noise appears",
+            "Oil, coolant, or another fluid is leaking",
+            "Smoke or an unusual exhaust appearance is noticed",
+            "The engine overheats or warning information appears"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can evaluate or service",
+          "items": [
+            "Running, performance, and engine-noise concerns",
+            "Visible oil, coolant, and related leak sources",
+            "Warning-light and diagnostic information related to the symptom",
+            "Cooling-system concerns that may affect engine temperature",
+            "Repair options supported by inspection and testing"
+          ]
+        },
+        "helpful": {
+          "heading": "Diagnosis matters before a major engine decision",
+          "paragraphs": [
+            "An engine-area noise does not always mean the engine has suffered major internal damage. Accessories, exhaust components, mounts, ignition or fuel concerns, cooling components, and other systems can create symptoms that feel like an engine problem.",
+            "Likewise, a warning light or loss of performance can originate outside the engine itself. Establishing the cause and likely repair scope before approving major work helps avoid decisions based only on the most expensive possibility."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Share when the concern started, whether the engine was hot or cold, and any recent warning, service, leak, or change in performance.",
+          "items": [
+            "Car Doc listens to the symptom history and reviews the current vehicle behavior.",
+            "Inspection or testing focuses on confirming the affected system before major repair is discussed.",
+            "The findings, urgency, options, and limits of the evaluation are explained clearly.",
+            "You review the estimate and decide whether to authorize the recommended work."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "What symptoms should make me have the engine checked?",
+            "answer": "New noises, smoke, leaks, overheating, warning lights, rough running, stalling, or a significant performance change should be discussed with the shop."
+          },
+          {
+            "question": "Does engine noise always mean major engine damage?",
+            "answer": "No. Many engine-area and related components can create noise. The sound, operating conditions, and inspection findings are needed to understand its significance."
+          },
+          {
+            "question": "Why is diagnosis important before a major repair?",
+            "answer": "It helps confirm which system is responsible, whether repair is practical, and what options should be considered before committing to expensive work."
+          },
+          {
+            "question": "Can an engine warning symptom come from another system?",
+            "answer": "Yes. Fuel, ignition, electrical, cooling, exhaust, transmission, and control-system conditions can affect engine behavior or trigger warnings."
+          }
+        ],
+        "related": [
+          {
+            "slug": "diagnostics",
+            "label": "Warning-light and vehicle diagnostics"
+          },
+          {
+            "slug": "ac-heating-cooling",
+            "label": "Engine cooling concerns"
+          },
+          {
+            "slug": "oil-change",
+            "label": "Oil and filter service"
+          }
+        ],
+        "cta": {
+          "heading": "Start with the symptom, not the worst-case assumption",
+          "body": "Tell Car Doc what changed, when it happens, and which warnings you see. The shop can plan an appropriate evaluation.",
+          "requestLabel": "Request Engine Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 90
+    },
+    {
+      "slug": "undercar-service",
+      "name": "Undercar Inspection and Service",
+      "summary": "Evaluation of noises, leaks, vibration, or visible concerns beneath the vehicle.",
+      "detail": "Contact the shop if you notice a leak, rattle, vibration, impact damage, or another concern underneath the vehicle. An inspection is needed to identify the affected component and whether service is required.",
+      "content": {
+        "version": 1,
+        "heading": "Undercar Inspection and Service",
+        "intro": "A rattle, leak, vibration, exhaust change, or impact beneath the vehicle can involve several underbody systems. Car Doc’s undercar service in Sterling Heights begins with locating the concern and identifying the affected component before repair is recommended.",
+        "signs": {
+          "heading": "Reasons to request an undercar inspection",
+          "items": [
+            "A rattle, scrape, clunk, or other noise comes from beneath the vehicle",
+            "Fluid appears on the driveway or parking space",
+            "The exhaust sounds louder or different",
+            "A vibration occurs at certain speeds or over bumps",
+            "The vehicle struck a pothole, road debris, curb, or another object"
+          ]
+        },
+        "services": {
+          "heading": "What Car Doc can inspect",
+          "intro": "Undercar is a broad category, so the inspection follows the reported symptom.",
+          "items": [
+            "Visible exhaust-system condition and mounting concerns",
+            "Visible leaks and the general area they originate from",
+            "Underbody shields, brackets, and components related to a noise",
+            "Visible impact damage beneath the vehicle",
+            "Overlapping steering, suspension, and drivetrain-area concerns"
+          ]
+        },
+        "helpful": {
+          "heading": "Michigan roads and weather can increase underbody exposure",
+          "paragraphs": [
+            "Potholes, road debris, moisture, and winter road salt can expose underbody parts to impact and corrosion. That does not mean every surface-rust condition requires repair, but a new leak, loose component, exhaust change, or structural concern should be evaluated.",
+            "The color, location, amount, and timing of a fluid spot can provide clues, but fluid can travel along shields or components before reaching the ground. An inspection is more reliable than identifying a leak solely by where a spot appears."
+          ]
+        },
+        "expectations": {
+          "heading": "What to expect",
+          "intro": "Describe where you notice the sound, leak, or vibration and whether it follows speed, bumps, turning, braking, or engine operation.",
+          "items": [
+            "Car Doc reviews the underbody symptom and any recent impact or weather exposure.",
+            "The relevant visible undercar area is inspected to locate the affected component.",
+            "The shop explains what was found, including whether another service category is involved.",
+            "You receive a recommendation and estimate before authorized repair work begins."
+          ]
+        },
+        "faqs": [
+          {
+            "question": "What can cause a rattle under the vehicle?",
+            "answer": "Exhaust parts, shields, brackets, suspension components, or other underbody items can make similar sounds. When the rattle occurs helps focus the inspection."
+          },
+          {
+            "question": "Can the location of a driveway spot identify the leak?",
+            "answer": "It offers a clue, but fluid may travel before dripping. Color, feel, amount, vehicle fluid levels, and direct inspection are also important."
+          },
+          {
+            "question": "Should a louder exhaust be inspected?",
+            "answer": "Yes. A change in exhaust sound can be associated with a leak, damaged component, or mounting concern that should be located before repair is planned."
+          },
+          {
+            "question": "Does visible underbody rust always require repair?",
+            "answer": "No. Surface condition and structural or component condition are not the same. The affected area must be inspected before its significance can be determined."
+          }
+        ],
+        "related": [
+          {
+            "slug": "steering-suspension",
+            "label": "Steering and suspension"
+          },
+          {
+            "slug": "transmission-clutch",
+            "label": "Transmission and clutch concerns"
+          },
+          {
+            "slug": "brakes",
+            "label": "Brake inspection"
+          }
+        ],
+        "cta": {
+          "heading": "Have the noise, leak, or impact checked",
+          "body": "Tell Car Doc where and when you notice the underbody concern. An inspection can identify the component and the appropriate next step.",
+          "requestLabel": "Request Undercar Service",
+          "callLabel": "Call Car Doc"
+        }
+      },
+      "active": true,
+      "sortOrder": 100
+    }
+  ],
+  "coupons": [],
+  "testimonials": [],
+  "gallery": [
+    {
+      "title": "Subbu working in a service bay",
+      "caption": "Subbu at work in the Car Doc service bay",
+      "alt": "Subbu working on a vehicle in a Car Doc service bay",
+      "imageUrl": "/client-assets/cardoc/subbu-working-primary.jpg",
+      "active": true,
+      "sortOrder": 10
+    },
+    {
+      "title": "Car Doc service bays",
+      "caption": "Inside our Sterling Heights repair shop",
+      "alt": "Inside the Car Doc service bays in Sterling Heights",
+      "imageUrl": "/client-assets/cardoc/shop-service-bays-wide.jpg",
+      "active": true,
+      "sortOrder": 20
+    },
+    {
+      "title": "The Car Doc team",
+      "caption": "The Car Doc team",
+      "alt": "Subbu and Jon together in the Car Doc service shop",
+      "imageUrl": "/client-assets/cardoc/subbu-and-jon-2026.jpg",
+      "active": true,
+      "sortOrder": 30
+    },
+    {
+      "title": "Alignment equipment",
+      "caption": "Service and alignment equipment",
+      "alt": "Service and wheel alignment equipment at Car Doc",
+      "imageUrl": "/client-assets/cardoc/service-alignment-equipment.jpg",
+      "active": true,
+      "sortOrder": 40
+    },
+    {
+      "title": "Customer entrance",
+      "caption": "The Car Doc customer entrance",
+      "alt": "Customer entrance at the Car Doc shop",
+      "imageUrl": "/client-assets/cardoc/customer-entrance.jpg",
+      "active": true,
+      "sortOrder": 50
+    },
+    {
+      "title": "Hands-on repair work",
+      "caption": "Hands-on diagnostics and repair",
+      "alt": "Subbu performing hands-on vehicle diagnostics and repair",
+      "imageUrl": "/client-assets/cardoc/subbu-working-secondary.jpg",
+      "active": true,
+      "sortOrder": 60
+    },
+    {
+      "title": "Training and certifications",
+      "caption": "Professional training and certifications",
+      "alt": "Automotive technician certifications displayed at Car Doc",
+      "imageUrl": "/client-assets/cardoc/subbu-certifications-original.jpg",
+      "active": true,
+      "sortOrder": 70
+    },
+    {
+      "title": "Roadside Car Doc sign",
+      "caption": "Look for the Car Doc sign from Mound Road",
+      "alt": "Yellow Car Doc roadside sign visible from Mound Road",
+      "imageUrl": "/client-assets/cardoc/roadside-car-doc-sign.jpg",
+      "active": true,
+      "sortOrder": 80
+    }
+  ]
+}
