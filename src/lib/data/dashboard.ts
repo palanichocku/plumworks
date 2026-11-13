@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentMembership } from "./membership";
 import { hasPermission } from "@/lib/permissions";
 import { operationalMarketingLeadWhere } from "@/lib/marketing-lead-query";
-import { currentUtcMonthRange } from "@/lib/dashboard-summary";
+import { detroitMonthRange } from "@/lib/marketing-performance-period";
 import { operationalRepairOrderWhere } from "@/lib/repair-order-lifecycle";
 import { CLOSED_INVOICE_STATUS, OPEN_INVOICE_STATUS } from "@/lib/invoice-lifecycle";
 import { activeCustomerAvailability, activeVehicleAvailability } from "@/lib/customer-vehicle-lifecycle";
@@ -18,7 +18,7 @@ export async function getDashboardSummary() {
   if (!membership) return null;
   const shopId = membership.shopId;
   const now = new Date();
-  const currentMonth = currentUtcMonthRange(now);
+  const currentMonth = detroitMonthRange(now);
   const overviewMonths = exclusiveMonthRanges(now);
 
   const canViewLeads = hasPermission(membership.role, "view_marketing_leads");
@@ -69,10 +69,10 @@ export async function getDashboardSummary() {
       where: { ...operationalRepairOrderWhere(shopId), openedAt: { lt: agedRepairOrderCutoff(now) } },
     }),
     canViewLeads ? prisma.marketingLead.count({
-      where: { shopId, createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+      where: { ...operationalMarketingLeadWhere(shopId), createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
     }) : Promise.resolve(null),
     canViewLeads ? prisma.marketingLead.count({
-      where: { shopId, status: "CONVERTED", createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
+      where: { ...operationalMarketingLeadWhere(shopId, "CONVERTED"), createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive }, convertedAt: { not: null } },
     }) : Promise.resolve(null),
     prisma.customer.count({
       where: { shopId, acquisitionSource: "WEB", createdAt: { gte: currentMonth.start, lt: currentMonth.endExclusive } },
