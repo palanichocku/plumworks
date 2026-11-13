@@ -153,3 +153,16 @@ test("free review showcase links to real profiles and supports service conversio
   assert.match(home, /<AttributionLink href="\/appointment"/);
   assert.doesNotMatch(home, /932 reviews|Google Places API|5 star rated/i);
 });
+
+
+test("hero rating has no ambiguous single-star indicator and is configuration gated", async () => {
+  const ratingComponent = await read("src/components/marketing/google-rating-mark.tsx");
+  assert.match(home, /PLUMWORKS_PUBLIC_GOOGLE_RATING/);
+  assert.match(home, /reviewLinks\.google && Number\.isFinite\(configuredGoogleRating\)/);
+  assert.match(home, /<GoogleRatingMark rating=\{googleRating\} \/>/);
+  assert.match(home, /Read Customer Reviews/);
+  assert.doesNotMatch(home, /className="text-3xl leading-none text-amber-400">★/);
+  assert.match(ratingComponent, /toFixed\(1\)/);
+  assert.match(ratingComponent, /out of 5 stars/);
+  assert.match(ratingComponent, /Math\.max\(0, Math\.min\(1, rating - index\)\)/);
+});
