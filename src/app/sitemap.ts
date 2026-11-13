@@ -3,6 +3,7 @@ import { getMarketingCoupons, getMarketingGallery, getMarketingServices, getMark
 import { configuredPublicSiteOrigin, marketingIndexingEnabled } from "@/lib/marketing-seo";
 import { getPublicShop } from "@/lib/marketing";
 import { getReviewLinks } from "@/lib/marketing-review-links";
+import { getPublicWarrantyPrograms } from "@/lib/marketing-warranty";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = configuredPublicSiteOrigin();
@@ -10,6 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes = ["/", "/services", "/about", "/contact", "/appointment", "/drop-off", "/privacy", "/terms"];
   const [services, coupons, testimonials, gallery, shop, settings] = await Promise.all([getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingGallery(), getPublicShop(), getMarketingSettings()]);
   const reviewLinks = getReviewLinks(shop, settings.reviewUrl);
+  if (getPublicWarrantyPrograms().length) routes.push("/warranty");
   if (coupons.some((item) => !item.id.startsWith("fallback-"))) routes.push("/coupons");
   if (testimonials.some((item) => !item.id.startsWith("fallback-")) || reviewLinks.google || reviewLinks.facebook) routes.push("/reviews");
   if (gallery.some((item) => !item.id.startsWith("fallback-") && item.imageUrl)) routes.push("/photos");
