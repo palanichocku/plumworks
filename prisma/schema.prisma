@@ -1018,7 +1018,7 @@ model MarketingPerformanceSnapshot {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  @@unique([shopId, source, periodStart, periodEnd])
-  @@index([shopId, source, periodStart])
+  @@unique([shopId, source, periodStart, periodEnd], map: "marketing_performance_snapshot_identity")
+  @@index([shopId, source, periodStart], map: "marketing_performance_snapshots_shop_source_start_idx")
   @@map("marketing_performance_snapshots")
 }
