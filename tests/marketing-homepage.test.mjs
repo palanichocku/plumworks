@@ -139,3 +139,17 @@ test("hero review link points to the existing public reviews page without borrow
   assert.match(home, /<AttributionLink href="\/reviews"/);
   assert.doesNotMatch(home, /932 reviews|Sterling Heights Auto Repair/);
 });
+
+test("free review showcase links to real profiles and supports service conversion", () => {
+  assert.match(home, /id="customer-voices-title"/);
+  assert.match(home, /What drivers say about/);
+  assert.match(home, /reviewLinks\.google \? <article/);
+  assert.match(home, /reviewLinks\.facebook \? <article/);
+  assert.match(home, /href=\{reviewLinks\.google\}/);
+  assert.match(home, /href=\{reviewLinks\.facebook\}/);
+  assert.match(home, /Read Google Reviews/);
+  assert.match(home, /View Facebook Recommendations/);
+  assert.match(home, /View All Review Options/);
+  assert.match(home, /<AttributionLink href="\/appointment"/);
+  assert.doesNotMatch(home, /932 reviews|Google Places API|5 star rated/i);
+});
