@@ -68,7 +68,37 @@ export default async function MarketingHome() {
 
     <WarrantyTrustSection />
 
-    {reviewLinks.google || reviewLinks.facebook ? <section aria-label="Customer reviews" className="border-b border-slate-200 bg-orange-50"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"><div><p className="font-black text-slate-950">See what customers say about {seoShop.name}</p><p className="text-sm text-slate-600">Read customer feedback on Google and Facebook.</p></div><div className="flex flex-wrap gap-3"><AttributionLink href="/reviews" className={`rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Customer Reviews</AttributionLink>{reviewLinks.google ? <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="google" />Google Reviews ↗</a> : null}{reviewLinks.facebook ? <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" aria-label={`View ${shop.name} on Facebook`} className={`inline-flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-stone-50 ${focusRing}`}><ReviewPlatformIcon platform="facebook" />View recommendations ↗</a> : null}</div></div></section> : null}
+    {reviewLinks.google || reviewLinks.facebook ? <section aria-labelledby="customer-voices-title" className="border-y border-slate-200 bg-slate-950 text-white">
+      <div className="mx-auto grid max-w-7xl gap-9 px-4 py-14 sm:px-6 sm:py-16 lg:grid-cols-[.85fr_1.15fr] lg:items-center lg:gap-14 lg:px-8">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Customer experiences</p>
+          <h2 id="customer-voices-title" className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">What drivers say about {seoShop.name}</h2>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Customer feedback matters when choosing a repair shop. Explore independent reviews and recommendations from drivers who have visited us.</p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+            <AttributionLink href="/appointment" className={`rounded-xl bg-orange-500 px-5 py-3.5 text-center font-black text-slate-950 transition hover:bg-orange-400 ${focusRing}`}>Request Service</AttributionLink>
+            <AttributionLink href="/reviews" className={`rounded-xl border border-slate-500 px-5 py-3.5 text-center font-bold text-white transition hover:border-white hover:bg-white/10 ${focusRing}`}>View All Review Options</AttributionLink>
+          </div>
+          <p className="mt-4 text-xs leading-5 text-slate-400">Submitting a request does not confirm an appointment. Our team will follow up.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {reviewLinks.google ? <article className="flex flex-col rounded-2xl border border-white/15 bg-white p-6 text-slate-950 shadow-lg">
+            <ReviewPlatformIcon platform="google" size={32} />
+            <h3 className="mt-4 text-xl font-black">Google Reviews</h3>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">Read customer ratings and feedback directly on Car Doc&apos;s Google listing.</p>
+            <a href={reviewLinks.google} target="_blank" rel="noopener noreferrer" className={`mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-bold text-white hover:bg-slate-800 ${focusRing}`}>Read Google Reviews ↗</a>
+          </article> : null}
+          {reviewLinks.facebook ? <article className="flex flex-col rounded-2xl border border-white/15 bg-white p-6 text-slate-950 shadow-lg">
+            <ReviewPlatformIcon platform="facebook" size={32} />
+            <h3 className="mt-4 text-xl font-black">Facebook Recommendations</h3>
+            <p className="mt-3 flex-1 text-sm leading-6 text-slate-600">See customer recommendations and posts on Car Doc&apos;s Facebook page.</p>
+            <a href={reviewLinks.facebook} target="_blank" rel="noopener noreferrer" className={`mt-6 inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:border-orange-500 ${focusRing}`}>View Facebook Recommendations ↗</a>
+          </article> : null}
+          <div className="rounded-xl border border-white/15 bg-white/5 p-4 text-sm leading-6 text-slate-200 sm:col-span-2">
+            Already visited? <AttributionLink href="/reviews" className={`font-bold text-orange-300 underline underline-offset-4 hover:text-white ${focusRing}`}>See how to leave feedback →</AttributionLink>
+          </div>
+        </div>
+      </div>
+    </section> : null}
 
     {primaryMedia ? <section className="bg-white"><div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-8"><div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-100 shadow-sm"><Image src={primaryMedia.imageUrl} alt={primaryMedia.alt} fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover" style={{ objectPosition: primaryMedia.objectPosition ?? "center" }} /></div><div><p className="text-sm font-black uppercase tracking-widest text-orange-700">Inside the business</p>{primaryMedia.heading ? <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{primaryMedia.heading}</h2> : null}{primaryMedia.body ? <p className="mt-5 text-lg leading-8 text-slate-600">{primaryMedia.body}</p> : null}</div></div></section> : null}
 
