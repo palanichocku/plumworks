@@ -57,3 +57,19 @@ test("Batch 4 reporting preserves exact range and avoids fake complete-month bar
   assert.match(action, /upsert\(/);
   assert.match(action, /Date\.UTC/);
 });
+
+test("Batch 2 trend cards explain metrics and show a single month as baseline, not a full-width bar", async () => {
+  const ui = await read("src/app/(app)/dashboard/website-performance/website-performance-trends.tsx");
+  const reporting = await read("src/lib/website-performance-trends.ts");
+  assert.match(ui, /function MetricInfo\(/);
+  assert.match(ui, /aria-label=\{\`What does \$\{metric\.label\} mean\?\`\}/);
+  assert.match(ui, /metricExplanation\(metric\)/);
+  assert.match(ui, /actual\.length === 1/);
+  assert.match(ui, /Baseline month/);
+  assert.match(ui, /Trend comparisons begin when another complete month is available/);
+  assert.match(ui, /formatReportingMonth\(month, true\)/);
+  assert.match(ui, /max-w-12/);
+  assert.doesNotMatch(ui, /month\.slice\(5\)/);
+  assert.match(reporting, /export function metricExplanation\(/);
+  assert.match(reporting, /export function formatReportingMonth\(/);
+});
