@@ -86,10 +86,37 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
       <Trend title="Search impressions by month" rows={gsc} metric="impressions" shade="bg-violet-500" />
       <Trend title="Google directions by month" rows={gbp} metric="directions" shade="bg-orange-500" />
     </section>
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b bg-slate-50 p-5"><h2 className="text-xl font-black">Reporting records</h2><p className="mt-1 text-sm text-slate-600">Records starting October 2026, with exact imported periods. Partial or multi-month records stay visible here but are not plotted as complete months. Earlier records remain stored.</p></div>
-      {reportingSnapshots.length ? <div className="overflow-x-auto"><table className="min-w-[700px] w-full text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="p-4">Source</th><th className="p-4">Period</th><th className="p-4">Measurements</th><th className="p-4">Notes</th></tr></thead><tbody className="divide-y">{reportingSnapshots.map((row) => <tr key={row.id}><td className="p-4 font-bold">{sourceNames[row.source] || row.source}</td><td className="p-4"><Range row={row}/></td><td className="p-4">{Object.entries(row.metrics as Record<string, unknown>).map(([name, value]) => `${name}: ${value}`).join(" · ")}</td><td className="p-4 text-slate-600">{row.notes ?? "—"}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-slate-500">No reporting records from October 2026 onward.</p>}
-    </section>
+    {mayEdit ? <details className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <summary className="cursor-pointer bg-slate-50 p-5 font-black text-slate-900">Data Imports &amp; History</summary>
+      <div className="border-t border-slate-200 p-5">
+        <p className="mb-4 text-sm text-slate-600">Administrative import records from October 2026 onward. Earlier imports are retained in storage. Expand a record for its original measurements and import notes.</p>
+        {reportingSnapshots.length ? <div className="overflow-x-auto">
+          <table className="min-w-[560px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-600"><tr><th className="p-3">Source</th><th className="p-3">Period</th><th className="p-3">Status</th><th className="p-3">Details</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{reportingSnapshots.map((row) =>
+              <tr key={row.id}>
+                <td className="p-3 font-semibold">{sourceNames[row.source] || row.source}</td>
+                <td className="p-3">{date(row.periodStart)} to {date(row.periodEnd)}</td>
+                <td className="p-3">{row.partial ? "Partial / multi-month" : "Complete month"}</td>
+                <td className="p-3">
+                  <details>
+                    <summary className="cursor-pointer font-semibold text-orange-700">View record</summary>
+                    <div className="mt-3 max-w-xl space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
+                      <p className="font-bold">Imported measurements</p>
+                      <dl className="space-y-1">{Object.entries(row.metrics as Record<string, unknown>).map(([name, value]) =>
+                        <div key={name} className="flex justify-between gap-4"><dt>{name}</dt><dd className="font-semibold tabular-nums">{String(value)}</dd></div>
+                      )}</dl>
+                      <p className="font-bold">Original import notes</p>
+                      <p className="whitespace-pre-wrap break-words">{row.notes ?? "No notes recorded."}</p>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            )}</tbody>
+          </table>
+        </div> : <p className="text-sm text-slate-500">No reporting records from October 2026 onward.</p>}
+      </div>
+    </details> : null}
     {mayEdit ? <GoogleReportUpload /> : null}
     {mayEdit ? <details className="rounded-2xl border border-slate-200 bg-white p-6"><summary className="cursor-pointer text-lg font-black">Manual entry (fallback)</summary><h2 className="mt-4 text-xl font-black">Enter a Google measurement snapshot</h2>
       <p className="mt-2 text-sm text-slate-600">For OWNER/ADMIN only. Use Google-exported totals, one exact date range per record. Leave unknown fields empty rather than typing zero. Saving the same source and period replaces its prior snapshot.</p>
