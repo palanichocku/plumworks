@@ -11,12 +11,11 @@ function isCarDoc(shop: PublicShop) {
 }
 
 /** Explicit Car Doc link preview for the synthetic development shop only.
- * Never enable on Production or another tenant. The actual shop record stays synthetic.
+ * Flag is scoped to the dev branch in Vercel, is denied in production, and\n * requires the exact synthetic dev shop identity. Do not depend on optional Vercel Git vars.
  */
 export function carDocReviewPreviewEnabled(shop: PublicShop): boolean {
-  return process.env.VERCEL_ENV === "preview" &&
-    process.env.VERCEL_GIT_COMMIT_REF === "dev" &&
-    process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW === "true" &&
+  return process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW === "true" &&
+    process.env.VERCEL_ENV !== "production" &&
     shop.name === "Car Doc Development" &&
     shop.addressLine1 === "100 Test Drive" &&
     shop.phone === "555-0100";
