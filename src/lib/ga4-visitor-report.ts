@@ -157,8 +157,8 @@ export function recentHourlyWindow(now = new Date()) {
 
 async function hourlyReport(token: string, property: string, now: Date): Promise<Ga4Response> {
   const yesterday = new Date(now.getTime() - 48 * 3600000);
-  const start = detroitHour(yesterday).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
-  const end = detroitHour(now).slice(0, 8).replace(/^(\\d{4})(\\d{2})(\\d{2})$/, "$1-$2-$3");
+  const start = detroitHour(yesterday).slice(0, 8).replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+  const end = detroitHour(now).slice(0, 8).replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
   const response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:runReport`, {
     method: "POST", cache: "no-store", signal: AbortSignal.timeout(9000),
     headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -181,7 +181,7 @@ export async function getGa4RecentVisitors(now = new Date()): Promise<Ga4RecentV
   };
   const property = process.env.GA4_PROPERTY_ID?.trim();
   const rawCredentials = process.env.GA4_SERVICE_ACCOUNT_JSON;
-  if (!property || !/^\\d{5,18}$/.test(property) || !rawCredentials) return initial;
+  if (!property || !/^\d{5,18}$/.test(property) || !rawCredentials) return initial;
   let token: string;
   try {
     token = await accessToken(readCredentials(rawCredentials));
@@ -202,7 +202,7 @@ export async function getGa4RecentVisitors(now = new Date()): Promise<Ga4RecentV
   const rows = hourly.status === "fulfilled"
     ? (hourly.value.rows ?? []).filter((row) => {
       const hour = row.dimensionValues?.[0]?.value ?? "";
-      return /^\\d{10}$/.test(hour) && hour >= window.first && hour <= window.last;
+      return /^\d{10}$/.test(hour) && hour >= window.first && hour <= window.last;
     }) : [];
   const hourlySummary: Ga4RecentVisitors["hourly"] = hourly.status === "rejected"
     ? { state: "connection_error", sessions: null, pageViews: null }
