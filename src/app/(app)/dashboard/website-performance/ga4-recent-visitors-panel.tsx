@@ -21,7 +21,8 @@ export function Ga4RecentVisitorsPanel() {
   const [report, setReport] = useState<Ga4RecentVisitors | null>(null);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [clock, setClock] = useState(() => 0);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const cachedReport = useRef<Ga4RecentVisitors | null>(null);
   const lastRequestAt = useRef(0);
   const requestCounter = useRef(0);
   const enabledRef = useRef(false);
@@ -30,13 +31,13 @@ export function Ga4RecentVisitorsPanel() {
     const now = Date.now();
     if (!enabledRef.current || now - lastRequestAt.current < MIN_REFRESH_MS) return;
     lastRequestAt.current = now;
-    setClock(now);
+    setCooldownUntil(now + MIN_REFRESH_MS);
     setError(false);
     const request = ++requestCounter.current;
     startTransition(async () => {
       try {
         const result = await loadRecentGa4Visitors();
-        if (enabledRef.current && requestCounter.current === request) setReport(result);
+        if (enabledRef.current && requestCounter.current === request) { cachedReport.current = result; setReport(result); }
       } catch {
         if (enabledRef.current && requestCounter.current === request) setError(true);
       }
@@ -55,7 +56,7 @@ export function Ga4RecentVisitorsPanel() {
       lastRequestAt.current = 0;
       const now = Date.now();
       lastRequestAt.current = now;
-      setClock(now);
+      setCooldownUntil(now + MIN_REFRESH_MS);
       const request = ++requestCounter.current;
       startTransition(async () => {
         try {
@@ -69,7 +70,6 @@ export function Ga4RecentVisitorsPanel() {
   }, []);
 
   function toggle() {
-    if (pending) return;
     const next = !enabledRef.current;
     enabledRef.current = next;
     setEnabled(next);
@@ -82,13 +82,25 @@ export function Ga4RecentVisitorsPanel() {
     }
     // User explicitly turned reporting back on. A previous request less than
     // one minute ago does not need to run again; show existing data if available.
-    if (report && Date.now() - lastRequestAt.current < MIN_REFRESH_MS) return;
-    lastRequestAt.current = 0;
+    if (Date.now() - lastRequestAt.current < MIN_REFRESH_MS) {
+      if (cachedReport.current) setReport(cachedReport.current);
+      return;
+    }
     refresh();
   }
 
-  const secondsRemaining = Math.max(0, Math.ceil((MIN_REFRESH_MS - (clock - lastRequestAt.current)) / 1000));
-  const canRefresh = enabled && !pending && (Date.now() - lastRequestAt.current >= MIN_REFRESH_MS);
+  useEffect(() => {
+    if (!enabled || !cooldownUntil) return;
+    const remaining = cooldownUntil - Date.now();
+    if (remaining <= 0) {
+      setCooldownUntil(0);
+      return;
+    }
+    // This timer only re-enables the button; it never calls Google.
+    const timer = window.setTimeout(() => setCooldownUntil(0), remaining);
+    return () => window.clearTimeout(timer);
+  }, [enabled, cooldownUntil]);
+  const canRefresh = enabled && !pending && cooldownUntil === 0;
   const updated = report?.refreshedAt ? new Date(report.refreshedAt).toLocaleString("en-US", {
     timeZone: "America/Detroit", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   }) + " ET" : null;
