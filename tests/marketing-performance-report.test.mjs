@@ -28,7 +28,12 @@ test("Batch 4 stores isolated marketing data with RLS rather than mutating opera
 test("Batch 4 reporting preserves exact range and avoids fake complete-month bars", async () => {
   const page = await read("src/app/(app)/dashboard/website-performance/page.tsx");
   const action = await read("src/app/(app)/dashboard/website-performance/actions.ts");
-  assert.match(page, /!row\.partial/);
+  const trends = await read("src/lib/website-performance-trends.ts");
+  const ui = await read("src/app/(app)/dashboard/website-performance/website-performance-trends.tsx");
+  assert.match(trends, /!row\.partial/);
+  assert.match(ui, /WebsitePerformanceTrends/);
+  assert.match(ui, /lastTwelveMonths/);
+  assert.match(ui, /same month last year/);
   assert.match(page, /2026-10-01/);
   assert.match(page, /reportingStart = "2026-10-01"/);
   assert.match(page, /date\(row\.periodStart\) >= reportingStart/);
