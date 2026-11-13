@@ -4,6 +4,7 @@ import Image from "next/image";
 import { AttributionLink } from "@/components/marketing/attribution-link";
 import { OwnerPortrait } from "@/components/marketing/owner-portrait";
 import { ReviewPlatformIcon } from "@/components/marketing/review-platform-icon";
+import { GoogleRatingMark } from "@/components/marketing/google-rating-mark";
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { WarrantyTrustSection } from "@/components/marketing/warranty-trust-section";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
@@ -23,6 +24,8 @@ export default async function MarketingHome() {
     getPublicShop(), getPublicSeoShop(), getMarketingSettings(), getMarketingAboutOwner(), getMarketingServices(), getMarketingCoupons(), getMarketingTestimonials(), getMarketingMedia(),
   ]);
   const reviewLinks = getReviewLinks(shop, settings.reviewUrl);
+  const configuredGoogleRating = Number(process.env.PLUMWORKS_PUBLIC_GOOGLE_RATING);
+  const googleRating = reviewLinks.google && Number.isFinite(configuredGoogleRating) && configuredGoogleRating >= 1 && configuredGoogleRating <= 5 ? configuredGoogleRating : null;
   const address = shopAddress(shop);
   const directionsUrl = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
   const featuredServices = services.filter((service) => service.name.trim() && service.summary.trim()).slice(0, 6);
@@ -54,7 +57,7 @@ export default async function MarketingHome() {
             </dl>
           </div>
         </div>
-        <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-x-4 top-7 z-10 sm:inset-x-8 sm:top-10"><AttributionLink href="/reviews" className={`group inline-flex max-w-full items-center gap-3 rounded-2xl border border-white/20 bg-slate-950/80 px-4 py-3 text-white shadow-lg backdrop-blur-sm transition hover:border-orange-400 hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/40 ${focusRing}`}><span aria-hidden="true" className="text-3xl leading-none text-amber-400">★</span><span className="min-w-0"><span className="block text-xs font-bold uppercase tracking-wider text-slate-300">Customer feedback</span><span className="block text-base font-black underline decoration-orange-400 underline-offset-4 group-hover:text-orange-300">Read Customer Reviews →</span></span></AttributionLink></div><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
+        <div className="relative min-h-80 overflow-hidden border-t border-slate-800 bg-slate-900 lg:min-h-full lg:border-l lg:border-t-0"><div className="absolute inset-x-4 top-7 z-10 sm:inset-x-8 sm:top-10"><AttributionLink href="/reviews" className={`group inline-flex max-w-full items-center gap-3 rounded-2xl border border-white/20 bg-slate-950/80 px-4 py-3 text-white shadow-lg backdrop-blur-sm transition hover:border-orange-400 hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-500/40 ${focusRing}`}><span className="min-w-0"><span className="block text-xs font-bold uppercase tracking-wider text-slate-300">{googleRating !== null ? "Google rating" : "Customer feedback"}</span>{googleRating !== null ? <GoogleRatingMark rating={googleRating} /> : null}<span className="mt-1 block text-sm font-black underline decoration-orange-400 underline-offset-4 group-hover:text-orange-300">Read Customer Reviews →</span></span></AttributionLink></div><div className="absolute inset-0 [background-image:linear-gradient(135deg,transparent_0%,transparent_44%,rgb(249_115_22_/_0.18)_44%,rgb(249_115_22_/_0.18)_56%,transparent_56%),radial-gradient(circle_at_68%_32%,rgb(51_65_85)_0%,transparent_42%)]" /><div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-sm sm:inset-x-12 sm:bottom-12"><p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Start a conversation</p><p className="mt-3 max-w-md text-xl font-bold leading-8 text-white">{serviceRequestCopy}</p></div></div>
       </div>
     </section>
 
