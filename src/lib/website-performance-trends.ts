@@ -1,16 +1,16 @@
 export const REPORTING_FIRST_MONTH = "2026-10";
 export type MarketingSource = "GBP" | "GSC";
 export type MonthlySnapshot = { id: string; source: string; periodStart: string; periodEnd: string; partial: boolean; metrics: Record<string, unknown>; recordedAt: string };
-export type Metric = { source: MarketingSource; key: string; label: string; unit?: string; decimals?: number; lowerIsBetter?: boolean };
+export type Metric = { source: MarketingSource; key: string; label: string; subtitle: string; unit?: string; decimals?: number; lowerIsBetter?: boolean };
 export const METRICS: Metric[] = [
-  { source: "GSC", key: "clicks", label: "Organic search clicks" },
-  { source: "GSC", key: "impressions", label: "Search impressions" },
-  { source: "GSC", key: "ctr", label: "Search CTR", unit: "%", decimals: 2 },
-  { source: "GSC", key: "averagePosition", label: "Average search position", decimals: 2, lowerIsBetter: true },
-  { source: "GBP", key: "views", label: "Google profile views" },
-  { source: "GBP", key: "calls", label: "Google call interactions" },
-  { source: "GBP", key: "directions", label: "Direction requests" },
-  { source: "GBP", key: "websiteClicks", label: "Google website clicks" },
+  { source: "GSC", key: "clicks", label: "Clicks from Google Search", subtitle: "Organic search clicks" },
+  { source: "GSC", key: "impressions", label: "Appearances in Google", subtitle: "Search impressions" },
+  { source: "GSC", key: "ctr", label: "Search click rate", subtitle: "Click-through rate (CTR)", unit: "%", decimals: 1 },
+  { source: "GSC", key: "averagePosition", label: "Average search ranking", subtitle: "Search position · Lower is better", decimals: 1, lowerIsBetter: true },
+  { source: "GBP", key: "views", label: "Business listing views", subtitle: "Google Business Profile views" },
+  { source: "GBP", key: "calls", label: "Call button taps", subtitle: "Google call interactions" },
+  { source: "GBP", key: "directions", label: "Direction requests", subtitle: "Google Maps directions" },
+  { source: "GBP", key: "websiteClicks", label: "Website link clicks", subtitle: "Google Business Profile link" },
 ];
 export function nextMonth(month: string): string {
   const [y, m] = month.split("-").map(Number);

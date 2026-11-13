@@ -73,3 +73,25 @@ test("Batch 2 trend cards explain metrics and show a single month as baseline, n
   assert.match(reporting, /export function metricExplanation\(/);
   assert.match(reporting, /export function formatReportingMonth\(/);
 });
+
+test("owner website dashboard groups metrics and avoids duplicate baseline charts", async () => {
+  const ui = await read("src/app/(app)/dashboard/website-performance/website-performance-trends.tsx");
+  const helper = await read("src/lib/website-performance-trends.ts");
+  const page = await read("src/app/(app)/dashboard/website-performance/page.tsx");
+  assert.match(ui, /Website in Google Search/);
+  assert.match(ui, /Google Business Listing/);
+  assert.match(ui, /comparableTrends\.length \?/);
+  assert.match(ui, /\.length >= 2/);
+  assert.match(ui, /disabled=\{!years\.length\}/);
+  assert.match(ui, /Data through/);
+  assert.match(ui, /Last imported/);
+  assert.match(ui, /Monthly snapshot:/);
+  assert.match(ui, /reporting baseline/);
+  assert.doesNotMatch(ui, /No comparable previous month data/);
+  assert.match(helper, /subtitle: "Search impressions"/);
+  assert.match(helper, /decimals: 1/);
+  assert.match(page, /Data Imports &amp; History/);
+  assert.match(page, /Manage reporting imports/);
+  assert.match(page, /<GoogleReportUpload \/>/);
+  assert.match(page, /Manual entry \(fallback\)/);
+});

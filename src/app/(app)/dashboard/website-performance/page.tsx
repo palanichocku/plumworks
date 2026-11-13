@@ -61,9 +61,10 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
           </table>
         </div> : <p className="text-sm text-slate-500">No reporting records from October 2026 onward.</p>}
       </div>
-    </details> : null}
-    {mayEdit ? <GoogleReportUpload /> : null}
-    {mayEdit ? <details className="rounded-2xl border border-slate-200 bg-white p-6"><summary className="cursor-pointer text-lg font-black">Manual entry (fallback)</summary><h2 className="mt-4 text-xl font-black">Enter a Google measurement snapshot</h2>
+      <div className="space-y-4 border-t border-slate-200 p-5">
+        <h3 className="text-sm font-black text-slate-800">Manage reporting imports</h3>
+    <GoogleReportUpload />
+    <details className="rounded-2xl border border-slate-200 bg-white p-6"><summary className="cursor-pointer text-lg font-black">Manual entry (fallback)</summary><h2 className="mt-4 text-xl font-black">Enter a Google measurement snapshot</h2>
       <p className="mt-2 text-sm text-slate-600">For OWNER/ADMIN only. Use Google-exported totals, one exact date range per record. Leave unknown fields empty rather than typing zero. Saving the same source and period replaces its prior snapshot.</p>
       <form action={saveMarketingSnapshot} className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-bold">Source<select name="source" required className="mt-2 w-full rounded-lg border p-3"><option value="GBP">Google Business Profile</option><option value="GSC">Google Search Console</option></select></label>
@@ -75,7 +76,9 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
         <p className="sm:col-span-2 border-b pb-2 text-sm font-black text-slate-700">Search Console metrics (ignored when source is Business Profile)</p>
         {([["clicks", "Organic clicks"],["impressions", "Impressions"],["ctr", "Average CTR (%)"],["averagePosition", "Average position"]] as const).map(([key, label]) => <label key={key} className="text-sm font-semibold">{label}<input name={key} min={0} type="number" step={key === "ctr" || key === "averagePosition" ? "0.1" : "1"} className="mt-1 block w-full rounded-lg border p-3"/></label>)}
         <button type="submit" className="sm:col-span-2 rounded-xl bg-orange-600 px-6 py-3 font-black text-white hover:bg-orange-700">Save snapshot</button>
-      </form></details> : null}
+      </form></details>
+      </div>
+    </details> : null}
     <p className="text-xs text-slate-500">Google metrics are sourced from imported reports. Call interactions and direction requests are not independently verified calls or shop visits. Customer conversion and attributed revenue are tracked separately in PlumWorks.</p>
   </div>;
 }
