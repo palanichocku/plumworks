@@ -18,7 +18,7 @@ async function validatedFile(form: FormData) {
   // Match the tenant's configured shop, allowing harmless corporate suffix differences.
   // Never trust a Google store report from a different business in this tenant.
   const expectedShop = await prisma.shop.findUnique({ where: { id: (await googleReportAccess()).shopId }, select: { name: true } });
-  const normalized = (value: string) => value.toLowerCase().replace(/\\b(llc|inc|ltd)\\b/g, "").replace(/[^a-z0-9]/g, "");
+  const normalized = (value: string) => value.toLowerCase().replace(/\b(llc|inc|ltd)\b/g, "").replace(/[^a-z0-9]/g, "");
   if (report.source === "GBP" && (!expectedShop || normalized(report.businessName ?? "") !== normalized(expectedShop.name))) {
     throw new Error("This Business Profile report does not match your shop.");
   }
