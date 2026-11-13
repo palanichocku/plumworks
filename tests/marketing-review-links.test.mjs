@@ -30,3 +30,38 @@ test("only trusted HTTPS Google review destinations replace the Google profile f
   for (const unsafe of ["http://www.google.com/review", "https://google.com.evil.test/", "javascript:alert(1)", "https://user:pass@google.com/review"])
     assert.equal(getReviewLinks(carDoc, unsafe).leaveGoogle, getReviewLinks(carDoc).google);
 });
+
+
+test("Car Doc public review preview is dev-branch-only, opt-in, and tied to the synthetic shop", () => {
+  const synthetic = { name: "Car Doc Development", addressLine1: "100 Test Drive", city: "Test City", state: "MI", phone: "555-0100" };
+  const old = {
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF,
+    PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW: process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW,
+  };
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_REF = "dev";
+    process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "true";
+    const links = getReviewLinks(synthetic);
+    assert.match(links.google, /query_place_id=ChIJ6c7M8uXcJIgRB8kgW2jUZ9A/);
+    assert.match(links.google, /Car%20Doc/);
+    assert.equal(links.facebook, "https://www.facebook.com/subbuscardoc/");
+
+    process.env.VERCEL_ENV = "production";
+    assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_REF = "other-branch";
+    assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
+    process.env.VERCEL_GIT_COMMIT_REF = "dev";
+    process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "false";
+    assert.deepEqual(getReviewLinks(synthetic), { google: null, facebook: null, leaveGoogle: null });
+    process.env.PLUMWORKS_DEV_CARDOC_REVIEW_PREVIEW = "true";
+    assert.deepEqual(getReviewLinks({ ...synthetic, phone: "555-0111" }), { google: null, facebook: null, leaveGoogle: null });
+  } finally {
+    for (const [key, value] of Object.entries(old)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
