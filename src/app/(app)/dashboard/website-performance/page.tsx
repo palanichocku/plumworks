@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/permissions";
 import { saveMarketingSnapshot } from "./actions";
 import { GoogleReportUpload } from "./google-report-upload";
 import { WebsitePerformanceTrends } from "./website-performance-trends";
+import { Ga4VisitorPanel } from "./ga4-visitor-panel";
 
 export const dynamic = "force-dynamic";
 const reportingStart = "2026-10-01";
@@ -27,6 +28,7 @@ export default async function WebsitePerformancePage({ searchParams }: { searchP
       id: row.id, source: row.source, periodStart: date(row.periodStart), periodEnd: date(row.periodEnd),
       partial: row.partial, metrics: row.metrics as Record<string, unknown>, recordedAt: row.recordedAt.toISOString(),
     }))} />
+    <Ga4VisitorPanel />
     {mayEdit ? <details className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <summary className="cursor-pointer bg-slate-50 p-5 font-black text-slate-900">Data Imports &amp; History</summary>
       <div className="border-t border-slate-200 p-5">
