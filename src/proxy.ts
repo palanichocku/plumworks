@@ -6,7 +6,7 @@ import { resolveCardocLegacyRedirect } from "@/lib/cardoc-legacy-redirects";
 const PUBLIC_WEBSITE_HOST = "www.subbuscardoc.com";
 const PRODUCTION_APP_HOST = "app.subbuscardoc.com";
 
-const publicMarketingPaths = new Set(["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services", "/terms"]);
+const publicMarketingPaths = new Set(["/", "/about", "/appointment", "/contact", "/coupons", "/drop-off", "/photos", "/privacy", "/reviews", "/services", "/warranty", "/terms"]);
 const publicAppPaths = new Set(["/login", "/forgot-password", "/auth/callback", "/update-password", "/invite"]);
 const protectedAppPrefixes = ["/dashboard", "/leads", "/customers", "/vehicles", "/repair-orders", "/open-orders", "/invoices", "/accounts-receivable", "/reports", "/search", "/help", "/admin", "/settings"];
 
@@ -125,6 +125,7 @@ export const config = {
     "/photos",
     "/privacy",
     "/reviews",
+    "/warranty",
     "/services/:path*",
     "/terms",
     "/authorize/repair-order/:path*",
