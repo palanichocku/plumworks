@@ -31,6 +31,6 @@ test("owner report labels incomplete periods, before/after sample size, and hist
   assert.match(page,/September 23/);
   assert.match(page,/2026-10-01/);
   assert.match(page,/find\(\(row\) => !row\.partial\)/);
-  assert.match(page,/3 pre/);
+  assert.match(page,/Based on \{values\.length\} pre/);
   assert.match(page,/website migration caused/);
 });
