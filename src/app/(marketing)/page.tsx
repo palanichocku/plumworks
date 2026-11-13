@@ -7,7 +7,7 @@ import { ReviewPlatformIcon } from "@/components/marketing/review-platform-icon"
 import { TrackedCallLink } from "@/components/marketing/tracked-call-link";
 import { WarrantyTrustSection } from "@/components/marketing/warranty-trust-section";
 import { getPublicShop, phoneHref, shopAddress } from "@/lib/marketing";
-import { getReviewLinks } from "@/lib/marketing-review-links";
+import { carDocReviewPreviewEnabled, getReviewLinks } from "@/lib/marketing-review-links";
 import { getMarketingAboutOwner, getMarketingCoupons, getMarketingMedia, getMarketingServices, getMarketingSettings, getMarketingTestimonials } from "@/lib/marketing-content";
 import { autoRepairJsonLd, getPublicSeoShop, localTitle, marketingMetadata, safeJsonLd } from "@/lib/marketing-seo";
 
@@ -72,7 +72,8 @@ export default async function MarketingHome() {
       <div className="mx-auto grid max-w-7xl gap-9 px-4 py-14 sm:px-6 sm:py-16 lg:grid-cols-[.85fr_1.15fr] lg:items-center lg:gap-14 lg:px-8">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Customer experiences</p>
-          <h2 id="customer-voices-title" className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">What drivers say about {seoShop.name}</h2>
+          <h2 id="customer-voices-title" className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">What drivers say about {carDocReviewPreviewEnabled(shop) ? "Car Doc" : seoShop.name}</h2>
+          {carDocReviewPreviewEnabled(shop) ? <p className="mt-3 text-xs font-bold text-amber-300">Development preview: links to Car Doc&apos;s real public review profiles</p> : null}
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Customer feedback matters when choosing a repair shop. Explore independent reviews and recommendations from drivers who have visited us.</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
             <AttributionLink href="/appointment" className={`rounded-xl bg-orange-500 px-5 py-3.5 text-center font-black text-slate-950 transition hover:bg-orange-400 ${focusRing}`}>Request Service</AttributionLink>
