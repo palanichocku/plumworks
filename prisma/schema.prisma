@@ -114,6 +114,7 @@ model Shop {
   staffInvites                          StaffInvite[]
   marketingLeadNotifications            MarketingLeadNotification[]
   publicLeadSubmissions                 PublicLeadSubmission[]
+  marketingPerformanceSnapshots         MarketingPerformanceSnapshot[]
   marketingLeads                        MarketingLead[]
   marketingSettings                     MarketingSetting?
   marketingPages                        MarketingPage[]
@@ -997,4 +998,27 @@ model SystemHealthQuerySample {
   @@id([snapshotId, dbId, userId, queryId])
   @@index([dbId, userId, queryId], map: "system_health_query_samples_query_idx")
   @@map("system_health_query_samples")
+}
+
+/**
+ * Google marketing data is stored as independently sourced reporting snapshots.
+ * A snapshot covers an exact [start, end] date range; it is not a lead or invoice.
+ * Never sum overlapping snapshots or infer month values from multi-month totals.
+ */
+model MarketingPerformanceSnapshot {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  source      String
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+  metrics     Json
+  partial     Boolean  @default(false)
+  notes       String?
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, source, periodStart, periodEnd], map: "marketing_performance_snapshot_identity")
+  @@index([shopId, source, periodStart], map: "marketing_performance_snapshots_shop_source_start_idx")
+  @@map("marketing_performance_snapshots")
 }
