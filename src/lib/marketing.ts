@@ -4,6 +4,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { marketingContentTablesAvailable } from "@/lib/marketing-schema";
 import { getMarketingContentPreview } from "@/lib/marketing-content-preview";
+import { cardocDevPublicMarketingParityEnabled, cardocDevPublicShopDetails } from "@/lib/cardoc-dev-public-marketing-parity";
 
 export type PublicShop = {
   id: string | null;
@@ -32,7 +33,7 @@ export const getPublicShop = cache(async (): Promise<PublicShop> => {
     } catch {
       databaseHours = null;
     }
-    return { ...shops[0], hours: previewHours || databaseHours || process.env.PLUMWORKS_PUBLIC_HOURS?.trim() || "Monday–Friday, 8:00 AM–5:30 PM" };
+    return { ...shops[0], ...(cardocDevPublicMarketingParityEnabled() ? cardocDevPublicShopDetails : {}), hours: previewHours || databaseHours || process.env.PLUMWORKS_PUBLIC_HOURS?.trim() || "Monday–Friday, 8:00 AM–5:30 PM" };
   } catch {
     return {
       id: null,
