@@ -126,7 +126,7 @@ export default async function DashboardPage() {
             <h2 id="website-performance-heading" className="mt-1 text-xl font-black tracking-tight text-slate-950">Website Performance</h2>
             <p className="mt-1 text-sm text-slate-500">This month · Web-origin customers are attributed through their linked website lead.</p>
           </div>
-          {website.canViewLeads ? <Link href="/leads" className="text-sm font-bold text-brand-primary">View leads →</Link> : null}
+          <div className="flex flex-wrap gap-4">{website.canViewLeads ? <Link href="/leads" className="text-sm font-bold text-brand-primary">View leads →</Link> : null}{membership && (membership.role === "OWNER" || membership.role === "ADMIN") ? <Link href="/dashboard/website-performance" className="text-sm font-bold text-brand-primary">Performance details →</Link> : null}</div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
             <p className="mt-2 text-xs font-semibold text-slate-500">Received this month</p>
           </article>
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Converted</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Converted from new leads</p>
             <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{website.convertedThisMonth === null ? "—" : website.convertedThisMonth}</p>
             <p className="mt-2 text-xs font-semibold text-slate-500">{website.leadsThisMonth === null ? "Lead access required" : `${website.conversionRate.toFixed(1)}% of this month's leads`}</p>
           </article>
@@ -145,9 +145,9 @@ export default async function DashboardPage() {
             <p className="mt-2 text-xs font-semibold text-slate-500">Customers acquired from the website</p>
           </article>
           <article className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">Website Revenue</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">WEB-customer revenue</p>
             <p className="mt-4 text-3xl font-black tracking-tight text-emerald-800">{formatMoney(website.paidThisMonth)}</p>
-            <p className="mt-2 text-xs font-semibold text-emerald-700">Paid · {formatMoney(website.billedThisMonth)} billed</p>
+            <p className="mt-2 text-xs font-semibold text-emerald-700">WEB-tagged customers · Paid {formatMoney(website.paidThisMonth)} · Billed {formatMoney(website.billedThisMonth)}</p>
           </article>
         </div>
       </section>
